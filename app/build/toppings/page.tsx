@@ -2,12 +2,12 @@
 
 import { GroupHeader, StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
-import { PLACEMENTS, TOPPINGS } from "@/lib/catalog";
+import { TOPPINGS } from "@/lib/catalog";
 import { deltaFor } from "@/lib/pricing";
 import { formatDelta } from "@/lib/format";
 import type { Topping, ToppingPlacement } from "@/lib/schema";
 import { useConfig, useSetConfig } from "@/lib/store";
-import { btn, cardState, optionText } from "@/lib/ui";
+import { cardState, optionText } from "@/lib/ui";
 
 const MAX = 4;
 
@@ -15,11 +15,12 @@ const MAX = 4;
  * Toppings are the one multi-select step, and the only one where a choice has
  * settings of its own.
  *
- * Placement was a native <select> and density a range slider — two controls
- * that hide their current value behind an interaction, on a step whose entire
- * point is that you can see the effect immediately. They are five pills and
- * five dots: the state is the picture, and every target clears 44px including
- * Remove, which was an 18px underlined text link.
+ * Those settings are no longer here. Placement and density were five pills and
+ * five dots at the bottom of this column, under a twelve-card picker, which put
+ * them below the fold on every viewport — so the two controls whose entire value
+ * is watching the cake change were the two you could not see the cake from. They
+ * are a bar on the render now; see builder/ToppingBar. What is left is the pick,
+ * which is what a step is for.
  */
 export default function ToppingsStep() {
   const config = useConfig();
@@ -38,9 +39,6 @@ export default function ToppingsStep() {
       toppings: [...chosen, { kind, placement: "top-scatter" as ToppingPlacement, density: 3 }],
     });
   };
-
-  const update = (i: number, patch: Partial<(typeof chosen)[number]>) =>
-    set({ toppings: chosen.map((t, n) => (n === i ? { ...t, ...patch } : t)) });
 
   return (
     <div className="flex flex-col gap-7">
@@ -109,94 +107,12 @@ export default function ToppingsStep() {
         )}
       </div>
 
-      <section>
-        <GroupHeader
-          title="Placement and density"
-          hint="Where each topping sits, and how much of it."
-        />
-
-        {chosen.length === 0 ? (
-          <p className="rounded-card border border-dashed border-rule-strong bg-sunken px-4 py-5 text-meta text-steel">
-            No toppings yet. Plenty of cakes don&rsquo;t need any.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2.5">
-            {chosen.map((t, i) => {
-              const meta = TOPPINGS.find(x => x.value === t.kind)!;
-              return (
-                <li
-                  key={`${t.kind}-${i}`}
-                  className="flex flex-col gap-3 rounded-card border border-rule bg-paper px-4 py-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      aria-hidden
-                      className="size-5 shrink-0 rounded-full shadow-[inset_0_0_0_1px_rgb(23_22_26/0.18)]"
-                      style={{ background: meta.swatch }}
-                    />
-                    <span className="min-w-0 flex-1 text-item font-medium">{meta.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggle(t.kind)}
-                      aria-label={`Remove ${meta.name}`}
-                      className={btn("quiet", "md", "px-3.5 text-meta")}
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  <div role="group" aria-label={`${meta.name} placement`} className="flex flex-wrap gap-1.5">
-                    {PLACEMENTS.map((p) => {
-                      const on = t.placement === p.value;
-                      return (
-                        <button
-                          key={p.value}
-                          type="button"
-                          onClick={() => update(i, { placement: p.value })}
-                          aria-pressed={on}
-                          className={[
-                            "flex min-h-9 items-center rounded-full border px-3.5 text-meta",
-                            "transition-colors duration-[--dur-ui] ease-[--ease-out]",
-                            on
-                              ? "border-ink bg-ink text-paper"
-                              : "border-rule bg-paper text-steel hover:border-rule-strong hover:text-ink",
-                          ].join(" ")}
-                        >
-                          {p.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div role="group" aria-label={`${meta.name} density`} className="flex items-center gap-3">
-                    <span className="font-mono text-micro tracking-[0.14em] text-steel">
-                      DENSITY
-                    </span>
-                    <div className="flex gap-1.5">
-                      {[1, 2, 3, 4, 5].map((d) => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => update(i, { density: d })}
-                          aria-pressed={d === t.density}
-                          aria-label={`Density ${d} of 5`}
-                          className={[
-                            "size-[26px] rounded-full transition-colors duration-[--dur-tap]",
-                            d <= t.density ? "bg-ink" : "bg-rule hover:bg-rule-strong",
-                          ].join(" ")}
-                        />
-                      ))}
-                    </div>
-                    <span className="ml-auto font-mono text-micro text-steel tabular-nums">
-                      {t.density}/5
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      {chosen.length > 0 && (
+        <p className="rounded-card border border-dashed border-rule-strong bg-sunken px-4 py-3.5 text-meta text-steel">
+          Placement and density sit on the preview, so the cake changes while you
+          set them.
+        </p>
+      )}
 
       <ViolationCard field="toppings" />
     </div>

@@ -19,6 +19,17 @@ const ROUTES = [
   ["/kitchen", "kitchen board"],
 ] as const;
 
+/** Violations as lines a person can act on, rather than an object dump. */
+async function violations(page: import("@playwright/test").Page) {
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+
+  return results.violations.map(v =>
+    `${v.id} (${v.impact}) — ${v.help}\n    ${v.nodes.map(n => n.target.join(" ")).join("\n    ")}`,
+  );
+}
+
 test.describe("accessibility", () => {
   for (const [route, name] of ROUTES) {
     test(`${name} has no WCAG A/AA violations`, async ({ page }) => {
@@ -26,16 +37,28 @@ test.describe("accessibility", () => {
       await page.waitForSelector("canvas, main");
       await page.waitForTimeout(1500);
 
-      const results = await new AxeBuilder({ page })
-        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-        .analyze();
-
-      const summary = results.violations.map(v =>
-        `${v.id} (${v.impact}) — ${v.help}\n    ${v.nodes.map(n => n.target.join(" ")).join("\n    ")}`,
-      );
+      const summary = await violations(page);
       expect(summary, summary.join("\n")).toEqual([]);
     });
   }
+
+  /*
+   * The route above visits the toppings step with nothing chosen, so the one
+   * control that lives on the render is never in the DOM when axe looks at it.
+   * It is a swatch, two strips of pills and a slider over a translucent panel —
+   * exactly the shape of thing that fails contrast — so it gets its own pass,
+   * with two toppings chosen so the tab strip is in it as well.
+   */
+  test("the topping bar on the render has no WCAG A/AA violations", async ({ page }) => {
+    await page.goto("/build/toppings");
+    await page.waitForSelector("canvas");
+    await page.getByRole("button", { name: /^Strawberry/ }).click();
+    await page.getByRole("button", { name: /^Mixed Berry/ }).click();
+    await expect(page.getByRole("slider", { name: "Mixed Berry density" })).toBeVisible();
+
+    const summary = await violations(page);
+    expect(summary, summary.join("\n")).toEqual([]);
+  });
 
   test("the builder can be driven with the keyboard alone", async ({ page }) => {
     await page.goto("/build/shape");

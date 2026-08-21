@@ -54,7 +54,9 @@ test("a stranger can build a cake, be corrected, and get an order reference", as
   // Toppings
   await page.getByRole("link", { name: "Toppings →" }).click();
   await page.getByRole("button", { name: /^Strawberry/ }).click();
-  await expect(page.getByRole("listitem")).toHaveCount(1);
+  // The chosen topping's settings are on the render now, not in a list under the
+  // picker — see builder/ToppingBar. The slider existing is the proof it landed.
+  await expect(page.getByRole("slider", { name: "Strawberry density" })).toBeVisible();
 
   // Message
   await page.getByRole("link", { name: "Message →" }).click();

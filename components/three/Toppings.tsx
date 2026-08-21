@@ -27,6 +27,16 @@ interface Placed {
   scale: number;
 }
 
+/** What a placement can tell `drop` about how a piece should sit. See `aimed`. */
+interface Aim {
+  /** Spread of the per-piece scale variation. Default 0.18. */
+  jitter?: number;
+  /** Turn about the vertical, for pieces laid along a line. */
+  yaw?: number;
+  /** Azimuth of the wall to lay the piece against, instead of on the top. */
+  wall?: number;
+}
+
 /** Density 1..5 maps to a count, scaled by how much surface there is to fill. */
 function countFor(spec: ToppingSpec, radius: number, size: number): number {
   const linear = spec.placement === "base-border"
@@ -83,25 +93,78 @@ function place(
   const out: Placed[] = [];
 
   /*
-   * Y for a piece resting on a surface at `surfaceY`.
+   * Where a piece's origin goes when it rests against a surface at `at`.
    *
    * Its own bottom is put on the surface and then pressed in by `sink` of its own
    * height. This replaces a flat `surfaceY + size * 0.4` shared by all twelve
    * garnishes, which floated the short ones and buried the tall ones.
+   *
+   * Read as a height for everything that sits on the top or the board, and as a
+   * *radius* by the cascade, which rests its pieces against the wall. Same
+   * relationship either way: a surface, and a body pressed into it.
    */
-  const seat = (surfaceY: number) =>
-    surfaceY - (geo.bottom + geo.height * geo.sink) * size;
+  const seat = (at: number) => at - (geo.bottom + geo.height * geo.sink) * size;
 
-  const drop = (x: number, y: number, z: number, scaleJitter = 0.18) => {
+  /**
+   * How a flat piece is aimed. A piece that is dropped at a random angle is not
+   * aimed at all, and that was the only option.
+   *
+   * `yaw` turns it about the vertical, for the placements that run along a line.
+   * A halved strawberry is nearly three times as long as it is wide, so a
+   * broadside one eats three times the arc of an end-on one: the spacing
+   * `countFor` reserves is right on average and wrong for every actual pair,
+   * which is why neighbours collided in some places and left gaps in others. And
+   * a baker laying fruit round a cake points it *round* the cake. A little
+   * deviation is kept, because a ring where every nose sits at the same angle is
+   * a machined pattern rather than a hand-laid one.
+   *
+   * `wall` lays it against the *side* of the cake at that azimuth instead of on
+   * top of it, which is what a cascade needs. `flat` means "sits on the surface
+   * rather than dropped at an angle", and every placement read that as *the top*
+   * surface — so on the wall the cut face stayed horizontal and a halved
+   * strawberry stuck straight out like a shelf. Harmless while a garnish was
+   * 15mm; unmissable at life size.
+   *
+   * YXZ order, so each of the three angles does exactly one thing. `z` stands the
+   * piece up against the wall — a quarter turn, plus a couple of degrees, because
+   * fruit pressed on by hand is never perfectly flush. `x` then spins it within
+   * the plane of the wall, which is where the variation belongs: some pieces
+   * vertical, some at an angle, every one of them still touching the frosting.
+   * `y` carries the result round to its azimuth. In the default XYZ order those
+   * two roles swap and interact, and a wide `x` becomes garnish peeling off the
+   * side of the cake.
+   */
+  const aimed = (aim: Aim) => {
+    if (!flat) {
+      return new THREE.Euler(rng() * Math.PI * 2, rng() * Math.PI * 2, rng() * Math.PI * 2);
+    }
+    if (aim.wall !== undefined) {
+      return new THREE.Euler(
+        (rng() - 0.5) * 1.1,
+        -aim.wall,
+        -Math.PI / 2 + (rng() - 0.5) * 0.24,
+        "YXZ",
+      );
+    }
+    return new THREE.Euler(
+      (rng() - 0.5) * 0.24,
+      aim.yaw === undefined ? rng() * Math.PI * 2 : aim.yaw + (rng() - 0.5) * 0.34,
+      (rng() - 0.5) * 0.24,
+    );
+  };
+
+  const drop = (x: number, y: number, z: number, aim: Aim = {}) => {
     if (blocked(x, z, keepOff, sector)) return;
+    const jitter = aim.jitter ?? 0.18;
     out.push({
       position: new THREE.Vector3(x, y, z),
-      rotation: flat
-        ? new THREE.Euler((rng() - 0.5) * 0.24, rng() * Math.PI * 2, (rng() - 0.5) * 0.24)
-        : new THREE.Euler(rng() * Math.PI * 2, rng() * Math.PI * 2, rng() * Math.PI * 2),
-      scale: size * (1 - scaleJitter / 2 + rng() * scaleJitter),
+      rotation: aimed(aim),
+      scale: size * (1 - jitter / 2 + rng() * jitter),
     });
   };
+
+  /** Yaw that lays a piece's +x along the ring at angle `a`. */
+  const tangent = (a: number) => -(a + Math.PI / 2);
 
   const n = Math.min(
     limit,
@@ -113,12 +176,21 @@ function place(
       const r0 = topR * 0.74;
       const y = seat(topY);
       for (let i = 0; i < n; i++) {
-        // Angular jitter up from 0.5 to 1.1, plus radial jitter, which the ring had
-        // none of. A hand laying fruit round a cake does not hit a fixed radius to
-        // the millimetre, and a ring that does reads as a machined pattern.
-        const a = (i / n) * Math.PI * 2 + (rng() - 0.5) * (Math.PI / n) * 1.1;
+        /*
+         * Angular jitter back down to 0.5, and radial jitter doing the work it was
+         * raised to 1.1 to do.
+         *
+         * The point of the jitter is that a hand laying fruit round a cake does not
+         * hit a fixed radius or a fixed spacing. But `countFor` reserves an arc per
+         * piece and angular jitter spends it: at 1.1 a piece could move half the gap
+         * to its neighbour, so on the ring where it mattered — a topping laid along
+         * the circle rather than spun at random — neighbours ran into each other.
+         * Radial jitter and the yaw deviation in `drop` break the pattern without
+         * touching the spacing.
+         */
+        const a = (i / n) * Math.PI * 2 + (rng() - 0.5) * (Math.PI / n) * 0.5;
         const r = r0 * (1 + (rng() - 0.5) * 0.07);
-        drop(Math.cos(a) * r, y, Math.sin(a) * r);
+        drop(Math.cos(a) * r, y, Math.sin(a) * r, { yaw: tangent(a) });
       }
       break;
     }
@@ -127,9 +199,9 @@ function place(
       const r0 = surfaceRadius(shapeAt(0), bottom.radius) + size * 0.55;
       const y = seat(0);
       for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2 + (rng() - 0.5) * (Math.PI / n) * 1.1;
+        const a = (i / n) * Math.PI * 2 + (rng() - 0.5) * (Math.PI / n) * 0.5;
         const r = r0 * (1 + (rng() - 0.5) * 0.05);
-        drop(Math.cos(a) * r, y, Math.sin(a) * r);
+        drop(Math.cos(a) * r, y, Math.sin(a) * r, { yaw: tangent(a) });
       }
       break;
     }
@@ -142,9 +214,15 @@ function place(
         const count = Math.max(1, Math.round((Math.PI * 2 * rr) / (size * 1.5)));
         for (let i = 0; i < count && placed < n; i++) {
           const a = (i / count) * Math.PI * 2 + ring * 0.7;
-          // A pile: each ring steps up by most of a piece's height, so the layer
-          // above rests in the gaps of the one below rather than hovering over it.
-          drop(Math.cos(a) * rr, seat(topY) + size * geo.height * ring * 0.72, Math.sin(a) * rr);
+          /*
+           * A pile: each ring steps up by most of a piece's *visible* height, so
+           * the layer above rests in the gaps of the one below rather than
+           * hovering over it. Visible, not total — a piece seated at `sink` 0.5
+           * has half its body inside the frosting, and stepping by the whole of
+           * it put a berry's worth of air between every layer.
+           */
+          const step = size * geo.height * (1 - geo.sink) * ring * 0.72;
+          drop(Math.cos(a) * rr, seat(topY) + step, Math.sin(a) * rr);
           placed++;
         }
       }
@@ -160,8 +238,17 @@ function place(
         const y = topY - t * totalH * 0.85;
         let ti = 0;
         for (let k = 0; k < tiers.length; k++) if (y >= tiers[k].y) ti = k;
-        const r = surfaceRadius(shapeAt(ti), tiers[ti].radius) + size * 0.45;
-        drop(Math.cos(a) * r, Math.max(seat(0), y), Math.sin(a) * r, 0.32);
+        /*
+         * `seat` against the wall rather than `+ size * 0.45` outside it. That
+         * offset was 45% of a piece's size whatever the piece was, which for
+         * anything wider than it was deep left the garnish hanging clear of the
+         * frosting with a shadow under it. Seating it presses each one into the
+         * wall by the same fraction of its own body that the top would.
+         */
+        const r = seat(surfaceRadius(shapeAt(ti), tiers[ti].radius));
+        drop(Math.cos(a) * r, Math.max(seat(0), y), Math.sin(a) * r, {
+          jitter: 0.32, wall: a,
+        });
       }
       break;
     }
