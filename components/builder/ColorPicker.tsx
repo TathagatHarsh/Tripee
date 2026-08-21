@@ -7,64 +7,97 @@ interface Props {
   value: string;
   onChange: (hex: string) => void;
   palette: { name: string; hex: string }[];
+  /**
+   * The group heading above already says "Frosting colour", and printing it
+   * again directly underneath is the label appearing twice in eight vertical
+   * pixels. The name still reaches assistive tech.
+   */
+  labelHidden?: boolean;
 }
 
 /**
  * The UI shows the colour the customer picked; the render shows the one a
  * kitchen can actually mix. Saying so out loud is more honest than quietly
  * desaturating it behind their back.
+ *
+ * The swatches were 36px circles with the name hidden in a `title` attribute,
+ * so choosing a colour meant hovering twelve dots to find out what they were
+ * called — and on a touch screen, not finding out at all. They are named
+ * tiles now, in the same six-column grid the design specifies, and the name is
+ * the button's accessible name rather than a tooltip.
  */
-export function ColorPicker({ label, value, onChange, palette }: Props) {
+export function ColorPicker({ label, value, onChange, palette, labelHidden }: Props) {
   const clamped = wasClamped(value);
+  const current = value.toLowerCase();
 
   return (
     <div>
-      <div className="mb-2 flex items-baseline justify-between">
-        <span className="text-meta text-steel">
-          {label}
-        </span>
-        <span className="font-mono text-micro tabular-nums text-steel">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <span className={labelHidden ? "sr-only" : "text-meta text-steel"}>{label}</span>
+        <span className="font-mono text-micro tracking-[0.06em] text-steel tabular-nums">
           {value.toUpperCase()}
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {palette.map((p) => (
-          <button
-            key={p.hex}
-            type="button"
-            onClick={() => onChange(p.hex)}
-            aria-pressed={value.toLowerCase() === p.hex.toLowerCase()}
-            title={p.name}
-            className={[
-              "size-9 rounded-full border-2 transition-transform",
-              value.toLowerCase() === p.hex.toLowerCase()
-                ? "border-ink scale-110"
-                : "border-black/10 hover:scale-105",
-            ].join(" ")}
-            style={{ background: p.hex }}
-          >
-            <span className="sr-only">{p.name}</span>
-          </button>
-        ))}
+      <div className="grid grid-cols-4 gap-2.5 @md:grid-cols-6">
+        {palette.map((p) => {
+          const on = current === p.hex.toLowerCase();
+          return (
+            <button
+              key={p.hex}
+              type="button"
+              onClick={() => onChange(p.hex)}
+              aria-pressed={on}
+              className="flex flex-col items-center gap-[7px]"
+            >
+              <span
+                aria-hidden
+                className={[
+                  "h-[46px] w-full rounded-[6px] transition-shadow duration-[--dur-ui]",
+                  on
+                    ? "shadow-[inset_0_0_0_2px_#FDFCFA,0_0_0_2px_#17161A]"
+                    : "shadow-[inset_0_0_0_1px_#8E887A]",
+                ].join(" ")}
+                style={{ background: p.hex }}
+              />
+              <span
+                className={[
+                  "text-center text-[0.71875rem] leading-tight",
+                  on ? "font-semibold text-ink" : "text-steel",
+                ].join(" ")}
+              >
+                {p.name}
+              </span>
+            </button>
+          );
+        })}
 
-        <label className="flex size-9 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-steel/50 hover:border-ink">
+        {/* Anything the palette does not cover. Same tile, dashed. */}
+        <label className="flex cursor-pointer flex-col items-center gap-[7px]">
+          <span
+            aria-hidden
+            className="grid h-[46px] w-full place-items-center rounded-[6px] border border-dashed border-rule-strong text-steel"
+          >
+            +
+          </span>
+          <span className="text-center text-[0.71875rem] leading-tight text-steel">
+            Custom
+          </span>
           <input
             type="color"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="size-0 opacity-0"
+            className="sr-only"
             aria-label={`${label} — custom colour`}
           />
-          <span aria-hidden className="font-mono text-body leading-none text-steel">+</span>
         </label>
       </div>
 
       {clamped && (
-        <p className="mt-2 flex items-start gap-2 text-meta leading-snug text-steel">
+        <p className="mt-3 flex items-start gap-2.5 text-meta leading-snug text-steel">
           <span
             aria-hidden
-            className="mt-0.5 size-4 shrink-0 rounded-full border border-black/10"
+            className="mt-0.5 size-4 shrink-0 rounded-[4px] shadow-[inset_0_0_0_1px_rgb(23_22_26/0.16)]"
             style={{ background: achievable(value) }}
           />
           <span>{clampReason(value)}</span>

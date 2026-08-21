@@ -1,26 +1,34 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Inter, Martian_Mono } from "next/font/google";
+import { Instrument_Sans, Instrument_Serif, Martian_Mono } from "next/font/google";
 import "./globals.css";
 
-const bricolage = Bricolage_Grotesque({
+// Display only, title and up. One weight, one italic — the italic is the second
+// half of a headline, and it is the whole of the typographic hierarchy above
+// 26px. A variable-width grotesque needed a wdth axis and a 600 cut to look
+// deliberate at all; this needs neither.
+const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
-  variable: "--font-bricolage",
+  variable: "--font-instrument-serif",
   display: "swap",
+  weight: ["400"],
+  style: ["normal", "italic"],
 });
 
-const inter = Inter({
+// Everything a customer reads to make a decision. 400 and 500, with 600 for
+// group headings and nothing above it.
+const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-instrument-sans",
   display: "swap",
 });
 
 // Martian Mono over JetBrains Mono deliberately — it reads as a receipt rather
-// than as code.
+// than as code. Two weights ship: 400 for docket lines, 700 for a total.
 const martian = Martian_Mono({
   subsets: ["latin"],
   variable: "--font-martian",
   display: "swap",
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
@@ -35,7 +43,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#E8E6E1",
+  themeColor: "#E9E7E2",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -43,7 +51,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-IN" className={`${bricolage.variable} ${inter.variable} ${martian.variable}`}>
+    <html
+      lang="en-IN"
+      className={`${instrumentSerif.variable} ${instrumentSans.variable} ${martian.variable}`}
+    >
       <body className="min-h-dvh bg-slab text-ink antialiased">{children}</body>
     </html>
   );

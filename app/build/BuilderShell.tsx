@@ -2,42 +2,51 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { buildDocket } from "@/lib/docket";
 import { formatINR } from "@/lib/format";
 import { LazyCakeScene, SceneSkeleton } from "@/components/three/LazyCakeScene";
-import { Docket, DocketTotal } from "@/components/docket/Docket";
-import { StepNav } from "@/components/builder/StepNav";
+import { Docket } from "@/components/docket/Docket";
+import { PhaseMeters, StepFooter, StepNav, useStepPosition } from "@/components/builder/StepNav";
 import { UndoBar } from "@/components/builder/UndoBar";
 import { useConfig, useHydrated } from "@/lib/store";
 import { useView } from "@/lib/view";
+import { btn, eyebrow, iconBtn } from "@/lib/ui";
 
 /**
- * Desktop: canvas left, controls centre, docket pinned right, all three on
- * screen at once and each scrolling on its own. Nobody should have to scroll to
- * see the price, and the canvas must not stretch to whatever height the controls
- * happen to be.
+ * The room the cake stands in.
  *
- * Mobile: the canvas is sticky at the top and the controls live below it, so the
- * cake stays visible the whole time you are choosing.
+ * The three regions are unchanged — cake, controls, docket — and the change is
+ * entirely in how they are measured. They used to be 50% / 29% / 21% of the
+ * viewport, which at 1024px gave the docket 214px and broke AMERICAN
+ * BUTTERCREAM across four lines. The docket is now rem-locked at 20rem, the
+ * controls take a 30rem cap, and the cake pane is *bounded generous*: it gets
+ * whatever width is left. Three columns genuinely do not fit below 1280, so
+ * below that the docket becomes a sheet reached from the price — which is where
+ * a phone has always had it — rather than being crushed.
+ *
+ * The cake also gets a frame. A canvas bleeding to the edge of a pane is a
+ * preview widget; the same canvas inside an inset counter panel with 24px of
+ * camera safe area is a product shot. Nothing inside the canvas changes.
  */
 export function BuilderShell({ children }: { children: React.ReactNode }) {
   const hydrated = useHydrated();
   const config = useConfig();
   const pathname = usePathname();
-  const [sheetOpen, setSheetOpen] = useState(false);
   const sliced = useView(s => s.sliced);
   const toggleSlice = useView(s => s.toggleSlice);
+  const { phase, index, total: stepCount } = useStepPosition();
 
   const onReview = pathname.endsWith("/review");
+  const docket = hydrated ? buildDocket(config) : null;
+  const caption = hydrated ? describeCake(config) : null;
 
   /*
    * The controls column is its own scroll container. Going Next replaced its
    * contents but left the scroll position where it was, so on a phone — where
    * every step is taller than the viewport — tapping Next landed you in the
    * middle of the new step with its heading somewhere above you. It also moved
-   * no focus and announced nothing, so a screen-reader or keyboard user got no
-   * signal that the page had changed at all.
+   * no focus and announced nothing.
    */
   const controls = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -47,120 +56,264 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
     el.focus({ preventScroll: true });
   }, [pathname]);
 
-  /*
-   * The price moves on almost every tap and was never spoken. It is the number
-   * the customer is tracking through the whole flow, so it gets a polite live
-   * region — polite, not assertive, because it should not interrupt the name of
-   * the option that was just chosen.
-   */
-  const total = hydrated ? buildDocket(config).price.total : 0;
-
   return (
-    <div className="flex h-dvh min-h-0 flex-col overflow-hidden">
-      {/* One header at every width. The step nav scrolls horizontally rather
-          than wrapping, so it no longer needs a second copy hidden inside the
-          controls column below the 3D pane — which is where a phone used to
-          find it, three rows deep and after a third of a screen of cake. */}
-      <header className="shrink-0 border-b border-rule px-4 py-2.5 sm:px-6">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="shrink-0 font-mono text-body font-bold tracking-wider">
-            MAKEMYCAKE
-          </Link>
-          {/* Below xl the nav gets its own row: sharing one with undo/redo left
-              it a few pixels wide and it collapsed to nothing. */}
-          <div className="hidden min-w-0 flex-1 xl:block">
-            <StepNav />
-          </div>
-          <div className="ml-auto shrink-0 xl:ml-0">
-            <UndoBar />
-          </div>
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-slab">
+      <ShellBar reference={docket?.ref} />
+
+      {/*
+        Nine chips were nine equal siblings with a 1px hairline at 1.30:1
+        underneath them, which answered neither of the two questions a wizard
+        header owes you. They are now grouped into the four decisions they
+        actually are, with a named position and a meter per phase.
+      */}
+      <div className="hidden shrink-0 items-center gap-7 border-b border-rule bg-paper px-6 lg:flex lg:h-[78px]">
+        <div className="flex min-w-[8.25rem] flex-col gap-1">
+          <span className={eyebrow}>{phase}</span>
+          <span className="font-mono text-micro font-bold tracking-[0.1em] text-ink">
+            Step {index + 1} of {stepCount}
+          </span>
         </div>
-        <div className="mt-2 xl:hidden">
+        <div className="min-w-0 flex-1">
           <StepNav />
         </div>
-      </header>
+        <div className="w-[13.5rem] shrink-0 min-[1440px]:w-[21.25rem]">
+          <PhaseMeters />
+        </div>
+      </div>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        {/* Canvas. 42dvh on a phone was a third of the screen given to a cake
-            that has not changed since the last step, pushing the actual choices
-            below the fold on every single step. 32dvh still shows the whole
-            cake and puts the first two options on screen without a scroll. */}
-        <div className="cake-stage relative h-[32dvh] shrink-0 border-b border-rule lg:h-full lg:w-[50%] lg:border-b-0 lg:border-r">
-          {/* The 3D pane was an unlabelled, unreachable box: to anyone not
+      {/* The same two facts, one row deep, on anything narrower. */}
+      <div className="shrink-0 border-b border-rule bg-paper px-4 py-2 lg:hidden">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className={eyebrow}>{phase}</span>
+          <span className="font-mono text-micro tracking-[0.12em] text-steel">
+            Step {index + 1} of {stepCount}
+          </span>
+        </div>
+        <div className="mt-2">
+          <PhaseMeters />
+        </div>
+      </div>
+
+      <div
+        className={[
+          "flex min-h-0 flex-1 flex-col",
+          "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(23rem,30rem)]",
+          "xl:grid-cols-[minmax(26.875rem,1fr)_minmax(23rem,30rem)_20rem]",
+        ].join(" ")}
+      >
+        {/* ── The cake, on a counter ──────────────────────────────────── */}
+        <div className="shrink-0 p-3 pb-0 lg:h-full lg:min-h-0 lg:p-[22px] lg:pr-[10px]">
+          <div className="cake-stage cake-panel relative h-[39dvh] overflow-hidden rounded-panel p-4 md:h-[44dvh] lg:h-full lg:p-6">
+            {/*
+              The 3D pane was an unlabelled, unreachable box: to anyone not
               looking at it, half the product did not exist. It is a figure with
-              a caption, and the caption is the cake as currently specified.
-              The label sits on the canvas wrapper alone — putting role="img" on
-              the pane would swallow the Cut a slice button and make it a
-              nested interactive control. */}
-          <div
-            className="h-full w-full"
-            role="img"
-            aria-label={
-              hydrated
-                ? `Preview: ${describeCake(config)}`
-                : "Preview of your cake, loading"
-            }
-          >
-            {hydrated ? (
-              <LazyCakeScene config={config} autoRotate={onReview} followView />
-            ) : (
-              <SceneSkeleton />
+              a caption, and the caption is now visible as well as announced —
+              the same sentence, so the two cannot drift. The label sits on the
+              canvas wrapper alone; role="img" on the panel would swallow the
+              slice button and make it a nested interactive control.
+            */}
+            <div
+              className="h-full w-full"
+              role="img"
+              aria-label={caption ? `Preview: ${caption}` : "Preview of your cake, loading"}
+            >
+              {hydrated ? (
+                <LazyCakeScene config={config} autoRotate={onReview} followView />
+              ) : (
+                <SceneSkeleton />
+              )}
+            </div>
+
+            <span className="pointer-events-none absolute top-4 left-4 flex h-[30px] items-center gap-2 rounded-full border border-rule-strong bg-paper/85 px-3 font-mono text-micro tracking-[0.14em] text-graphite backdrop-blur-[6px] lg:top-5 lg:left-[22px]">
+              <span aria-hidden className="size-[5px] rounded-full bg-brass" />
+              LIVE 3D
+            </span>
+
+            {/* Caption and hint: desktop only, where there is room below the
+                cake that the cake does not want. */}
+            {caption && (
+              <div className="pointer-events-none absolute bottom-5 left-[22px] hidden max-w-[min(30rem,calc(100%-13rem))] flex-col gap-2 lg:flex">
+                <span className="text-meta leading-normal text-steel">{caption}</span>
+                <span className="font-mono text-micro tracking-[0.1em] text-steel">
+                  DRAG TO TURN · SCROLL TO ZOOM
+                </span>
+              </div>
+            )}
+
+            {hydrated && (
+              <button
+                type="button"
+                onClick={toggleSlice}
+                aria-pressed={sliced}
+                className={btn(
+                  sliced ? "primary" : "secondary",
+                  "md",
+                  "absolute top-4 right-4 lg:top-auto lg:right-5 lg:bottom-5",
+                )}
+              >
+                {sliced ? "Whole cake" : "Cut a slice"}
+              </button>
             )}
           </div>
-
-          {hydrated && (
-            <button
-              type="button"
-              onClick={toggleSlice}
-              aria-pressed={sliced}
-              className={[
-                "absolute bottom-3 left-3 min-h-11 rounded-md border px-3.5 text-meta font-medium",
-                "transition-colors duration-[--dur-ui] ease-[--ease-out]",
-                sliced
-                  ? "border-ink bg-ink text-paper"
-                  : "border-rule-strong bg-paper/90 text-ink hover:border-ink",
-              ].join(" ")}
-            >
-              {sliced ? "Whole cake" : "Cut a slice"}
-            </button>
-          )}
         </div>
 
-        {/* Controls */}
-        <main
-          ref={controls}
-          className="@container min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:h-full lg:w-[29%]"
-          tabIndex={-1}
-        >
-          {hydrated ? children : <ControlSkeleton />}
-        </main>
+        {/* ── The controls ────────────────────────────────────────────── */}
+        <div className="flex min-h-0 flex-1 flex-col lg:h-full lg:px-[10px]">
+          {/*
+            tabIndex={-1} makes this a target for the focus move on every step
+            change — an announcement for a screen reader, never a keyboard stop.
+            Chromium matches :focus-visible on that programmatic focus, which
+            drew a 2px ink ring around the entire controls column on arrival at
+            every step. Nobody can reach it with a keyboard, so there is nothing
+            for the ring to indicate.
+          */}
+          <main
+            ref={controls}
+            className="@container min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 focus-visible:outline-none sm:px-5 lg:px-3.5"
+            tabIndex={-1}
+          >
+            <div
+              key={pathname}
+              className="motion-safe:animate-[step-in_var(--dur-ui)_var(--ease-out)]"
+            >
+              {hydrated ? children : <ControlSkeleton />}
+            </div>
+          </main>
 
+          {/*
+            Back and Next used to scroll away with the content, so on a phone the
+            only way forward was to reach the bottom of the step first. They are
+            pinned, and on a phone the price sits between them — one 48px row
+            doing progress, total and navigation, with the home-indicator inset
+            paid for.
+          */}
+          <StepFooter
+            price={
+              hydrated && docket ? (
+                <MobileTotal total={docket.price.total} config={config} />
+              ) : null
+            }
+          />
+        </div>
+
+        {/*
+         * The price moves on almost every tap and was never spoken. Polite, not
+         * assertive, because it must not interrupt the name of the option that
+         * was just chosen.
+         */}
         <p aria-live="polite" className="sr-only">
-          {hydrated ? `Total ${formatINR(total)}` : ""}
+          {docket ? `Total ${formatINR(docket.price.total)}` : ""}
         </p>
 
-        {/* Docket — desktop */}
-        <div className="hidden lg:block lg:h-full lg:w-[21%] lg:shrink-0 lg:border-l lg:border-rule">
-          {hydrated && <Docket config={config} className="h-full rounded-none" />}
+        {/* ── The docket, from 1280 up ────────────────────────────────── */}
+        <div className="hidden xl:block xl:h-full xl:min-h-0 xl:p-[22px] xl:pl-[10px]">
+          {hydrated && <Docket config={config} className="h-full rounded-panel border border-rule" />}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Docket — mobile. Pinned above the fold, never scrolled past. */}
-      <div className="shrink-0 lg:hidden">
-        {sheetOpen && hydrated && (
-          <div className="max-h-[40dvh] overflow-y-auto border-t border-rule">
-            <Docket config={config} className="rounded-none border-0" />
-          </div>
-        )}
-        {hydrated && (
-          <DocketTotal
-            config={config}
-            expanded={sheetOpen}
-            onExpand={() => setSheetOpen(v => !v)}
-          />
+/** MAKEMYCAKE, the design reference, and the things that undo a decision. */
+function ShellBar({ reference }: { reference?: string }) {
+  return (
+    <header className="flex h-15 shrink-0 items-center justify-between gap-4 border-b border-rule bg-paper px-4 lg:px-6">
+      <div className="flex min-w-0 items-center gap-3.5">
+        <Link
+          href="/"
+          className="shrink-0 font-mono text-meta font-bold tracking-[0.2em] text-ink"
+        >
+          MAKEMYCAKE
+        </Link>
+        {reference && (
+          <>
+            <span aria-hidden className="hidden h-[18px] w-px bg-rule sm:block" />
+            <span className="hidden truncate font-mono text-micro tracking-[0.12em] text-steel sm:block">
+              DESIGN #{reference}
+            </span>
+          </>
         )}
       </div>
-    </div>
+      <UndoBar />
+    </header>
+  );
+}
+
+/**
+ * The total, as a button. It was a label with a chevron glued to it, and the
+ * chevron was the only thing that suggested the docket existed at all below
+ * 1280. Same rupee format as the docket, so ₹5,000.84 never reads as ₹5,001
+ * one tap away.
+ */
+function MobileTotal({
+  total,
+  config,
+}: {
+  total: number;
+  config: Parameters<typeof Docket>[0]["config"];
+}) {
+  const [open, setOpen] = useState(false);
+  const sheet = useRef<HTMLDialogElement>(null);
+
+  /*
+   * <dialog>.showModal() is the focus trap, the Escape handler and the scrim,
+   * all of which the old expanding panel had none of. Hand-rolling those three
+   * is about eighty lines that the platform already ships correctly.
+   */
+  const close = useCallback(() => sheet.current?.close(), []);
+  useEffect(() => {
+    const el = sheet.current;
+    if (!el) return;
+    if (open && !el.open) el.showModal();
+    if (!open && el.open) el.close();
+  }, [open]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="flex min-h-12 flex-1 flex-col items-center justify-center rounded-card border border-rule-strong bg-paper font-mono transition-colors duration-[--dur-ui] hover:border-ink xl:hidden"
+      >
+        <span
+          key={total}
+          className="text-meta font-bold text-ink tabular-nums motion-safe:animate-[price-tick_var(--dur-settle)_var(--ease-out)]"
+        >
+          {formatINR(total)}
+        </span>
+        <span className="text-micro tracking-[0.1em] text-steel">INCL. GST</span>
+      </button>
+
+      <dialog
+        ref={sheet}
+        aria-label="Order docket"
+        onClose={() => setOpen(false)}
+        onClick={(e) => { if (e.target === sheet.current) close(); }}
+        className="m-0 mt-auto max-h-[86dvh] w-full max-w-none rounded-t-sheet border-0 bg-paper p-0 shadow-sheet backdrop:bg-ink/40 open:flex open:flex-col motion-safe:open:animate-[sheet-up_var(--dur-settle)_var(--ease-out)]"
+      >
+        <div className="flex justify-center pt-2.5 pb-1">
+          <span aria-hidden className="h-1 w-[38px] rounded-full bg-rule" />
+        </div>
+        <div className="flex items-center justify-between gap-3 border-b border-dashed border-rule px-5 pt-2 pb-3">
+          <span className="font-mono text-micro font-bold tracking-[0.14em]">
+            ORDER DOCKET
+          </span>
+          <button type="button" onClick={close} className={iconBtn()} aria-label="Close the docket">
+            <span aria-hidden>✕</span>
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <Docket config={config} className="rounded-none border-0 shadow-none" chromeless />
+        </div>
+        <div className="border-t border-rule px-5 pt-3.5 pb-[max(1.625rem,env(safe-area-inset-bottom))]">
+          <button type="button" onClick={close} className={btn("primary", "lg", "w-full")}>
+            Back to designing
+          </button>
+        </div>
+      </dialog>
+    </>
   );
 }
 
@@ -186,11 +339,11 @@ function describeCake(c: Parameters<typeof buildDocket>[0]): string {
 function ControlSkeleton() {
   return (
     <div className="space-y-3" aria-hidden>
-      <div className="h-5 w-32 animate-pulse rounded-sm bg-slab-deep" />
-      <div className="h-4 w-56 animate-pulse rounded-sm bg-slab-deep" />
-      <div className="grid grid-cols-1 gap-2 @md:grid-cols-2">
+      <div className="h-8 w-48 animate-pulse rounded-card bg-slab-deep" />
+      <div className="h-4 w-56 animate-pulse rounded-card bg-slab-deep" />
+      <div className="grid grid-cols-1 gap-2.5 pt-3 @md:grid-cols-2">
         {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="h-16 animate-pulse rounded-sm bg-slab-deep" />
+          <div key={i} className="h-[76px] animate-pulse rounded-card bg-slab-deep" />
         ))}
       </div>
     </div>

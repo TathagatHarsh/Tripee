@@ -1,54 +1,115 @@
 @import "tailwindcss";
 
 /*
- * The cake is the only saturated thing on screen. That principle is right and it
- * stays. What went wrong was everything else: five neutrals within a few percent
- * of each other, no tonal steps to build hierarchy out of, and one accent doing
- * two contradictory jobs at once (it marked the total *and* it marked an error,
- * so red meant both "this is your money" and "this is broken").
+ * Paper, ink, and a warm surface to work on.
  *
- * Now: six neutrals with real distance between them, and the accent means one
- * thing only — something is wrong and you need to look at it.
+ * The cake is still the only saturated thing on screen — that principle was
+ * right and it stays. Two things were missing rather than wrong. There was no
+ * tonal step warm enough to read as a *counter* for the cake to sit on, so the
+ * cake was always a cut-out on stationery. And the scale stopped at 18px, so
+ * nothing above a step subhead could be built at all: no hero, no marketing
+ * page, no payoff on review.
+ *
+ * The accent still means one thing only — blocked — and now there is a second,
+ * quieter one (brass) that means "this is money, or this is a reference", which
+ * is what seal used to be doing badly.
  */
 @theme {
+  /* ── Ink: text and the one dark surface ─────────────────────────────── */
   --color-ink: #17161a;
   --color-graphite: #3f3d3a;
-  /* Body text on --slab: 7.1:1. Was 4.36:1 and failing. */
+  /* The only quiet text colour. 7.60:1 on paper, 6.31:1 on slab. */
   --color-steel: #55524b;
-  --color-slab: #e9e7e2;
-  --color-slab-deep: #dcd9d2;
+  /* steel's counterpart on ink surfaces — 6.9:1 on #17161A. */
+  --color-quiet: #b7b2aa;
+
+  /* ── Surfaces: page, raised, sunken, pressed ────────────────────────── */
   --color-paper: #fdfcfa;
+  --color-slab: #e9e7e2;
+  /* The counter. Warmer and deeper than slab, so a panel can sit *in* it. */
+  --color-counter: #e4e0d6;
+  --color-slab-deep: #dcd9d2;
+  /* Inset wells: spec boxes, read-only notes. */
+  --color-sunken: #f3f1eb;
 
-  --color-rule: #cfccc4;
-  --color-rule-strong: #b3aea3;
+  /* ── Rules ──────────────────────────────────────────────────────────── */
+  /* Decorative dividers only. Was #CFCCC4 at 1.30:1 against paper. */
+  --color-rule: #c4c0b6;
+  /*
+   * Boundaries only, never text. ≥3.0:1 on paper, which makes it a 1.4.11
+   * token rather than a 1.4.3 one — every button border, input border and
+   * card boundary that a customer has to *find* uses this.
+   */
+  --color-rule-strong: #8e887a;
 
-  /* The one accent. It means: blocked, or needs attention. Nothing else. */
+  /* ── Brass: money, references, section eyebrows ─────────────────────── */
+  --color-brass: #8a5a2a;
+  --color-brass-deep: #6e4620;
+  /* Brass legible on ink — a price delta inside a selected card. */
+  --color-brass-lit: #e4d3b4;
+  --color-brass-tint: #f6efe1;
+  --color-brass-edge: #e0cfae;
+
+  /* ── Seal: blocked, and nothing else ────────────────────────────────── */
+  /* Never a total, never a price, never a hover. */
   --color-seal: #a8241b;
+  --color-seal-tint: #fbf2f0;
 
-  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* ── Type ───────────────────────────────────────────────────────────── */
+  /*
+   * Instrument Serif for display only, title and up — editorial and warm, and
+   * the reason the marketing pages can exist. Instrument Sans for everything
+   * a customer reads to make a decision. Martian Mono stays the docket voice.
+   */
+  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-martian), ui-monospace, "SFMono-Regular", monospace;
 
   /*
-   * A type scale, because there was not one. The old app had eleven distinct
-   * hardcoded sizes between 9.5px and 15px, six of them uppercase monospace with
-   * wide tracking. Uppercase monospace destroys word-shape, which is the thing
-   * fast reading actually uses, and tracking it out destroys the word as a unit
-   * too. At 9.5px that is not a style, it is an eye test.
-   *
-   * Nothing below --text-micro exists any more, and --text-micro is allowed on
-   * the docket and nowhere else.
+   * 11px is the floor on every product surface. The old scale was rigorous
+   * below 18px and simply absent above it, which is why three separate ad-hoc
+   * clamp() expressions had grown in the page components.
    */
-  --text-micro: 0.6875rem;   /* 11px — docket labels, mono, sentence case */
-  --text-meta: 0.8125rem;    /* 13px — price deltas, captions */
+  --text-micro: 0.6875rem;   /* 11px — docket lines, mono, references */
+  --text-meta: 0.8125rem;    /* 13px — captions, blurbs on a dense card */
   --text-body: 0.9375rem;    /* 15px — blurbs, descriptions, paragraphs */
   --text-item: 1.0625rem;    /* 17px — the name of a thing you can choose */
-  --text-lede: 1.125rem;     /* 18px — step subheads */
-
+  --text-lede: 1.125rem;     /* 18px — a paragraph that introduces a page */
+  --text-group: 1.1875rem;   /* 19px — a group heading inside a step */
+  --text-title: 1.625rem;    /* 26px — the name of the step you are on */
+  --text-heading: clamp(1.75rem, 2.6vw, 2.25rem);  /* 28–36 */
+  --text-display: clamp(2.5rem, 5.4vw, 4.5rem);    /* 40–72 */
   /*
-   * Motion. Everything eases out — things arriving should decelerate, because
-   * that is what arriving looks like. Nothing here is decorative; each duration
-   * is attached to a specific job in the comment where it is used.
+   * One step above display, for the landing hero and nothing else. The system
+   * scale tops out at 72 because that is as large as a *heading* ever needs to
+   * be inside the product; the hero is not a heading, it is the shopfront, and
+   * the design sets it at 96.
+   */
+  --text-hero: clamp(3rem, 6.7vw, 6rem);           /* 48–96 */
+
+  /* ── Radii ──────────────────────────────────────────────────────────── */
+  /* 2px is retired: it is the value that reads as admin panel. */
+  --radius-ticket: 4px;  /* the docket itself, and docket lines */
+  --radius-card: 8px;    /* every card, every button, every input */
+  --radius-panel: 12px;  /* the cake panel, the docket aside */
+  --radius-sheet: 20px;  /* the mobile sheet, and only that */
+
+  /* ── Elevation ──────────────────────────────────────────────────────── */
+  --shadow-elev-1: 0 1px 0 rgb(0 0 0 / 0.04), 0 2px 6px -3px rgb(23 22 26 / 0.1);
+  --shadow-elev-2: 0 1px 0 rgb(0 0 0 / 0.05), 0 8px 24px -12px rgb(23 22 26 / 0.16);
+  --shadow-elev-3: 0 2px 0 rgb(0 0 0 / 0.05), 0 24px 48px -20px rgb(23 22 26 / 0.26);
+  /* A selected option card is already dark, so its lift has to be darker. */
+  --shadow-chosen: 0 1px 0 rgb(0 0 0 / 0.06), 0 10px 22px -14px rgb(23 22 26 / 0.55);
+  /* The primary action, which is the same ink as a chosen card and must not
+     be mistaken for one. */
+  --shadow-primary: 0 2px 0 rgb(0 0 0 / 0.06), 0 14px 28px -18px rgb(23 22 26 / 0.6);
+  /* The mobile sheet, rising off the cake. */
+  --shadow-sheet: 0 -2px 0 rgb(0 0 0 / 0.05), 0 -24px 48px -20px rgb(23 22 26 / 0.4);
+
+  /* ── Motion ─────────────────────────────────────────────────────────── */
+  /*
+   * Connective, not decorative. Everything eases out — things arriving should
+   * decelerate, because that is what arriving looks like.
    */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.3, 0.44, 1);
@@ -71,34 +132,47 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* Bricolage is variable-width — tighten it at display sizes. */
   /*
-   * Preflight resets heading weight to inherit, so every h1/h2/h3 in the app
-   * was rendering at 400 — and the 29 `font-500`/`font-700` classes dotted
-   * through the components were emitting nothing at all, because Tailwind v4
-   * has no bare-numeric weight utility. The whole product had exactly one
-   * typographic weight. Weight is the cheapest hierarchy signal there is and
-   * there was none of it; that is most of what "the readability" was.
+   * Instrument Serif ships one weight, which is the point: display type gets
+   * its authority from size and from the italic, not from a bolder cut. The
+   * previous display face was variable-width and needed a wdth-axis tweak and
+   * a 600 weight to look deliberate at all.
    */
   h1,
   h2,
   h3 {
     font-family: var(--font-display);
-    font-weight: 600;
-    font-variation-settings: "wdth" 96;
+    font-weight: 400;
     letter-spacing: -0.02em;
-    text-wrap: balance;
+    line-height: 1.04;
+    text-wrap: pretty;
+  }
+
+  /* A group heading inside a step is sans at 600 — the one place 600 is used. */
+  h4 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
   :focus-visible {
     outline: 2px solid var(--color-ink);
     outline-offset: 2px;
-    border-radius: 2px;
+    border-radius: 4px;
+  }
+
+  /* On an ink surface an ink outline is invisible. */
+  .bg-ink :focus-visible,
+  .bg-ink:focus-visible {
+    outline-color: var(--color-paper);
   }
 
   ::selection {
-    background: var(--color-ink);
-    color: var(--color-paper);
+    background: var(--color-brass-tint);
+    color: var(--color-ink);
+  }
+
+  input::placeholder {
+    color: var(--color-steel);
   }
 }
 
@@ -110,10 +184,9 @@
   background-repeat: repeat-x;
 }
 
+/* Kept under the name the app already uses for a raised paper surface. */
 @utility paper-edge {
-  box-shadow:
-    0 1px 0 rgb(0 0 0 / 0.04),
-    0 8px 24px -12px rgb(23 22 26 / 0.16);
+  box-shadow: var(--shadow-elev-2);
 }
 
 @utility stamp {
@@ -125,23 +198,34 @@
 }
 
 /*
- * The cake used to sit on flat paper, which is why it read as a cut-out. A very
- * shallow radial pool behind the canvas gives it a surface to sit on without
- * adding a single triangle to the scene.
+ * The stage the cake stands on.
+ *
+ * Six of the nine frostings sit in the #F2–#F8 range, so a stage that peaks at
+ * near-white erases the cake's own edge. This one peaks 4% warmer than paper
+ * and falls to #D9D3C4 at the rim, and — critically — the vignette centre sits
+ * on the *panel's* centre rather than being stretched across the pane, so the
+ * dark rim and the silhouette line up on tall and narrow panels alike.
  */
 @utility cake-stage {
-  /*
-   * Six of the nine frostings in the catalogue sit within a few percent of the
-   * page background, so a cream cake on cream had no silhouette at all — 1.18:1
-   * at the edge, which is not an edge. The falloff has to be steep enough that
-   * the widest part of the cake meets something visibly darker than itself.
-   *
-   * Not a dark stage: the whole product is paper and ink and a kitchen docket,
-   * and dropping a near-black panel into the middle of it would win the
-   * silhouette and lose the identity. A lit worktop does the same job.
-   */
-  background:
-    radial-gradient(100% 78% at 50% 34%, #fffefc 0%, #f4efe5 46%, #dcd4c4 78%, #c8bfad 100%);
+  background: radial-gradient(
+    58% 48% at 50% 32%,
+    #f7f2e7 0%,
+    #eae4d6 54%,
+    #d9d3c4 100%
+  );
+}
+
+/*
+ * ...and the frame around it. A cake against a background is a preview widget;
+ * a cake inside a bordered, inset panel with real padding is a product shot.
+ * The padding is the camera safe area: the cake never touches the frame.
+ */
+@utility cake-panel {
+  border: 1px solid #c9c3b4;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 1px 0 rgb(0 0 0 / 0.05),
+    0 10px 28px -16px rgb(23 22 26 / 0.3);
 }
 
 /* Ticking a number over when it changes, so a price rise is felt, not just shown. */
@@ -155,6 +239,26 @@
   0% { transform: scale(1); }
   42% { transform: scale(0.986); }
   100% { transform: scale(1); }
+}
+
+/*
+ * A step's controls arriving. The cake holds and the canvas never remounts, so
+ * nine steps feel like one surface with the tools changing on it.
+ */
+@keyframes step-in {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* The mobile sheet coming up over the cake. */
+@keyframes sheet-up {
+  0% { transform: translateY(100%); }
+  100% { transform: none; }
+}
+
+@keyframes scrim-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

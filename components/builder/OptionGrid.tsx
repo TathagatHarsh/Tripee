@@ -6,6 +6,7 @@ import { deltaFor } from "@/lib/pricing";
 import { blockerFor } from "@/lib/rules";
 import { formatDelta } from "@/lib/format";
 import { useConfig, useSetConfig } from "@/lib/store";
+import { cardState, optionText } from "@/lib/ui";
 
 interface Props<T extends string> {
   options: Option<T>[];
@@ -19,23 +20,19 @@ interface Props<T extends string> {
 }
 
 /**
- * Every swatch carries its own price delta and, if the combination is
- * impossible, the reason it is.
+ * One selected language, learned once on the shape step and read for the next
+ * eight.
  *
- * Three things were wrong with how this looked and behaved:
+ * Rest is a paper card on a rule boundary. Selected inverts to ink and is the
+ * only dark card on the page. Blocked drops to the counter tone behind a dashed
+ * seal edge and says, in a sentence about cake, why. A free option says nothing
+ * at all — "included" printed on all six rows of a group where everything is
+ * included costs a column and carries no information.
  *
- *  1. Choosing something changed a 1px border from #d5d2cb to #1a1917 and
- *     nothing else. On a screen of eleven near-identical cards that is not a
- *     selection state, it is a rumour. Selected now takes the ink, inverts, and
- *     is the only card on the page that is dark.
- *  2. "included" was printed on every row of a six-row group where everything
- *     was included, so the column carried no information at all while still
- *     costing a column. A free option now says nothing; only a price says
- *     something.
- *  3. The whole group was a pile of independent buttons with aria-pressed. A
- *     single-select group is a radiogroup — that is what tells a screen-reader
- *     user "one of six" instead of eleven separate toggles, and it is what makes
- *     the arrow keys work.
+ * The group is a radiogroup with a roving tabindex, not a pile of independent
+ * aria-pressed toggles: that is what tells a screen-reader user "one of six"
+ * rather than eleven separate switches, and it is what makes the arrow keys
+ * work.
  */
 export function OptionGrid<T extends string>({
   options, selected, patch, columns = 2, label,
@@ -68,12 +65,13 @@ export function OptionGrid<T extends string>({
   };
 
   return (
-    <div role="radiogroup" aria-label={label} className={`grid grid-cols-1 gap-2 ${cols}`}>
+    <div role="radiogroup" aria-label={label} className={`grid grid-cols-1 gap-2.5 ${cols}`}>
       {options.map((o, index) => {
         const p = patch(o.value);
         const blocked = blockerFor(config, p);
         const delta = deltaFor(config, p);
         const active = current === o.value;
+        const off = !!blocked && !active;
 
         return (
           <button
@@ -86,81 +84,69 @@ export function OptionGrid<T extends string>({
             onKeyDown={(e) => onKeyDown(e, index)}
             aria-describedby={blocked ? `why-${o.value}` : undefined}
             className={[
-              "group relative flex min-h-[64px] gap-3 rounded-md border px-3.5 py-3 text-left",
-              "transition-[background-color,border-color,color,box-shadow]",
-              "duration-[--dur-ui] ease-[--ease-out]",
-              active
-                ? "border-ink bg-ink text-paper shadow-[0_2px_10px_-4px_rgb(23_22_26/0.5)] motion-safe:animate-[chosen_var(--dur-settle)_var(--ease-spring)]"
-                : "border-rule bg-paper/70 hover:border-rule-strong hover:bg-paper",
-              blocked && !active ? "border-dashed border-seal/45" : "",
+              "flex min-h-[76px] flex-col items-start gap-[7px] rounded-card border px-4 py-3.5 text-left",
+              "transition-[background-color,border-color,color,box-shadow,transform]",
+              "duration-[--dur-ui] ease-[--ease-out] motion-safe:hover:-translate-y-px",
+              cardState(active, off),
+              active ? "motion-safe:animate-[chosen_var(--dur-settle)_var(--ease-spring)]" : "",
             ].join(" ")}
           >
-            {o.glyph && (
-              <svg
-                aria-hidden
-                viewBox="0 0 24 24"
-                className={[
-                  "mt-0.5 size-7 shrink-0",
-                  active ? "text-paper" : "text-graphite",
-                ].join(" ")}
-              >
-                <path
-                  d={o.glyph}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-
-            {o.swatch && (
-              <span
-                aria-hidden
-                className={[
-                  "mt-0.5 size-7 shrink-0 rounded-full transition-shadow",
-                  active ? "ring-2 ring-paper/70" : "ring-1 ring-black/10",
-                ].join(" ")}
-                style={{ background: o.swatch }}
-              />
-            )}
-
-            <span className="min-w-0 flex-1">
-              <span className="flex items-baseline justify-between gap-2">
-                <span className="text-item leading-tight font-medium">{o.name}</span>
-                {/* Free is the default. Saying so on every row of a group where
-                    everything is free is noise wearing the costume of detail. */}
-                {delta !== 0 && (
-                  <span
-                    className={[
-                      "shrink-0 font-mono text-meta tabular-nums",
-                      active ? "text-paper/75" : "text-steel",
-                    ].join(" ")}
-                  >
-                    {formatDelta(delta)}
-                  </span>
-                )}
-              </span>
-              <span
-                className={[
-                  "mt-1 block text-body leading-snug",
-                  active ? "text-paper/80" : "text-steel",
-                ].join(" ")}
-              >
-                {o.blurb}
-              </span>
-              {blocked && (
-                <span
-                  id={`why-${o.value}`}
+            <span className="flex w-full items-center gap-2.5">
+              {o.glyph && (
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
                   className={[
-                    "mt-1.5 block text-meta leading-snug",
-                    active ? "text-paper" : "text-seal",
+                    "size-[26px] shrink-0",
+                    active ? "text-paper" : off ? "text-steel" : "text-graphite",
                   ].join(" ")}
                 >
-                  {blocked.message}
+                  <path d={o.glyph} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" />
+                </svg>
+              )}
+
+              {o.swatch && (
+                <span
+                  aria-hidden
+                  className={[
+                    "size-[22px] shrink-0 rounded-[5px] transition-shadow",
+                    active
+                      ? "shadow-[inset_0_0_0_1px_rgb(253_252_250/0.3)]"
+                      : "shadow-[inset_0_0_0_1px_rgb(23_22_26/0.16)]",
+                  ].join(" ")}
+                  style={{ background: o.swatch }}
+                />
+              )}
+
+              <span
+                className={`min-w-0 flex-1 text-item leading-tight font-medium ${optionText.name(active, off)}`}
+              >
+                {o.name}
+              </span>
+
+              {/* Brass, not steel: this is money, and money is the one thing on
+                  a card a customer scans for. */}
+              {delta !== 0 && (
+                <span
+                  className={`shrink-0 font-mono text-micro font-bold whitespace-nowrap tabular-nums ${optionText.delta(active)}`}
+                >
+                  {formatDelta(delta)}
                 </span>
               )}
             </span>
+
+            <span className={`text-meta leading-snug ${optionText.blurb(active)}`}>
+              {o.blurb}
+            </span>
+
+            {blocked && (
+              <span
+                id={`why-${o.value}`}
+                className={`text-meta leading-snug ${active ? "text-brass-lit" : "text-seal"}`}
+              >
+                {blocked.message}
+              </span>
+            )}
           </button>
         );
       })}

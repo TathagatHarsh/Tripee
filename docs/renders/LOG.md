@@ -64,11 +64,7 @@ Faults found and fixed along the way, in the order they mattered:
     off. It now measures the top band only.
 - `2026-08-01-slice-pass1.png` — first cutaway: sector-clipped lathe with capped cut faces, extruded shapes clipped in 2D
 - `2026-08-01-solo-slice.png` — cut face close look
-- `2026-08-01-solo-slice.png` — cap winding fixed
-- `2026-08-01-solo-slice.png` — depth bias so sponge cross-section draws in front of the frosting cap
-- `2026-08-01-solo-slice.png` — frosting open at the cut; sponge and filling capped
 - `2026-08-01-solo-slice2.png` — layered cut: belgian chocolate sponge with mousse filling
-- `2026-08-01-solo-slice2.png` — layer bands, slab bleed, stack lifted off the shell base
 - `2026-08-01-slice-pass2.png` — layer bands between every sponge, slab bleed kills the z-fighting, stack lifted off the shell base
 
 
@@ -97,3 +93,25 @@ went wrong on the way:
 18. The default piping colour was derived from the frosting and came out too
     pale to read against a cream plaque. It is now clamped to a lightness that
     actually contrasts.
+- `2026-08-18-phase1-materials-lighting-shadows.png` — neutralised the white balance, cut the fill, baked contact occlusion into tier/board vertex colours, card board with a real edge, roughness break-up + crumb tone maps
+- `2026-08-18-phase2-tier-frosting-geometry.png` — silhouette wobble, base fillet + top crown on the frosting, retuned combed/rustic displacement, real tier ratios and stack height, bundt rebuilt, tiered heart goes heart-over-round
+- `2026-08-18-phase2b-bundt-winding.png` — bundt profile rewound base-outward-up-over-in; it had been written in reading order, which is inside-out
+- `2026-08-18-phase2c-bundt-dome.png` — bundt as a dome: widest below mid-height, crown well inboard, through-hole to the board, flutes on the outer wall only
+- `2026-08-18-phase3-drips-toppings.png` — per-drip geometry merged into one mesh, uneven rim pool, bundt drip anchored at the widest point, toppings seated on their own measured extents with a sink
+- `2026-08-18-phase3b-decoration-bundt-glaze.png` — no glaze hoop on a bundt, drips from the shoulder; per-row phase and jitter on ruffles and rosettes; combed amplitude restored
+- `2026-08-18-phase3c-bundt-glaze-runs.png` — bundt glaze runs break away at the widest point, proud of the flute crests
+- `2026-08-18-phase3d-bundt-glaze-on-ridges.png` — one glaze run per flute, snapped to the ridge
+- `2026-08-18-phase3e-bundt-poured-glaze.png` — bundt glaze rebuilt as a poured coat derived from the cake's own profile, with an uneven skirt that reaches lower in the troughs
+- `2026-08-18-phase3f-bundt-glaze-visible.png` — glaze cap sized to the shell rather than the tier
+- `2026-08-18-phase3g-bundt-glaze-clearance.png` — glaze cap wound outward and given clearance over the shell's own displacement
+- `2026-08-18-phase4-plaque-camera.png` — plaque seated on the frosting rather than inside it, larger and with a piped bead highlight, laid flat; camera closer with the look-at lifted
+- `2026-08-18-phase4b-framing-fit.png` — framing accounts for the board's own width; look-at lift trimmed; plaque size settled
+- `2026-08-18-phase5-low-quality.png` — forced LOW quality: 32 segments, no shadow maps, contact shadows only
+- `2026-08-18-phase6-ruffle-rosette.png` — ruffle rebuilt as a tapered undulating frill; rosette rebuilt as a star-section sweep whose coils touch instead of fusing
+- `2026-08-18-phase6b-ruffle-petal.png` — ruffle back to a petal outline with tapered ends, thickness graded root-to-hem
+- `2026-08-18-phase6c-ruffle-gathered.png` — ruffle: finer, denser, buckling in and out of the wall
+- `2026-08-18-phase6d-ruffle-swept-band.png` — ruffle rebuilt as one continuous swept band per row instead of instanced petals
+- `2026-08-18-phase6e-ruffle-scalloped.png` — ruffle hem: longer wavelength, ten samples per scallop, per-row cycle offset
+- `2026-08-18-phase6f-rosette-star.png` — rosette: star-tip section, coils touching not fused, tapered tail
+- `2026-08-18-phase6g-rosette-domed.png` — rosette domed rather than flat; top face given its own looser pitch
+- `2026-08-18-phase6h-ruffle-rosette-final.png` — ruffle as a swept scalloped band; rosette domed with a star section, blunter tail, evenly stepped top rings

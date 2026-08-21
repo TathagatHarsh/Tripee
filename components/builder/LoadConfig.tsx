@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { CakeConfig } from "@/lib/schema";
 import { useCake } from "@/lib/store";
+import { btn } from "@/lib/ui";
 
 /**
  * Loads a shared or preset design into the builder. The restored design does not
@@ -14,10 +15,14 @@ export function LoadConfig({
   config,
   to = "/build/review",
   label = "Open in the builder",
+  variant = "secondary",
+  className = "",
 }: {
   config: CakeConfig;
   to?: string;
   label?: string;
+  variant?: "primary" | "secondary";
+  className?: string;
 }) {
   const router = useRouter();
   const loadPreset = useCake(s => s.loadPreset);
@@ -37,7 +42,7 @@ export function LoadConfig({
         useCake.temporal.getState().clear();
         router.push(to);
       }}
-      className="rounded-sm bg-ink px-4 py-2 text-meta text-paper transition-opacity hover:opacity-90 disabled:opacity-60"
+      className={btn(variant, "md", className)}
     >
       {busy ? "Opening…" : label}
     </button>

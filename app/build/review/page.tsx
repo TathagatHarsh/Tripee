@@ -16,6 +16,7 @@ import type { CakeConfig } from "@/lib/schema";
 import { encodeConfig } from "@/lib/share";
 import { deriveHandling, deriveServings } from "@/lib/servings";
 import { useConfig } from "@/lib/store";
+import { btn, eyebrow, field, monoField } from "@/lib/ui";
 
 type Stage =
   | { kind: "idle" }
@@ -25,6 +26,17 @@ type Stage =
   | { kind: "placed"; ref: string }
   | { kind: "error"; message: string };
 
+/**
+ * The payoff.
+ *
+ * Every previous step spends the customer's attention; this is the one screen
+ * that has to give something back. It used to be nine grey `text-meta` section
+ * headings and a row of four identically-weighted 34px buttons, one of which
+ * was the only thing the whole product exists to do. The total and the order
+ * button now sit together on the one ink surface in the flow, with the price
+ * stated at the size it matters at, and everything else is supporting evidence
+ * arranged under it.
+ */
 export default function ReviewStep() {
   const config = useConfig();
   const [stage, setStage] = useState<Stage>({ kind: "checking" });
@@ -47,7 +59,7 @@ export default function ReviewStep() {
   const servings = deriveServings(config);
   const handling = deriveHandling(config);
   const slot = resolveSlot(config.delivery, config.pincode);
-  // The server now refuses an order with no name or no reachable number, so the
+  // The server refuses an order with no name or no reachable number, so the
   // button has to know that too — otherwise the only way to find out is to press
   // the primary action and be told no.
   const contactOk =
@@ -125,8 +137,7 @@ export default function ReviewStep() {
        * There was no failure branch here at all. With no database attached —
        * which is the documented state of the deployment — the endpoint answers
        * 503 with a perfectly good explanation, and the button silently did
-       * nothing and said nothing. `place()` directly above has always handled
-       * this properly; this is the same shape.
+       * nothing and said nothing.
        */
       if (!res.ok) {
         setStage({
@@ -156,13 +167,142 @@ export default function ReviewStep() {
   }
 
   if (stage.kind === "placed") {
-    return <Placed reference={stage.ref} onDownload={download} slotName={slot.name} leadHours={slot.effectiveLeadHours} />;
+    return (
+      <Placed
+        reference={stage.ref}
+        onDownload={download}
+        slotName={slot.name}
+        leadHours={slot.effectiveLeadHours}
+      />
+    );
   }
 
-  return (
-    <>
-      <StepHeader title="Review" hint="Check the docket. This is what the kitchen works from." />
+  const priceNote =
+    stage.kind === "checking"
+      ? "Confirming with the kitchen…"
+      : stage.kind === "mismatch"
+        ? `Kitchen says ${formatINR(stage.serverTotal)} — that is the price that stands.`
+        : "Confirmed against the kitchen's own pricing.";
 
+  return (
+    <div className="flex flex-col gap-5">
+      <StepHeader title="Review your cake" hint="Everything you chose, itemised." />
+
+      <ViolationCard />
+
+      {/* Who we call. Above the order button, because the button depends on it. */}
+      <section className="flex flex-col gap-3.5 rounded-panel border border-rule bg-paper p-5">
+        <div className="flex flex-col gap-[3px]">
+          <h2 className="text-group font-sans font-semibold tracking-[-0.01em]">
+            Who is this for?
+          </h2>
+          <p className="text-meta text-steel">
+            We call this number to confirm before we bake.
+          </p>
+        </div>
+
+        <label className="flex flex-col gap-2">
+          <span className="font-mono text-micro tracking-[0.14em] text-steel">NAME</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Who is collecting?"
+            className={field()}
+          />
+        </label>
+        <label className="flex flex-col gap-2">
+          <span className="font-mono text-micro tracking-[0.14em] text-steel">PHONE</span>
+          <input
+            inputMode="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="10 digits"
+            className={monoField()}
+          />
+        </label>
+      </section>
+
+      {/* The one ink surface in the flow, and the reason the flow exists. */}
+      <section className="flex flex-col gap-4 rounded-panel bg-ink p-6 shadow-elev-3">
+        <div className="flex items-end justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="font-mono text-micro tracking-[0.16em] whitespace-nowrap text-quiet">
+              TOTAL · INCL. GST
+            </span>
+            <span
+              key={price.total}
+              className="font-mono text-[1.625rem] leading-none font-bold text-paper tabular-nums motion-safe:animate-[price-tick_var(--dur-settle)_var(--ease-out)]"
+            >
+              {formatINR(price.total)}
+            </span>
+          </div>
+          <span className="flex h-[30px] shrink-0 items-center gap-2 rounded-full border border-graphite px-3 font-mono text-micro tracking-[0.1em] whitespace-nowrap text-quiet">
+            <span
+              aria-hidden
+              className={`size-[5px] rounded-full ${stage.kind === "idle" ? "bg-[#8FA85E]" : "bg-brass"}`}
+            />
+            {stage.kind === "idle" ? "PRICE CONFIRMED" : "CHECKING"}
+          </span>
+        </div>
+
+        <p className="text-meta leading-normal text-quiet">
+          {priceNote} No payment now — we call you to confirm the details, then bake.
+        </p>
+
+        <button
+          type="button"
+          onClick={place}
+          disabled={!ready || stage.kind === "placing" || stage.kind === "checking"}
+          /*
+           * `disabled:opacity-45` put white text on a 45%-alpha fill over paper,
+           * which measures about 2.25:1 — and this is the state the button is in
+           * the moment you arrive, while the server price check runs. Disabled
+           * changes the colours, not the alpha.
+           */
+          className={[
+            "flex min-h-14 items-center justify-center rounded-card bg-paper px-6 text-item font-medium text-ink",
+            "transition-colors duration-[--dur-ui] ease-[--ease-out] hover:bg-counter",
+            "disabled:cursor-not-allowed disabled:bg-graphite disabled:text-quiet",
+          ].join(" ")}
+        >
+          {stage.kind === "placing" ? "Sending…" : `Place order · ${formatINR(price.total)}`}
+        </button>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={save}
+            className="flex min-h-11 flex-1 items-center justify-center rounded-card border border-graphite text-body text-quiet transition-colors duration-[--dur-ui] hover:border-quiet hover:text-paper"
+          >
+            Save &amp; share
+          </button>
+          <button
+            type="button"
+            onClick={download}
+            className="flex min-h-11 flex-1 items-center justify-center rounded-card border border-graphite text-body text-quiet transition-colors duration-[--dur-ui] hover:border-quiet hover:text-paper"
+          >
+            Download docket
+          </button>
+        </div>
+
+        {stage.kind === "error" && (
+          <p role="alert" className="rounded-card border border-seal bg-seal/15 px-4 py-3 text-meta leading-snug text-paper">
+            {stage.message}
+          </p>
+        )}
+
+        {share && (
+          <p className="font-mono text-micro leading-relaxed break-all text-quiet">
+            Shareable link:{" "}
+            <a className="text-paper underline underline-offset-2" href={share.url}>
+              {share.url}
+            </a>
+          </p>
+        )}
+      </section>
+
+      {/* Everything the docket says, spelled out. Below 1280 the docket is a
+          sheet, so this is where the detail actually gets read. */}
       <Section title="Cake">
         <Row k="Shape" v={`${cap(config.shape)}, ${config.tiers} tier${config.tiers > 1 ? "s" : ""}`} />
         <Row k="Weight" v={`${config.size}`} />
@@ -180,7 +320,7 @@ export default function ReviewStep() {
         <Row k="Message" v={config.message?.trim() ? `"${config.message.trim()}"` : "None"} />
       </Section>
 
-      <Section title="Diet">
+      <Section title="Diet and allergens">
         <Row k="Eggless" v={config.eggless ? "Yes" : "No"} />
         <Row k="Sugar-free" v={config.sugarFree ? "Yes" : "No"} />
         <Row k="Contains" v={allergens.allergens.length ? allergens.allergens.join(", ") : "No declared allergens"} />
@@ -203,163 +343,69 @@ export default function ReviewStep() {
         )}
       </Section>
 
+      {/* The itemised lines only. The kitchen-confirmation sentence lives on the
+          ink card above, and printing it twice put two matches on the page for
+          the one fact a customer is meant to read once. */}
       <Section title="Price">
         <PriceBreakdown price={price} />
-        <p className="mt-2 text-meta text-steel">
-          {stage.kind === "checking"
-            ? "Confirming with the kitchen…"
-            : stage.kind === "mismatch"
-              ? `Kitchen says ${formatINR(stage.serverTotal)} — that is the price that stands.`
-              : "Confirmed against the kitchen's own pricing."}
-        </p>
       </Section>
 
       {DELIVERED_PHOTOS.length > 0 && (
-        <Section title="Cakes we've actually delivered">
-          <div className="grid grid-cols-2 gap-2 @lg:grid-cols-3">
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className={eyebrow}>Cakes we&rsquo;ve delivered</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 @lg:grid-cols-3">
             {DELIVERED_PHOTOS.map(p => (
-              <figure key={p.src}>
+              <figure key={p.src} className="overflow-hidden rounded-card border border-rule bg-paper">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.src} alt={p.alt} className="w-full rounded-sm" />
-                <figcaption className="mt-1 text-meta leading-snug text-steel">
+                <img src={p.src} alt={p.alt} className="w-full" />
+                <figcaption className="px-3 py-2.5 text-meta leading-snug text-steel">
                   {p.caption}
                 </figcaption>
               </figure>
             ))}
           </div>
-        </Section>
+        </section>
       )}
 
-      <ViolationCard />
-
-      <Section title="Where should it go?">
-        <div className="grid gap-3 @md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-meta text-steel">
-              Name
-            </span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Who is collecting?"
-              className="w-full rounded-sm border border-rule bg-paper px-3 py-2 text-body"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-meta text-steel">
-              Phone
-            </span>
-            <input
-              inputMode="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="10 digits"
-              className="w-full rounded-sm border border-rule bg-paper px-3 py-2 font-mono text-body tabular-nums"
-            />
-          </label>
-        </div>
-        <p className="mt-2 text-meta leading-snug text-steel">
-          No payment now. We call to confirm the design and take payment on
-          delivery or at the counter.
-        </p>
-      </Section>
-
-      {stage.kind === "error" && (
-        <p role="alert" className="mt-4 rounded-sm border border-seal/40 bg-seal/5 px-3 py-2.5 text-body">
-          {stage.message}
-        </p>
-      )}
-
-      <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-rule pt-4">
-        <Link
-          href="/build/message"
-          className="rounded-sm border border-rule px-3 py-2 text-meta hover:border-ink"
-        >
-          ← Message
-        </Link>
-
-        <button
-          type="button"
-          onClick={place}
-          disabled={!ready || stage.kind === "placing" || stage.kind === "checking"}
-          /*
-           * `disabled:opacity-45` put white text on 45%-opacity seal over paper,
-           * which measures about 2.25:1 — and this is the state the button is in
-           * the moment you arrive, while the server price check runs. The
-           * primary action of the entire product was unreadable on arrival.
-           * Disabled now changes the colours rather than the alpha, so the label
-           * stays legible and still plainly reads as not-yet-available.
-           */
-          className={[
-            "inline-flex min-h-11 items-center rounded-md px-5 text-meta font-medium",
-            "transition-colors duration-[--dur-ui] ease-[--ease-out]",
-            "bg-ink text-paper hover:bg-graphite",
-            "disabled:cursor-not-allowed disabled:bg-slab-deep disabled:text-steel",
-          ].join(" ")}
-        >
-          {stage.kind === "placing" ? "Sending…" : `Place order · ${formatINR(price.total)}`}
-        </button>
-
-        <button
-          type="button"
-          onClick={save}
-          className="rounded-sm border border-rule px-3 py-2 text-meta hover:border-ink"
-        >
-          Save & share
-        </button>
-
-        <button
-          type="button"
-          onClick={download}
-          className="rounded-sm border border-rule px-3 py-2 text-meta hover:border-ink"
-        >
-          Download docket
-        </button>
-      </div>
-
-      {share && (
-        <p className="mt-3 break-all font-mono text-meta text-steel">
-          Shareable link: <a className="text-ink underline underline-offset-2" href={share.url}>{share.url}</a>
-        </p>
-      )}
-
-      <p className="mt-3 font-mono text-micro text-steel">
+      <p className="font-mono text-micro leading-relaxed text-steel">
         Or carry the design in the URL:{" "}
-        <Link className="underline underline-offset-2" href={`/d/new?c=${encodeConfig(config)}`}>
+        <Link className="text-ink underline underline-offset-2" href={`/d/new?c=${encodeConfig(config)}`}>
           open this cake
         </Link>
       </p>
-    </>
+    </div>
   );
 }
 
+/** The moment the order lands. Reference first, at the size of the news. */
 function Placed({
   reference, onDownload, slotName, leadHours,
 }: {
   reference: string; onDownload: () => void; slotName: string; leadHours: number;
 }) {
   return (
-    <div>
-      <h1 className="text-2xl leading-tight">Order {reference}</h1>
-      <p className="mt-2 text-body leading-relaxed text-steel">
-        The docket is with the kitchen. We&rsquo;ll call to confirm the design and
-        the slot — {`${slotName}, ${leadHours} hours`} from confirmation. Keep
-        the reference; it&rsquo;s how we find your order.
+    <div className="flex flex-col gap-5">
+      <span className={eyebrow}>Order placed</span>
+      <h1 className="text-heading">
+        Order{" "}
+        <span className="font-mono text-[0.8em] font-bold tracking-[-0.01em]">
+          {reference}
+        </span>
+      </h1>
+      <p className="max-w-[52ch] text-body leading-relaxed text-steel">
+        We have it. Someone from the kitchen calls to confirm the design and the
+        slot — {`${slotName}, ${leadHours} hours`} from confirmation. Keep the
+        reference; it is the only thing you need if anything is wrong.
       </p>
 
-      <div className="mt-5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onDownload}
-          className="rounded-sm border border-ink px-3 py-2 text-meta hover:bg-ink hover:text-paper"
-        >
+      <div className="flex flex-wrap gap-2.5">
+        <button type="button" onClick={onDownload} className={btn("primary", "md")}>
           Download docket
         </button>
-        <Link
-          href="/"
-          className="rounded-sm border border-rule px-3 py-2 text-meta hover:border-ink"
-        >
-          Build another
+        <Link href="/" className={btn("secondary", "md")}>
+          Design another
         </Link>
       </div>
     </div>
@@ -368,8 +414,10 @@ function Placed({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-6 first:mt-0">
-      <h2 className="mb-2 text-meta text-steel">{title}</h2>
+    <section className="rounded-panel border border-rule bg-paper px-5 py-4">
+      <h2 className="mb-2 font-mono text-micro tracking-[0.18em] text-brass uppercase">
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -377,11 +425,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Row({ k, v }: { k: string; v: string }) {
   return (
-    <div className="flex gap-3 border-b border-rule/60 py-1.5 last:border-0">
-      <span className="w-24 shrink-0 text-meta text-steel">
-        {k}
-      </span>
-      <span className="min-w-0 flex-1 text-body leading-snug">{v}</span>
+    <div className="flex gap-3 border-b border-rule py-2 last:border-0">
+      <span className="w-24 shrink-0 font-mono text-micro text-steel">{k}</span>
+      <span className="min-w-0 flex-1 text-meta leading-snug">{v}</span>
     </div>
   );
 }

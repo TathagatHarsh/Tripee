@@ -1,8 +1,7 @@
 "use client";
 
 import { OptionGrid } from "@/components/builder/OptionGrid";
-import { StepFooter } from "@/components/builder/StepNav";
-import { StepHeader } from "@/components/builder/StepHeader";
+import { GroupHeader, StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
 import { SPONGES } from "@/lib/catalog";
 import { useConfig, useSetConfig } from "@/lib/store";
@@ -12,53 +11,71 @@ export default function SpongeStep() {
   const set = useSetConfig();
 
   return (
-    <>
-      <StepHeader title="Sponge" hint="The cake itself. This is what people taste first." />
+    <div className="flex flex-col gap-7">
+      <div>
+        <StepHeader
+          title="The cake itself"
+          hint="This is what people taste first."
+        />
+        <OptionGrid
+          options={SPONGES}
+          label="Sponge"
+          selected={(c) => c.sponge}
+          patch={(sponge) => ({ sponge })}
+        />
+      </div>
 
-      <OptionGrid
-        options={SPONGES}
-        selected={(c) => c.sponge}
-        patch={(sponge) => ({ sponge })}
-      />
-
-      <fieldset className="mt-6 space-y-2">
-        <legend className="mb-2 text-meta text-steel">
-          Dietary
-        </legend>
-
-        <label className="flex cursor-pointer items-start gap-3 rounded-sm border border-rule bg-paper/60 px-3 py-2.5">
-          <input
-            type="checkbox"
+      <fieldset>
+        <GroupHeader title="Dietary" hint="Both are separate bakes, so both change the price." />
+        <div className="flex flex-col gap-2.5">
+          <DietOption
+            label="Eggless"
+            blurb="Our default. The crumb is slightly denser and holds moisture better."
             checked={config.eggless}
-            onChange={(e) => set({ eggless: e.target.checked })}
-            className="mt-0.5 size-4 accent-ink"
+            onChange={(eggless) => set({ eggless })}
           />
-          <span>
-            <span className="block text-body font-medium">Eggless</span>
-            <span className="mt-0.5 block text-meta leading-snug text-steel">
-              Our default. The crumb is slightly denser and holds moisture better.
-            </span>
-          </span>
-        </label>
-
-        <label className="flex cursor-pointer items-start gap-3 rounded-sm border border-rule bg-paper/60 px-3 py-2.5">
-          <input
-            type="checkbox"
+          <DietOption
+            label="Sugar-free"
+            blurb="Sweetened with stevia and dates. Separate batch, so it costs more."
             checked={config.sugarFree}
-            onChange={(e) => set({ sugarFree: e.target.checked })}
-            className="mt-0.5 size-4 accent-ink"
+            onChange={(sugarFree) => set({ sugarFree })}
           />
-          <span>
-            <span className="block text-body font-medium">Sugar-free</span>
-            <span className="mt-0.5 block text-meta leading-snug text-steel">
-              Sweetened with stevia and dates. Separate batch, so it costs more.
-            </span>
-          </span>
-        </label>
+        </div>
       </fieldset>
 
       <ViolationCard />
-      <StepFooter />
-    </>
+    </div>
+  );
+}
+
+function DietOption({
+  label, blurb, checked, onChange,
+}: {
+  label: string;
+  blurb: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label
+      className={[
+        "flex min-h-11 cursor-pointer items-start gap-3 rounded-card border px-4 py-3.5",
+        "transition-[background-color,border-color,box-shadow] duration-[--dur-ui] ease-[--ease-out]",
+        checked
+          ? "border-ink bg-paper shadow-elev-1"
+          : "border-rule bg-paper hover:border-rule-strong",
+      ].join(" ")}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-1 size-[18px] shrink-0 accent-ink"
+      />
+      <span className="min-w-0">
+        <span className="block text-item font-medium">{label}</span>
+        <span className="mt-1 block text-meta leading-snug text-steel">{blurb}</span>
+      </span>
+    </label>
   );
 }

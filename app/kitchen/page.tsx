@@ -8,6 +8,7 @@ import { ACTION_LABEL, isClosed, NEXT_STATUS, STATUS_LABEL } from "@/lib/orders"
 import { priceCake } from "@/lib/pricing";
 import { migrateConfig } from "@/lib/schema";
 import { advanceOrder } from "./actions";
+import { btn, eyebrow } from "@/lib/ui";
 
 /**
  * The board the kitchen works from.
@@ -43,7 +44,7 @@ export default async function KitchenBoard({
   if (!hasDatabase()) {
     return (
       <Shell counts={{}} filter={null} total={0}>
-        <p className="rounded-sm border border-rule bg-paper px-3 py-2.5 text-body leading-snug text-steel">
+        <p className="rounded-card border border-rule bg-paper px-4 py-3.5 text-body leading-snug text-steel">
           {NO_DATABASE_MESSAGE}
         </p>
       </Shell>
@@ -69,11 +70,11 @@ export default async function KitchenBoard({
   return (
     <Shell counts={counts} filter={filter} total={total}>
       {orders.length === 0 ? (
-        <p className="rounded-sm border border-rule bg-paper px-3 py-2.5 text-body text-steel">
+        <p className="rounded-card border border-rule bg-paper px-4 py-3.5 text-body text-steel">
           Nothing here{filter ? ` at "${STATUS_LABEL[filter]}"` : " yet"}.
         </p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="flex flex-col gap-4">
           {orders.map((o) => {
             const config = migrateConfig(o.config);
             // The stored total is the number the customer was quoted and is
@@ -84,11 +85,11 @@ export default async function KitchenBoard({
             const drifted = recomputed !== null && recomputed !== o.totalPaise;
 
             return (
-              <li key={o.id} className="bg-paper paper-edge rounded-sm">
+              <li key={o.id} className="overflow-hidden rounded-panel border border-rule bg-paper shadow-elev-1">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule px-4 py-3">
                   <div className="flex items-baseline gap-3">
                     <span className="font-mono text-item font-bold tracking-wide">{o.ref}</span>
-                    <span className="rounded-sm border border-rule px-2 py-0.5 font-mono text-micro text-steel">
+                    <span className="rounded-ticket border border-rule px-2 py-0.5 font-mono text-micro text-steel">
                       {STATUS_LABEL[o.status]}
                     </span>
                   </div>
@@ -111,7 +112,7 @@ export default async function KitchenBoard({
                 </dl>
 
                 {drifted && (
-                  <p role="alert" className="mx-4 mb-3 rounded-sm border border-seal/40 bg-seal/5 px-3 py-2 text-meta leading-snug">
+                  <p role="alert" className="mx-4 mb-3 rounded-card border border-seal/40 bg-seal-tint px-3.5 py-2.5 text-meta leading-snug">
                     Quoted {formatINR(o.totalPaise)}, but today&rsquo;s prices make this
                     cake {formatINR(recomputed!)}. The quoted figure is what was
                     agreed — the sheet below is regenerated and shows the new one.
@@ -123,12 +124,12 @@ export default async function KitchenBoard({
                     <summary className="cursor-pointer px-4 py-2.5 text-meta text-steel hover:text-ink">
                       Spec sheet
                     </summary>
-                    <pre className="overflow-x-auto border-t border-rule bg-slab-deep/40 px-4 py-3 font-mono text-micro leading-[1.7]">
+                    <pre className="overflow-x-auto border-t border-rule bg-sunken px-4 py-3 font-mono text-micro leading-[1.7]">
 {renderSpecSheet(config, { ref: o.ref, createdAt: o.createdAt })}
                     </pre>
                   </details>
                 ) : (
-                  <p role="alert" className="mx-4 mb-3 rounded-sm border border-seal/40 bg-seal/5 px-3 py-2 text-meta">
+                  <p role="alert" className="mx-4 mb-3 rounded-card border border-seal/40 bg-seal-tint px-3.5 py-2.5 text-meta">
                     This order&rsquo;s stored configuration no longer validates against
                     the current schema, so no sheet can be produced. Ring the customer.
                   </p>
@@ -142,13 +143,7 @@ export default async function KitchenBoard({
                         <input type="hidden" name="to" value={next} />
                         <button
                           type="submit"
-                          className={[
-                            "inline-flex min-h-11 items-center rounded-md px-4 text-meta font-medium",
-                            "transition-colors duration-[--dur-ui]",
-                            next === "cancelled"
-                              ? "border border-rule text-steel hover:border-seal hover:text-seal"
-                              : "bg-ink text-paper hover:bg-graphite",
-                          ].join(" ")}
+                          className={btn(next === "cancelled" ? "quiet" : "primary", "md")}
                         >
                           {ACTION_LABEL[next]}
                         </button>
@@ -179,22 +174,26 @@ function Shell({
       href={href}
       aria-current={active ? "page" : undefined}
       className={[
-        "inline-flex min-h-9 items-center gap-2 rounded-sm border px-3 text-meta",
-        active ? "border-ink bg-ink text-paper" : "border-rule bg-paper hover:border-ink",
+        "inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-meta",
+        "transition-colors duration-[--dur-ui]",
+        active
+          ? "border-ink bg-ink text-paper"
+          : "border-rule bg-paper text-graphite hover:border-rule-strong hover:text-ink",
       ].join(" ")}
     >
       {label}
-      <span className={`font-mono text-micro tabular-nums ${active ? "text-paper/70" : "text-steel"}`}>
+      <span className={`font-mono text-micro tabular-nums ${active ? "text-quiet" : "text-steel"}`}>
         {n ?? 0}
       </span>
     </Link>
   );
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <header className="mb-6">
-        <h1 className="text-3xl">Kitchen</h1>
-        <p className="mt-1 text-body text-steel">
+    <main className="mx-auto max-w-4xl px-4 py-10 sm:px-8">
+      <header className="mb-8 flex flex-col gap-3">
+        <span className={eyebrow}>The board</span>
+        <h1 className="text-heading">Kitchen</h1>
+        <p className="text-body leading-relaxed text-steel">
           Every docket, newest first. This is the only place an order can be read.
         </p>
       </header>
@@ -213,8 +212,8 @@ function Shell({
 
 function Row({ k, v, mono = false }: { k: string; v: string; mono?: boolean }) {
   return (
-    <div className="flex gap-3 border-b border-rule/50 py-1 last:border-0">
-      <dt className="w-24 shrink-0 text-meta text-steel">{k}</dt>
+    <div className="flex gap-3 border-b border-rule py-1.5 last:border-0">
+      <dt className="w-24 shrink-0 font-mono text-micro text-steel">{k}</dt>
       <dd className={`min-w-0 flex-1 leading-snug ${mono ? "font-mono tabular-nums" : ""}`}>{v}</dd>
     </div>
   );

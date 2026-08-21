@@ -2,8 +2,7 @@
 
 import { ColorPicker } from "@/components/builder/ColorPicker";
 import { OptionGrid } from "@/components/builder/OptionGrid";
-import { StepFooter } from "@/components/builder/StepNav";
-import { StepHeader } from "@/components/builder/StepHeader";
+import { GroupHeader, StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
 import { DRIP_PALETTE, FINISHES, FROSTING_PALETTE } from "@/lib/catalog";
 import { deltaFor } from "@/lib/pricing";
@@ -18,67 +17,84 @@ export default function FinishStep() {
 
   const fixedColour = FROSTING_MATERIALS[config.frosting].fixedColor;
   const dripBlocked = blockerFor(config, { hasDrip: true });
+  const dripOff = !!dripBlocked && !config.hasDrip;
 
   return (
-    <>
-      <StepHeader title="Colour & finish" hint="Surface texture and hue." />
-
-      {fixedColour ? (
-        <p className="mb-4 rounded-sm border border-rule bg-paper/60 px-3 py-2.5 text-body leading-snug text-steel">
-          Ganache is chocolate and cream — its colour comes from the chocolate, so
-          there is nothing to tint. Pick a different frosting if you want a colour.
-        </p>
-      ) : (
-        <ColorPicker
-          label="Frosting colour"
-          value={config.frostingColor}
-          onChange={(frostingColor) => set({ frostingColor })}
-          palette={FROSTING_PALETTE}
+    <div className="flex flex-col gap-7">
+      <div>
+        <StepHeader
+          title="Colour, finish and drip"
+          hint="The part everyone photographs."
         />
-      )}
 
-      <fieldset className="mt-6">
-        <legend className="mb-2 text-meta text-steel">
-          Finish
-        </legend>
+        {fixedColour ? (
+          <p className="rounded-card border border-rule bg-sunken px-4 py-3.5 text-meta leading-snug text-graphite">
+            Ganache is chocolate and cream — its colour comes from the chocolate, so
+            there is nothing to tint. Pick a different frosting if you want a colour.
+          </p>
+        ) : (
+          <>
+            <GroupHeader
+              title="Frosting colour"
+              hint="Pulled to shades a kitchen can actually mix."
+            />
+            <ColorPicker
+              label="Frosting colour"
+              labelHidden
+              value={config.frostingColor}
+              onChange={(frostingColor) => set({ frostingColor })}
+              palette={FROSTING_PALETTE}
+            />
+          </>
+        )}
+      </div>
+
+      <fieldset>
+        <GroupHeader title="Finish" hint="How the surface is worked once it is on." />
         <OptionGrid
           options={FINISHES}
+          label="Finish"
+          columns={3}
           selected={(c) => c.finish}
           patch={(finish) => ({ finish })}
         />
       </fieldset>
 
-      <fieldset className="mt-6">
-        <legend className="mb-2 text-meta text-steel">
-          Drip
-        </legend>
+      <fieldset>
+        <GroupHeader title="Drip" hint="Poured over the top edge and left to run." />
 
         <label
-          title={dripBlocked?.message}
           className={[
-            "flex cursor-pointer items-start gap-3 rounded-sm border px-3 py-2.5",
-            config.hasDrip ? "border-ink bg-paper" : "border-rule bg-paper/60",
-            dripBlocked && !config.hasDrip ? "border-dashed bg-slab-deep/40" : "",
+            "flex min-h-11 cursor-pointer items-start gap-3 rounded-card border px-4 py-3.5",
+            "transition-[background-color,border-color,box-shadow] duration-[--dur-ui] ease-[--ease-out]",
+            config.hasDrip
+              ? "border-ink bg-paper shadow-elev-1"
+              : dripOff
+                ? "cursor-not-allowed border-dashed border-seal/50 bg-counter"
+                : "border-rule bg-paper hover:border-rule-strong",
           ].join(" ")}
         >
           <input
             type="checkbox"
             checked={config.hasDrip}
+            disabled={dripOff}
             onChange={(e) => set({ hasDrip: e.target.checked })}
-            className="mt-0.5 size-4 accent-ink"
+            className="mt-1 size-[18px] shrink-0 accent-ink"
           />
           <span className="min-w-0 flex-1">
-            <span className="flex items-baseline justify-between gap-2">
-              <span className="text-body font-medium">Chocolate drip</span>
-              <span className="font-mono text-micro tabular-nums text-steel">
+            <span className="flex items-baseline justify-between gap-3">
+              <span className={`text-item font-medium ${dripOff ? "text-steel" : "text-ink"}`}>
+                Chocolate drip
+              </span>
+              <span className="shrink-0 font-mono text-micro font-bold text-brass tabular-nums">
                 {formatDelta(deltaFor(config, { hasDrip: !config.hasDrip }))}
               </span>
             </span>
-            <span className="mt-0.5 block text-meta leading-snug text-steel">
+            <span className="mt-1 block text-meta leading-snug text-steel">
               Poured warm at the rim so it runs a little way down the side.
             </span>
             {dripBlocked && (
-              <span className="mt-1 block font-mono text-micro leading-snug text-seal">
+              <span className="mt-1.5 block text-meta leading-snug text-seal">
                 {dripBlocked.message}
               </span>
             )}
@@ -86,7 +102,7 @@ export default function FinishStep() {
         </label>
 
         {config.hasDrip && (
-          <div className="mt-4">
+          <div className="mt-5">
             <ColorPicker
               label="Drip colour"
               value={config.dripColor ?? "#3B2318"}
@@ -98,7 +114,6 @@ export default function FinishStep() {
       </fieldset>
 
       <ViolationCard />
-      <StepFooter />
-    </>
+    </div>
   );
 }

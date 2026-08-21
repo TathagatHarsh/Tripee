@@ -1,7 +1,10 @@
 import * as THREE from "three";
 import type { Filling, Finish, Frosting, Sponge, Topping } from "@/lib/schema";
 import { achievable, mix, shade } from "@/lib/color";
-import { creamNormal, frostingNormal, satinNormal, sheetNormal, spongeNormal } from "./noise";
+import {
+  creamNormal, frostingNormal, frostingRoughness, satinNormal, sheetNormal,
+  spongeCrumb, spongeNormal,
+} from "./noise";
 
 /**
  * The eight rules, encoded:
@@ -12,6 +15,20 @@ import { creamNormal, frostingNormal, satinNormal, sheetNormal, spongeNormal } f
  *  6. Sheen with a warm sheenColor fakes subsurface warmth for free.
  *  7. Bevelled geometry — see geometry.ts.
  *  8. Saturation clamp before the colour reaches the material.
+ *
+ * Two additions, both aimed at the same tell:
+ *
+ *  9. A clearcoat is a *second*, smooth dielectric interface laid over the base
+ *     one — varnish, cling film, a car bonnet. It is exactly right for ganache,
+ *     which sets with a wet skin, and for mirror glaze, which is a mirror. It is
+ *     exactly wrong for buttercream, which is one rough surface and nothing
+ *     else. Every cream here carried 0.12–0.20 of it, and that lacquer — not the
+ *     colour, not the roughness — is what read as plastic. Creams now place the
+ *     highlight with `specularIntensity` instead, which brightens the one lobe
+ *     they actually have rather than adding a second one they do not.
+ * 10. Constant roughness gives a whole tier one unbroken specular lobe, which no
+ *     real surface has. `roughnessBreakup` multiplies in a broad, shallow field
+ *     (noise.frostingRoughness) so the highlight has something to catch on.
  */
 
 export interface FrostingMaterialSpec {
@@ -26,6 +43,14 @@ export interface FrostingMaterialSpec {
   baseColor: string;
   /** Frostings that carry their own colour and ignore the picker. */
   fixedColor?: boolean;
+  /** Index of refraction. Milk fats sit near 1.46; three's default 1.5 is glass. */
+  ior?: number;
+  /** Strength of the single dielectric highlight. Only meaningful without a clearcoat. */
+  specularIntensity?: number;
+  /** Tints that highlight. A white specular on brown chocolate reads as metal. */
+  specularColor?: string;
+  /** Off for glass-smooth surfaces, where a roughness field would be a lie. */
+  roughnessBreakup?: boolean;
 }
 
 /**
@@ -38,60 +63,92 @@ export interface FrostingMaterialSpec {
  */
 export const FROSTING_MATERIALS: Record<Frosting, FrostingMaterialSpec> = {
   "whipped-cream": {
-    roughness: 0.54, metalness: 0,
-    sheen: 0.14, sheenColor: "#FFEFD9", sheenRoughness: 0.85,
-    clearcoat: 0.04, normalScale: 0.15, baseColor: "#F7F1E6",
+    // The softest thing in the catalogue: air beaten into fat. Highest roughness,
+    // weakest specular, and the most sheen — the one place where the fabric lobe
+    // is telling the truth, because whipped cream really does scatter at the
+    // silhouette the way a napped surface does.
+    roughness: 0.58, metalness: 0,
+    sheen: 0.16, sheenColor: "#FFEFD9", sheenRoughness: 0.9,
+    clearcoat: 0, normalScale: 0.15, baseColor: "#F7F1E6",
+    ior: 1.44, specularIntensity: 0.34, roughnessBreakup: true,
   },
   "american-buttercream": {
-    roughness: 0.42, metalness: 0,
-    sheen: 0.08, sheenColor: "#FFE9CC", sheenRoughness: 0.8,
-    clearcoat: 0.14, clearcoatRoughness: 0.55,
-    normalScale: 0.11, baseColor: "#F3E7D3",
+    roughness: 0.46, metalness: 0,
+    sheen: 0.07, sheenColor: "#FFE9CC", sheenRoughness: 0.8,
+    clearcoat: 0, normalScale: 0.11, baseColor: "#F3E7D3",
+    ior: 1.46, specularIntensity: 0.5, roughnessBreakup: true,
   },
   "swiss-meringue": {
-    roughness: 0.34, metalness: 0,
-    sheen: 0.10, sheenColor: "#FFF2E0", sheenRoughness: 0.7,
-    clearcoat: 0.20, clearcoatRoughness: 0.45,
-    normalScale: 0.09, baseColor: "#F5EADA",
+    // Meringue buttercream is the glossiest of the creams — it is emulsified, so
+    // it takes a burnish off a hot palette knife that American never will. That
+    // difference is worth keeping; it just belongs in the base lobe, not in a
+    // lacquer over the top of it.
+    roughness: 0.36, metalness: 0,
+    sheen: 0.08, sheenColor: "#FFF2E0", sheenRoughness: 0.7,
+    clearcoat: 0, normalScale: 0.09, baseColor: "#F5EADA",
+    ior: 1.47, specularIntensity: 0.72, roughnessBreakup: true,
   },
   "cream-cheese": {
-    roughness: 0.44, metalness: 0,
+    roughness: 0.48, metalness: 0,
     sheen: 0.09, sheenColor: "#FFF0DC", sheenRoughness: 0.8,
-    clearcoat: 0.12, clearcoatRoughness: 0.5,
-    normalScale: 0.12, baseColor: "#F8F0E2",
+    clearcoat: 0, normalScale: 0.12, baseColor: "#F8F0E2",
+    ior: 1.45, specularIntensity: 0.46, roughnessBreakup: true,
   },
   "dark-ganache": {
-    roughness: 0.24, metalness: 0,
+    // Chocolate's own refractive index is high — cocoa butter is about 1.51 —
+    // which is part of why set ganache looks *wet* rather than merely dark. The
+    // specular is tinted warm: a neutral-white highlight on a brown dielectric
+    // is the exact signature of a metal, and it is why the darkest render in the
+    // lab used to read as painted steel at the top edge.
+    roughness: 0.26, metalness: 0,
     sheen: 0, sheenColor: "#4A2C1A", sheenRoughness: 0.4,
-    clearcoat: 0.45, clearcoatRoughness: 0.22,
+    clearcoat: 0.42, clearcoatRoughness: 0.24,
     normalScale: 0.10, baseColor: "#3B2318", fixedColor: true,
+    ior: 1.51, specularIntensity: 1, specularColor: "#FFEBD2",
+    roughnessBreakup: true,
   },
   "milk-ganache": {
-    roughness: 0.27, metalness: 0,
+    roughness: 0.29, metalness: 0,
     sheen: 0, sheenColor: "#7A5236", sheenRoughness: 0.45,
-    clearcoat: 0.40, clearcoatRoughness: 0.26,
+    clearcoat: 0.36, clearcoatRoughness: 0.28,
     normalScale: 0.10, baseColor: "#6B4A32", fixedColor: true,
+    ior: 1.5, specularIntensity: 1, specularColor: "#FFEEDA",
+    roughnessBreakup: true,
   },
   "white-ganache": {
-    roughness: 0.30, metalness: 0,
+    roughness: 0.32, metalness: 0,
     sheen: 0.06, sheenColor: "#FFF6E8", sheenRoughness: 0.5,
-    clearcoat: 0.36, clearcoatRoughness: 0.28,
+    clearcoat: 0.3, clearcoatRoughness: 0.3,
     normalScale: 0.10, baseColor: "#EFE3CE",
+    ior: 1.49, specularIntensity: 1, specularColor: "#FFF4E6",
+    roughnessBreakup: true,
   },
   fondant: {
-    // Rolled fondant is matte and dead flat — that is the look people are
-    // buying. Flat, though, is not the same as textured.
-    roughness: 0.52, metalness: 0,
-    sheen: 0.06, sheenColor: "#FFF4E4", sheenRoughness: 0.8,
-    clearcoat: 0.06, normalScale: 0.05, baseColor: "#F2EADC",
+    // The old note here — "rolled fondant is matte and dead flat" — was half
+    // right and the half it got wrong inverted the whole comparison. Flat is
+    // about *surface*, not about roughness, and at 0.52 fondant was rougher than
+    // the American buttercream next to it. That is backwards: sugar paste is
+    // rolled and smoothed with an acetate, so it is the *smoother* of the two,
+    // with one broad satin highlight and no texture whatsoever. Roughness comes
+    // down to place that highlight; the normal scale stays at a whisper, which is
+    // what "dead flat" actually meant.
+    roughness: 0.4, metalness: 0,
+    sheen: 0.05, sheenColor: "#FFF4E4", sheenRoughness: 0.85,
+    clearcoat: 0, normalScale: 0.05, baseColor: "#F2EADC",
+    ior: 1.48, specularIntensity: 0.62, roughnessBreakup: true,
   },
   "mirror-glaze": {
     // 0.06 gives razor-straight reflections of the lightformers, which reads as
     // CG. A touch more roughness keeps the mirror and loses the hard edge.
-    roughness: 0.11, metalness: 0.05,
+    //
+    // Metalness 0.05 was doing nothing a real glaze does — a gelatine-set glaze
+    // is a dielectric, and even 5% metal desaturates the diffuse underneath it.
+    // The mirror comes from the clearcoat, so the metal can go.
+    roughness: 0.12, metalness: 0,
     sheen: 0, sheenColor: "#FFF4E4", sheenRoughness: 0.5,
-    clearcoat: 0.85, clearcoatRoughness: 0.1,
+    clearcoat: 0.9, clearcoatRoughness: 0.08,
     normalScale: 0.06, baseColor: "#C4342A",
+    ior: 1.52, specularIntensity: 1, roughnessBreakup: false,
   },
 };
 
@@ -140,6 +197,7 @@ export const TOPPING_COLORS: Record<Topping, string> = {
   ferrero: "#8A6A3C",
 };
 
+/** Spread straight onto a `meshPhysicalMaterial`, so every field is a real prop. */
 export interface MaterialProps {
   color: string;
   roughness: number;
@@ -152,6 +210,13 @@ export interface MaterialProps {
   normalMap: THREE.Texture;
   normalScale: THREE.Vector2;
   envMapIntensity: number;
+  /** Multiplies `color`. Carries tonal variation a normal map cannot. */
+  map?: THREE.Texture;
+  /** Multiplies `roughness`, so the specular is not one unbroken lobe. */
+  roughnessMap?: THREE.Texture;
+  ior?: number;
+  specularIntensity?: number;
+  specularColor?: string;
 }
 
 /**
@@ -225,6 +290,16 @@ export function frostingMaterial(
     clearcoatRoughness: spec.clearcoatRoughness ?? 0.4,
     normalMap: tex,
     normalScale: new THREE.Vector2(spec.normalScale, spec.normalScale),
+    // The break-up runs at a third of the normal map's tiling. Frosting is duller
+    // where it is thick and wetter where the scraper burnished it, and those
+    // patches are hand-sized — much broader than the surface texture sitting on
+    // top of them. Matching the two repeats would just re-describe the bumps.
+    roughnessMap: spec.roughnessBreakup
+      ? tiled(frostingRoughness(), Math.max(1, Math.round(rx / 3)), Math.max(1, Math.round(ry / 3)))
+      : undefined,
+    ior: spec.ior,
+    specularIntensity: spec.specularIntensity,
+    specularColor: spec.specularColor,
     // 0.7 left the frosting lit almost entirely by the three directional lights,
     // which is flat. The environment is what puts a soft gradient down the side
     // of the cake and a highlight on the top edge.
@@ -241,20 +316,32 @@ export function ombreTop(hex: string): string {
   return shade(achievable(hex), +0.12);
 }
 
+/**
+ * A crumb normal map shades the crumb but cannot stop the sponge being one flat
+ * value, which is why a cut cake still read as a coloured cylinder with a bumpy
+ * skin. The crumb *tone* map fixes that: open crumb reads darker than the cut
+ * faces of the crumb walls, and that tonal difference is most of what makes a
+ * sponge look baked rather than moulded.
+ *
+ * The tone map can only darken (see noise.luminanceMap), so the colour is lifted
+ * by the map's own average first — otherwise every flavour would render a shade
+ * muddier than the one named in SPONGE_COLORS.
+ */
+const CRUMB_LIFT = 0.07;
+
 export function spongeMaterial(
   sponge: Sponge,
   repeat: number | [number, number] = 4,
 ): MaterialProps {
   const base = SPONGE_COLORS[sponge];
-  const color = sponge === "marble" ? mix(base, SPONGE_COLORS["belgian-chocolate"], 0.28) : base;
+  const blended = sponge === "marble" ? mix(base, SPONGE_COLORS["belgian-chocolate"], 0.28) : base;
 
-  const tex = spongeNormal().clone();
   const [rx, ry] = Array.isArray(repeat) ? repeat : [repeat, repeat];
-  tex.repeat.set(rx, ry);
-  tex.needsUpdate = true;
+  const tex = tiled(spongeNormal(), rx, ry);
 
   return {
-    color,
+    color: shade(blended, CRUMB_LIFT),
+    map: tiled(spongeCrumb(), rx, ry),
     roughness: 0.86,
     metalness: 0,
     sheen: 0.12,
@@ -264,6 +351,8 @@ export function spongeMaterial(
     clearcoatRoughness: 0.5,
     normalMap: tex,
     normalScale: new THREE.Vector2(0.55, 0.55),
+    ior: 1.42,
+    specularIntensity: 0.22,
     envMapIntensity: 0.4,
   };
 }
@@ -289,9 +378,9 @@ export function tileRepeat(
 }
 
 export function fillingMaterial(filling: Filling): MaterialProps {
-  const tex = frostingNormal().clone();
-  tex.repeat.set(6, 2);
-  tex.needsUpdate = true;
+  // Through `tiled` rather than a bare clone, for the reason given above it: a
+  // clone is a fresh GPU upload that nothing ever disposes.
+  const tex = tiled(frostingNormal(), 6, 2);
 
   return {
     color: FILLING_COLORS[filling],
@@ -347,9 +436,21 @@ export const TOPPING_PALETTES: Partial<Record<Topping, string[]>> = {
  * is both darker than the cake and slightly specular — the specular is what
  * separates it, because it catches the key light where the matte frosting does
  * not.
+ *
+ * That reasoning holds; the value chosen to express it did not. `metalness: 0.22`
+ * is a fifth of a conductor, and metalness has no middle: it fades out the
+ * diffuse colour and tints the reflection with it, so the board came out as a
+ * desaturated grey-gold with a sheet-metal highlight — a cake stand, not a card
+ * round. The separation the comment is after is *specular*, and a dielectric can
+ * have as much of that as it likes. So: near-zero metal, a low ior-driven
+ * highlight, and the grain doing the rest.
+ *
+ * The colour is lifted to suit `boardGrain`, which can only darken.
  */
 export const BOARD_MATERIAL = {
-  color: "#A79C8A",
-  roughness: 0.46,
-  metalness: 0.22,
+  color: "#B4A995",
+  roughness: 0.52,
+  metalness: 0.04,
+  ior: 1.44,
+  specularIntensity: 0.6,
 } as const;

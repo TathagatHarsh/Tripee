@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import type { CakeConfig, Shape } from "@/lib/schema";
 import { frostingMaterial, tileRepeat } from "./materials";
 import {
-  phiOf, ruffleGeometry, rosetteGeometry, shellOutline, outlinePerimeter,
+  phiOf, ruffleBandGeometry, rosetteGeometry, shellOutline, outlinePerimeter,
   type Sector, type TierDims,
 } from "./geometry";
 import { useDisposed } from "./useDisposable";
@@ -13,6 +13,9 @@ import { mulberry32 } from "@/lib/seed";
 
 interface Props {
   config: CakeConfig;
+  /** This tier's own shape — see geometry.tierShape. The decoration is laid out on
+   *  the outline of the tier it is piped onto, which on a tiered heart is a round. */
+  shape: Shape;
   dims: TierDims;
   seed: number;
   castShadow: boolean;
@@ -22,13 +25,13 @@ interface Props {
   sector?: Sector;
 }
 
-export function FrostingShell({ config, dims, seed, castShadow, geometry, sector }: Props) {
+export function FrostingShell({ config, shape, dims, seed, castShadow, geometry, sector }: Props) {
   const mat = useMemo(
     () => frostingMaterial(
       config.frosting, config.frostingColor, config.finish,
-      tileRepeat(config.shape, dims.radius, dims.height),
+      tileRepeat(shape, dims.radius, dims.height),
     ),
-    [config.frosting, config.frostingColor, config.finish, config.shape, dims.radius, dims.height],
+    [config.frosting, config.frostingColor, config.finish, shape, dims.radius, dims.height],
   );
 
   return (
@@ -36,18 +39,23 @@ export function FrostingShell({ config, dims, seed, castShadow, geometry, sector
       <mesh geometry={geometry} castShadow={castShadow} receiveShadow>
         <meshPhysicalMaterial
           {...mat}
+          /* The vertex colour channel is always populated now: the tier bakes its
+             contact occlusion into it (Tier → bakeOcclusion) and ombré multiplies
+             its gradient on top. So vertex colours are on for every finish, and
+             only ombré needs the material colour out of the way — for ombré the
+             channel is carrying colour, not just shade. */
           color={config.finish === "ombre" ? "#ffffff" : mat.color}
-          vertexColors={config.finish === "ombre"}
+          vertexColors
           /* Open at the cut, so the far inner surface has to render too. */
           side={sector ? THREE.DoubleSide : THREE.FrontSide}
         />
       </mesh>
 
       {config.finish === "ruffle" && (
-        <Ruffles shape={config.shape} dims={dims} seed={seed} mat={mat} castShadow={castShadow} sector={sector} />
+        <Ruffles shape={shape} dims={dims} seed={seed} mat={mat} castShadow={castShadow} sector={sector} />
       )}
       {config.finish === "rosette" && (
-        <Rosettes shape={config.shape} dims={dims} seed={seed} mat={mat} castShadow={castShadow} sector={sector} />
+        <Rosettes shape={shape} dims={dims} seed={seed} mat={mat} castShadow={castShadow} sector={sector} />
       )}
     </group>
   );
@@ -74,65 +82,25 @@ function inCut(x: number, z: number, sector?: Sector): boolean {
   return Math.abs(d) < sector.width / 2;
 }
 
-/** Overlapping frills, piped by hand. Instanced — this is slow work in a kitchen
- * and it should not also be slow on the GPU. */
+/**
+ * The ruffled finish: one continuous swept band per row, not a field of instanced
+ * frills. See geometry.ruffleBandGeometry for why — in short, a ruffle is piped in one
+ * unbroken pass, and anything assembled from separate pieces shows its seams.
+ */
 function Ruffles({ shape, dims, seed, mat, castShadow, sector }: DecorProps) {
   const geo = useDisposed(useMemo(
-    () => ruffleGeometry(),
-    [],
+    () => ruffleBandGeometry(shape, dims.radius, dims.height, seed, sector),
+    [shape, dims.radius, dims.height, seed, sector],
   ));
 
-  const instances = useMemo(() => {
-    const rng = mulberry32(seed ^ 0x1f83d9ab);
-    const size = Math.min(0.34, dims.radius * 0.38);
-    const rows = Math.max(3, Math.round(dims.height / (size * 0.52)));
-
-    // Measure the real perimeter and space the frills along it. `2πr` is the
-    // perimeter of a circle; a square of the same radius is 8r, a third longer
-    // again, so a square used to get a circle's worth of frills stretched
-    // around a longer edge and came out visibly sparse on the flats.
-    const probe = shellOutline(shape, dims.radius, dims.height, 256, "widest");
-    const perRow = Math.max(12, Math.round(outlinePerimeter(probe) / (size * 0.72)));
-    const ring = shellOutline(shape, dims.radius, dims.height, perRow, "widest");
-    const out: { pos: THREE.Vector3; rot: THREE.Euler; scale: number }[] = [];
-
-    for (let r = 0; r < rows; r++) {
-      const y = ((r + 0.5) / rows) * dims.height;
-      const stagger = r % 2 ? 0.5 : 0;
-      for (let i = 0; i < perRow; i++) {
-        const p = ring[(i + (stagger ? 1 : 0)) % perRow];
-        if (inCut(p.x, p.z, sector)) continue;
-        // Sit just proud of the surface so the frill reads as applied, not sunk.
-        const push = 0.02;
-        out.push({
-          pos: new THREE.Vector3(p.x + p.nx * push, y, p.z + p.nz * push),
-          rot: new THREE.Euler(-0.4 + (rng() - 0.5) * 0.14, p.yaw + Math.PI / 2, 0),
-          scale: size * (0.9 + rng() * 0.2),
-        });
-      }
-    }
-    return out;
-  }, [shape, dims.radius, dims.height, seed, sector]);
+  if (!geo) return null;
 
   return (
-    <instancedMesh
-      args={[geo, undefined, instances.length]}
-      castShadow={castShadow}
-      ref={(m) => {
-        if (!m) return;
-        const o = new THREE.Object3D();
-        instances.forEach((inst, i) => {
-          o.position.copy(inst.pos);
-          o.rotation.copy(inst.rot);
-          o.scale.setScalar(inst.scale);
-          o.updateMatrix();
-          m.setMatrixAt(i, o.matrix);
-        });
-        m.instanceMatrix.needsUpdate = true;
-      }}
-    >
-      <meshPhysicalMaterial {...mat} />
-    </instancedMesh>
+    <mesh geometry={geo} castShadow={castShadow} receiveShadow>
+      {/* Two-sided: the underside of every frill is visible from below, and the hem is
+          thin enough that backface culling shows through it. */}
+      <meshPhysicalMaterial {...mat} side={THREE.DoubleSide} />
+    </mesh>
   );
 }
 
@@ -148,24 +116,47 @@ function Rosettes({ shape, dims, seed, mat, castShadow, sector }: DecorProps) {
     const out: { pos: THREE.Vector3; rot: THREE.Euler; scale: number }[] = [];
     const size = Math.min(0.32, dims.radius * 0.4);
 
-    const rows = Math.max(2, Math.round(dims.height / (size * 1.05)));
+    /*
+     * Spaced to touch. The sweep is a shade under one unit across and one unit tall,
+     * so a pitch of 1.15 left a visible gap between every pair — and a lattice of
+     * separated blobs is what made the square read as embossed rather than piped.
+     * Piped rosettes are butted up against each other; the neighbours are what hide
+     * each other's tails.
+     */
+    const rows = Math.max(2, Math.round(dims.height / (size * 0.98)));
     const probe = shellOutline(shape, dims.radius, dims.height, 256, "widest");
-    const perRow = Math.max(8, Math.round(outlinePerimeter(probe) / (size * 1.15)));
+    const perRow = Math.max(8, Math.round(outlinePerimeter(probe) / (size * 1.0)));
     const ring = shellOutline(shape, dims.radius, dims.height, perRow, "widest");
 
+    /*
+     * Same problem as the ruffles, worse: every row started at ring[0], so the
+     * rosettes lined up into vertical columns and the tier read as an embossed
+     * grid of snail shells rather than as piped work. A per-row phase breaks the
+     * columns; the jitter below breaks the rows.
+     */
     for (let r = 0; r < rows; r++) {
-      const y = ((r + 0.5) / rows) * dims.height;
+      const rowY = ((r + 0.5) / rows) * dims.height;
+      const phase = rng();
       for (let i = 0; i < perRow; i++) {
-        const p = ring[i];
+        const p = ring[Math.floor(i + phase * perRow) % perRow];
         if (inCut(p.x, p.z, sector)) continue;
-        // A rosette is a spiral swept with a 0.155-radius tube that also rises
-        // 0.2 along its own axis, so roughly a third of its own scale sticks out
-        // behind its origin. 0.18 buried half of every one of them in the cake —
-        // it only ever looked passable because the old radial placement pushed
-        // them outward along the diagonal as well.
-        const push = size * 0.34;
+        /*
+         * How far the rosette stands off the wall, and it has to be measured from the
+         * geometry rather than guessed. 0.18 buried half of every one of them; 0.34
+         * was right for the old fused tube, which extended a third of its own scale
+         * behind its origin. The star-section sweep only reaches 0.087 back, so 0.34
+         * would float every rosette a quarter of its own width clear of the cake.
+         * 0.06 seats it with its back just inside the frosting.
+         */
+        const push = size * 0.06;
+        const tx = -p.nz, tz = p.nx;
+        const slide = (rng() - 0.5) * size * 0.2;
         out.push({
-          pos: new THREE.Vector3(p.x + p.nx * push, y, p.z + p.nz * push),
+          pos: new THREE.Vector3(
+            p.x + p.nx * push + tx * slide,
+            rowY + (rng() - 0.5) * size * 0.14,
+            p.z + p.nz * push + tz * slide,
+          ),
           // rosetteGeometry now faces local +Z, so aiming it is a single yaw
           // about Y and the third Euler term becomes a roll about the facing
           // axis — which is what varying a piped swirl actually means.
@@ -175,8 +166,12 @@ function Rosettes({ shape, dims, seed, mat, castShadow, sector }: DecorProps) {
           // outward normal. Every rosette in the product has been edge-on since
           // it was written; on a round cake they overlapped into something that
           // read as texture, so nobody caught it.
-          rot: new THREE.Euler(0, Math.atan2(p.nx, p.nz), rng() * Math.PI * 2),
-          scale: size * (0.92 + rng() * 0.16),
+          rot: new THREE.Euler(
+            (rng() - 0.5) * 0.16,
+            Math.atan2(p.nx, p.nz),
+            rng() * Math.PI * 2,
+          ),
+          scale: size * (0.86 + rng() * 0.28),
         });
       }
     }
@@ -184,6 +179,8 @@ function Rosettes({ shape, dims, seed, mat, castShadow, sector }: DecorProps) {
     // Top face, worked inward by shrinking the measured silhouette.
     const steps = Math.max(1, Math.round(dims.radius / size));
     for (let k = 1; k <= steps; k++) {
+      // Back to the original step: at +0.15 the inner rings crowded together and then
+      // left a bare stripe across the middle of the top.
       const shrink = 1 - k / (steps + 0.4);
       const inner = ring.map(p => ({
         ...p,
@@ -203,7 +200,10 @@ function Rosettes({ shape, dims, seed, mat, castShadow, sector }: DecorProps) {
         });
         break;
       }
-      const n = Math.max(4, Math.round(ringLength / (size * 1.15)));
+      // The top face needs more room than the wall does. Seen from above, a rose
+      // shows its full width, and at the wall's pitch the rings collided into an
+      // overlapping mat with tails poking through each other.
+      const n = Math.max(4, Math.round(ringLength / (size * 1.16)));
       for (let i = 0; i < n; i++) {
         const p = inner[Math.floor((i / n) * inner.length)];
         if (inCut(p.x, p.z, sector)) continue;

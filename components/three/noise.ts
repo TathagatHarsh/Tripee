@@ -48,28 +48,26 @@ function fbm2(x: number, y: number, octaves: number, gain = 0.5): number {
   return fbm3(x, y, 0.5, octaves, gain);
 }
 
-type NormalMapSpec = {
+type FieldSpec = {
   size: number;
   frequency: number;
   octaves: number;
-  strength: number;
   /** Stretches the field so ridges run one way (combed frosting, sponge crumb). */
   anisotropy?: number;
 };
 
+type NormalMapSpec = FieldSpec & { strength: number };
+
 const cache = new Map<string, THREE.Texture>();
 
 /**
- * Height field → tangent-space normal map, as a DataTexture. Kept small
- * (256–512) to stay well inside the 30MB texture budget.
+ * The height field both map types are built from. Shared so a luminance map and
+ * a normal map asked for at the same frequency describe the *same* surface —
+ * which is the whole point of correlating them: the place a bump catches the
+ * light should also be the place the surface reads smoother.
  */
-export function normalMap(key: string, spec: NormalMapSpec): THREE.Texture {
-  const hit = cache.get(key);
-  if (hit) return hit;
-
-  const { size, frequency, octaves, strength, anisotropy = 1 } = spec;
+function heightField({ size, frequency, octaves, anisotropy = 1 }: FieldSpec): Float32Array {
   const height = new Float32Array(size * size);
-
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       height[y * size + x] = fbm2(
@@ -79,6 +77,30 @@ export function normalMap(key: string, spec: NormalMapSpec): THREE.Texture {
       );
     }
   }
+  return height;
+}
+
+/** Shared texture setup: everything generated here tiles and is mipmapped. */
+function dataTexture(data: Uint8Array, size: number): THREE.Texture {
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/**
+ * Height field → tangent-space normal map, as a DataTexture. Kept small
+ * (256–512) to stay well inside the 30MB texture budget.
+ */
+export function normalMap(key: string, spec: NormalMapSpec): THREE.Texture {
+  const hit = cache.get(key);
+  if (hit) return hit;
+
+  const { size, strength } = spec;
+  const height = heightField(spec);
 
   const data = new Uint8Array(size * size * 4);
   const at = (x: number, y: number) =>
@@ -98,12 +120,46 @@ export function normalMap(key: string, spec: NormalMapSpec): THREE.Texture {
     }
   }
 
-  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = true;
-  tex.needsUpdate = true;
+  const tex = dataTexture(data, size);
+  cache.set(key, tex);
+  return tex;
+}
+
+/**
+ * Height field → greyscale, as a DataTexture centred on 1.0.
+ *
+ * A normal map only changes where the light *comes from*; it cannot stop a
+ * surface being one flat value. That is why the sponge read as a coloured
+ * cylinder and the board as a beige disc: both had shading variation and no
+ * *tonal* variation. Multiplied into `map` this breaks up the colour, and
+ * multiplied into `roughnessMap` it breaks up the specular — which is what stops
+ * a whole tier of frosting sharing one unbroken highlight.
+ *
+ * An 8-bit texture cannot express a multiplier above 1, so this is a *darkening*
+ * field: it runs from `1 - depth` up to 1. Whatever it multiplies therefore has
+ * to be specified at the value its lightest patches should be, not at its
+ * average — see the sponge and board colours, both lifted to suit.
+ */
+export function luminanceMap(
+  key: string,
+  spec: FieldSpec & { depth: number },
+): THREE.Texture {
+  const hit = cache.get(key);
+  if (hit) return hit;
+
+  const { size, depth } = spec;
+  const height = heightField(spec);
+
+  const data = new Uint8Array(size * size * 4);
+  for (let i = 0; i < size * size; i++) {
+    const v = 1 - depth * (1 - THREE.MathUtils.clamp(height[i], 0, 1));
+    const b = Math.round(v * 255);
+    const j = i * 4;
+    data[j] = data[j + 1] = data[j + 2] = b;
+    data[j + 3] = 255;
+  }
+
+  const tex = dataTexture(data, size);
   cache.set(key, tex);
   return tex;
 }
@@ -141,6 +197,34 @@ export const spongeNormal = () =>
 export const sheetNormal = () =>
   normalMap("sheet", { size: 256, frequency: 8, octaves: 3, strength: 6 });
 
-/** The cake board — pressed card. */
+/**
+ * The cake board — pressed card.
+ *
+ * Was strength 14 at 6× repeat, which is a bump every half-millimetre of real
+ * board: sandpaper, and the single most artificial surface in the frame. Card is
+ * smooth to the eye; what it has is a *grain*, so the strength comes right down
+ * and the anisotropy carries the look instead.
+ */
 export const boardNormal = () =>
-  normalMap("board", { size: 256, frequency: 48, octaves: 3, strength: 14 });
+  normalMap("board", { size: 256, frequency: 34, octaves: 3, strength: 4, anisotropy: 0.34 });
+
+/**
+ * Crumb tone, for the sponge colour to be multiplied by. Same frequency as
+ * `spongeNormal`, so the tonal variation sits on the same crumb the normal map
+ * is shading rather than fighting it.
+ */
+export const spongeCrumb = () =>
+  luminanceMap("sponge-crumb", { size: 512, frequency: 38, octaves: 4, depth: 0.26 });
+
+/** Card grain, matching `boardNormal`'s field so the two agree. */
+export const boardGrain = () =>
+  luminanceMap("board-grain", { size: 256, frequency: 34, octaves: 3, depth: 0.14, anisotropy: 0.34 });
+
+/**
+ * Roughness break-up for frosting. Buttercream is not uniformly matte — it is
+ * duller where it is thick and slightly wetter where the scraper burnished it,
+ * and without that the whole tier shares one unbroken specular lobe, which is
+ * the plastic tell. Broad and shallow on purpose: this must be felt, not seen.
+ */
+export const frostingRoughness = () =>
+  luminanceMap("frosting-rough", { size: 256, frequency: 4.5, octaves: 3, depth: 0.3 });

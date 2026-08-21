@@ -1,35 +1,37 @@
 "use client";
 
 import { OptionGrid } from "@/components/builder/OptionGrid";
-import { StepFooter } from "@/components/builder/StepNav";
-import { StepHeader } from "@/components/builder/StepHeader";
+import { GroupHeader, StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
 import { COVERAGES, FROSTINGS } from "@/lib/catalog";
 
 export default function FrostingStep() {
   return (
-    <>
-      <StepHeader title="Frosting" hint="What covers it, and how much of it." />
+    <div className="flex flex-col gap-7">
+      <div>
+        <StepHeader
+          title="The outer coat"
+          hint="Decides how it holds, cuts and shines."
+        />
+        <OptionGrid
+          options={FROSTINGS}
+          label="Frosting"
+          selected={(c) => c.frosting}
+          patch={(frosting) => ({ frosting })}
+        />
+      </div>
 
-      <OptionGrid
-        options={FROSTINGS}
-        selected={(c) => c.frosting}
-        patch={(frosting) => ({ frosting })}
-      />
-
-      <fieldset className="mt-6">
-        <legend className="mb-2 text-meta text-steel">
-          Coverage
-        </legend>
+      <fieldset>
+        <GroupHeader title="Coverage" hint="How much of the sponge the frosting hides." />
         <OptionGrid
           options={COVERAGES}
+          label="Coverage"
           selected={(c) => c.coverage}
           patch={(coverage) => ({ coverage })}
         />
       </fieldset>
 
       <ViolationCard />
-      <StepFooter />
-    </>
+    </div>
   );
 }

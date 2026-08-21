@@ -33,7 +33,11 @@ async function main() {
 
   const solo = process.argv.indexOf("--solo");
   const route = solo > -1 ? `/lab/${process.argv[solo + 1]}` : "/lab";
-  await page.goto(`${BASE}${route}`, { waitUntil: "networkidle" });
+  // "networkidle" never settles against `next dev`: the HMR websocket keeps the
+  // connection busy for as long as the page is open, so every capture died on
+  // page.goto's 30s timeout. The 6s settle below is what actually waits for the
+  // render anyway — it always was.
+  await page.goto(`${BASE}${route}`, { waitUntil: "load" });
   await page.waitForSelector("canvas");
 
   if (process.argv.includes("--sliced")) {

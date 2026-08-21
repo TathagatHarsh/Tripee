@@ -2,11 +2,17 @@
 
 import { useEffect } from "react";
 import { useCake, useTemporal } from "@/lib/store";
+import { iconBtn } from "@/lib/ui";
 
 /**
  * Changing your mind is the normal case, not the exception. ⌘Z / Ctrl+Z works
  * anywhere on the page, and there is a visible control for people who do not
  * know the shortcut.
+ *
+ * These were 36px — under the 44px floor, in the header, where they sit next to
+ * the step chips and are the easiest thing in the product to hit by accident.
+ * The arrows carry the meaning at small widths; the words come back at sm and
+ * the accessible name is the full one at every width.
  */
 export function UndoBar() {
   const { canUndo, canRedo, undo, redo } = useTemporal();
@@ -27,38 +33,37 @@ export function UndoBar() {
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
 
-  // Fixed height and no wrapping: these used to break onto two lines inside the
-  // header on a phone, which doubled the header and squeezed the step nav out
-  // of existence. The arrows carry the meaning at small widths; the words come
-  // back at sm and the accessible name is always the full one.
-  const btn =
-    "inline-flex h-9 items-center justify-center rounded-md border border-rule px-2.5 " +
-    "text-meta whitespace-nowrap transition-colors duration-[--dur-ui] " +
-    "enabled:hover:border-ink disabled:text-steel/50";
-
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex shrink-0 items-center gap-2">
       {/* Wrapped: undo/redo take a step count, and a click event is not one. */}
       <button
-        type="button" onClick={() => undo()} disabled={!canUndo}
-        className={btn} aria-label="Undo"
+        type="button"
+        onClick={() => undo()}
+        disabled={!canUndo}
+        className={iconBtn("w-auto gap-2 px-3 text-meta sm:px-4")}
+        aria-label="Undo"
       >
-        <span aria-hidden>↩</span>
-        <span className="ml-1 hidden sm:inline">Undo</span>
+        <span aria-hidden>↶</span>
+        <span aria-hidden className="hidden sm:inline">Undo</span>
       </button>
       <button
-        type="button" onClick={() => redo()} disabled={!canRedo}
-        className={btn} aria-label="Redo"
+        type="button"
+        onClick={() => redo()}
+        disabled={!canRedo}
+        className={iconBtn("w-auto gap-2 px-3 text-meta sm:px-4")}
+        aria-label="Redo"
       >
-        <span className="mr-1 hidden sm:inline">Redo</span>
-        <span aria-hidden>↪</span>
+        <span aria-hidden>↷</span>
+        <span aria-hidden className="hidden sm:inline">Redo</span>
       </button>
       <button
         type="button"
         onClick={() => { reset(); useCake.temporal.getState().clear(); }}
-        className={btn}
+        className={iconBtn("w-auto px-3 text-meta sm:px-4")}
       >
-        Start again
+        <span className="hidden sm:inline">Start again</span>
+        <span aria-hidden className="sm:hidden">⟲</span>
+        <span className="sr-only sm:hidden">Start again</span>
       </button>
     </div>
   );

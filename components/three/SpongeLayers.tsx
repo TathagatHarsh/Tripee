@@ -2,13 +2,15 @@
 
 import * as THREE from "three";
 import { useMemo } from "react";
-import type { CakeConfig } from "@/lib/schema";
+import type { CakeConfig, Shape } from "@/lib/schema";
 import { fillingMaterial, frostingMaterial, spongeMaterial, tileRepeat } from "./materials";
 import { slabStack, tierGeometry, type Sector, type TierDims } from "./geometry";
 import { useDisposed } from "./useDisposable";
 
 interface Props {
   config: CakeConfig;
+  /** This tier's shape — see geometry.tierShape. */
+  shape: Shape;
   dims: TierDims;
   seed: number;
   segments: number;
@@ -21,48 +23,48 @@ interface Props {
  * Visible on naked, semi-naked and top-only builds. Layer heights carry ±2% of
  * seeded jitter — a mechanically identical stack is what gives a render away.
  */
-export function SpongeLayers({ config, dims, seed, segments, castShadow, sector }: Props) {
+export function SpongeLayers({ config, shape, dims, seed, segments, castShadow, sector }: Props) {
   // A bundt is baked in one piece in a ring mould. It has no layers to show.
-  const hasFilling = config.filling !== "none" && config.shape !== "bundt";
+  const hasFilling = config.filling !== "none" && shape !== "bundt";
   // On a cut cake the stack is lifted a hair off the shell's own base, which is
   // otherwise coplanar with it and fights for the same pixels at the cut.
   const inset = sector ? 0.008 : 0;
 
   const slabs = useMemo(
     () => slabStack(
-      config.shape === "bundt" ? 1 : config.layers,
+      shape === "bundt" ? 1 : config.layers,
       dims.height - inset * 2, dims.radius, hasFilling, seed,
     ),
-    [config.shape, config.layers, dims.height, inset, dims.radius, hasFilling, seed],
+    [shape, config.layers, dims.height, inset, dims.radius, hasFilling, seed],
   );
 
   const spongeGeo = useDisposed(useMemo(
     () => tierGeometry({
-      shape: config.shape,
+      shape,
       radius: dims.radius,
       height: 1,
       segments,
       bevel: Math.min(dims.radius * 0.04, 0.03),
       sector,
     }),
-    [config.shape, dims.radius, segments, sector],
+    [shape, dims.radius, segments, sector],
   ));
 
   const fillingGeo = useDisposed(useMemo(
     () => tierGeometry({
-      shape: config.shape,
+      shape,
       radius: dims.radius * 1.002,
       height: 1,
       segments,
       bevel: Math.min(dims.radius * 0.03, 0.02),
       sector,
     }),
-    [config.shape, dims.radius, segments, sector],
+    [shape, dims.radius, segments, sector],
   ));
 
   const spongeMat = useMemo(
-    () => spongeMaterial(config.sponge, tileRepeat(config.shape, dims.radius, 1, 0.3)),
-    [config.sponge, config.shape, dims.radius],
+    () => spongeMaterial(config.sponge, tileRepeat(shape, dims.radius, 1, 0.3)),
+    [config.sponge, shape, dims.radius],
   );
   // "No filling" still means something between the layers — the frosting.
   const fillMat = useMemo(

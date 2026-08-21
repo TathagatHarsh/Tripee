@@ -47,15 +47,15 @@ export function DocketLine({ label, value, delta }: Props) {
   return (
     <div
       className={[
-        "flex items-baseline gap-2 py-[3px] font-mono text-micro leading-[1.7] tabular-nums",
-        "-mx-1.5 rounded-[3px] px-1.5 transition-colors duration-[600ms]",
-        changed && !reduced ? "bg-slab-deep/80" : "bg-transparent",
+        "flex items-baseline gap-2 border py-[3px] font-mono text-micro leading-[1.9] tabular-nums",
+        "-mx-1.5 rounded-ticket px-1.5 transition-colors duration-[600ms]",
+        changed && !reduced ? "border-brass-edge bg-brass-tint" : "border-transparent bg-transparent",
       ].join(" ")}
     >
-      <span className="w-[46px] shrink-0 text-steel">{label}</span>
-      {/* min-w-0 + break-words, because "American Buttercream" in a 21%-wide
-          column has to wrap. It used to be shrink-0 whitespace-pre, which gave
-          the whole docket a horizontal scrollbar. */}
+      <span className="w-14 shrink-0 text-steel">{label}</span>
+      {/* min-w-0 + break-words: even rem-locked at 20rem, "WHITE CHOCOLATE
+          GANACHE" has to wrap. It used to be shrink-0 whitespace-pre, which
+          gave the whole docket a horizontal scrollbar. */}
       <span className="min-w-0 break-words">{value}</span>
       <span aria-hidden className="min-w-3 grow docket-leader self-stretch" />
       <span className="shrink-0 text-right text-steel">

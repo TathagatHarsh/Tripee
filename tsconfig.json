@@ -30,5 +30,9 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  // "node_modules" on its own only ever excluded the top-level one, and `include`
+  // above is a bare `**/*.ts`. A git worktree under .claude carries its own
+  // node_modules — 8,000 more .d.ts files for tsc to walk — which was enough to
+  // hang `tsc` and `next build` outright.
+  "exclude": ["node_modules", "**/node_modules", ".claude"]
 }

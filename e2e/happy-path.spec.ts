@@ -7,9 +7,13 @@ import { expect, test } from "@playwright/test";
  */
 test("a stranger can build a cake, be corrected, and get an order reference", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Build your cake");
+  // The redesigned hero headline. Copy, not contract — the contract on this page
+  // is the "Start building" call to action on the line below.
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Custom cake");
 
-  await page.getByRole("link", { name: "Start building" }).click();
+  // The redesigned landing repeats this call to action three times — nav, hero
+  // and the closing band. Any of them is the same destination; take the first.
+  await page.getByRole("link", { name: "Start building" }).first().click();
   await expect(page).toHaveURL(/\/build\/shape$/);
 
   // The canvas mounts and the docket is already showing a price.
