@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Topping } from "@/lib/schema";
 import { mulberry32 } from "@/lib/seed";
 
@@ -48,7 +48,28 @@ function strawberry(): THREE.BufferGeometry {
 }
 
 function berry(): THREE.BufferGeometry {
-  const g = new THREE.IcosahedronGeometry(0.36, 1);
+  /*
+   * Welded before the normals are computed, and that is the whole trick.
+   *
+   * `IcosahedronGeometry` is non-indexed — every triangle carries its own three
+   * vertices — so `computeVertexNormals` has no neighbours to average and hands
+   * back one flat normal per face. On a twenty-face solid the size of a
+   * blueberry that is not a berry, it is a cut gemstone, and on a dark chocolate
+   * cake a dozen of them read as costume jewellery rather than fruit.
+   *
+   * `mergeVertices` indexes the shared corners first, so the same call averages
+   * across faces and the lumps come back as a soft, slightly irregular sphere.
+   *
+   * The weld has to come *before* the jitter, which is not the intuitive order.
+   * Jittering first draws a fresh random scale for each of the 240 loose vertices
+   * — including the three separate copies of every shared corner — so the copies
+   * move apart and the weld, which matches on position, finds nothing to join and
+   * silently returns the same faceted solid.
+   */
+  const raw = new THREE.IcosahedronGeometry(0.36, 1);
+  const g = mergeVertices(raw);
+  raw.dispose();
+
   const pos = g.attributes.position as THREE.BufferAttribute;
   const rng = mulberry32(0x51ed270b);
   for (let i = 0; i < pos.count; i++) {
@@ -56,6 +77,7 @@ function berry(): THREE.BufferGeometry {
     pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * 0.92, pos.getZ(i) * k);
   }
   pos.needsUpdate = true;
+
   g.computeVertexNormals();
   return g;
 }

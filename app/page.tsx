@@ -1,17 +1,19 @@
 import Link from "next/link";
-import { CakePreview } from "@/components/CakePreview";
+import { HeroCake } from "@/components/HeroCake";
+import { HeroReveal } from "@/components/HeroReveal";
+import { PresetCard } from "@/components/PresetCard";
 import { Docket } from "@/components/docket/Docket";
 import { FSSAI_LICENCE } from "@/lib/docket";
 import { FILLINGS, SHAPES, SPONGES, TOPPINGS } from "@/lib/catalog";
 import { resolveSlot } from "@/lib/delivery";
+import { HERO_CAKE, HERO_CAKE_NAME } from "@/lib/hero";
 import { PRESETS } from "@/lib/presets";
 import { priceCake } from "@/lib/pricing";
 import { formatINR } from "@/lib/format";
 import { servingsLabel } from "@/lib/servings";
 import { btn, eyebrow } from "@/lib/ui";
 
-const HERO_PRESET = PRESETS.find(p => p.slug === "two-tier-celebration")!;
-const HERO = HERO_PRESET.config;
+const HERO = HERO_CAKE;
 
 /*
  * Lead times come from the same resolver the builder and the docket use, asked
@@ -43,9 +45,17 @@ export default function Home() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2.5">
-          <Link href="/presets" className={btn("secondary", "md", "hidden sm:inline-flex")}>
-            Explore presets
-          </Link>
+          {/* The `hidden` has to sit on a wrapper. `btn()` puts `inline-flex` in
+              its own base classes, and when two display utilities land in the
+              same Tailwind layer the stylesheet order settles it, not the order
+              they appear in the attribute — so this button never hid, and on a
+              phone it and "Start building" crowded straight over the wordmark.
+              `sm:contents` puts the link back in the flex row untouched. */}
+          <span className="hidden sm:contents">
+            <Link href="/presets" className={btn("secondary", "md")}>
+              Explore presets
+            </Link>
+          </span>
           <Link href="/build/shape" className={btn("primary", "md")}>
             Start building
           </Link>
@@ -54,8 +64,21 @@ export default function Home() {
 
       <main>
         {/* ── Hero ──────────────────────────────────────────────────────── */}
-        <section className="grid items-center gap-10 bg-[linear-gradient(180deg,#FDFCFA_0%,#F2EEE6_62%,#EBE7DD_100%)] px-4 pt-12 pb-16 sm:px-8 lg:min-h-[724px] lg:grid-cols-[1.02fr_1fr] lg:gap-0 lg:px-0 lg:py-0 lg:pl-14">
-          <div className="flex max-w-[41.25rem] flex-col justify-center gap-7 lg:gap-8">
+        {/*
+          `minmax(0, …)` on every track, which is doing real work rather than
+          being defensive noise.
+
+          An `fr` and an implicit `auto` track both take `auto` as their minimum,
+          and `auto` there means "at least the item's max-content". The metadata
+          row at the bottom of the copy is 572px unwrapped, so below lg — where
+          this collapses to one implicit column — the track sized itself to that
+          and came out 580px wide inside a 343px phone. Every child then laid out
+          against 580px and ran off the side of the screen: clipped headline,
+          clipped paragraph, a CTA half off the edge. Flooring the minimum at 0
+          lets the track be the width it actually has and the text wrap.
+        */}
+        <section className="grid grid-cols-[minmax(0,1fr)] items-center gap-10 bg-[linear-gradient(180deg,#FDFCFA_0%,#F2EEE6_62%,#EBE7DD_100%)] px-4 pt-12 pb-16 sm:px-8 lg:min-h-[724px] lg:grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] lg:gap-0 lg:px-0 lg:py-0 lg:pl-14">
+          <HeroReveal className="flex max-w-[41.25rem] flex-col justify-center gap-7 lg:gap-8">
             <span className={`${eyebrow} tracking-[0.24em]`}>
               Single bakery · Jubilee Hills · Hyderabad
             </span>
@@ -88,29 +111,35 @@ export default function Home() {
               <li aria-hidden className="size-[3px] rounded-full bg-rule" />
               <li>{ZONE_LEAD[0].hours}-hour lead time</li>
             </ul>
-          </div>
+          </HeroReveal>
 
           {/*
             The one place on this page with a live WebGL context. Everything the
             layout owns — the pool of light, the status pill, the spec block — is
             outside the canvas, so the renderer's own framing is untouched.
           */}
-          <div className="relative flex min-h-[24rem] items-center justify-center lg:h-full">
+          {/* No `min-h` of its own: the stage inside already reserves its height
+              for the lazily-loaded canvas, and a 24rem floor round a 20rem stage
+              was 64px of dead page between the copy and the cake on a phone. */}
+          {/* `flex-col`, so the badge can sit under the stage on a phone rather
+              than beside it. On desktop the badge and the spec block are both
+              absolute, which leaves the stage as the only item in flow and makes
+              the direction moot. */}
+          <div className="relative flex flex-col items-center justify-center lg:h-full">
+            {/* The pool of light behind the cake. `max-w-full`, not 130%: a
+                centred box wider than its column overhangs both sides of it, and
+                on a phone that put 38px of the glow past the viewport and gave
+                the whole page a horizontal scrollbar. At 40rem it is narrower
+                than the column on every breakpoint that has room for it, so the
+                cap only ever binds where it has to. */}
             <div
               aria-hidden
-              className="pointer-events-none absolute top-1/2 left-1/2 size-[40rem] max-w-[130%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(50%_50%_at_50%_40%,rgba(250,245,234,.95),rgba(250,245,234,0)_72%)]"
+              className="pointer-events-none absolute top-1/2 left-1/2 size-[40rem] max-w-full -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(50%_50%_at_50%_40%,rgba(250,245,234,.95),rgba(250,245,234,0)_72%)]"
             />
-            <div className="relative h-[clamp(20rem,42vw,38.75rem)] w-full">
-              <CakePreview config={HERO} autoRotate />
-            </div>
-
-            <span className="pointer-events-none absolute bottom-4 left-1/2 flex h-[34px] -translate-x-1/2 items-center gap-2.5 rounded-full border border-rule bg-paper/90 px-3.5 font-mono text-micro tracking-[0.13em] text-steel backdrop-blur-[6px] lg:bottom-16">
-              <span aria-hidden className="size-1.5 rounded-full bg-brass" />
-              LIVE 3D · DRAG TO TURN
-            </span>
+            <HeroCake config={HERO} />
 
             <div className="pointer-events-none absolute top-4 right-4 hidden text-right font-mono text-micro leading-loose tracking-[0.1em] text-steel lg:top-24 lg:right-14 lg:block">
-              <div className="text-graphite uppercase">{HERO_PRESET.name}</div>
+              <div className="text-graphite uppercase">{HERO_CAKE_NAME}</div>
               <div className="uppercase">{servingsLabel(HERO)}</div>
               <div className="font-bold text-ink">{formatINR(priceCake(HERO).total)}</div>
             </div>
@@ -192,33 +221,10 @@ export default function Home() {
             </Link>
           </div>
 
+          {/* Each card carries its own shot — see components/PresetCard. */}
           <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {PRESETS.slice(0, 3).map((p) => (
-              <li
-                key={p.slug}
-                className="flex flex-col overflow-hidden rounded-panel border border-rule bg-paper shadow-elev-1 transition-[box-shadow,border-color] duration-[--dur-ui] hover:border-steel hover:shadow-elev-3"
-              >
-                <div className="cake-stage h-[17.5rem] border-b border-rule">
-                  <CakePreview config={p.config} interactive={false} />
-                </div>
-                <div className="flex flex-1 flex-col gap-3 p-6">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <h3 className="font-sans text-group font-medium tracking-[-0.008em]">
-                      {p.name}
-                    </h3>
-                    <span className="shrink-0 font-mono text-body font-bold tabular-nums">
-                      {formatINR(priceCake(p.config).total)}
-                    </span>
-                  </div>
-                  <p className="flex-1 text-body leading-relaxed text-steel">{p.blurb}</p>
-                  <span className="font-mono text-micro tracking-[0.14em] text-steel uppercase">
-                    {servingsLabel(p.config)}
-                  </span>
-                  <Link href="/presets" className={btn("secondary", "md", "w-full")}>
-                    Make it mine
-                  </Link>
-                </div>
-              </li>
+              <PresetCard key={p.slug} preset={p} />
             ))}
           </ul>
         </section>

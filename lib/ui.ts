@@ -50,6 +50,16 @@ const OFF =
   "aria-disabled:cursor-not-allowed aria-disabled:border-rule " +
   "aria-disabled:bg-slab-deep aria-disabled:text-steel aria-disabled:shadow-none";
 
+/*
+ * `duration-[var(--dur-ui)]`, not `duration-[--dur-ui]`.
+ *
+ * Tailwind v4 dropped the `[--x]` shorthand for `var(--x)`, so the shorthand now
+ * compiles to the literal `transition-duration: --dur-ui` — invalid, silently
+ * resolved to 0s. Every button in the app was jumping between states rather than
+ * transitioning, which is not what any of this code says it wants. Verified in
+ * the built stylesheet. The same shorthand is still in use in about thirty other
+ * places outside this file.
+ */
 export function btn(
   variant: Variant = "secondary",
   size: Size = "md",
@@ -58,7 +68,7 @@ export function btn(
   return [
     "inline-flex shrink-0 items-center justify-center gap-2 rounded-card font-medium",
     "whitespace-nowrap transition-[background-color,border-color,color,box-shadow]",
-    "duration-[--dur-ui] ease-[--ease-out]",
+    "duration-[var(--dur-ui)] ease-[var(--ease-out)]",
     SIZE[size],
     VARIANT[variant],
     OFF,
@@ -71,7 +81,7 @@ export function iconBtn(extra = ""): string {
   return [
     "inline-flex size-11 shrink-0 items-center justify-center rounded-card",
     "border border-rule bg-paper text-graphite",
-    "transition-colors duration-[--dur-ui] ease-[--ease-out]",
+    "transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)]",
     "enabled:hover:border-rule-strong enabled:hover:text-ink",
     OFF,
     extra,
@@ -86,7 +96,7 @@ export function iconBtn(extra = ""): string {
 export function field(extra = ""): string {
   return [
     "h-13 w-full rounded-card border border-rule-strong bg-paper px-4 text-item text-ink",
-    "transition-colors duration-[--dur-ui] focus:border-ink",
+    "transition-colors duration-[var(--dur-ui)] focus:border-ink",
     extra,
   ].join(" ");
 }

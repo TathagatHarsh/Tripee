@@ -85,3 +85,31 @@ export function useQuality(): QualitySettings {
 
   return settings;
 }
+
+/**
+ * What one card-sized canvas may spend, laid over whatever the device measured.
+ *
+ * The presets page mounts eight of these. Two things dominate at that count, and
+ * neither buys anything at 300 pixels across: the key light's 2048² shadow map,
+ * eight of them, redrawn on every frame the cake turns; and device-pixel-ratio 2
+ * on a retina display, which quadruples the fill rate for a canvas nobody is
+ * inspecting. Both come down. Everything about the *look* — the light rig, the
+ * materials, the tone mapping — is untouched, because a cheap cake and a badly
+ * lit cake are different problems.
+ *
+ * The contact shadow stays. It is 256², it is the only thing left putting the
+ * cake on a table rather than in mid-air, and it is what the directional
+ * shadow's absence would otherwise be noticed as.
+ *
+ * A weak device still wins: this is spread over `guess()`/`measure()`'s result,
+ * so a phone that came back LOW keeps LOW's 32 segments rather than gaining 48.
+ */
+export const CARD_BUDGET: Partial<QualitySettings> = {
+  /* Read in exactly one place — the contact shadow's map size — so this says
+     "256 is enough here" rather than making any claim about the device. */
+  tier: "low",
+  dpr: [1, 1.5],
+  segments: 48,
+  shadows: false,
+  maxInstances: 36,
+};

@@ -28,7 +28,25 @@ import { Environment, Lightformer } from "@react-three/drei";
  * cake lit from every side has no shadow side, so it has no volume. The total
  * comes down; the ratio between key and fill goes up.
  */
-export function CakeLighting({ shadows = true }: { shadows?: boolean }) {
+export function CakeLighting({
+  shadows = true, hero = false,
+}: {
+  shadows?: boolean;
+  /**
+   * One nudge for the landing hero, whose cake is dark ganache rather than pale
+   * frosting: a stronger rim, because a near-black cake on a cream page has no
+   * silhouette until something draws its top edge.
+   *
+   * It was more than one nudge. The reasoning — a dark dielectric is nearly all
+   * specular, so cool fill only lifts its blacks into grey — is true as far as it
+   * goes, and acting on it made the cake worse: with the fill cut and the warm
+   * sources raised, the wall ran from a blown highlight straight to black with no
+   * chocolate anywhere between, and a dark surface with no diffuse midtones is
+   * not chocolate, it is chrome. The fill was carrying the *colour*. The rest of
+   * this rig was already right for a cake of any shade.
+   */
+  hero?: boolean;
+}) {
   return (
     <>
       {/* Warm key — the sun through a kitchen window */}
@@ -71,8 +89,17 @@ export function CakeLighting({ shadows = true }: { shadows?: boolean }) {
 
       {/* Warm rim — fakes subsurface glow at the silhouette. Raised and pushed
           further behind, so it draws the top edge rather than washing across the
-          shadow side and undoing the fill's work. */}
-      <directionalLight position={[-1.8, 3.8, -4.6]} intensity={0.8} color="#FFDCAE" />
+          shadow side and undoing the fill's work.
+
+          On the hero it is doing structural work rather than flattery: it is the
+          only thing separating a #3B2318 cake from the cream page behind it, and
+          it is what puts the wet highlight along the top of every comb ridge and
+          down the drips. */}
+      <directionalLight
+        position={[-1.8, 3.8, -4.6]}
+        intensity={hero ? 1.0 : 0.8}
+        color="#FFDCAE"
+      />
 
       <Environment resolution={256} environmentIntensity={0.5}>
         {/* Big soft overhead source — the window. Nearly neutral, because this is
