@@ -207,14 +207,34 @@ export default function PresetsPage() {
                 <span className="font-mono text-micro tracking-[0.14em] text-steel uppercase">
                   {servingsLabel(p.config)}
                 </span>
-                {/* A preset is a finished cake. Loading one and then dropping
-                    the customer at step 1 of 9 asks them to walk through every
-                    decision that was already made for them, which is the
-                    opposite of what a preset is for. Land on Review; the step
-                    nav is right there if they want to change something. */}
+                {/*
+                  Toppings, which is step 7 of 9.
+
+                  The first half of the old reasoning here holds: a preset is a
+                  finished cake, and dropping the customer at step 1 asks them to
+                  walk back through nine decisions already made for them, which is
+                  the opposite of what a preset is for. Landing on Review was the
+                  wrong conclusion from it, though, because the nine steps are not
+                  all the same kind of decision.
+
+                  Six of them — shape, size, sponge, filling, frosting, finish —
+                  are what the preset *is*, and a preset is entitled to have
+                  decided those. The last two are not: what lands on top, and what
+                  it says. Nobody's chocolate truffle cake is a preset's idea of
+                  whose birthday it is, and six of the eight presets carry no
+                  message at all, so landing on Review shipped a cake with nothing
+                  written on it and never asked. "The step nav is right there" is
+                  not an offer — it is a thing to notice, and a customer reading a
+                  finished docket has no reason to think anything is missing.
+
+                  So: skip what the preset decided, open on the first thing it
+                  cannot. Forward from here is Toppings, Message, Review, each with
+                  its own button, which is the two questions that are actually
+                  theirs and then the docket.
+                */}
                 <LoadConfig
                   config={p.config}
-                  to="/build/review"
+                  to="/build/toppings"
                   label="Make it mine"
                   className="w-full"
                 />
