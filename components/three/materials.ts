@@ -161,6 +161,7 @@ export const SPONGE_COLORS: Record<Sponge, string> = {
   lemon: "#EDDC9A",
   pineapple: "#E8DCA0",
   mango: "#E5C36A",
+  saffron: "#E9CE78",
   carrot: "#C08A4E",
   pistachio: "#B8C48A",
   coconut: "#EFE6D2",
@@ -172,12 +173,18 @@ export const FILLING_COLORS: Record<Filling, string> = {
   none: "#F0E4CE",
   "strawberry-jam": "#A34049",
   "raspberry-compote": "#8E3547",
+  "cherry-compote": "#7E2230",
+  "blueberry-compote": "#3E3560",
+  "pineapple-crush": "#DEBE62",
   "lemon-curd": "#E8C55C",
   "vanilla-custard": "#F0DCA6",
+  rabri: "#EFDCA8",
   "chocolate-mousse": "#5A3A2A",
   "salted-caramel": "#B8813C",
+  "biscoff-spread": "#B57A3E",
   nutella: "#5E3A28",
   "hazelnut-praline": "#8C5F38",
+  "pistachio-cream": "#AFC183",
   "cookie-crumb": "#4A3A32",
   "fresh-fruit": "#C46A52",
 };
@@ -187,13 +194,30 @@ export const TOPPING_COLORS: Record<Topping, string> = {
      see the note there on what ACES does to the green and blue of a deeper red. */
   strawberry: "#D9463E",
   "mixed-berry": "#4F2A4C",
+  blueberry: "#46538A",
+  /* Deep, but not as deep as a cherry actually is — the same trap the strawberry
+     note above describes. Under ACES a #7A1F2A cherry has a green channel at one
+     percent of linear and no shadow side at all, so a bowl of them on white cream
+     reads as a row of holes. Lifted until the unlit side still carries red, and
+     the darkness put back with a clearcoat instead. */
+  cherry: "#AE3A42",
+  "pineapple-chunk": "#E0AF48",
   "chocolate-shard": "#3B2318",
   "chocolate-curl": "#4A3226",
+  "white-chocolate-curl": "#E5D5B4",
+  truffle: "#3B2419",
+  "caramel-shard": "#C58A34",
+  "butterscotch-crunch": "#C1863C",
+  "biscoff-biscuit": "#BE8146",
+  "biscoff-crumb": "#C0905F",
   macaron: "#E0A2B0",
   "meringue-kiss": "#F4E6D8",
+  "rasmalai-disc": "#F8F2E2",
   "gold-leaf": "#C9A227",
   sprinkles: "#D96A82",
   "pistachio-crumb": "#8FA35C",
+  "pistachio-nut": "#8FA351",
+  "almond-sliver": "#E4D3B0",
   "edible-flower": "#D18AA4",
   oreo: "#2A2320",
   ferrero: "#8A6A3C",
@@ -414,13 +438,36 @@ export const TOPPING_MATERIALS: Record<Topping, ToppingMaterialSpec> = {
   // toppingGeometry.speckle is what a glaze highlight needs to break over.
   strawberry: { color: TOPPING_COLORS.strawberry, roughness: 0.4, metalness: 0, clearcoat: 0.38 },
   "mixed-berry": { color: TOPPING_COLORS["mixed-berry"], roughness: 0.38, metalness: 0, clearcoat: 0.35 },
+  /* Rougher and barely coated, which is the opposite of the other berries and is
+     the whole of what makes a blueberry look like one: the bloom is a wax dust,
+     so it scatters where a raspberry reflects. Sheen carries that dusty rim. */
+  blueberry: { color: TOPPING_COLORS.blueberry, roughness: 0.52, metalness: 0, clearcoat: 0.16, sheen: 0.22 },
+  // The shiniest fruit in the catalogue, and the gloss is doing the darkening
+  // the base colour was not allowed to do. See the note in TOPPING_COLORS.
+  cherry: { color: TOPPING_COLORS.cherry, roughness: 0.22, metalness: 0, clearcoat: 0.55 },
+  "pineapple-chunk": { color: TOPPING_COLORS["pineapple-chunk"], roughness: 0.44, metalness: 0, clearcoat: 0.3 },
   "chocolate-shard": { color: TOPPING_COLORS["chocolate-shard"], roughness: 0.24, metalness: 0, clearcoat: 0.4 },
   "chocolate-curl": { color: TOPPING_COLORS["chocolate-curl"], roughness: 0.3, metalness: 0, clearcoat: 0.3 },
+  "white-chocolate-curl": { color: TOPPING_COLORS["white-chocolate-curl"], roughness: 0.34, metalness: 0, clearcoat: 0.26 },
+  /* The one chocolate here with no gloss at all. A truffle and a Ferrero are the
+     same rolled ball — see toppingGeometry — so cocoa dust against gold foil is
+     the entire difference between them, and it is a material difference. */
+  truffle: { color: TOPPING_COLORS.truffle, roughness: 0.76, metalness: 0, clearcoat: 0 },
+  // Set sugar is nearly glass: a hard, narrow highlight and a wet skin over it.
+  "caramel-shard": { color: TOPPING_COLORS["caramel-shard"], roughness: 0.15, metalness: 0, clearcoat: 0.58 },
+  "butterscotch-crunch": { color: TOPPING_COLORS["butterscotch-crunch"], roughness: 0.5, metalness: 0, clearcoat: 0.22 },
+  "biscoff-biscuit": { color: TOPPING_COLORS["biscoff-biscuit"], roughness: 0.72, metalness: 0, clearcoat: 0 },
+  "biscoff-crumb": { color: TOPPING_COLORS["biscoff-crumb"], roughness: 0.82, metalness: 0, clearcoat: 0 },
   macaron: { color: TOPPING_COLORS.macaron, roughness: 0.68, metalness: 0, clearcoat: 0.05, sheen: 0.3 },
   "meringue-kiss": { color: TOPPING_COLORS["meringue-kiss"], roughness: 0.62, metalness: 0, clearcoat: 0.06, sheen: 0.35 },
+  // Soaked in sweetened milk and never dried, so it is wet rather than merely
+  // pale — the sheen is the milk still sitting on it.
+  "rasmalai-disc": { color: TOPPING_COLORS["rasmalai-disc"], roughness: 0.34, metalness: 0, clearcoat: 0.34, sheen: 0.26 },
   "gold-leaf": { color: TOPPING_COLORS["gold-leaf"], roughness: 0.28, metalness: 0.95, clearcoat: 0 },
   sprinkles: { color: TOPPING_COLORS.sprinkles, roughness: 0.42, metalness: 0, clearcoat: 0.3 },
   "pistachio-crumb": { color: TOPPING_COLORS["pistachio-crumb"], roughness: 0.8, metalness: 0, clearcoat: 0 },
+  "pistachio-nut": { color: TOPPING_COLORS["pistachio-nut"], roughness: 0.6, metalness: 0, clearcoat: 0.1 },
+  "almond-sliver": { color: TOPPING_COLORS["almond-sliver"], roughness: 0.66, metalness: 0, clearcoat: 0.06 },
   "edible-flower": { color: TOPPING_COLORS["edible-flower"], roughness: 0.62, metalness: 0, clearcoat: 0.08, sheen: 0.4 },
   oreo: { color: TOPPING_COLORS.oreo, roughness: 0.74, metalness: 0, clearcoat: 0 },
   ferrero: { color: TOPPING_COLORS.ferrero, roughness: 0.44, metalness: 0.15, clearcoat: 0.25 },
@@ -430,6 +477,20 @@ export const TOPPING_MATERIALS: Record<Topping, ToppingMaterialSpec> = {
 export const TOPPING_PALETTES: Partial<Record<Topping, string[]>> = {
   sprinkles: ["#D9556E", "#E8A93C", "#7FA9D6", "#8FBF7A", "#F0E4D2"],
   "mixed-berry": ["#3F2A52", "#8E2340", "#4A2338", "#5E3A66"],
+  /* Four blues rather than one. A punnet of blueberries is never one colour —
+     they ripen at different rates and the bloom sits unevenly — and a ring of
+     identical spheres is the single loudest tell that something was instanced. */
+  blueberry: ["#46538A", "#3A4675", "#535F97", "#2F3C68"],
+  "pineapple-chunk": ["#E0AF48", "#D6A23A", "#E8C169"],
+  truffle: ["#3B2419", "#48301F", "#32200F"],
+  "butterscotch-crunch": ["#C1863C", "#AE7430", "#D19E58"],
+  "biscoff-crumb": ["#C0905F", "#AC7C4C", "#CFA478"],
+  /* Darker than the pistachio frosting they sit on, deliberately. At #A6BC70
+     these were within a few percent of `pistacho`'s own #B6C79B coat and the ring
+     of them disappeared into it — a garnish has to be a different value from the
+     surface it is garnishing, and on a pale cake that means going down. */
+  "pistachio-nut": ["#8FA351", "#7C9044", "#9FB265"],
+  "almond-sliver": ["#DFCCA6", "#D0BA8E", "#EADCBC"],
   macaron: ["#E0A2B0", "#EBCF9A", "#B9CFA6", "#C8A9CE", "#E8B79A"],
   "edible-flower": ["#D18AA4", "#E4C069", "#C4A2CE", "#EDE0D0"],
   "meringue-kiss": ["#F4E6D8", "#EDD3D8", "#E8DCC4"],

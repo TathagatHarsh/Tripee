@@ -7,7 +7,7 @@ import { FSSAI_LICENCE } from "@/lib/docket";
 import { FILLINGS, SHAPES, SPONGES, TOPPINGS } from "@/lib/catalog";
 import { resolveSlot } from "@/lib/delivery";
 import { HERO_CAKE, HERO_CAKE_NAME } from "@/lib/hero";
-import { PRESETS } from "@/lib/presets";
+import { LANDING_PRESETS, PRESETS } from "@/lib/presets";
 import { priceCake } from "@/lib/pricing";
 import { formatINR } from "@/lib/format";
 import { servingsLabel } from "@/lib/servings";
@@ -223,7 +223,7 @@ export default function Home() {
 
           {/* Each card carries its own shot — see components/PresetCard. */}
           <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {PRESETS.slice(0, 3).map((p) => (
+            {LANDING_PRESETS.map((p) => (
               <PresetCard key={p.slug} preset={p} />
             ))}
           </ul>

@@ -12,13 +12,18 @@ import { btn, eyebrow } from "@/lib/ui";
 /**
  * The catalogue shot.
  *
- * One camera for all eight, which is the opposite of the landing page's three
- * cards — see components/PresetCard, where each gets a photograph of its own.
- * The reasoning inverts because the job does. Three cards on a marketing page
- * have to look like three different pieces of work; eight cakes in a catalogue
+ * One camera for the whole catalogue, which is the opposite of the landing page's
+ * three cards — see components/PresetCard, where each gets a photograph of its
+ * own. The reasoning inverts because the job does. Three cards on a marketing page
+ * have to look like three different pieces of work; twenty cakes in a catalogue
  * have to be *comparable*, and the thing a customer is choosing between is the
  * cake, not the crop. Change the lens per row and every difference on the page
  * becomes ambiguous — is that cake wider, or just closer?
+ *
+ * It is what makes twelve flavours legible next to each other at all. Pistacho
+ * and Rasmalai differ by a frosting hue and two garnishes; under two different
+ * lenses that difference is unreadable, and under one it is the only thing on the
+ * page that changed.
  *
  * It has to be a turn-safe frame as well as a consistent one. An art-directed
  * crop can be tight because the silhouette is known; a cake on a turntable
@@ -50,8 +55,8 @@ const GALLERY_SHOT: Shot = {
 };
 
 /**
- * Where one cake needs a different print from the other seven. Exposure only,
- * with one exception — and both kinds are corrections, not art direction.
+ * Where one cake needs a different print from the rest. Exposure only, with one
+ * exception — and both kinds are corrections, not art direction.
  *
  * A dark subject metered for a pale one comes out as a black wall: set ganache
  * is 16% lightness and the mirror glaze not much more, so both get the third of
@@ -62,13 +67,28 @@ const GALLERY_TRIM: Record<string, Partial<Shot>> = {
   "mirror-glaze-showpiece": { exposure: 1.15 },
 
   /*
+   * The same third of a stop, for the same reason, on the three flavours that are
+   * also dark subjects. Set ganache is #3B2318 — 16% lightness — so the two
+   * ganache cakes take the identical correction the Classic Truffle takes; there
+   * is no judgement in it beyond metering.
+   *
+   * The tiramisu is the interesting one: its coat is cream cheese at #8A6A52,
+   * which is 43% lightness and therefore only about half as dark as the ganache,
+   * so it takes about half the push. Copying 1.2 onto it blew the cocoa out to a
+   * milky tan and lost the espresso the whole cake is named for.
+   */
+  "death-by-chocolate": { exposure: 1.2 },
+  "chocolate-truffle": { exposure: 1.2 },
+  "tiramisu-chocolate": { exposure: 1.12 },
+
+  /*
    * Cut, and only this one.
    *
    * Whole, it was the weakest card on the page by a distance: cream-cheese
    * frosting is #F8F0E2 and the finish is combed, so at this size the most
    * distinctive sponge in the catalogue was a plain pale drum with somebody
    * else's name on it. The red velvet is the entire proposition and none of it
-   * was visible. One cake in eight opened up is ordinary in a bakery window,
+   * was visible. One cake in twenty opened up is ordinary in a bakery window,
    * and it is the only honest way to photograph this one.
    *
    * `sliced` belongs to the shot rather than to the config — nothing here
@@ -112,7 +132,8 @@ function galleryShot(slug: string): Shot {
 
 export const metadata: Metadata = {
   title: "Cakes we already know by heart — Makemycake",
-  description: "Eight finished designs. Open one and change whatever you like.",
+  description:
+    "Twelve flavours and eight designs, all of them finished. Open one and change whatever you like.",
 };
 
 export default function PresetsPage() {
@@ -183,7 +204,7 @@ export default function PresetsPage() {
                 about 90% of both. Seven of the eight presets are single-tier, so
                 that is the frame the page is built for; the two-tier is taller
                 than it is wide and comes out narrower and full-height, which is
-                what a two-tier cake is supposed to look like next to seven
+                what a two-tier cake is supposed to look like next to nineteen
                 single ones.
 
                 A fixed ratio rather than a fixed height, so this holds at one,

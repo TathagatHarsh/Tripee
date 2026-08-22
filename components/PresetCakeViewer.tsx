@@ -22,9 +22,10 @@ import type { TurntableDrive } from "@/components/three/Turntable";
  *   · the 3D bundle is imported on demand and only once a card is near the
  *     viewport, so a customer who never scrolls to the presets never pays for
  *     three.js;
- *   · once mounted it is never unmounted — scrolling back up to a card must not
- *     re-run a loading state — but it stops being *drawn* the moment it leaves,
- *     which is what keeps eight canvases affordable;
+ *   · once mounted it stays mounted while it can — scrolling back up to a card
+ *     must not re-run a loading state — but it stops being *drawn* the moment it
+ *     leaves, which is what keeps a page of these affordable, and it gives up its
+ *     context if the page runs out (see LIVE_LIMIT below);
  *   · what it may spend is capped by quality.CARD_BUDGET, on top of whatever the
  *     device itself measured.
  */
@@ -39,6 +40,65 @@ import type { TurntableDrive } from "@/components/three/Turntable";
 const CakeScene = lazy(() =>
   import("@/components/three/CakeScene").then(m => ({ default: m.CakeScene })),
 );
+
+/**
+ * How many of these may hold a WebGL context at the same time.
+ *
+ * Not a performance tuning knob — a hard browser ceiling. Chrome keeps about
+ * sixteen live contexts per renderer process and, past that, silently kills the
+ * *oldest* to make room for the newest. Measured on this page: at twenty cards,
+ * four contexts were gone, and because the oldest are the ones at the top of the
+ * catalogue, the four it took were the first four cakes a customer ever sees. They
+ * do not error, they do not warn, they just stop being drawn.
+ *
+ * Twelve, so the browser is never the one making the choice — the point is to
+ * evict deliberately rather than to squeeze under the limit. Measured against the
+ * other number that matters: at 1680×1050 the widest layout puts sixteen cards
+ * inside the observer's draw band at once, of which about ten are actually in the
+ * viewport and the rest are in the 260px lead-in margin. Twelve therefore covers
+ * every visible card with two spare, and the cards it gives up are ones nobody is
+ * looking at.
+ */
+const LIVE_LIMIT = 12;
+
+/** Who currently holds a context, and how to ask them to let it go. */
+const live = new Map<Element, () => void>();
+
+/**
+ * Distance from the middle of the viewport, in pixels.
+ *
+ * The eviction order is by distance and not by age, which is the whole reason for
+ * doing this by hand rather than letting the browser do it. Age is exactly the
+ * wrong key on a scrolling catalogue: the oldest context belongs to the card at
+ * the top of the page, which on the way back up is the next one to be looked at.
+ */
+function farness(el: Element): number {
+  const r = el.getBoundingClientRect();
+  return Math.abs((r.top + r.bottom) / 2 - window.innerHeight / 2);
+}
+
+/**
+ * Take a context for `el`, dropping the furthest-away holders if that puts the
+ * page over the limit.
+ *
+ * Called every time a card enters the band rather than once when it mounts, so the
+ * distances are re-read against where the page has actually scrolled to. `el`
+ * itself is never the victim: it has just been reported as intersecting, so it is
+ * inside the band, and anything still holding a context from further up or down
+ * the page is further away than that.
+ */
+function admit(el: Element, release: () => void) {
+  live.set(el, release);
+  if (live.size <= LIVE_LIMIT) return;
+
+  [...live.keys()]
+    .sort((a, b) => farness(b) - farness(a))
+    .slice(0, live.size - LIVE_LIMIT)
+    .forEach((victim) => {
+      live.get(victim)?.();
+      live.delete(victim);
+    });
+}
 
 /**
  * Whether this browser can draw a cake at all — asked once per document, not
@@ -92,7 +152,14 @@ export function PresetCakeViewer({
 
   /** Near the viewport right now — whether it should be *drawn*. */
   const [near, setNear] = useState(false);
-  /** Has been near at least once — whether it should be *mounted*. Sticky. */
+  /**
+   * Whether it should be *mounted*, which is to say holding a WebGL context.
+   *
+   * Sticky on the way out — leaving the viewport does not unmount, because a
+   * customer scrolling back up must not watch a loading state replay. The one
+   * thing that takes it back down is the page running out of contexts, and then
+   * only for a card that is a long way from being looked at. See `admit`.
+   */
   const [mounted, setMounted] = useState(false);
   const webgl = useSyncExternalStore(NEVER_CHANGES, supportsWebGL, () => true);
 
@@ -106,7 +173,9 @@ export function PresetCakeViewer({
     const io = new IntersectionObserver(
       ([entry]) => {
         setNear(entry.isIntersecting);
-        if (entry.isIntersecting) setMounted(true);
+        if (!entry.isIntersecting) return;
+        setMounted(true);
+        admit(el, () => setMounted(false));
       },
       /*
        * A screen-ish of lead time. Loading and spinning start just before a card
@@ -118,7 +187,12 @@ export function PresetCakeViewer({
     );
 
     io.observe(el);
-    return () => io.disconnect();
+    return () => {
+      io.disconnect();
+      /* Leaving the registry behind would hold a dead node — and a stale
+         setMounted on an unmounted tree — for the life of the document. */
+      live.delete(el);
+    };
   }, [webgl]);
 
   return (

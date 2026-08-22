@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  insideOutline, outlinePerimeter, shellOutline, tierDims,
+  insideOutline, outlinePerimeter, shellOutline, shellThickness, tierDims,
 } from "@/components/three/geometry";
 import { place, scaleForSize } from "@/components/three/Toppings";
 import { toppingGeo } from "@/components/three/toppingGeometry";
-import { DEFAULT_CAKE } from "@/lib/schema";
-import type { Shape, ToppingPlacement } from "@/lib/schema";
+import { DEFAULT_CAKE, Topping } from "@/lib/schema";
+import type { Coverage, Shape, ToppingPlacement } from "@/lib/schema";
 
 /**
  * Placement is pure geometry whose mistakes are invisible until something renders
@@ -148,4 +148,92 @@ describe("topping placement follows the cake's outline", () => {
     expect(outlinePerimeter(square.face)).toBeGreaterThan(outlinePerimeter(round.face));
     expect(square.placed.length).toBeGreaterThan(round.placed.length);
   });
+});
+
+/**
+ * Every garnish that lands on the top has to land on the *frosting*, and the
+ * frosting is a shell built one thickness taller than the sponge it covers.
+ *
+ * Seating them on the sponge plane instead cost nothing visible for the tall
+ * pieces and erased the short ones outright: an 8in cake carries a 3.6mm shell,
+ * a scattered pistachio crumb stands 3.3mm, and eighty of them rendered inside
+ * the buttercream on a cake that came back looking undecorated. Nothing in the
+ * suite could see it, because a piece at the wrong height is still inside the
+ * outline, still evenly spaced, and still the right count — every property the
+ * tests above check. This is the one that says so.
+ */
+describe("top-face garnishes clear the frosting they are laid on", () => {
+  const TOP: ToppingPlacement[] = ["top-ring", "top-scatter", "crown"];
+
+  /** Lowest point of the piece as placed, in world Y. */
+  const lowest = (
+    p: { position: { y: number }; scale: number },
+    bottom: number,
+  ) => p.position.y + bottom * p.scale;
+
+  for (const kind of Topping.options) {
+    for (const placement of TOP) {
+      it(`seats ${kind} (${placement}) on the shell, not the sponge`, () => {
+        const tiers = tierDims("1.5kg", 1, "round");
+        const geo = toppingGeo(kind);
+        const size = geo.scale * scaleForSize(tiers[0].radius);
+        const placed = place(
+          { kind, placement, density: 4 },
+          { ...DEFAULT_CAKE, size: "1.5kg", coverage: "full", toppings: [] },
+          tiers, 4242, size, geo, 400,
+        );
+        expect(placed.length).toBeGreaterThan(0);
+
+        const shellTop = tiers[0].y + tiers[0].height + shellThickness(tiers[0].radius);
+
+        /*
+         * The assertion is about the piece's *top*, not its origin, and that is the
+         * whole point: a garnish is allowed — expected — to press into the frosting,
+         * so its lowest point sits below the surface by design. What is never
+         * acceptable is the whole piece being under it, which is what invisible
+         * means. So: something has to stand proud.
+         *
+         * A tenth of the piece's own height, so the bar scales with the garnish
+         * rather than asking a 1.3mm flake of gold leaf to clear the same absolute
+         * distance as a 36mm strawberry.
+         */
+        const clearance = geo.height * size * 0.1;
+        for (const p of placed) {
+          const pieceTop = p.position.y + (geo.bottom + geo.height) * p.scale;
+          expect(
+            pieceTop,
+            `${kind}/${placement}: top at ${pieceTop.toFixed(4)}, shell at ${shellTop.toFixed(4)}`,
+          ).toBeGreaterThan(shellTop + clearance);
+        }
+      });
+    }
+  }
+
+  /*
+   * The other half, and the reason the lift is conditional. A naked or semi-naked
+   * cake has no shell at all — Tier builds one only for `full` coverage (and for a
+   * bundt, which is glazed) — so lifting by a thickness that is not there would
+   * float the fruit above bare sponge.
+   */
+  for (const coverage of ["naked", "semi-naked", "top-only"] as Coverage[]) {
+    it(`sits ${coverage} garnishes on the sponge, which is the real surface`, () => {
+      const tiers = tierDims("1.5kg", 1, "round");
+      const geo = toppingGeo("strawberry");
+      const size = geo.scale * scaleForSize(tiers[0].radius);
+      const spongeTop = tiers[0].y + tiers[0].height;
+      const placed = place(
+        { kind: "strawberry", placement: "top-ring", density: 3 },
+        { ...DEFAULT_CAKE, size: "1.5kg", coverage, toppings: [] },
+        tiers, 4242, size, geo, 400,
+      );
+      expect(placed.length).toBeGreaterThan(0);
+
+      // Seated: some of the piece below the surface, most of it above.
+      for (const p of placed) {
+        expect(lowest(p, geo.bottom)).toBeLessThan(spongeTop);
+        expect(p.position.y + (geo.bottom + geo.height) * p.scale)
+          .toBeGreaterThan(spongeTop);
+      }
+    });
+  }
 });

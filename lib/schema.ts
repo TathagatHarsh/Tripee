@@ -10,14 +10,16 @@ export const SizeBand = z.enum([
 
 export const Sponge = z.enum([
   "vanilla", "belgian-chocolate", "red-velvet", "butterscotch",
-  "coffee", "lemon", "pineapple", "mango", "carrot",
+  "coffee", "lemon", "pineapple", "mango", "saffron", "carrot",
   "pistachio", "coconut", "marble", "funfetti",
 ]);
 
 export const Filling = z.enum([
-  "none", "strawberry-jam", "raspberry-compote", "lemon-curd",
-  "vanilla-custard", "chocolate-mousse", "salted-caramel",
-  "nutella", "hazelnut-praline", "cookie-crumb", "fresh-fruit",
+  "none", "strawberry-jam", "raspberry-compote", "cherry-compote",
+  "blueberry-compote", "pineapple-crush", "lemon-curd",
+  "vanilla-custard", "rabri", "chocolate-mousse", "salted-caramel",
+  "biscoff-spread", "nutella", "hazelnut-praline", "pistachio-cream",
+  "cookie-crumb", "fresh-fruit",
 ]);
 
 export const Frosting = z.enum([
@@ -33,9 +35,12 @@ export const Finish = z.enum([
 ]);
 
 export const Topping = z.enum([
-  "strawberry", "mixed-berry", "chocolate-shard", "chocolate-curl",
-  "macaron", "meringue-kiss", "gold-leaf", "sprinkles",
-  "pistachio-crumb", "edible-flower", "oreo", "ferrero",
+  "strawberry", "mixed-berry", "blueberry", "cherry", "pineapple-chunk",
+  "chocolate-shard", "chocolate-curl", "white-chocolate-curl", "truffle",
+  "caramel-shard", "butterscotch-crunch", "biscoff-biscuit", "biscoff-crumb",
+  "macaron", "meringue-kiss", "rasmalai-disc", "gold-leaf", "sprinkles",
+  "pistachio-crumb", "pistachio-nut", "almond-sliver", "edible-flower",
+  "oreo", "ferrero",
 ]);
 
 export const ToppingPlacement = z.enum([

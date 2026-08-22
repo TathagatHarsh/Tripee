@@ -7,7 +7,7 @@ import { mulberry32 } from "@/lib/seed";
 import { TOPPING_MATERIALS, TOPPING_PALETTES } from "./materials";
 import {
   insideOutline, offsetOutlineClear, outlineArea, outlinePerimeter, phiOf, shellOutline,
-  tierShape, type OutlinePoint, type Sector, type TierDims,
+  shellThickness, tierShape, type OutlinePoint, type Sector, type TierDims,
 } from "./geometry";
 import type { PlaqueFootprint } from "./MessagePlaque";
 import { toppingGeo, type ToppingGeo } from "./toppingGeometry";
@@ -148,10 +148,35 @@ export function place(
   const flat = geo.flat;
   const rng = mulberry32(seed ^ hashKind(spec.kind) ^ (spec.density * 2654435761));
   const top = tiers[tiers.length - 1];
-  const topY = top.y + top.height;
   // Per-tier, because a tiered heart is a heart on rounds and a topping has to sit
   // on the surface that is actually there — see geometry.tierShape.
   const shapeAt = (i: number) => tierShape(config.shape, i, tiers.length);
+
+  /*
+   * The height of the surface a garnish on the top actually lands on.
+   *
+   * `top.y + top.height` is the top of the *sponge*, and on a covered cake that is
+   * not where anything rests: the frosting shell is built one thickness taller and
+   * one thickness wider than the tier it covers (geometry.shellMetrics), so every
+   * piece seated on the sponge plane was sunk by a whole shell thickness — 3.6mm on
+   * an 8in cake, and it scales with the radius.
+   *
+   * This is the identical mistake geometry.shellRimY was written to fix for the
+   * drip, and it read the same way: it took out whatever was shorter than the
+   * frosting was thick. A pistachio crumb is 3.3mm tall, so all eighty of them on
+   * a scattered top were inside the buttercream and the render came back with a
+   * bare cake; gold leaf is 1.3mm and had never been visible at all; the
+   * hundreds-and-thousands on the Funfetti preset were poking their tips out. The
+   * pieces that *did* show — a strawberry, an Oreo — showed short, which is why
+   * garnishes here have historically been tuned a shade over life size.
+   *
+   * Only when there is a shell. Naked, semi-naked and top-only builds render the
+   * slab stack and no shell at all (see Tier.covered / SpongeLayers), so on those
+   * the sponge top is the real surface and adding anything would float the fruit.
+   */
+  const covered = config.coverage === "full" || shapeAt(tiers.length - 1) === "bundt";
+  const topY = top.y + top.height + (covered ? shellThickness(top.radius) : 0);
+
   const out: Placed[] = [];
 
   /*
