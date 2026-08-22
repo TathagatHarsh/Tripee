@@ -137,12 +137,21 @@ export const TOPPINGS: Option<Topping>[] = [
   { value: "ferrero", name: "Ferrero", blurb: "Whole, in gold foil or unwrapped.", swatch: "#8A6A3C" },
 ];
 
-export const PLACEMENTS: Option<ToppingPlacement>[] = [
-  { value: "top-scatter", name: "Scattered on top", blurb: "Loose, uneven. Reads relaxed." },
-  { value: "top-ring", name: "Ring on top", blurb: "Even circle inset from the edge." },
-  { value: "base-border", name: "Base border", blurb: "Around the bottom where the cake meets the board." },
-  { value: "cascade", name: "Cascade", blurb: "Falling from one shoulder down the side." },
-  { value: "crown", name: "Crown", blurb: "Piled high in the centre. Uses the most." },
+/**
+ * `short` is the same choice named for a 36px pill in a strip that has to fit on
+ * top of the render — see builder/ToppingBar.
+ *
+ * Two names for one thing is a cost worth being honest about. It is smaller than
+ * the alternative, which is a strip the customer has to scroll sideways past the
+ * option they are looking for; and `name` remains the only one that is ever read
+ * aloud, so nothing is hidden from anyone who cannot see the pill.
+ */
+export const PLACEMENTS: (Option<ToppingPlacement> & { short: string })[] = [
+  { value: "top-scatter", name: "Scattered on top", short: "Scatter", blurb: "Loose, uneven. Reads relaxed." },
+  { value: "top-ring", name: "Ring on top", short: "Ring", blurb: "Even circle inset from the edge." },
+  { value: "base-border", name: "Base border", short: "Border", blurb: "Around the bottom where the cake meets the board." },
+  { value: "cascade", name: "Cascade", short: "Cascade", blurb: "Falling from one shoulder down the side." },
+  { value: "crown", name: "Crown", short: "Crown", blurb: "Piled high in the centre. Uses the most." },
 ];
 
 export const DELIVERY_OPTIONS: Option<DeliverySlot>[] = [

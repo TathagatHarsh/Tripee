@@ -183,7 +183,9 @@ export const FILLING_COLORS: Record<Filling, string> = {
 };
 
 export const TOPPING_COLORS: Record<Topping, string> = {
-  strawberry: "#B82E33",
+  /* Read by toppingGeometry.strawberry as its vertex base, not by the material:
+     see the note there on what ACES does to the green and blue of a deeper red. */
+  strawberry: "#D9463E",
   "mixed-berry": "#4F2A4C",
   "chocolate-shard": "#3B2318",
   "chocolate-curl": "#4A3226",
@@ -406,7 +408,11 @@ export interface ToppingMaterialSpec {
 }
 
 export const TOPPING_MATERIALS: Record<Topping, ToppingMaterialSpec> = {
-  strawberry: { color: TOPPING_COLORS.strawberry, roughness: 0.34, metalness: 0, clearcoat: 0.5 },
+  // Glaze is a thin wet skin, so it is a clearcoat rather than a low base
+  // roughness — but at 0.5 over a smooth dome it was a broad blown white lobe,
+  // which is the signature of moulded plastic. The dimpled skin from
+  // toppingGeometry.speckle is what a glaze highlight needs to break over.
+  strawberry: { color: TOPPING_COLORS.strawberry, roughness: 0.4, metalness: 0, clearcoat: 0.38 },
   "mixed-berry": { color: TOPPING_COLORS["mixed-berry"], roughness: 0.38, metalness: 0, clearcoat: 0.35 },
   "chocolate-shard": { color: TOPPING_COLORS["chocolate-shard"], roughness: 0.24, metalness: 0, clearcoat: 0.4 },
   "chocolate-curl": { color: TOPPING_COLORS["chocolate-curl"], roughness: 0.3, metalness: 0, clearcoat: 0.3 },

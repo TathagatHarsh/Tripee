@@ -285,14 +285,15 @@ export function MessagePlaque({ config, tiers, castShadow, composing = false }: 
    */
   const [fontReady, setFontReady] = useState(false);
   useEffect(() => {
-    if (typeof document === "undefined" || !document.fonts) {
-      setFontReady(true);
-      return;
-    }
     let alive = true;
     const done = () => { if (alive) setFontReady(true); };
-    // Resolve either way: a failed fetch should fall back visibly, not hang the plaque.
-    document.fonts.load(`400 64px ${piping.style.fontFamily}`, "Happy Birthday").then(done, done);
+    // Resolve either way: a failed fetch, or a browser with no FontFaceSet at all,
+    // should fall back visibly rather than hang the plaque on Georgia forever.
+    // Promise.resolve carries the missing-API case down the same path, which keeps
+    // the flag out of the effect body — setting it there is a synchronous cascade.
+    Promise.resolve(
+      document.fonts?.load(`400 64px ${piping.style.fontFamily}`, "Happy Birthday"),
+    ).then(done, done);
     return () => { alive = false; };
   }, []);
 

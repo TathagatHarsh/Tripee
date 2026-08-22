@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Topping } from "@/lib/schema";
 import { mulberry32 } from "@/lib/seed";
+import { TOPPING_COLORS } from "./materials";
 
 /**
  * One small geometry per topping, built from primitives and instanced. Nothing
@@ -28,23 +29,109 @@ function lathe(pts: [number, number][], segments = 20): THREE.BufferGeometry {
   return g;
 }
 
-/** Whole and glazed, sitting on its shoulders with the tip up. */
-function strawberry(): THREE.BufferGeometry {
-  const body = lathe([
-    [0.001, 0.4], [0.22, 0.26], [0.38, 0.04], [0.44, -0.14],
-    [0.42, -0.3], [0.28, -0.4], [0.001, -0.43],
-  ], 24);
-  tint(body, "#C93C42");
+/**
+ * Achenes: a scatter of vertices tinted paler and pressed in along their own
+ * normal, which is the only fidelity a strawberry seed needs at the size one of
+ * these gets rendered.
+ *
+ * The dimple matters more than the colour, and that is not obvious. A smooth dome
+ * of any red is a boiled sweet: one unbroken specular lobe with nothing on the
+ * surface for it to catch on, and no amount of tinting fixes it, because the tell
+ * is in the *shading* rather than in the hue. Pushing the same vertices a
+ * hundredth of a unit inward stipples that lobe, and a stippled highlight over
+ * red is read as fruit.
+ *
+ * Smooth shading is what makes both halves work. A lathe is indexed, so one
+ * altered vertex bleeds across the four quads that share it and lands as a soft
+ * pit rather than a flat facet. The hash is taken from the rounded position
+ * rather than from the vertex index, because the two coincident copies of the
+ * lathe's seam must get the same answer or a crease runs down the side.
+ */
+function speckle(
+  g: THREE.BufferGeometry,
+  base: string, fleck: string, share: number, dimple: number,
+): THREE.BufferGeometry {
+  const a = new THREE.Color(base).convertSRGBToLinear();
+  const b = new THREE.Color(fleck).convertSRGBToLinear();
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  const nor = g.attributes.normal as THREE.BufferAttribute;
+  const colors = new Float32Array(pos.count * 3);
 
-  const calyx = lathe([
-    [0.001, -0.42], [0.2, -0.45], [0.32, -0.46], [0.2, -0.49], [0.001, -0.5],
-  ], 16);
-  tint(calyx, "#4E6B34");
+  for (let i = 0; i < pos.count; i++) {
+    const key = (Math.round(pos.getX(i) * 1e3) * 73856093)
+      ^ (Math.round(pos.getY(i) * 1e3) * 19349663)
+      ^ (Math.round(pos.getZ(i) * 1e3) * 83492791);
+    const achene = mulberry32(key)() < share;
 
-  const g = mergeGeometries([body, calyx], false)!;
-  body.dispose(); calyx.dispose();
+    const c = achene ? b : a;
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+
+    if (achene) {
+      pos.setXYZ(
+        i,
+        pos.getX(i) - nor.getX(i) * dimple,
+        pos.getY(i) - nor.getY(i) * dimple,
+        pos.getZ(i) - nor.getZ(i) * dimple,
+      );
+    }
+  }
+
+  pos.needsUpdate = true;
   g.computeVertexNormals();
+  g.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   return g;
+}
+
+/**
+ * Halved and glazed, cut face down — which is what the catalogue has always
+ * promised and what a kitchen actually does with a strawberry.
+ *
+ * It was a whole berry standing tip up, and that is the wrong silhouette at the
+ * size one gets rendered at. Seven lathe points taper in straight segments to a
+ * point of radius 0.001, so a ring of them on a pale cake reads as claws rather
+ * than as fruit. Size was the other half of it: 15mm from base to tip is under
+ * half the length of any strawberry that has ever been picked, and something
+ * that small can only read as a spike.
+ *
+ * A half lying face down is the opposite silhouette — a broad dome with a nose,
+ * presenting its lit top to the camera instead of a shadowed flank. It is built
+ * as the whole solid of revolution, laid on its side, and seated at `sink` 0.53
+ * so the frosting line falls almost exactly where the knife did. The buried half
+ * costs a few hundred triangles and saves capping a half-lathe — and it is what
+ * keeps the piece looking seated when a placement tilts it, because there is
+ * always solid under the cut face rather than the inside of an open shell.
+ */
+function strawberry(): THREE.BufferGeometry {
+  // Long axis in y while it is turned. Widest a third of the way down from the
+  // shoulder, then tapering to a rounded nose: a berry rather than an egg.
+  const g = lathe([
+    [0.001, -0.5], [0.11, -0.498], [0.20, -0.492], [0.27, -0.482],
+    [0.33, -0.465], [0.372, -0.44], [0.398, -0.40], [0.409, -0.35],
+    [0.412, -0.28], [0.408, -0.20], [0.40, -0.10], [0.388, 0],
+    [0.37, 0.10], [0.34, 0.20], [0.30, 0.29], [0.25, 0.37],
+    [0.19, 0.43], [0.13, 0.47], [0.07, 0.492], [0.001, 0.5],
+  ], 36);
+  g.rotateZ(Math.PI / 2);
+  /*
+   * The colour comes from materials.TOPPING_COLORS rather than from a hex here.
+   * A garnish that carries vertex colours ignores its material colour, so this
+   * one had two reds in two files and only one of them did anything.
+   *
+   * Lifted from #C93C42. Under ACES the green and blue channels of that red land
+   * at four percent of linear, which is a colour with no shadow side: every
+   * surface not facing the key went to black and the fruit read as a hole cut in
+   * the frosting.
+   *
+   * The flecks are the achenes. They were cream (#EBD3A8) at 22% of vertices and
+   * that is not what a seed looks like from a metre away — it is what mould looks
+   * like from a metre away. A twentieth of a lathe ring is a large piece of a
+   * berry, so a high-contrast fleck is a splotch however small the share; the
+   * lathe is finer now and the fleck barely lighter than the skin, which is the
+   * faint stipple the eye actually reads at this distance.
+   */
+  return speckle(g, TOPPING_COLORS.strawberry, "#E08874", 0.15, 0.013);
 }
 
 function berry(): THREE.BufferGeometry {
@@ -296,7 +383,7 @@ type Builder = Omit<ToppingGeo, "geometry" | "bottom" | "height">
  * half of each one was inside the frosting.
  */
 const builders: Record<Topping, () => Builder> = {
-  strawberry: () => ({ build: strawberry, vertexColors: true, scale: 0.2, flat: true, sink: 0.1 }),
+  strawberry: () => ({ build: strawberry, vertexColors: true, scale: 0.4, flat: true, sink: 0.53 }),
   "mixed-berry": () => ({ build: berry, vertexColors: false, scale: 0.145, flat: false, sink: 0.16 }),
   "chocolate-shard": () => ({ build: shard, vertexColors: false, scale: 0.34, flat: false, sink: 0.14 }),
   "chocolate-curl": () => ({ build: curl, vertexColors: false, scale: 0.24, flat: true, sink: 0.12 }),

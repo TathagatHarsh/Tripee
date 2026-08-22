@@ -8,6 +8,7 @@ import { formatINR } from "@/lib/format";
 import { LazyCakeScene, SceneSkeleton } from "@/components/three/LazyCakeScene";
 import { Docket } from "@/components/docket/Docket";
 import { PhaseMeters, StepFooter, StepNav, useStepPosition } from "@/components/builder/StepNav";
+import { ToppingBar } from "@/components/builder/ToppingBar";
 import { UndoBar } from "@/components/builder/UndoBar";
 import { useConfig, useHydrated } from "@/lib/store";
 import { useView } from "@/lib/view";
@@ -38,6 +39,12 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
   const { phase, index, total: stepCount } = useStepPosition();
 
   const onReview = pathname.endsWith("/review");
+  /*
+   * The toppings step is the one step that puts a control on the render — see
+   * builder/ToppingBar. It costs the caption its corner and moves the slice
+   * button back up to where a phone already has it.
+   */
+  const onToppings = pathname.endsWith("/toppings");
   const docket = hydrated ? buildDocket(config) : null;
   const caption = hydrated ? describeCake(config) : null;
 
@@ -103,25 +110,47 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
       >
         {/* ── The cake, on a counter ──────────────────────────────────── */}
         <div className="shrink-0 p-3 pb-0 lg:h-full lg:min-h-0 lg:p-[22px] lg:pr-[10px]">
-          <div className="cake-stage cake-panel relative h-[39dvh] overflow-hidden rounded-panel p-4 md:h-[44dvh] lg:h-full lg:p-6">
+          {/*
+            Taller below lg on the one step that puts a control in the panel.
+            39dvh is a good frame for a cake and a bad one for a cake plus a
+            three-row bar: measured on a 375×812 phone the canvas came out 99px
+            high and the cake fitted itself into it, which is a preview of
+            nothing. The extra height comes off the picker below, which scrolls
+            anyway. From lg the panel already fills its column and pays for the
+            bar out of a canvas that has height to spare.
+          */}
+          <div
+            className={[
+              "cake-stage cake-panel relative overflow-hidden rounded-panel p-4 lg:h-full lg:p-6",
+              onToppings ? "h-[54dvh] md:h-[56dvh]" : "h-[39dvh] md:h-[44dvh]",
+            ].join(" ")}
+          >
             {/*
               The 3D pane was an unlabelled, unreachable box: to anyone not
               looking at it, half the product did not exist. It is a figure with
               a caption, and the caption is now visible as well as announced —
               the same sentence, so the two cannot drift. The label sits on the
-              canvas wrapper alone; role="img" on the panel would swallow the
-              slice button and make it a nested interactive control.
+              canvas wrapper alone; role="img" one level up would swallow the
+              slice button and the topping bar and make them unreachable.
+
+              A column rather than one filling box, because a step that needs a
+              control on the render should take it out of the *canvas* height
+              rather than lay it over the cake.
             */}
-            <div
-              className="h-full w-full"
-              role="img"
-              aria-label={caption ? `Preview: ${caption}` : "Preview of your cake, loading"}
-            >
-              {hydrated ? (
-                <LazyCakeScene config={config} autoRotate={onReview} followView />
-              ) : (
-                <SceneSkeleton />
-              )}
+            <div className="flex h-full flex-col gap-2.5">
+              <div
+                className="min-h-0 w-full flex-1"
+                role="img"
+                aria-label={caption ? `Preview: ${caption}` : "Preview of your cake, loading"}
+              >
+                {hydrated ? (
+                  <LazyCakeScene config={config} autoRotate={onReview} followView />
+                ) : (
+                  <SceneSkeleton />
+                )}
+              </div>
+
+              {hydrated && onToppings && <ToppingBar />}
             </div>
 
             <span className="pointer-events-none absolute top-4 left-4 flex h-[30px] items-center gap-2 rounded-full border border-rule-strong bg-paper/85 px-3 font-mono text-micro tracking-[0.14em] text-graphite backdrop-blur-[6px] lg:top-5 lg:left-[22px]">
@@ -131,7 +160,7 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
 
             {/* Caption and hint: desktop only, where there is room below the
                 cake that the cake does not want. */}
-            {caption && (
+            {caption && !onToppings && (
               <div className="pointer-events-none absolute bottom-5 left-[22px] hidden max-w-[min(30rem,calc(100%-13rem))] flex-col gap-2 lg:flex">
                 <span className="text-meta leading-normal text-steel">{caption}</span>
                 <span className="font-mono text-micro tracking-[0.1em] text-steel">
@@ -148,7 +177,9 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
                 className={btn(
                   sliced ? "primary" : "secondary",
                   "md",
-                  "absolute top-4 right-4 lg:top-auto lg:right-5 lg:bottom-5",
+                  onToppings
+                    ? "absolute top-4 right-4 lg:top-5 lg:right-5"
+                    : "absolute top-4 right-4 lg:top-auto lg:right-5 lg:bottom-5",
                 )}
               >
                 {sliced ? "Whole cake" : "Cut a slice"}

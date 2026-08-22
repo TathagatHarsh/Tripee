@@ -1758,6 +1758,60 @@ export function offsetOutline(pts: OutlinePoint[], d: number): OutlinePoint[] {
   return pts.map(p => ({ ...p, x: p.x + p.nx * d, z: p.z + p.nz * d }));
 }
 
+/** Distance from (x, z) to the segment a—b. */
+function distToSegment(x: number, z: number, a: OutlinePoint, b: OutlinePoint): number {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const len = dx * dx + dz * dz;
+  const t = len === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / len));
+  return Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t));
+}
+
+/**
+ * `offsetOutline`, keeping only the points that ended up genuinely `d` clear of
+ * the outline they came from.
+ *
+ * Offsetting a polygon along per-vertex normals is only valid while the distance
+ * stays under the local radius of curvature. Past that the path folds through
+ * itself and leaves a bowtie: outward it happens at a concave feature, inward at a
+ * convex one, and this cake has both — a heart's cleft is concave and its point is
+ * sharp, a square's corner rounds at 16% of its half-width. A bowtie is not a
+ * cosmetic problem for anything that walks the result by arc length, because the
+ * doubled-back leg is length that leads nowhere: two pieces get spaced a full gap
+ * apart along the path and land in the same place on the cake.
+ *
+ * The test is the definition rather than a repair. A point of an offset outline is
+ * the point `d` from the edge and on the correct side of it; if it is not both, it
+ * is not that point, so it goes. What is left is a valid path with corners missing,
+ * and a corner too tight to hold the offset is a corner too tight to hold the thing
+ * being placed there — walking straight across it is the right answer anyway.
+ *
+ * Both halves of the test are load-bearing. Distance alone leaves the fold at a
+ * heart's cleft in place: a point pushed *outward* from one wall of the notch can
+ * land a clean `d` from the outline and still be inside the cake, under the far
+ * wall, where a strawberry on the board would be somewhere under the sponge.
+ *
+ * Scaling the silhouette instead is the other way to stay valid, and is what the
+ * rosettes do, but it only works on a shape whose every point is roughly the same
+ * distance out. A heart's cleft comes closer to the centre than its lobes by half,
+ * so the scale that clears the cleft shrinks the lobes to nothing.
+ */
+export function offsetOutlineClear(pts: OutlinePoint[], d: number): OutlinePoint[] {
+  const near = Math.abs(d) * 0.9;
+  const wantInside = d < 0;
+  const kept = offsetOutline(pts, d).filter((m) => {
+    if (insideOutline(pts, m.x, m.z) !== wantInside) return false;
+    for (let i = 0; i < pts.length; i++) {
+      if (distToSegment(m.x, m.z, pts[i], pts[(i + 1) % pts.length]) < near) return false;
+    }
+    return true;
+  });
+  // Three points is the least that still encloses anything. Below that the offset
+  // has eaten the whole shape, and the un-filtered path is a better answer than
+  // nothing at all.
+  return kept.length >= 3 ? kept : offsetOutline(pts, d);
+}
+
 /** The frosting thickness `shellGeometry` will use, so callers cannot drift. */
 export function shellThickness(radius: number): number {
   return Math.max(0.022, radius * 0.035);
@@ -1792,7 +1846,7 @@ export function shellOutline(
   radius: number,
   height: number,
   count: number,
-  band: "rim" | "widest",
+  band: "rim" | "widest" | "top",
 ): OutlinePoint[] {
   const { R, B } = shellMetrics(radius, height);
 
@@ -1811,12 +1865,19 @@ export function shellOutline(
   if (shape === "round") {
     // lathePoints flares the base to R·1.012 and tapers back to R at the top of
     // the wall, which is where the frosting gathers before it runs.
-    return outlinePoints(shape, band === "widest" ? R * 1.012 : R, count);
+    if (band === "widest") return outlinePoints(shape, R * 1.012, count);
+    return outlinePoints(shape, band === "top" ? R - B : R, count);
   }
 
   // ExtrudeGeometry insets the outline by bevelSize and then bevels back out
   // along the normals, so the side wall — the widest band, and the edge a drip
   // runs off — is the inset outline pushed back out by exactly one bevel.
+  //
+  // Which makes the *inset* outline, un-offset, exactly the flat top face: the
+  // bevel is the roll between the two, so anything that has to lie on the top
+  // rather than hang off its edge measures itself against this one. That is what
+  // "top" is for, and toppings are its only caller — see Toppings.place.
+  if (band === "top") return outlinePoints(shape, R - B, count);
   return offsetOutline(outlinePoints(shape, R - B, count), B);
 }
 
@@ -1863,6 +1924,39 @@ export function outlinePerimeter(pts: OutlinePoint[]): number {
 }
 
 /**
+ * Area enclosed by a measured outline. A square's top is 4r², not πr² — 27% more
+ * cake to cover, which is the difference between a scattered topping filling a
+ * square and leaving a bare margin all the way round it.
+ */
+export function outlineArea(pts: OutlinePoint[]): number {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const q = pts[(i + 1) % pts.length];
+    a += p.x * q.z - q.x * p.z;
+  }
+  return Math.abs(a) / 2;
+}
+
+/**
+ * Is (x, z) on the cake?
+ *
+ * Ray crossing rather than a radius comparison, because the whole point of
+ * measuring an outline is that some of these shapes are not circles and one of
+ * them — the heart — is not even convex. A radius test cannot exclude the cleft.
+ */
+export function insideOutline(pts: OutlinePoint[], x: number, z: number): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const a = pts[i];
+    const b = pts[j];
+    if ((a.z > z) !== (b.z > z)
+      && x < a.x + ((z - a.z) / (b.z - a.z)) * (b.x - a.x)) inside = !inside;
+  }
+  return inside;
+}
+
+/**
  * Radius of the circle that contains the whole footprint, whichever way the
  * cake is turned. The camera framing assumed every shape was as wide as a
  * round one of the same size, so a rectangle — which is 2.56 radii across its
@@ -1878,7 +1972,20 @@ export function footprintRadius(shape: Shape, radius: number): number {
   }
 }
 
-/** Where a topping can sit, given the shape. Round-ish bound is close enough. */
+/**
+ * A circle that fits inside the top of the shape.
+ *
+ * This used to be what toppings were placed on, and "round-ish bound is close
+ * enough" — as the comment here said — was wrong: laying every placement on the
+ * inscribed circle of a square put the ring in a small circle in the middle of a
+ * square top with all four corners bare, and the base border on a circle that
+ * crossed in and out of the wall. Placement measures the real outline now (see
+ * shellOutline and Toppings.place).
+ *
+ * The message plaque still uses it, where a conservative circle is genuinely what
+ * is wanted — it needs one rectangle to fit with room around it, not a path to
+ * follow — and where the heart already carries its own correction.
+ */
 export function surfaceRadius(shape: Shape, radius: number): number {
   switch (shape) {
     case "square": return radius * 0.92;

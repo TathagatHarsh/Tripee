@@ -54,7 +54,9 @@ test("a stranger can build a cake, be corrected, and get an order reference", as
   // Toppings
   await page.getByRole("link", { name: "Toppings →" }).click();
   await page.getByRole("button", { name: /^Strawberry/ }).click();
-  await expect(page.getByRole("listitem")).toHaveCount(1);
+  // The chosen topping's settings are on the render now, not in a list under the
+  // picker — see builder/ToppingBar. The slider existing is the proof it landed.
+  await expect(page.getByRole("slider", { name: "Strawberry density" })).toBeVisible();
 
   // Message
   await page.getByRole("link", { name: "Message →" }).click();
@@ -153,4 +155,39 @@ test("the message plaque lifts while typing and settles when done", async ({ pag
   await expect(page.getByText("Held clear of the cake while you type")).toBeVisible();
   await page.getByPlaceholder("Happy Birthday Amma").press("Enter");
   await expect(page.getByText("Sitting on the cake")).toBeVisible();
+});
+
+/**
+ * A preset has to land where the customer still has something to say.
+ *
+ * It used to open on Review, on the reasoning that a preset is a finished cake
+ * and nobody should be walked back through nine settled decisions. True of six of
+ * them — shape, size, sponge, filling, frosting, finish are what the preset *is*.
+ * Not true of the last two: six of the eight presets carry no message, so opening
+ * on the docket shipped a cake with nothing written on it and never asked whose
+ * birthday it was.
+ */
+test("a preset opens where the customer still has a choice to make", async ({ page }) => {
+  await page.goto("/presets");
+  await page.getByRole("button", { name: "Make it mine" }).first().click();
+
+  // Toppings, not Review: the first step the preset could not decide for anyone.
+  await expect(page).toHaveURL(/\/build\/toppings$/);
+  await expect(page.locator("canvas")).toBeVisible();
+
+  // The preset's own choices came with it rather than being reset to a plain cake.
+  const docket = page.getByRole("complementary", { name: "Order docket" });
+  await expect(docket).toContainText("BELGIAN CHOCOLATE");
+
+  // Its topping is already there and adjustable, which is the point of landing here.
+  await expect(page.getByRole("slider", { name: /density$/ })).toBeVisible();
+
+  // And the two questions that are actually the customer's are ahead of them,
+  // each with its own button, rather than behind them in a nav they have no
+  // reason to look at.
+  await page.getByRole("link", { name: "Message →" }).click();
+  await page.getByPlaceholder("Happy Birthday Amma").fill("Happy Birthday Ammu");
+
+  await page.getByRole("link", { name: "Review →" }).click();
+  await expect(docket).toContainText("HAPPY BIRTHDAY AMMU");
 });
