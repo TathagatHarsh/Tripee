@@ -40,6 +40,7 @@ const SPONGE_DELTA: Record<CakeConfig["sponge"], number> = {
   carrot: RUPEES(150),
   coconut: RUPEES(120),
   mango: RUPEES(200),        // seasonal
+  saffron: RUPEES(320),      // grams of it, and the grams are the price
   "belgian-chocolate": RUPEES(250),
   pistachio: RUPEES(350),
 };
@@ -50,11 +51,17 @@ const FILLING_DELTA: Record<CakeConfig["filling"], number> = {
   "cookie-crumb": RUPEES(90),
   "vanilla-custard": RUPEES(110),
   "lemon-curd": RUPEES(130),
+  "pineapple-crush": RUPEES(120),
+  "cherry-compote": RUPEES(170),
   "raspberry-compote": RUPEES(160),
+  "blueberry-compote": RUPEES(190),
   "chocolate-mousse": RUPEES(150),
   "salted-caramel": RUPEES(150),
+  rabri: RUPEES(220),
+  "biscoff-spread": RUPEES(240),
   nutella: RUPEES(200),
   "hazelnut-praline": RUPEES(260),
+  "pistachio-cream": RUPEES(320),
   "fresh-fruit": RUPEES(180),
 };
 
@@ -82,6 +89,18 @@ const FINISH_LABOUR: Record<CakeConfig["finish"], number> = {
 const TOPPING_UNIT: Record<string, number> = {
   sprinkles: RUPEES(30),
   "chocolate-curl": RUPEES(60),
+  "white-chocolate-curl": RUPEES(70),
+  "biscoff-crumb": RUPEES(90),
+  "butterscotch-crunch": RUPEES(90),
+  "caramel-shard": RUPEES(100),
+  "pineapple-chunk": RUPEES(120),
+  "almond-sliver": RUPEES(130),
+  "biscoff-biscuit": RUPEES(160),
+  truffle: RUPEES(180),
+  cherry: RUPEES(210),
+  blueberry: RUPEES(230),
+  "pistachio-nut": RUPEES(240),
+  "rasmalai-disc": RUPEES(280),
   "chocolate-shard": RUPEES(90),
   "pistachio-crumb": RUPEES(100),
   oreo: RUPEES(80),

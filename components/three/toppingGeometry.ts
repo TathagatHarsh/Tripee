@@ -338,6 +338,174 @@ function ferrero(): THREE.BufferGeometry {
   return g;
 }
 
+/**
+ * A blueberry is the `berry` solid with a different palette, and that is the
+ * whole of it — see materials.TOPPING_PALETTES.blueberry.
+ *
+ * Worth saying out loud rather than leaving as a coincidence: `mixed-berry`
+ * already draws exactly this shape, and the only thing separating a punnet of
+ * blueberries from a punnet of mixed berries is which four colours the instances
+ * are drawn from. Giving the two kinds one builder means the weld-before-jitter
+ * reasoning above is stated once and cannot drift between them.
+ *
+ * What it is *not* is a berry with a calyx. The five-point star on a blueberry's
+ * crown is 2mm across on a 10mm fruit, which at the size one of these renders is
+ * under a pixel — geometry that costs triangles to describe something no frame
+ * will ever resolve.
+ */
+
+/**
+ * A cherry: dimpled at the stem end, and with a stem.
+ *
+ * The stem is the entire reason this is not `berry` at a bigger scale and a
+ * redder colour. A stoned cherry with no stem is a red sphere, and a red sphere
+ * on white cream is a boiled sweet — the same failure the strawberry note above
+ * is about, arrived at from the other direction. One leaning cylinder is ten
+ * triangles and it is what makes the silhouette read as fruit from any angle,
+ * which is what a turntable demands.
+ *
+ * Two colours, so it carries vertex colours: a green stem cannot come from an
+ * instance tint that also has to make the fruit red.
+ */
+function cherry(): THREE.BufferGeometry {
+  // Widest just under the middle, with the shoulders drawn in to a dimple at the
+  // top — the asymmetry between the two ends is what says "cherry" and not "ball".
+  const body = lathe([
+    [0.001, -0.30], [0.12, -0.293], [0.21, -0.272], [0.272, -0.233],
+    [0.298, -0.172], [0.305, -0.09], [0.302, -0.008], [0.286, 0.072],
+    [0.25, 0.136], [0.19, 0.181], [0.116, 0.199], [0.052, 0.186],
+    [0.026, 0.166], [0.001, 0.163],
+  ], 26);
+  tint(body, TOPPING_COLORS.cherry);
+
+  /* Translated and *then* rotated, in that order. Rotating about the origin after
+     the lift is what gives the stem its lean while leaving its foot in the
+     dimple; leaning first and lifting after would stand it up straight again. */
+  const stem = new THREE.CylinderGeometry(0.016, 0.024, 0.30, 6, 1);
+  stem.translate(0, 0.30, 0);
+  stem.rotateZ(0.24);
+  tint(stem, "#5E6B33");
+
+  const parts = [body, stem];
+  const g = mergeGeometries(parts, false)!;
+  parts.forEach(part => part.dispose());
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * A chunk cut off a pineapple ring: curved outer wall, two flat knife faces, and
+ * the cored hole on the inside.
+ *
+ * Not a cube of fruit. A pineapple arrives as a ring and is cut down from one, so
+ * every chunk has one convex face and one concave one — and that pair is what
+ * distinguishes it from a diced mango or a cube of papaya at a glance. An arc
+ * segment costs no more than a rounded box and carries the whole read.
+ */
+function pineappleChunk(): THREE.BufferGeometry {
+  const s = new THREE.Shape();
+  s.absarc(0, 0, 0.5, -0.62, 0.62, false);
+  s.absarc(0, 0, 0.17, 0.62, -0.62, true);
+  s.closePath();
+
+  const g = new THREE.ExtrudeGeometry(s, {
+    depth: 0.3, bevelEnabled: true, bevelSize: 0.035, bevelThickness: 0.028,
+    bevelSegments: 2, curveSegments: 10,
+  });
+  /* Extrusion runs along +Z; a chunk lying on a cake wants it along +Y. A quarter
+     turn about X takes +Z to +Y and lays the arc flat in the XZ plane. */
+  g.rotateX(-Math.PI / 2);
+  g.center();
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * A speculoos biscuit: a rounded rectangle, thick enough to cast its own shadow.
+ *
+ * Deliberately not embossed. The pattern on a real Lotus biscuit is 0.4mm deep on
+ * a 60mm biscuit, and at the size this renders — about 28mm across, a couple of
+ * hundred pixels at most on a card — every ridge of it falls below one pixel. The
+ * things that actually make it readable as *that* biscuit are the proportion
+ * (two and a half to one, not square like an Oreo) and the caramel-brown, and
+ * both are free.
+ */
+function biscuit(): THREE.BufferGeometry {
+  const w = 0.5, h = 0.225, r = 0.05;
+  const s = new THREE.Shape();
+  s.moveTo(-w + r, -h);
+  s.lineTo(w - r, -h);
+  s.quadraticCurveTo(w, -h, w, -h + r);
+  s.lineTo(w, h - r);
+  s.quadraticCurveTo(w, h, w - r, h);
+  s.lineTo(-w + r, h);
+  s.quadraticCurveTo(-w, h, -w, h - r);
+  s.lineTo(-w, -h + r);
+  s.quadraticCurveTo(-w, -h, -w + r, -h);
+  s.closePath();
+
+  const g = new THREE.ExtrudeGeometry(s, {
+    depth: 0.085, bevelEnabled: true, bevelSize: 0.022, bevelThickness: 0.016,
+    bevelSegments: 2, curveSegments: 6,
+  });
+  g.rotateX(-Math.PI / 2);
+  g.center();
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * A shelled pistachio kernel — flattened, because the shell pressed it flat.
+ *
+ * A solid of revolution would be an olive. Squashing one axis to 0.72 before it
+ * is laid down is one line and it is the difference between a nut and a bead.
+ */
+function pistachioNut(): THREE.BufferGeometry {
+  const g = lathe([
+    [0.001, -0.34], [0.10, -0.318], [0.168, -0.268], [0.208, -0.182],
+    [0.224, -0.062], [0.224, 0.062], [0.208, 0.172], [0.16, 0.26],
+    [0.09, 0.318], [0.001, 0.34],
+  ], 18);
+  g.scale(1, 1, 0.72);
+  g.rotateZ(Math.PI / 2);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Blanched and shaved: a long, thin, slightly bowed flake. */
+function almondSliver(): THREE.BufferGeometry {
+  const s = new THREE.Shape();
+  s.moveTo(-0.5, 0);
+  s.quadraticCurveTo(-0.08, 0.125, 0.5, 0.028);
+  s.quadraticCurveTo(-0.08, -0.045, -0.5, 0);
+  s.closePath();
+
+  const g = new THREE.ExtrudeGeometry(s, {
+    depth: 0.035, bevelEnabled: true, bevelSize: 0.009, bevelThickness: 0.007,
+    bevelSegments: 1, curveSegments: 8,
+  });
+  g.rotateX(-Math.PI / 2);
+  g.center();
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * A rasmalai patty: chenna pressed flat and left to soak, so the rim is rounded
+ * and the faces sag rather than sitting parallel.
+ *
+ * The near-flat top is the point. A cylinder of the same proportions reads as a
+ * marshmallow; a cushion with a fat rounded edge and a slightly domed face reads
+ * as something that was squeezed by hand and then swelled in milk.
+ */
+function rasmalaiDisc(): THREE.BufferGeometry {
+  return lathe([
+    [0.001, -0.13], [0.18, -0.136], [0.34, -0.129], [0.44, -0.105],
+    [0.485, -0.061], [0.5, 0], [0.485, 0.061], [0.44, 0.106],
+    [0.34, 0.132], [0.18, 0.141], [0.001, 0.144],
+  ], 26);
+}
+
 export interface ToppingGeo {
   geometry: THREE.BufferGeometry;
   /** Geometry carries its own colours; do not also tint per instance. */
@@ -385,14 +553,58 @@ type Builder = Omit<ToppingGeo, "geometry" | "bottom" | "height">
 const builders: Record<Topping, () => Builder> = {
   strawberry: () => ({ build: strawberry, vertexColors: true, scale: 0.4, flat: true, sink: 0.53 }),
   "mixed-berry": () => ({ build: berry, vertexColors: false, scale: 0.145, flat: false, sink: 0.16 }),
+  /* The same solid as `mixed-berry`, one shade rounder in scale and drawn from a
+     palette of blues. 0.15 × 0.72 units of geometry is 9.8mm across, which is a
+     blueberry; the mixed punnet runs a hair smaller because a third of it is
+     raspberry drupelets. */
+  blueberry: () => ({ build: berry, vertexColors: false, scale: 0.15, flat: false, sink: 0.2 }),
+  /* Stem up. `flat` is what keeps it that way: a cherry dropped at a random
+     orientation lies on its side with the stem sticking out sideways, which is
+     the one pose a bakery never puts a cherry in. */
+  cherry: () => ({ build: cherry, vertexColors: true, scale: 0.34, flat: true, sink: 0.2 }),
+  "pineapple-chunk": () => ({ build: pineappleChunk, vertexColors: false, scale: 0.3, flat: true, sink: 0.34 }),
   "chocolate-shard": () => ({ build: shard, vertexColors: false, scale: 0.34, flat: false, sink: 0.14 }),
   "chocolate-curl": () => ({ build: curl, vertexColors: false, scale: 0.24, flat: true, sink: 0.12 }),
+  "white-chocolate-curl": () => ({ build: curl, vertexColors: false, scale: 0.24, flat: true, sink: 0.12 }),
+  /* A truffle and a Ferrero are the same rolled ball: same builder, same size.
+     Everything that separates them is in the material — cocoa dust against gold
+     foil — see materials.TOPPING_MATERIALS.truffle. */
+  truffle: () => ({ build: ferrero, vertexColors: false, scale: 0.24, flat: false, sink: 0.14 }),
+  "caramel-shard": () => ({ build: shard, vertexColors: false, scale: 0.32, flat: false, sink: 0.16 }),
+  "butterscotch-crunch": () => ({ build: crumb, vertexColors: false, scale: 0.13, flat: false, sink: 0.3 }),
+  /*
+   * Laid flat and barely pressed in. A biscuit standing on edge is what happens
+   * when a piece this long is dropped at a random angle, and half of them end up
+   * leaning on nothing — see the `flat` note on ToppingGeo.
+   *
+   * The largest garnish in the catalogue, at 42mm across, and it has to be: at
+   * 0.34 it measured 28mm long by 11mm wide, which on a 200mm cake top is a speck,
+   * and a `sink` of 0.3 then put a third of that speck inside the cream. It read
+   * as three small brown rectangles printed on the frosting rather than as
+   * biscuits laid on it. A Lotus biscuit is 60mm in life; this is the one piece
+   * where the catalogue's usual half-life-size convention makes the subject
+   * unrecognisable, because the biscuit *is* the whole flavour's signature.
+   */
+  "biscoff-biscuit": () => ({ build: biscuit, vertexColors: false, scale: 0.46, flat: true, sink: 0.14 }),
+  "biscoff-crumb": () => ({ build: crumb, vertexColors: false, scale: 0.14, flat: false, sink: 0.3 }),
   macaron: () => ({ build: macaron, vertexColors: false, scale: 0.27, flat: true, sink: 0.07 }),
   "meringue-kiss": () => ({ build: meringue, vertexColors: false, scale: 0.22, flat: true, sink: 0.08 }),
+  "rasmalai-disc": () => ({ build: rasmalaiDisc, vertexColors: false, scale: 0.28, flat: true, sink: 0.24 }),
   // Laid on with a brush: it takes the shape of whatever is under it.
   "gold-leaf": () => ({ build: goldLeaf, vertexColors: false, scale: 0.16, flat: true, sink: 0.45 }),
   sprinkles: () => ({ build: sprinkle, vertexColors: false, scale: 0.13, flat: false, sink: 0.3 }),
   "pistachio-crumb": () => ({ build: crumb, vertexColors: false, scale: 0.12, flat: false, sink: 0.3 }),
+  "pistachio-nut": () => ({ build: pistachioNut, vertexColors: false, scale: 0.26, flat: false, sink: 0.26 }),
+  /*
+   * 0.2, not the 0.42 this started at.
+   *
+   * The reasoning for a deep sink was sound and the number was not: a sliver is
+   * 1.4mm thick, and pressing 42% of 1.4mm into cream leaves 0.8mm standing
+   * proud, which at this camera is under a pixel. Rendered, they vanished
+   * completely. A fifth is enough to seat it and still leave an almond above the
+   * surface for the light to catch an edge on.
+   */
+  "almond-sliver": () => ({ build: almondSliver, vertexColors: false, scale: 0.28, flat: true, sink: 0.2 }),
   "edible-flower": () => ({ build: flower, vertexColors: true, scale: 0.34, flat: true, sink: 0.22 }),
   oreo: () => ({ build: oreo, vertexColors: true, scale: 0.22, flat: true, sink: 0.1 }),
   ferrero: () => ({ build: ferrero, vertexColors: false, scale: 0.24, flat: false, sink: 0.12 }),

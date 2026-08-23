@@ -163,21 +163,35 @@ test("the message plaque lifts while typing and settles when done", async ({ pag
  * It used to open on Review, on the reasoning that a preset is a finished cake
  * and nobody should be walked back through nine settled decisions. True of six of
  * them — shape, size, sponge, filling, frosting, finish are what the preset *is*.
- * Not true of the last two: six of the eight presets carry no message, so opening
- * on the docket shipped a cake with nothing written on it and never asked whose
- * birthday it was.
+ * Not true of the last two: most presets carry no message, so opening on the
+ * docket shipped a cake with nothing written on it and never asked whose birthday
+ * it was.
  */
 test("a preset opens where the customer still has a choice to make", async ({ page }) => {
   await page.goto("/presets");
-  await page.getByRole("button", { name: "Make it mine" }).first().click();
+
+  /*
+   * By name, not by position.
+   *
+   * This clicked `.first()` and then asserted the docket said BELGIAN CHOCOLATE,
+   * which was two facts wearing one coat: that a preset carries its own choices
+   * into the builder, and that the first card on the catalogue happened to be a
+   * chocolate cake. Only the first is what the test is for, and the second broke
+   * the moment twelve flavours went in ahead of the eight designs — a card order
+   * decided in lib/presets should not be able to fail an assertion about the
+   * builder.
+   */
+  const card = page.locator("li", { has: page.getByRole("heading", { name: "Lotus Biscoff" }) });
+  await card.getByRole("button", { name: "Make it mine" }).click();
 
   // Toppings, not Review: the first step the preset could not decide for anyone.
   await expect(page).toHaveURL(/\/build\/toppings$/);
   await expect(page.locator("canvas")).toBeVisible();
 
   // The preset's own choices came with it rather than being reset to a plain cake.
+  // Its filling, which no default cake has and no other preset uses.
   const docket = page.getByRole("complementary", { name: "Order docket" });
-  await expect(docket).toContainText("BELGIAN CHOCOLATE");
+  await expect(docket).toContainText("BISCOFF SPREAD");
 
   // Its topping is already there and adjustable, which is the point of landing here.
   await expect(page.getByRole("slider", { name: /density$/ })).toBeVisible();
