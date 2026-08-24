@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import { PresetCakeViewer } from "@/components/PresetCakeViewer";
-import type { Shot } from "@/components/three/CakeScene";
 import { LoadConfig } from "@/components/builder/LoadConfig";
 import { PRESETS } from "@/lib/presets";
 import { priceCake } from "@/lib/pricing";
@@ -10,125 +9,26 @@ import { servingsLabel } from "@/lib/servings";
 import { btn, eyebrow } from "@/lib/ui";
 
 /**
- * The catalogue shot.
+ * The catalogue.
  *
- * One camera for the whole catalogue, which is the opposite of the landing page's
- * three cards — see components/PresetCard, where each gets a photograph of its
- * own. The reasoning inverts because the job does. Three cards on a marketing page
- * have to look like three different pieces of work; twenty cakes in a catalogue
- * have to be *comparable*, and the thing a customer is choosing between is the
- * cake, not the crop. Change the lens per row and every difference on the page
- * becomes ambiguous — is that cake wider, or just closer?
+ * Twenty photographs, one per preset, out of `public/presets` — made by
+ * `scripts/shoot-presets` from these same `PRESETS` entries, so the cake in the
+ * picture and the cake "Make it mine" loads are the same object read twice. See
+ * `app/shoot/[slug]`, which is where the camera, the lights and the backdrop now
+ * live and where the reasoning behind them was moved to.
  *
- * It is what makes twelve flavours legible next to each other at all. Pistacho
- * and Rasmalai differ by a frosting hue and two garnishes; under two different
- * lenses that difference is unreadable, and under one it is the only thing on the
- * page that changed.
+ * The page used to draw them: twenty `PresetCakeViewer`s, twelve of them live at
+ * once under an admission policy, each on a turntable, none of them allowed to
+ * cast a shadow because twelve shadow-casting canvases on one page is not a
+ * thing you ship. The cakes were honest and they looked like diagrams. Offline,
+ * one frame can cost a second, so they get shadows, 128 radial segments and 2x
+ * pixels — and the page costs twenty images.
  *
- * It has to be a turn-safe frame as well as a consistent one. An art-directed
- * crop can be tight because the silhouette is known; a cake on a turntable
- * presents its widest profile in every direction, so the frame has to hold the
- * widest one. `contain` fits both axes off `cakeFocus`, whose radius comes from
- * `footprintRadius` — the circumradius, which is exactly the extent that does
- * not change as a square or a hexagon turns.
- *
- * 23 degrees above the horizon: high enough that a top-ring of strawberries or
- * a scatter of sprinkles reads as decoration rather than as a coloured edge, low
- * enough that the drips, the combed sides and the second tier keep their height.
+ * What that trades away is the turn. A cake on a turntable shows every side; a
+ * photograph shows one. The catalogue keeps the property that made the turn
+ * safe to lose — one camera for all twenty, so what differs between two cards is
+ * the cake and never the crop — and the builder, one click away, still turns.
  */
-const GALLERY_SHOT: Shot = {
-  elevation: 0.4,
-  azimuth: 0,
-  fit: "contain",
-  /* 6% of air. Under 1.0 the board's near edge leaves the frame; much over it
-     and the cake retreats into the middle of a beige square, which is what this
-     page looked like when the well was a 230px letterbox. The card's own 1.03
-     hover push-in has to fit inside this margin too. */
-  fill: 1.22,
-  offsetX: 0,
-  /* Lifted, because in a frame this wide the fit is bound by the width and
-     `Framing`'s standing look-at lift then puts every pixel of vertical slack
-     above the cake — measured at 17% of the frame empty over the top while the
-     board's near edge was cropped off the bottom. See Shot.offsetY. */
-  offsetY: 0.24,
-  exposure: 1.07,
-};
-
-/**
- * Where one cake needs a different print from the rest. Exposure only, with one
- * exception — and both kinds are corrections, not art direction.
- *
- * A dark subject metered for a pale one comes out as a black wall: set ganache
- * is 16% lightness and the mirror glaze not much more, so both get the third of
- * a stop over that the landing hero gets for the same cake and the same reason.
- */
-const GALLERY_TRIM: Record<string, Partial<Shot>> = {
-  "classic-truffle": { exposure: 1.2 },
-  "mirror-glaze-showpiece": { exposure: 1.15 },
-
-  /*
-   * The same third of a stop, for the same reason, on the three flavours that are
-   * also dark subjects. Set ganache is #3B2318 — 16% lightness — so the two
-   * ganache cakes take the identical correction the Classic Truffle takes; there
-   * is no judgement in it beyond metering.
-   *
-   * The tiramisu is the interesting one: its coat is cream cheese at #8A6A52,
-   * which is 43% lightness and therefore only about half as dark as the ganache,
-   * so it takes about half the push. Copying 1.2 onto it blew the cocoa out to a
-   * milky tan and lost the espresso the whole cake is named for.
-   */
-  "death-by-chocolate": { exposure: 1.2 },
-  "chocolate-truffle": { exposure: 1.2 },
-  "tiramisu-chocolate": { exposure: 1.12 },
-
-  /*
-   * Cut, and only this one.
-   *
-   * Whole, it was the weakest card on the page by a distance: cream-cheese
-   * frosting is #F8F0E2 and the finish is combed, so at this size the most
-   * distinctive sponge in the catalogue was a plain pale drum with somebody
-   * else's name on it. The red velvet is the entire proposition and none of it
-   * was visible. One cake in twenty opened up is ordinary in a bakery window,
-   * and it is the only honest way to photograph this one.
-   *
-   * `sliced` belongs to the shot rather than to the config — nothing here
-   * changes what "Make it mine" loads, which is still a whole cake.
-   */
-  "red-velvet-classic": {
-    sliced: true,
-    /* Turned to look into the wedge. `geometry.DEFAULT_SLICE` centres the cut
-       0.34rad off the front, and the turntable carries it round from there, so
-       this is where the reveal starts rather than where it stays. */
-    azimuth: 0.34,
-    // Pushed, red velvet goes vermilion; the sponge is meant to read burgundy.
-    exposure: 1.0,
-  },
-  /*
-   * The one that is not exposure. `cakeFocus` reports a square cake's radius as
-   * its *corner* distance, 1.42x the tier, while `Framing` reserves width for a
-   * board at 1.36x — so the only square in the catalogue was framed for a board
-   * that does not exist out there and came out a quarter smaller than its
-   * neighbours. Corrected here, on the one cake it affects, rather than by
-   * touching a fit that every screen in the app shares.
-   *
-   * Both numbers are measured off the rendered silhouette rather than reasoned
-   * about. Its height binds before its width once the well is 4:3 — a square cake
-   * tipped towards the lens is apparently *taller* than a round one of the same
-   * size, because its corners add to the projected depth as well as to the width —
-   * so it ends up slightly narrower than its neighbours, and pushing it wider
-   * would push its corners out of the top of the frame.
-   *
-   * It needs less of a lift than the rest for the same reason: `offsetY` is in
-   * radii, its radius is the corner distance, and the shared 0.24 lifted it
-   * clean past centre while every round cake landed just under.
-   */
-  "kids-funfetti": { fill: 0.955, offsetY: 0.11 },
-};
-
-/** Every preset gets the catalogue shot; a few get a correction on top. */
-function galleryShot(slug: string): Shot {
-  return { ...GALLERY_SHOT, ...GALLERY_TRIM[slug] };
-}
 
 export const metadata: Metadata = {
   title: "Cakes we already know by heart — Makemycake",
@@ -165,9 +65,9 @@ export default function PresetsPage() {
             </h1>
           </div>
           <p className="max-w-[44ch] text-lede leading-relaxed text-steel">
-            Every one of these is a real configuration, not a photograph. Open any
-            of them and it lands in the builder exactly as shown — then change
-            whatever you like.
+            Every one of these was photographed from a real configuration, not
+            picked off a stock library. Open any of them and it lands in the
+            builder exactly as shown — then change whatever you like.
           </p>
         </div>
 
@@ -211,11 +111,21 @@ export default function PresetsPage() {
                 two, three and four columns without a breakpoint per column.
               */}
               <div className="cake-stage relative aspect-[4/3] overflow-hidden border-b border-rule">
-                {/* The hover push-in is in the scene, not on this element — see
-                    three/Turntable.HOVER_SCALE. Scaling the canvas here resampled
-                    a finished frame and cropped it against the well's own
-                    overflow. */}
-                <PresetCakeViewer config={p.config} shot={galleryShot(p.slug)} />
+                {/* The push-in used to live in the scene — see
+                    three/Turntable.HOVER_SCALE — because scaling a canvas here
+                    resampled a finished frame. A bitmap has no such objection,
+                    and the well clips, so a plain transform is the whole of it.
+                    Motion, so it waits to be asked for. */}
+                <Image
+                  src={`/presets/${p.slug}.webp`}
+                  alt={p.name}
+                  fill
+                  sizes="(min-width:1280px) 25vw, 50vw"
+                  className={
+                    "object-cover transition-transform duration-[400ms] ease-[var(--ease-out)] " +
+                    "motion-safe:group-hover:scale-[1.02]"
+                  }
+                />
               </div>
               <div className="flex flex-1 flex-col gap-3 p-5">
                 <div className="flex items-baseline justify-between gap-2.5">

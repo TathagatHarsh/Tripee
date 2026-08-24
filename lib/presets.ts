@@ -8,7 +8,7 @@ export interface Preset {
 }
 
 /**
- * The twelve the bakery sells by name.
+ * The eighteen the bakery sells by name.
  *
  * These are *flavours*, which is a different axis from the eight below them —
  * those are design presets, chosen for shape, coverage and finish. A customer
@@ -290,28 +290,42 @@ export const PREMIUM_FLAVOURS: Preset[] = [
   {
     slug: "black-forest",
     name: "Black Forest",
-    blurb: "Cherries in their own syrup. The classic, not a version of it.",
+    blurb: "Dark chocolate outside, cherries in their own syrup inside.",
     config: {
       version: 1,
       shape: "round", size: "1.5kg", tiers: 1, layers: 4,
       sponge: "belgian-chocolate", filling: "cherry-compote",
       /*
-       * Rustic, for the same measured reason as the pineapple: rosettes pipe the
-       * top face and swallow whatever is seated on it. Shot with `rosette`, the
-       * mound of shavings in the middle — half of what a Black Forest *is* — was a
-       * dark smudge under the cream, and the cherries were sunk to their shoulders.
+       * Coated dark, which is not what a Schwarzwälder Kirschtorte is.
        *
-       * No loss to the cake. Worked cream is what a Black Forest wears; it is not
-       * scraped smooth, which is the finish that would actually cost something
-       * here.
+       * The textbook cake is whipped cream on the outside with shavings pressed
+       * into it, and that is what this preset used to be — and what it looked like
+       * on the catalogue page was a white cake with some dark specks on top. Every
+       * bakery on this list sells "black forest" meaning a chocolate-coated cake
+       * with cherries, the customer arrives expecting the thing they have bought
+       * before, and a card that reads white when they asked for black is wrong in
+       * the only way that matters. Coated dark.
+       *
+       * Rustic rather than smooth: worked coating, not a poured shell, so it still
+       * reads as cream that happens to be chocolate rather than as ganache.
        */
-      frosting: "whipped-cream", coverage: "full", finish: "rustic",
-      frostingColor: "#F8F2E6", hasDrip: false,
+      frosting: "dark-ganache", coverage: "full", finish: "rustic",
+      frostingColor: "#3B2318", hasDrip: false,
       toppings: [
         { kind: "cherry", placement: "top-ring", density: 3 },
-        { kind: "chocolate-curl", placement: "crown", density: 4 },
+        /*
+         * White curls, where the traditional cake has dark shavings — and the
+         * reason is the one this file keeps running into. A garnish has to be a
+         * different value from what it sits on, and dark chocolate shavings on a
+         * #3B2318 coat render as nothing at all. White chocolate on dark is both
+         * visible and what the chocolate-coated version of this cake is actually
+         * sold wearing.
+         */
+        { kind: "white-chocolate-curl", placement: "crown", density: 4 },
       ],
-      eggless: true, sugarFree: false, delivery: "pickup",
+      /* No longer whipped cream, so no longer pickup-only — see
+         rules.whipped-cream-transit. Ganache travels. */
+      eggless: true, sugarFree: false, delivery: "standard",
     },
   },
   {
@@ -416,10 +430,206 @@ export const PREMIUM_FLAVOURS: Preset[] = [
       eggless: true, sugarFree: false, delivery: "standard",
     },
   },
+  /*
+   * The six below came off the bakery's own flavour list and had no card. They are
+   * built the same way the twelve above are — sponge, filling, frosting colour,
+   * finish, drip and two garnishes, all of it vocabulary the builder already has,
+   * so "Make it mine" hands over exactly what the photograph shows.
+   *
+   * Two things the list asks for that the catalogue cannot say yet, both recorded
+   * here rather than papered over:
+   *
+   *   · **There is no chocolate chip.** `Topping` has curls, shards, truffles and
+   *     ferreros, and a chip is none of those. Choco Chips uses a dense scatter of
+   *     shards, which is the right size and the wrong shape. A `chocolate-chip`
+   *     kind is the fix; until then the docket says "chocolate shard", which is at
+   *     least true about what is on the cake.
+   *   · **There is no plain biscuit crumb.** A cheesecake stands on a crushed
+   *     biscuit base and the only crumbs in the catalogue are Biscoff and
+   *     pistachio. Naming either on a blueberry cheesecake would put a flavour on
+   *     the docket that is not in the cake, so the two fruit cheesecakes take
+   *     `oreo` at the base — a real base, honestly named — and only the Biscoff
+   *     cheesecake gets `biscoff-crumb`, where it is what is actually in there.
+   *
+   * 1kg, where the twelve above are mostly 1.5kg. The bakery's list sells these at
+   * 1kg and 500g, so that is what a card for them should open at; size is step 2 of
+   * the builder either way.
+   */
+  {
+    slug: "choco-chips",
+    name: "Choco Chips",
+    blurb: "Chips through the crumb and scattered over the top. Nothing subtle.",
+    config: {
+      version: 1,
+      shape: "round", size: "1kg", tiers: 1, layers: 3,
+      sponge: "vanilla", filling: "chocolate-mousse",
+      frosting: "american-buttercream", coverage: "full", finish: "smooth",
+      frostingColor: "#F2E6D0", hasDrip: true, dripColor: "#3B2318",
+      toppings: [
+        /*
+         * Truffles, where the first cut of this used shards — and the note above
+         * about there being no chocolate chip is why. Both are the wrong shape; the
+         * question is which is the wrong shape at the right size. `chocolate-shard`
+         * renders as slabs standing up off the top face, so a dense scatter of them
+         * came back looking like the Death by Chocolate crown spread thin. A
+         * truffle is a small dark lump sitting on the surface, which is what a chip
+         * looks like from a foot away.
+         *
+         * Scattered, not piled: chips are spread over the whole top face, so the
+         * placement is doing as much work here as the kind.
+         */
+        { kind: "truffle", placement: "top-scatter", density: 5 },
+        { kind: "chocolate-curl", placement: "base-border", density: 3 },
+      ],
+      eggless: true, sugarFree: false, delivery: "standard",
+    },
+  },
+  {
+    slug: "white-forest",
+    name: "White Forest",
+    blurb: "The pale twin. White chocolate instead of dark, same cherries.",
+    config: {
+      version: 1,
+      shape: "round", size: "1kg", tiers: 1, layers: 3,
+      sponge: "vanilla", filling: "cherry-compote",
+      frosting: "white-ganache", coverage: "full", finish: "rustic",
+      /*
+       * #E7D6B8 — a buttermilk, well down from the ivory the other pale cakes on
+       * this list wear. Not a preference: the crown is white chocolate, and white on
+       * white is the failure this file keeps writing notes about. Shot at #EFE1C9
+       * the curls were not dim, they were absent, and the top of the cake was a
+       * blank disc with cherries round the rim. Two more steps down and they exist.
+       * The cherries were never the problem.
+       */
+      frostingColor: "#E7D6B8", hasDrip: false,
+      toppings: [
+        { kind: "cherry", placement: "top-ring", density: 3 },
+        { kind: "white-chocolate-curl", placement: "crown", density: 4 },
+      ],
+      eggless: true, sugarFree: false, delivery: "standard",
+    },
+  },
+  {
+    slug: "blueberry-cheesecake",
+    name: "Blueberry Cheesecake",
+    blurb: "Baked on a crushed biscuit base, compote folded through.",
+    config: {
+      version: 1,
+      shape: "round", size: "1kg", tiers: 1, layers: 3,
+      sponge: "vanilla", filling: "blueberry-compote",
+      frosting: "cream-cheese", coverage: "full", finish: "smooth",
+      /*
+       * The slate-violet drip is lifted from American Blueberry, where it was
+       * measured rather than picked — a blueberry reduction is closer to slate than
+       * to purple, and #5B3E7A rendered as violet enamel.
+       *
+       * These two cakes are cousins and the client's list has both, so the card has
+       * to separate them: that one is buttercream with the fruit piled in a crown
+       * and meringue round it, this one is cream cheese, scraped smooth, fruit in a
+       * ring, and a dark ring of biscuit at the base. The base is the tell.
+       */
+      frostingColor: "#F3E9D3", hasDrip: true, dripColor: "#4C3D66",
+      toppings: [
+        { kind: "blueberry", placement: "top-ring", density: 4 },
+        { kind: "oreo", placement: "base-border", density: 3 },
+      ],
+      eggless: true, sugarFree: false, delivery: "standard",
+    },
+  },
+  {
+    slug: "strawberry-cheesecake",
+    name: "Strawberry Cheesecake",
+    blurb: "Cream cheese, biscuit base, coulis run down the sides.",
+    config: {
+      version: 1,
+      shape: "round", size: "1kg", tiers: 1, layers: 3,
+      sponge: "vanilla", filling: "strawberry-jam",
+      frosting: "cream-cheese", coverage: "full", finish: "smooth",
+      /* #B03A32 rather than a brighter red: this is a cooked coulis, and the same
+         push that sends red velvet vermilion sends a strawberry glaze to poster
+         paint. */
+      frostingColor: "#F5EBDA", hasDrip: true, dripColor: "#B03A32",
+      toppings: [
+        { kind: "strawberry", placement: "top-ring", density: 3 },
+        { kind: "oreo", placement: "base-border", density: 3 },
+      ],
+      eggless: true, sugarFree: false, delivery: "standard",
+    },
+  },
+  {
+    slug: "purple-velvet",
+    name: "Purple Velvet",
+    blurb: "Blackcurrant through a velvet crumb. Cream cheese over the top.",
+    config: {
+      version: 1,
+      shape: "round", size: "1kg", tiers: 1, layers: 3,
+      /*
+       * Red velvet sponge, because that is what purple velvet is — the same cake
+       * with a different colouring — and the catalogue has no purple sponge to
+       * claim instead. `blueberry-compote` stands in for blackcurrant for the same
+       * reason: it is the nearest thing on the list, and the docket names what is
+       * really in the cake rather than what the cake is called.
+       */
+      sponge: "red-velvet", filling: "blueberry-compote",
+      frosting: "cream-cheese", coverage: "full", finish: "smooth",
+      /* The one saturated cake on the list, so the garnishes have to come off it
+         rather than sit in it: white chocolate at the base reads immediately, and
+         mixed berries on the top are dark enough to hold their own edges. */
+      frostingColor: "#6E5080", hasDrip: false,
+      toppings: [
+        { kind: "mixed-berry", placement: "top-ring", density: 3 },
+        { kind: "white-chocolate-curl", placement: "base-border", density: 3 },
+      ],
+      eggless: true, sugarFree: false, delivery: "standard",
+    },
+  },
+  {
+    slug: "biscoff-cheesecake",
+    name: "Biscoff Cheesecake",
+    blurb: "Biscuit base, biscuit on top, cream cheese in between.",
+    config: {
+      version: 1,
+      shape: "round", size: "1kg", tiers: 1, layers: 3,
+      /* `cookie-crumb`, not `biscoff-spread`. The spread belongs to Lotus Biscoff
+         above, where it runs through the layers; what makes this one a cheesecake
+         is the crushed biscuit it is built on. */
+      sponge: "butterscotch", filling: "cookie-crumb",
+      frosting: "cream-cheese", coverage: "full", finish: "smooth",
+      /*
+       * Paler than Lotus Biscoff's #DFC49B and with no drip, which is the whole of
+       * how these two are told apart at card size: that one is a caramel-bodied cake
+       * with caramel running down it and the biscuits laid out in a ring, this is a
+       * pale cheesecake with them piled in the middle.
+       *
+       * The crumb is at the base and not, as first shot, ringing the top edge. On
+       * the top edge a 5mm crumb at this camera distance is a row of dots and reads
+       * as a mistake; round the base it reads as the biscuit the cheesecake is
+       * standing on, which is the true thing about it.
+       */
+      frostingColor: "#EFE0C6", hasDrip: false,
+      toppings: [
+        { kind: "biscoff-biscuit", placement: "crown", density: 5 },
+        /*
+         * The caramelised-sugar crunch, and it is here because without it this cake
+         * was three biscuits lying flat on a white disc — a pale cheesecake with no
+         * drip has nothing else going on, and "restrained" and "unfinished" are one
+         * pixel apart at card size. It is also true about a Biscoff cheesecake,
+         * which is the only reason it is allowed on.
+         *
+         * `crown` plus `top-ring` is the one pair that safely shares the top face:
+         * a pile in the middle and a ring at the edge are radially separated, so
+         * `Toppings.place` cannot interleave them.
+         */
+        { kind: "butterscotch-crunch", placement: "top-ring", density: 3 },
+        { kind: "biscoff-crumb", placement: "base-border", density: 5 },
+      ],
+      eggless: true, sugarFree: false, delivery: "standard",
+    },
+  },
 ];
 
 /**
- * The eight design presets. Chosen for shape, coverage and finish rather than for
+ * The four design presets. Chosen for shape, coverage and finish rather than for
  * flavour — see the note on PREMIUM_FLAVOURS for why the two lists stay separate.
  */
 export const SIGNATURE_DESIGNS: Preset[] = [
@@ -454,12 +664,41 @@ export const SIGNATURE_DESIGNS: Preset[] = [
   {
     slug: "red-velvet-classic",
     name: "Red Velvet",
-    blurb: "Cream cheese, combed sides, nothing else.",
+    blurb: "Cream cheese scraped back, so the red layers show through.",
     config: {
       version: 1,
       shape: "round", size: "1.5kg", tiers: 1, layers: 4,
       sponge: "red-velvet", filling: "none",
-      frosting: "cream-cheese", coverage: "full", finish: "combed",
+      /*
+       * `semi-naked`, and this is the whole fix.
+       *
+       * Fully coated, this cake was the weakest card in the catalogue by a long
+       * way: cream cheese is #F8F0E2 and the sides were combed, so the most
+       * distinctive sponge on the list rendered as a plain pale drum with somebody
+       * else's name under it. The red velvet is the entire proposition and none of
+       * it was visible. The gallery used to work around that by photographing this
+       * one cut open, which fixed the picture and not the cake — and it cost the
+       * catalogue its one-camera-for-everything rule.
+       *
+       * Scraping the coat off puts the red where it belongs: on the outside of the
+       * cake, in the render, on the card, and on the cake the kitchen actually hands
+       * over.
+       *
+       * `naked` rather than `semi-naked`, and that was measured, not preferred.
+       * Semi-naked leaves a thin coat over the sponge, and a thin coat of #F8F0E2
+       * over #8B2E20 renders salmon — the layers were legible and the colour was
+       * not, which is halfway to the same complaint. Bare sides give the sponge's
+       * own value. The cream cheese has not gone anywhere; it is between the four
+       * layers, which is where a naked cake shows it off.
+       *
+       * One thing this closes off: rules.naked-drip forbids a drip on a naked cake,
+       * so if this ever wants a coulis run down it, the coverage has to come back
+       * up first.
+       *
+       * `rustic` follows from it: combing is a pattern dragged through a full coat,
+       * so it has nothing to bite on once the sides are scraped.
+       */
+      frosting: "cream-cheese", coverage: "naked", finish: "rustic",
       frostingColor: "#F8F0E2", hasDrip: false,
       toppings: [{ kind: "chocolate-curl", placement: "base-border", density: 2 }],
       eggless: true, sugarFree: false, delivery: "standard",
@@ -481,69 +720,6 @@ export const SIGNATURE_DESIGNS: Preset[] = [
       ],
       message: "Happy Birthday",
       eggless: false, sugarFree: false, delivery: "standard",
-    },
-  },
-  {
-    slug: "pistachio-rose",
-    name: "Pistachio & Rose",
-    blurb: "Restrained, adult, faintly floral.",
-    config: {
-      version: 1,
-      shape: "hexagon", size: "1.5kg", tiers: 1, layers: 3,
-      sponge: "pistachio", filling: "raspberry-compote",
-      frosting: "white-ganache", coverage: "full", finish: "smooth",
-      frostingColor: "#A9B99A", hasDrip: false,
-      toppings: [
-        { kind: "pistachio-crumb", placement: "base-border", density: 3 },
-        { kind: "edible-flower", placement: "top-scatter", density: 2 },
-      ],
-      eggless: true, sugarFree: false, delivery: "standard",
-    },
-  },
-  {
-    slug: "naked-carrot",
-    name: "Naked Carrot",
-    blurb: "Bare sides, visible layers. Looks like it came from a kitchen.",
-    config: {
-      version: 1,
-      shape: "round", size: "1.5kg", tiers: 1, layers: 4,
-      sponge: "carrot", filling: "none",
-      frosting: "cream-cheese", coverage: "naked", finish: "rustic",
-      frostingColor: "#F8F0E2", hasDrip: false,
-      toppings: [{ kind: "edible-flower", placement: "top-scatter", density: 2 }],
-      eggless: true, sugarFree: false, delivery: "pickup",
-    },
-  },
-  {
-    slug: "mirror-glaze-showpiece",
-    name: "Mirror Glaze Showpiece",
-    blurb: "Poured at 32°C. Photographs better than anything else here.",
-    config: {
-      version: 1,
-      shape: "round", size: "1kg", tiers: 1, layers: 3,
-      sponge: "belgian-chocolate", filling: "hazelnut-praline",
-      frosting: "mirror-glaze", coverage: "full", finish: "smooth",
-      frostingColor: "#C4342A", hasDrip: false,
-      toppings: [{ kind: "gold-leaf", placement: "top-scatter", density: 1 }],
-      eggless: false, sugarFree: false, delivery: "pickup",
-    },
-  },
-  {
-    slug: "kids-funfetti",
-    name: "Kids' Funfetti",
-    blurb: "Square, loud, and structurally impossible to get wrong.",
-    config: {
-      version: 1,
-      shape: "square", size: "1kg", tiers: 1, layers: 3,
-      sponge: "funfetti", filling: "cookie-crumb",
-      frosting: "american-buttercream", coverage: "full", finish: "rosette",
-      frostingColor: "#A8BDD1", hasDrip: true, dripColor: "#E8D9BE",
-      toppings: [
-        { kind: "sprinkles", placement: "top-scatter", density: 4 },
-        { kind: "oreo", placement: "base-border", density: 3 },
-      ],
-      message: "Happy Birthday",
-      eggless: true, sugarFree: false, delivery: "same-day",
     },
   },
 ];
