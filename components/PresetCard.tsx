@@ -49,24 +49,14 @@ export function PresetCard({ preset }: { preset: Preset }) {
       }
     >
       {/*
-        4:3, the same well the catalogue uses, and the same aspect the shoot
-        renders at — so `object-cover` is an exact fit rather than a crop. Both
-        come from one measurement: a single-tier cake on its board projects about
-        1.35 wider than it is tall at this camera height.
-
-        This was 4:5. A portrait frame cannot hold a squat subject — fitted, the
-        cake filled 95% of the width and 61% of the height and the rest was empty
-        backdrop; cropped to kill the emptiness, it filled 105% and the cake left
-        the frame. The three cards shipped cropped, and a close-up that tight
-        stops reading as a cake at all: card one was a brown wall, card three a
-        white one with a red speck on it. Neither the fit nor the crop was wrong —
-        the aspect was, and both were symptoms.
+        4:5. The cake photo is now a real portrait food shot (~1122x1402), not a
+        crop of the old 4:3 camera render — 4:3 cut the tops and bases off these.
 
         `cake-stage` under the image, not decoration: it is the same ivory sweep
         the photograph is shot against, so the well matches the picture that is
         about to land in it instead of flashing a different colour first.
       */}
-      <div className="cake-stage relative aspect-[4/3] overflow-hidden border-b border-rule">
+      <div className="cake-stage relative aspect-[4/5] overflow-hidden border-b border-rule">
         <Image
           src={`/presets/${preset.slug}.webp`}
           alt={preset.name}

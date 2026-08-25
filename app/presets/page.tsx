@@ -94,23 +94,13 @@ export default function PresetsPage() {
               }
             >
               {/*
-                4:3, arrived at by measuring rather than by taste.
-
-                A single-tier cake on its board projects, at this camera height,
-                about 2.9 units wide by 2.16 tall — an aspect of 1.35, which is
-                4:3 to within a percent. Framed in a square the same cake fills
-                90% of the width and 54% of the height, and the missing 46% is
-                the empty stage this page was accused of. Framed 4:3 it fills
-                about 90% of both. Seven of the eight presets are single-tier, so
-                that is the frame the page is built for; the two-tier is taller
-                than it is wide and comes out narrower and full-height, which is
-                what a two-tier cake is supposed to look like next to nineteen
-                single ones.
-
-                A fixed ratio rather than a fixed height, so this holds at one,
-                two, three and four columns without a breakpoint per column.
+                4:5, matching the real portrait food photos (~1122x1402) that
+                replaced the 4:3 camera renders — 4:3 was cropping their tops
+                and bases off. A fixed ratio rather than a fixed height, so this
+                holds at one, two, three and four columns without a
+                breakpoint per column.
               */}
-              <div className="cake-stage relative aspect-[4/3] overflow-hidden border-b border-rule">
+              <div className="cake-stage relative aspect-[4/5] overflow-hidden border-b border-rule">
                 {/* The push-in used to live in the scene — see
                     three/Turntable.HOVER_SCALE — because scaling a canvas here
                     resampled a finished frame. A bitmap has no such objection,
