@@ -704,24 +704,6 @@ export const SIGNATURE_DESIGNS: Preset[] = [
       eggless: true, sugarFree: false, delivery: "standard",
     },
   },
-  {
-    slug: "two-tier-celebration",
-    name: "Two-Tier Celebration",
-    blurb: "For a birthday that matters. Swiss meringue holds it.",
-    config: {
-      version: 1,
-      shape: "round", size: "2kg", tiers: 2, layers: 3,
-      sponge: "vanilla", filling: "salted-caramel",
-      frosting: "swiss-meringue", coverage: "full", finish: "smooth",
-      frostingColor: "#EAC7C0", hasDrip: true, dripColor: "#B07A38",
-      toppings: [
-        { kind: "macaron", placement: "crown", density: 3 },
-        { kind: "gold-leaf", placement: "top-scatter", density: 1 },
-      ],
-      message: "Happy Birthday",
-      eggless: false, sugarFree: false, delivery: "standard",
-    },
-  },
 ];
 
 /** The catalogue, flavours first: they are what a customer arrives asking for. */

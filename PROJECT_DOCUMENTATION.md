@@ -2131,7 +2131,7 @@ Run this before you read any UI code — it exercises pricing, rules, allergens,
 delivery and the docket in one command with no browser:
 
 ```bash
-npm run docket -- --preset two-tier-celebration
+npm run docket -- --preset red-velvet-classic
 ```
 
 ### 2. The ten most important files

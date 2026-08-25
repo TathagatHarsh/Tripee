@@ -56,7 +56,7 @@ The docket CLI takes a config file, a preset or stdin, so pricing and rules can 
 exercised without a browser:
 
 ```bash
-npm run docket -- --preset two-tier-celebration
+npm run docket -- --preset red-velvet-classic
 ```
 
 ---
