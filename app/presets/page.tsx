@@ -1,19 +1,15 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
-import { LoadConfig } from "@/components/builder/LoadConfig";
+import { PresetCard } from "@/components/PresetCard";
 import { PRESETS } from "@/lib/presets";
-import { priceCake } from "@/lib/pricing";
-import { formatINR } from "@/lib/format";
-import { servingsLabel } from "@/lib/servings";
-import { btn, eyebrow } from "@/lib/ui";
+import { btn, eyebrow, pager } from "@/lib/ui";
 
 /**
  * The catalogue.
  *
  * Twenty photographs, one per preset, out of `public/presets` — made by
  * `scripts/shoot-presets` from these same `PRESETS` entries, so the cake in the
- * picture and the cake "Make it mine" loads are the same object read twice. See
+ * picture and the cake "Order now" loads are the same object read twice. See
  * `app/shoot/[slug]`, which is where the camera, the lights and the backdrop now
  * live and where the reasoning behind them was moved to.
  *
@@ -36,7 +32,40 @@ export const metadata: Metadata = {
     "Twelve flavours and eight designs, all of them finished. Open one and change whatever you like.",
 };
 
-export default function PresetsPage() {
+/*
+ * Eight, not twenty-one. The grid runs four columns at its widest, so a page is
+ * two full rows at every size that has more than one — four, two and one all
+ * divide it — and the catalogue goes from four thousand pixels of scroll to
+ * about seventeen hundred. Three pages of 8, 8 and 5.
+ */
+const PER_PAGE = 8;
+
+/**
+ * Pages live in the URL rather than in component state, which is the opposite of
+ * the landing page's section (see components/PresetPager, which explains its own
+ * side of it). Three reasons, and only the first is about the customer: a page of
+ * a catalogue is a thing people link to and come back to, so it should survive
+ * being bookmarked and the back button. Every card is then in the server-rendered
+ * HTML of some URL a crawler can reach — and this page is the *only* place most
+ * of these cakes are named anywhere on the site, so client-side paging would take
+ * thirteen of the twenty-one out of the index. And it needs no JavaScript at all.
+ */
+export default async function PresetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page } = await searchParams;
+  const pages = Math.ceil(PRESETS.length / PER_PAGE);
+  /* A page number off a URL is untrusted: "abc" is NaN, "0" and "-3" index
+     before the start, "9e9" past the end. Clamped rather than 404'd — a stale
+     link to page 4 of a catalogue that has since shrunk should still show a
+     catalogue, not an error. */
+  const current = Math.min(pages, Math.max(1, Math.trunc(Number(page)) || 1));
+  const shown = PRESETS.slice((current - 1) * PER_PAGE, current * PER_PAGE);
+  // Page one is `/presets`, so the catalogue has one address and not two.
+  const href = (n: number) => (n === 1 ? "/presets" : `/presets?page=${n}`);
+
   return (
     <div className="min-h-dvh bg-paper">
       <header className="flex h-[78px] items-center justify-between gap-6 border-b border-rule px-4 sm:px-8 lg:px-14">
@@ -73,96 +102,52 @@ export default function PresetsPage() {
 
         <ul
           className={
-            "grid auto-rows-fr grid-cols-1 gap-6 border-t border-rule pt-10 pb-20 " +
+            "grid auto-rows-fr grid-cols-1 gap-6 border-t border-rule pt-10 " +
             "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
           }
         >
-          {PRESETS.map((p) => (
-            <li
-              key={p.slug}
-              className={
-                "group flex flex-col overflow-hidden rounded-panel border border-rule " +
-                "bg-paper shadow-elev-1 transition-[box-shadow,border-color,translate] " +
-                /* `var(...)` spelled out. Tailwind v4 dropped the `[--x]`
-                   shorthand, so `duration-[--dur-ui]` compiled to the literal
-                   `transition-duration: --dur-ui` — invalid, silently 0s, and
-                   every card on this page was snapping between states. */
-                "duration-[var(--dur-ui)] ease-[var(--ease-out)] " +
-                "hover:border-steel hover:shadow-elev-3 " +
-                // The lift is motion, so it waits to be asked for.
-                "motion-safe:hover:-translate-y-1"
-              }
-            >
-              {/*
-                4:5, matching the real portrait food photos (~1122x1402) that
-                replaced the 4:3 camera renders — 4:3 was cropping their tops
-                and bases off. A fixed ratio rather than a fixed height, so this
-                holds at one, two, three and four columns without a
-                breakpoint per column.
-              */}
-              <div className="cake-stage relative aspect-[4/5] overflow-hidden border-b border-rule">
-                {/* The push-in used to live in the scene — see
-                    three/Turntable.HOVER_SCALE — because scaling a canvas here
-                    resampled a finished frame. A bitmap has no such objection,
-                    and the well clips, so a plain transform is the whole of it.
-                    Motion, so it waits to be asked for. */}
-                <Image
-                  src={`/presets/${p.slug}.webp`}
-                  alt={p.name}
-                  fill
-                  sizes="(min-width:1280px) 25vw, 50vw"
-                  className={
-                    "object-cover transition-transform duration-[400ms] ease-[var(--ease-out)] " +
-                    "motion-safe:group-hover:scale-[1.02]"
-                  }
-                />
-              </div>
-              <div className="flex flex-1 flex-col gap-3 p-5">
-                <div className="flex items-baseline justify-between gap-2.5">
-                  <h2 className="font-sans text-item font-medium">{p.name}</h2>
-                  <span className="shrink-0 font-mono text-meta font-bold tabular-nums">
-                    {formatINR(priceCake(p.config).total)}
-                  </span>
-                </div>
-                <p className="flex-1 text-meta leading-normal text-steel">{p.blurb}</p>
-                <span className="font-mono text-micro tracking-[0.14em] text-steel uppercase">
-                  {servingsLabel(p.config)}
-                </span>
-                {/*
-                  Toppings, which is step 7 of 9.
-
-                  The first half of the old reasoning here holds: a preset is a
-                  finished cake, and dropping the customer at step 1 asks them to
-                  walk back through nine decisions already made for them, which is
-                  the opposite of what a preset is for. Landing on Review was the
-                  wrong conclusion from it, though, because the nine steps are not
-                  all the same kind of decision.
-
-                  Six of them — shape, size, sponge, filling, frosting, finish —
-                  are what the preset *is*, and a preset is entitled to have
-                  decided those. The last two are not: what lands on top, and what
-                  it says. Nobody's chocolate truffle cake is a preset's idea of
-                  whose birthday it is, and six of the eight presets carry no
-                  message at all, so landing on Review shipped a cake with nothing
-                  written on it and never asked. "The step nav is right there" is
-                  not an offer — it is a thing to notice, and a customer reading a
-                  finished docket has no reason to think anything is missing.
-
-                  So: skip what the preset decided, open on the first thing it
-                  cannot. Forward from here is Toppings, Message, Review, each with
-                  its own button, which is the two questions that are actually
-                  theirs and then the docket.
-                */}
-                <LoadConfig
-                  config={p.config}
-                  to="/build/toppings"
-                  label="Make it mine"
-                  className="w-full"
-                />
-              </div>
-            </li>
+          {shown.map((p) => (
+            /* h2, because the h1 on this page is the catalogue's own title. On
+               the landing page these sit under a section heading and are h3 —
+               see the note on `as` in components/PresetCard. */
+            <PresetCard key={p.slug} preset={p} as="h2" />
           ))}
         </ul>
+
+        {pages > 1 && (
+          <nav
+            aria-label="Catalogue pages"
+            className="flex flex-wrap items-center justify-center gap-2 pt-12 pb-20"
+          >
+            {/* A step with nowhere to go is a span, not a link with the href
+                left off: an anchor without one is not a control, it is text that
+                keyboard users still land on and screen readers still announce as
+                a link. `aria-disabled` picks up the same styling the real
+                disabled state gets — see OFF in lib/ui. */}
+            {current > 1 ? (
+              <Link href={href(current - 1)} className={pager()}>← Prev</Link>
+            ) : (
+              <span aria-disabled="true" className={pager()}>← Prev</span>
+            )}
+
+            {Array.from({ length: pages }, (_, i) => i + 1).map((n) => (
+              <Link
+                key={n}
+                href={href(n)}
+                aria-current={n === current ? "page" : undefined}
+                className={pager(n === current)}
+              >
+                {n}
+              </Link>
+            ))}
+
+            {current < pages ? (
+              <Link href={href(current + 1)} className={pager()}>Next →</Link>
+            ) : (
+              <span aria-disabled="true" className={pager()}>Next →</span>
+            )}
+          </nav>
+        )}
       </main>
     </div>
   );

@@ -21,7 +21,7 @@ export interface Preset {
  * per-flavour model, no bespoke scene and no second renderer: the recognisable
  * identity of each cake comes out of the sponge, the filling, the frosting
  * colour, the finish, the drip and two or three garnishes, all of which the
- * builder already understands. That is the whole reason "Make it mine" can hand
+ * builder already understands. That is the whole reason "Order now" can hand
  * the customer the exact cake they were looking at — see app/presets.
  *
  * Three constraints shaped these, and they are worth stating because they are
@@ -434,7 +434,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
    * The six below came off the bakery's own flavour list and had no card. They are
    * built the same way the twelve above are — sponge, filling, frosting colour,
    * finish, drip and two garnishes, all of it vocabulary the builder already has,
-   * so "Make it mine" hands over exactly what the photograph shows.
+   * so "Order now" hands over exactly what the photograph shows.
    *
    * Two things the list asks for that the catalogue cannot say yet, both recorded
    * here rather than papered over:
@@ -709,24 +709,6 @@ export const SIGNATURE_DESIGNS: Preset[] = [
 /** The catalogue, flavours first: they are what a customer arrives asking for. */
 export const PRESETS: Preset[] = [...PREMIUM_FLAVOURS, ...SIGNATURE_DESIGNS];
 
-/**
- * The three the landing page prints as full-page photographs.
- *
- * By slug rather than by position. It was `PRESETS.slice(0, 3)`, which was fine
- * while there was one list and stopped being fine the moment another went in front
- * of it: components/PresetCard art-directs exactly these three by name — camera,
- * crop, backdrop, one of them cut open — and a slice takes whatever happens to be
- * first and renders it through the fallback, which is the identical record shot
- * three times. That is the "three placeholders" failure PresetCard's own note is
- * about, reintroduced by a reordering somewhere else in the file.
- */
-export const LANDING_SLUGS = [
-  "classic-truffle", "strawberry-cream", "red-velvet-classic",
-] as const;
-
 export function presetBySlug(slug: string): Preset | undefined {
   return PRESETS.find(p => p.slug === slug);
 }
-
-export const LANDING_PRESETS: Preset[] =
-  LANDING_SLUGS.map(slug => presetBySlug(slug)!);

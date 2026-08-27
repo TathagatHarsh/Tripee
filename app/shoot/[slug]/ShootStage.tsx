@@ -13,7 +13,7 @@ import type { CakeConfig } from "@/lib/schema";
  *
  * It draws the *same* `CakeScene` the builder and the shared-design page draw,
  * from the preset's own `CakeConfig`, which is the whole point: the photograph
- * on a card has to be the cake "Make it mine" loads, or the card is a lie. The
+ * on a card has to be the cake "Order now" loads, or the card is a lie. The
  * only things this route changes are the ones a photographer changes — where the
  * camera stands and how good the film is.
  */

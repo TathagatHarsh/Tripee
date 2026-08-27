@@ -76,6 +76,30 @@ export function btn(
   ].join(" ");
 }
 
+/**
+ * One control in a pager: a page number, or the step either side of it.
+ *
+ * A class-string helper for the same reason `btn` is one — the app's two pagers
+ * put these classes on different elements. The catalogue at /presets pages
+ * through URLs, so its controls are links and its unavailable steps are spans;
+ * the landing page's section pages in local state, so its controls are buttons.
+ * The one thing that must not differ between them is how they look.
+ *
+ * Never below 44px, like everything else in this file.
+ */
+export function pager(current = false, extra = ""): string {
+  return [
+    "inline-flex min-h-11 min-w-11 items-center justify-center rounded-card px-3.5",
+    "font-mono text-meta tabular-nums",
+    "transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)]",
+    current
+      ? "border border-ink bg-ink text-paper"
+      : "border border-rule-strong bg-paper text-graphite hover:border-ink hover:text-ink",
+    OFF,
+    extra,
+  ].join(" ");
+}
+
 /** A square icon-only control at the same height as a `md` button. */
 export function iconBtn(extra = ""): string {
   return [

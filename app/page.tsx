@@ -2,12 +2,13 @@ import Link from "next/link";
 import { HeroCake } from "@/components/HeroCake";
 import { HeroReveal } from "@/components/HeroReveal";
 import { PresetCard } from "@/components/PresetCard";
+import { PresetPager } from "@/components/PresetPager";
 import { Docket } from "@/components/docket/Docket";
 import { FSSAI_LICENCE } from "@/lib/docket";
 import { FILLINGS, SHAPES, SPONGES, TOPPINGS } from "@/lib/catalog";
 import { resolveSlot } from "@/lib/delivery";
 import { HERO_CAKE, HERO_CAKE_NAME } from "@/lib/hero";
-import { LANDING_PRESETS, PRESETS } from "@/lib/presets";
+import { PRESETS } from "@/lib/presets";
 import { priceCake } from "@/lib/pricing";
 import { formatINR } from "@/lib/format";
 import { servingsLabel } from "@/lib/servings";
@@ -217,16 +218,35 @@ export default function Home() {
               href="/presets"
               className="shrink-0 font-mono text-micro tracking-[0.14em] text-brass uppercase underline-offset-4 hover:underline"
             >
-              See all {PRESETS.length} →
+              Browse the catalogue →
             </Link>
           </div>
 
-          {/* Each card carries its own shot — see components/PresetCard. */}
-          <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {LANDING_PRESETS.map((p) => (
+          {/*
+            All of them, six at a time. This printed three hand-picked slugs and
+            linked out for the rest, which was right while the three were art
+            directed one by one — a marketing row where each cake had its own
+            camera. That went when the cards became photographs from a single
+            shoot (see components/PresetCard), and once every card is the same
+            kind of object there is no argument left for showing a customer three
+            of twenty-one and asking them to click through for the others.
+
+            Eight, on the same four-column grid the catalogue uses — two full
+            rows at every width that has more than one column, and the same page
+            of cakes in both places, which is one less thing for a customer to
+            re-read. Each card carries its own shot — see components/PresetCard.
+          */}
+          <PresetPager
+            perPage={8}
+            className={
+              "grid auto-rows-fr grid-cols-1 gap-6 " +
+              "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            }
+          >
+            {PRESETS.map((p) => (
               <PresetCard key={p.slug} preset={p} />
             ))}
-          </ul>
+          </PresetPager>
         </section>
 
         {/* ── The docket ───────────────────────────────────────────────── */}

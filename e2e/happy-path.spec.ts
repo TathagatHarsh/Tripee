@@ -182,7 +182,20 @@ test("a preset opens where the customer still has a choice to make", async ({ pa
    * builder.
    */
   const card = page.locator("li", { has: page.getByRole("heading", { name: "Lotus Biscoff" }) });
-  await card.getByRole("button", { name: "Make it mine" }).click();
+
+  /*
+   * The catalogue pages at eight to a card now, so being *in* it no longer means
+   * being on the page this landed on. Walked forward until the card is there,
+   * because the note above is about a card's position not being allowed to fail
+   * an assertion about the builder — and a page break is a position. Bounded, so
+   * a preset that has actually been removed fails here rather than spinning.
+   */
+  for (let n = 2; !(await card.count()); n++) {
+    expect(n, "Lotus Biscoff is not in the catalogue").toBeLessThanOrEqual(12);
+    await page.goto(`/presets?page=${n}`);
+  }
+
+  await card.getByRole("button", { name: "Order now" }).click();
 
   // Toppings, not Review: the first step the preset could not decide for anyone.
   await expect(page).toHaveURL(/\/build\/toppings$/);
