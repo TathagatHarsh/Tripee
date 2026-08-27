@@ -8,7 +8,7 @@ import { ShootStage } from "./ShootStage";
  *
  * `scripts/shoot-presets` walks every slug in `lib/presets` and photographs this
  * route, so the route exists for the script rather than for a visitor. It reads
- * the preset out of the same array the catalogue and the "Make it mine" button
+ * the preset out of the same array the catalogue and the "Order now" button
  * read, which is what guarantees the photograph and the cake the builder loads
  * cannot drift apart: there is no second source of truth to drift from.
  */

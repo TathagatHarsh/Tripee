@@ -10,6 +10,19 @@ import { TOPPING_COLORS } from "./materials";
  * cannot support arbitrary combinations.
  */
 
+/**
+ * A flat colour written into the geometry's own vertices.
+ *
+ * NOTE: the `convertSRGBToLinear` here is a double conversion — three's
+ * ColorManagement is on, so `new THREE.Color(hex)` has already converted, and
+ * running the transfer curve twice drives #B4783D to (0.176, 0.029, 0.004) where
+ * the correct linear value is (0.456, 0.188, 0.047). Every tinted garnish
+ * therefore renders darker and more saturated than the hex it names, and the
+ * curve bites hardest on the weakest channel, so each one is dragged towards the
+ * primary it already leaned on. Left alone here on purpose: TOPPING_COLORS was
+ * chosen by eye against this, so removing it repaints the strawberry, the cherry,
+ * the Oreo, the berries and the flower all at once and wants its own pass.
+ */
 function tint(g: THREE.BufferGeometry, hex: string): THREE.BufferGeometry {
   const c = new THREE.Color(hex).convertSRGBToLinear();
   const n = g.attributes.position.count;
@@ -51,6 +64,7 @@ function speckle(
   g: THREE.BufferGeometry,
   base: string, fleck: string, share: number, dimple: number,
 ): THREE.BufferGeometry {
+  // Double-converted, like `tint` — see the note there.
   const a = new THREE.Color(base).convertSRGBToLinear();
   const b = new THREE.Color(fleck).convertSRGBToLinear();
   const pos = g.attributes.position as THREE.BufferAttribute;
@@ -420,34 +434,252 @@ function pineappleChunk(): THREE.BufferGeometry {
   return g;
 }
 
+/** A point on a rounded rectangle, with the normal and phase the crimp needs. */
+interface Rib { x: number; y: number; nx: number; ny: number; t: number }
+
 /**
- * A speculoos biscuit: a rounded rectangle, thick enough to cast its own shadow.
+ * A rounded rectangle sampled at *constant arc length*, each sample carrying the
+ * outward normal it would have without a crimp on it and how far round the
+ * perimeter it sits.
  *
- * Deliberately not embossed. The pattern on a real Lotus biscuit is 0.4mm deep on
- * a 60mm biscuit, and at the size this renders — about 28mm across, a couple of
- * hundred pixels at most on a card — every ridge of it falls below one pixel. The
- * things that actually make it readable as *that* biscuit are the proportion
- * (two and a half to one, not square like an Oreo) and the caramel-brown, and
- * both are free.
+ * Constant arc length rather than constant angle because the crimp has to have
+ * the same pitch on the long side, the short side and the corner — a biscuit
+ * mould cuts one tooth profile and runs it all the way round, so a wave that
+ * stretches on the flats and bunches at the corners is the tell that this was
+ * drawn rather than stamped.
+ *
+ * Phase is returned alongside the point so the border can be the *same* walk
+ * pushed inward. Walking a second, smaller rectangle would be the obvious way to
+ * get it and it does not work: a rectangle 3mm smaller has a shorter perimeter,
+ * so thirty-six lobes around it land a whole lobe out of register with the edge
+ * they are supposed to sit behind, and the border reads as a separate part that
+ * was glued on crooked.
+ */
+function roundedWalk(w: number, h: number, r: number, n: number): Rib[] {
+  const bx = 2 * (w - r), by = 2 * (h - r), arc = (Math.PI * r) / 2;
+  const total = 2 * bx + 2 * by + 4 * arc;
+  const out: Rib[] = [];
+
+  const corner = (cx: number, cy: number, a0: number, d: number, t: number): Rib => {
+    const a = a0 + d / r;
+    return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, nx: Math.cos(a), ny: Math.sin(a), t };
+  };
+
+  // Anticlockwise from the left end of the bottom edge.
+  for (let i = 0; i < n; i++) {
+    const t = i / n;
+    let d = t * total;
+    if (d < bx) { out.push({ x: -w + r + d, y: -h, nx: 0, ny: -1, t }); continue; }
+    d -= bx;
+    if (d < arc) { out.push(corner(w - r, -h + r, -Math.PI / 2, d, t)); continue; }
+    d -= arc;
+    if (d < by) { out.push({ x: w, y: -h + r + d, nx: 1, ny: 0, t }); continue; }
+    d -= by;
+    if (d < arc) { out.push(corner(w - r, h - r, 0, d, t)); continue; }
+    d -= arc;
+    if (d < bx) { out.push({ x: w - r - d, y: h, nx: 0, ny: 1, t }); continue; }
+    d -= bx;
+    if (d < arc) { out.push(corner(-w + r, h - r, Math.PI / 2, d, t)); continue; }
+    d -= arc;
+    if (d < by) { out.push({ x: -w, y: h - r - d, nx: -1, ny: 0, t }); continue; }
+    d -= by;
+    out.push(corner(-w + r, -h + r, Math.PI, d, t));
+  }
+  return out;
+}
+
+/** A walk pushed along its own outward normals by however much `off` says. */
+function contour(ribs: Rib[], off: (t: number) => number): THREE.Shape {
+  const s = new THREE.Shape();
+  ribs.forEach((p, i) => {
+    const k = off(p.t);
+    const x = p.x + p.nx * k, y = p.y + p.ny * k;
+    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
+  });
+  /* No closePath. ExtrudeGeometry wraps the contour itself, and the closing line
+     leaves the first point in the list twice, which is a degenerate wall quad per
+     shape — invisible, but there are a hundred and forty of them here. */
+  return s;
+}
+
+/**
+ * A monoline stroke: a curve walked, offset both ways, closed into a ribbon.
+ *
+ * Which is what script lettering *is* — a round tip dragged along a path at one
+ * width — so the letters below are authored as centrelines rather than as
+ * outlines. That halves the coordinates and makes the weight a single number
+ * instead of two points per node, which matters when the whole alphabet is being
+ * typed out by hand. MessagePlaque makes the same argument about choosing a
+ * monoline face for piping; this is the argument with no font in it.
+ */
+function ribbon(pts: Array<[number, number]>, width: number, segs = 10): THREE.Shape {
+  const p = new THREE.SplineCurve(pts.map(([x, y]) => new THREE.Vector2(x, y))).getPoints(segs);
+  const half = width / 2;
+  const left: THREE.Vector2[] = [], right: THREE.Vector2[] = [];
+
+  for (let i = 0; i < p.length; i++) {
+    // Central difference, clamped at the ends: the tangent at a node is the
+    // direction between its neighbours, which is stable where a one-sided
+    // difference kicks at every change of curvature.
+    const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)];
+    const t = new THREE.Vector2(b.x - a.x, b.y - a.y).normalize();
+    left.push(new THREE.Vector2(p[i].x - t.y * half, p[i].y + t.x * half));
+    right.push(new THREE.Vector2(p[i].x + t.y * half, p[i].y - t.x * half));
+  }
+
+  /* Square caps. A round one is four more points on a stroke a millimetre wide,
+     and no camera this scene has ever used could resolve the difference. */
+  const s = new THREE.Shape();
+  left.concat(right.reverse()).forEach((q, i) => (i ? s.lineTo(q.x, q.y) : s.moveTo(q.x, q.y)));
+  return s;
+}
+
+/** The one closed letter. An annulus, because a stroke that meets itself is one. */
+function loop(cx: number, cy: number, rx: number, ry: number, width: number): THREE.Shape {
+  const s = new THREE.Shape();
+  s.absellipse(cx, cy, rx + width / 2, ry + width / 2, 0, Math.PI * 2, false);
+  const hole = new THREE.Path();
+  hole.absellipse(cx, cy, rx - width / 2, ry - width / 2, 0, Math.PI * 2, true);
+  s.holes.push(hole);
+  return s;
+}
+
+/**
+ * "Lotus", raised across the middle of the biscuit.
+ *
+ * Drawn rather than typeset, and that is the decision worth defending. There is a
+ * canvas-and-bundled-font route already in this project — MessagePlaque draws the
+ * customer's message with Style Script and hands the canvas to three as a colour
+ * and bump map — and it is the wrong tool three times over here. It would want a
+ * custom UVGenerator, because ExtrudeGeometry's default writes cap UVs in shape
+ * coordinates and reuses them on the side walls, so the word would smear down the
+ * edges and print mirrored on the underside. It would want the font-ready gate
+ * MessagePlaque needs, because a canvas silently draws whatever is resolvable at
+ * the moment fillText runs. And it could not coexist with the crumb map: three
+ * takes a normal map over a bump map rather than compositing the two, so the word
+ * would cost the surface that stops this biscuit reading as plastic.
+ *
+ * Against all that, the thing it buys is real letterforms — and no face in the
+ * project is the Lotus face, so a typeset word would be an approximation of the
+ * wordmark as surely as this is. Given two approximations, take the one that is
+ * forty lines in the module that already builds everything from primitives, and
+ * that self-shadows because it is geometry.
+ *
+ * Authored in ems: x-height 1, baseline 0, and the layout centred by hand rather
+ * than measured, because the coordinates are right here and a bounding box pass
+ * would only re-derive what they already say.
+ */
+function wordmark(): THREE.BufferGeometry[] {
+  /* A 6.6mm x-height on a 62mm biscuit, with the capital reaching 10.6mm across a
+     25mm width and the word spanning just under half the length. Large, and that
+     is the size Lotus print it — the wordmark is most of why the thing is
+     recognisable at arm's length, so it is not a detail to be tasteful about. */
+  const EM = 0.107, CX = 2.06, CY = 0.76;
+  const STROKE = 0.22 * EM;
+  const at = (p: Array<[number, number]>): Array<[number, number]> =>
+    p.map(([x, y]) => [(x - CX) * EM, (y - CY) * EM]);
+  const [ox, oy] = at([[1.28, 0.5]])[0];
+
+  /*
+   * Upright and wide-set, where the first pass at this was a connected script.
+   * Cursive is the truer answer to what Lotus actually print and it was the wrong
+   * one: at 6mm of x-height the joins close up, the counters fill, and five
+   * letters render as one squiggle that says a word is there without saying which.
+   * Spread the same letters across half the biscuit's length instead of a third,
+   * keep them separate, and take the stroke up from 1.1mm to 1.4mm — legible beats
+   * faithful when the alternative is neither.
+   */
+  const letters = [
+    // L: a stem that turns through a corner into its foot, rather than a swash.
+    ribbon(at([[0.10, 1.50], [0.10, 0.30], [0.14, 0.10], [0.30, 0.02], [0.58, 0.02]]), STROKE),
+    loop(ox, oy, 0.28 * EM, 0.38 * EM, STROKE),
+    // t: stem and tail. The bar is below, on its own, for the depth-buffer reason.
+    ribbon(at([[2.20, 1.42], [2.20, 0.28], [2.26, 0.08], [2.42, 0.04]]), STROKE),
+    ribbon(at([[2.76, 1.00], [2.76, 0.32], [2.84, 0.08], [3.02, 0.02],
+               [3.20, 0.08], [3.28, 0.32], [3.28, 1.00]]), STROKE),
+    ribbon(at([[4.02, 0.78], [3.96, 0.96], [3.78, 1.00], [3.66, 0.86], [3.70, 0.68],
+               [3.88, 0.56], [4.02, 0.42], [4.00, 0.14], [3.84, 0.02], [3.66, 0.10]]), STROKE),
+  ];
+
+  const opts = {
+    depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.0035,
+    /* Only the `o` reads this, and an ellipse it subdivides twice over: eight
+       gives that counter a sixteen-sided outline, which at 6mm is smooth. */
+    bevelSegments: 1, curveSegments: 8,
+  };
+  const body = new THREE.ExtrudeGeometry(letters, opts);
+  body.translate(0, 0, 0.0775);
+
+  /* The bar crosses the stem, and two shapes in one ExtrudeGeometry are each
+     capped at the same depth — so where they overlap there would be two coplanar
+     top faces fighting for the depth buffer, which flickers on a turntable. Half
+     a tenth of a millimetre lower settles it and is not a height anything can
+     see. */
+  const bar = new THREE.ExtrudeGeometry(ribbon(at([[1.98, 0.92], [2.46, 0.92]]), STROKE, 1), opts);
+  bar.translate(0, 0, 0.0767);
+
+  return [body, bar];
+}
+
+/**
+ * A speculoos biscuit: crimped edge, raised fluted border, flat centre.
+ *
+ * This was a plain rounded rectangle, on the argument that the stamp on a real
+ * Lotus biscuit is under half a millimetre deep and so falls below a pixel at the
+ * size one of these renders. The depth was the wrong dimension to measure. What
+ * makes that biscuit recognisable is how *wide* its features are, not how deep:
+ * the edge is crimped every 4mm and the border band is 2mm across, which on a
+ * 60mm biscuit is 6% and 3% of its length — twelve pixels and six at the couple
+ * of hundred one gets on a card. Both resolve. Only the depth does not, and depth
+ * is the one part a bevel can fake, because a rounded ridge catching the key
+ * light along its length is what the eye actually reads an emboss by.
+ *
+ * So the outline undulates instead of being smooth, and a ring is merged proud of
+ * the slab instead of the top being one flat face. Proportion goes to life as
+ * well: 2.5 to 1, where it was 2.2.
+ *
+ * The word is `wordmark`, above, and is drawn rather than typeset for the reasons
+ * given there.
  */
 function biscuit(): THREE.BufferGeometry {
-  const w = 0.5, h = 0.225, r = 0.05;
-  const s = new THREE.Shape();
-  s.moveTo(-w + r, -h);
-  s.lineTo(w - r, -h);
-  s.quadraticCurveTo(w, -h, w, -h + r);
-  s.lineTo(w, h - r);
-  s.quadraticCurveTo(w, h, w - r, h);
-  s.lineTo(-w + r, h);
-  s.quadraticCurveTo(-w, h, -w, h - r);
-  s.lineTo(-w, -h + r);
-  s.quadraticCurveTo(-w, -h, -w + r, -h);
-  s.closePath();
+  const W = 0.5, H = 0.2, R = 0.072, LOBES = 44;
+  const ribs = roundedWalk(W, H, R, LOBES * 4);
 
-  const g = new THREE.ExtrudeGeometry(s, {
-    depth: 0.085, bevelEnabled: true, bevelSize: 0.022, bevelThickness: 0.016,
-    bevelSegments: 2, curveSegments: 6,
+  /* Half a millimetre of crimp, and it cannot be much more. ExtrudeGeometry
+     bevels by offsetting each contour point along its bisector, so a bevel wider
+     than the tightest concave radius on the outline folds that offset polygon
+     through itself and the edge comes out as crossed slivers. A cosine of
+     amplitude a and wavelength L bottoms out at a radius of 1/(a(2*pi/L)^2),
+     which is 0.013 for the pair below against a bevel of 0.008 — and that margin
+     is what the two of them are for. Deepen the crimp and the bevel comes down
+     with it. */
+  const crimp = (t: number) => Math.cos(t * LOBES * Math.PI * 2) * 0.007;
+
+  const slab = new THREE.ExtrudeGeometry(contour(ribs, crimp), {
+    depth: 0.07, bevelEnabled: true, bevelSize: 0.008, bevelThickness: 0.011,
+    bevelSegments: 1,
   });
+
+  const band = contour(ribs, t => crimp(t) - 0.012);
+  // Plain inside edge: only the outer boundary of the band is fluted. The hole
+  // gets its own rectangle rather than a fourth offset of the walk because an
+  // inward offset takes the corner radius down with it — 0.04 off a 0.072 corner
+  // leaves 0.032, and a band any wider than this would drive it through zero and
+  // turn every corner inside out.
+  band.holes.push(contour(roundedWalk(W - 0.04, H - 0.04, 0.032, 48), () => 0));
+
+  const rim = new THREE.ExtrudeGeometry(band, {
+    depth: 0.012, bevelEnabled: true, bevelSize: 0.006, bevelThickness: 0.005,
+    bevelSegments: 1,
+  });
+  /* Ten thousandths of it buried in the slab, so the join never shows and the
+     only part standing proud is the upper bevel — an emboss on a moulded biscuit
+     is a rounded swell, with no vertical wall anywhere on it. */
+  rim.translate(0, 0, 0.076);
+
+  const parts = [slab, rim, ...wordmark()];
+  const g = mergeGeometries(parts, false)!;
+  parts.forEach(p => p.dispose());
   g.rotateX(-Math.PI / 2);
   g.center();
   g.computeVertexNormals();
@@ -586,6 +818,13 @@ const builders: Record<Topping, () => Builder> = {
    * unrecognisable, because the biscuit *is* the whole flavour's signature.
    */
   "biscoff-biscuit": () => ({ build: biscuit, vertexColors: false, scale: 0.46, flat: true, sink: 0.14 }),
+  /* Worth saying where the next person will look for it: this is by a distance
+     the most expensive garnish in the catalogue, around 4,200 triangles against
+     1,400 for the strawberry and under 200 for most of the rest. Two thirds of it
+     is the crimped outline, which needs four samples a lobe to stay a symmetric
+     wave rather than a sawtooth, and it is paid once — these are instanced, and a
+     preset places five of them. If a low tier ever needs a cheap one, the lever is
+     a plain outline and no wordmark, not a coarser crimp. */
   "biscoff-crumb": () => ({ build: crumb, vertexColors: false, scale: 0.14, flat: false, sink: 0.3 }),
   macaron: () => ({ build: macaron, vertexColors: false, scale: 0.27, flat: true, sink: 0.07 }),
   "meringue-kiss": () => ({ build: meringue, vertexColors: false, scale: 0.22, flat: true, sink: 0.08 }),

@@ -12,7 +12,7 @@ import type { TurntableDrive } from "@/components/three/Turntable";
  *
  * The cake is the real one: this hands a `CakeConfig` straight to the same
  * `CakeScene` the builder and the hero draw, so what is on a card is exactly
- * what its "Make it mine" loads. There is no second renderer, no per-preset
+ * what its "Order now" loads. There is no second renderer, no per-preset
  * geometry and nothing baked — the only things this component decides are *when*
  * to draw and *how much* to spend, both of which are page concerns rather than
  * cake ones.

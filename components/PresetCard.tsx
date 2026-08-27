@@ -1,35 +1,44 @@
 import Image from "next/image";
-import Link from "next/link";
+import { LoadConfig } from "@/components/builder/LoadConfig";
 import { formatINR } from "@/lib/format";
 import type { Preset } from "@/lib/presets";
 import { priceCake } from "@/lib/pricing";
 import { servingsLabel } from "@/lib/servings";
-import { btn } from "@/lib/ui";
 
 /**
  * One preset, shot like a page from a catalogue rather than logged like a
  * product.
  *
- * The cake on the card is a photograph now — `public/presets/<slug>.webp`, made
- * by `scripts/shoot-presets` — where it used to be a live canvas. It is still a
+ * The cake on the card is a photograph — `public/presets/<slug>.webp`, made by
+ * `scripts/shoot-presets` — where it used to be a live canvas. It is still a
  * render of this preset's own `CakeConfig`, drawn by the same `CakeScene` the
  * builder draws, so the promise the catalogue makes still holds: the cake in the
  * picture is the cake the CTA hands over. What changed is only what a render can
  * afford. Nothing drawn in twelve simultaneous browser canvases can cast a
  * shadow (see quality.CARD_BUDGET, which switches them off), and the difference
- * between a cake with a shadow under it and a cake without one is most of the
+ * between a cake with a shadow under it and one without is most of the
  * difference between a photograph and a diagram.
  *
- * The art direction went with the canvas, and deliberately. These three used to
- * get a camera each — a low raking close-up on the truffle, a high airy frame on
- * the strawberry, a cut wedge on the red velvet — because three cakes in three
- * identical frames read as three placeholders. That reasoning was right for a
- * marketing row of three and wrong for a catalogue of twenty, and one shoot has
- * to serve both: `app/shoot/[slug]` photographs every preset from one camera so
- * that twenty cakes are comparable, and these three inherit it. What separates
- * them here is the cakes.
+ * One card, both pages. The landing page and /presets had grown two different
+ * ones — the landing's stacking serves, name and blurb over a ruled row with the
+ * price beside the button; the catalogue's putting the price up on the title line
+ * with the button full width beneath. Two layouts for one object is the kind of
+ * thing nobody decides and everybody notices: the same cake changed shape between
+ * the page that advertised it and the page that sold it. This is the catalogue's,
+ * because a price belongs on the line with the thing it is the price of.
+ *
+ * `as` because heading level is a property of the page, not of the card: on
+ * /presets the h1 is the catalogue's own title, so these are h2; on the landing
+ * page they sit under a section h2, so they are h3. Getting that wrong is an axe
+ * failure (heading-order), not a stylistic preference.
  */
-export function PresetCard({ preset }: { preset: Preset }) {
+export function PresetCard({
+  preset,
+  as: Heading = "h3",
+}: {
+  preset: Preset;
+  as?: "h2" | "h3";
+}) {
   return (
     <li
       className={
@@ -49,58 +58,93 @@ export function PresetCard({ preset }: { preset: Preset }) {
       }
     >
       {/*
-        4:5. The cake photo is now a real portrait food shot (~1122x1402), not a
-        crop of the old 4:3 camera render — 4:3 cut the tops and bases off these.
+        Square, where this was 4:5.
 
-        `cake-stage` under the image, not decoration: it is the same ivory sweep
-        the photograph is shot against, so the well matches the picture that is
+        The source photographs are 1122×1402 portrait and the cake in them runs
+        from about a fifth of the way down to about nine tenths — seven tenths of
+        the frame, with a great deal of backdrop above it. Printed at the photo's
+        own ratio a landing card came out 761px tall, so three of them filled a
+        900px viewport once over. That is not a row of cakes anybody can compare;
+        it is three posters.
+
+        A square keeps the middle 80% of the frame, and it is the tightest crop
+        that still clears the cake board — 5:4 and 4:3 both cut through it,
+        measured off the photographs rather than guessed at. `object-position`
+        pushes the window down the frame because the wasted backdrop is all at the
+        top: the cake ends up optically centred instead of sitting low under
+        headroom that was never part of the composition.
+
+        `cake-stage` under the image is not decoration — it is the same ivory
+        sweep the photograph is shot against, so the well matches the picture
         about to land in it instead of flashing a different colour first.
       */}
-      <div className="cake-stage relative aspect-[4/5] overflow-hidden border-b border-rule">
+      <div className="cake-stage relative aspect-square overflow-hidden border-b border-rule">
         <Image
           src={`/presets/${preset.slug}.webp`}
           alt={preset.name}
           fill
-          sizes="(min-width:1280px) 25vw, 50vw"
+          sizes="(min-width:1280px) 23vw, (min-width:1024px) 31vw, (min-width:640px) 47vw, 92vw"
           /* The push-in used to happen inside the scene — see three/Turntable —
              because scaling a canvas resamples a frame that has already been
              drawn. A bitmap has no such objection, and the well clips, so a plain
              transform is the whole of it. Motion, so it waits to be asked for. */
           className={
-            "object-cover transition-transform duration-[400ms] ease-[var(--ease-out)] " +
-            "motion-safe:group-hover:scale-[1.02]"
+            "object-cover object-[50%_62%] transition-transform " +
+            "duration-[400ms] ease-[var(--ease-out)] motion-safe:group-hover:scale-[1.02]"
           }
         />
       </div>
 
-      <div className="flex flex-1 flex-col gap-2.5 p-5 sm:p-6">
+      <div className="flex flex-1 flex-col gap-2.5 p-5">
+        {/* `min-w-0` on the name and `shrink-0` on the price: a long cake name is
+            what has to wrap here, because a price broken over two lines stops
+            reading as a number. */}
+        <div className="flex items-baseline justify-between gap-3">
+          <Heading className="min-w-0 font-sans text-item font-medium tracking-[-0.008em]">
+            {preset.name}
+          </Heading>
+          <span className="shrink-0 font-mono text-meta font-bold tabular-nums">
+            {formatINR(priceCake(preset.config).total)}
+          </span>
+        </div>
+
+        {/* Two lines, clamped. Every blurb in lib/presets already fits in two at
+            this width — the longest is 69 characters — so this changes nothing
+            today and stops one long line from making a whole row taller later. */}
+        <p className="line-clamp-2 flex-1 text-meta leading-normal text-steel">
+          {preset.blurb}
+        </p>
+
         <span className="font-mono text-micro tracking-[0.14em] text-steel uppercase">
           {servingsLabel(preset.config)}
         </span>
 
-        <h3 className="font-sans text-group font-medium tracking-[-0.008em]">
-          {preset.name}
-        </h3>
+        {/*
+          Toppings, which is step 7 of 9.
 
-        <p className="flex-1 text-body leading-relaxed text-steel">{preset.blurb}</p>
+          A preset is a finished cake, and dropping the customer at step 1 asks
+          them to walk back through nine decisions already made for them, which is
+          the opposite of what a preset is for. Landing them on Review was the
+          wrong conclusion from that, because the nine steps are not all the same
+          kind of decision.
 
-        {/* Price and CTA on one line under a rule: the price is the fact, the
-            button is the action, and stacked full-width they made the card
-            bottom-heavy and left the two competing. */}
-        <div className="mt-1 flex items-center gap-3 border-t border-rule pt-4">
-          <span className="font-mono text-body font-bold tabular-nums">
-            {formatINR(priceCake(preset.config).total)}
-          </span>
-          <Link
-            href="/presets"
-            /* `border-ink`, matching what the button does under its own hover.
-               `border-rule-strong` — the first choice — is the colour it already
-               is at rest, so the "subtle CTA transition" was a no-op. */
-            className={btn("secondary", "md", "ml-auto group-hover:border-ink")}
-          >
-            Make it mine
-          </Link>
-        </div>
+          Six of them — shape, size, sponge, filling, frosting, finish — are what
+          the preset *is*, and a preset is entitled to have decided those. The last
+          two are not: what lands on top, and what it says. Nobody's chocolate
+          truffle cake is a preset's idea of whose birthday it is, and most presets
+          carry no message at all, so landing on Review shipped a cake with nothing
+          written on it and never asked. "The step nav is right there" is not an
+          offer — it is a thing to notice, and a customer reading a finished docket
+          has no reason to think anything is missing.
+
+          So: skip what the preset decided, open on the first thing it could not.
+        */}
+        <LoadConfig
+          config={preset.config}
+          to="/build/toppings"
+          label="Order now"
+          className="w-full"
+        />
       </div>
     </li>
   );
