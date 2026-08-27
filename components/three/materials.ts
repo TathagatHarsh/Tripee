@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { Filling, Finish, Frosting, Sponge, Topping } from "@/lib/schema";
 import { achievable, mix, shade } from "@/lib/color";
 import {
-  creamNormal, frostingNormal, frostingRoughness, satinNormal, sheetNormal,
+  biscuitCrumb, creamNormal, frostingNormal, frostingRoughness, satinNormal, sheetNormal,
   spongeCrumb, spongeNormal,
 } from "./noise";
 
@@ -208,8 +208,15 @@ export const TOPPING_COLORS: Record<Topping, string> = {
   truffle: "#3B2419",
   "caramel-shard": "#C58A34",
   "butterscotch-crunch": "#C1863C",
-  "biscoff-biscuit": "#BE8146",
-  "biscoff-crumb": "#C0905F",
+  /* A shade deeper and browner than the #BE8146 this was. Speculoos is baked
+     caramel, and at that value the rig's key light and envmap between them lifted
+     it to a flat orange — the biscuits read as plastic tabs laid on the cream
+     rather than as anything that had been in an oven. A topping colour has to be
+     picked for what it looks like *lit*, not for what it looks like in a swatch.
+     TOPPING_PALETTES["biscoff-crumb"] deliberately does not follow it down: crumb
+     is fresh broken faces and scatters paler than the biscuit it came off. */
+  "biscoff-biscuit": "#9E6631",
+  "biscoff-crumb": "#B58453",
   macaron: "#E0A2B0",
   "meringue-kiss": "#F4E6D8",
   "rasmalai-disc": "#F8F2E2",
@@ -429,6 +436,9 @@ export interface ToppingMaterialSpec {
   metalness: number;
   clearcoat: number;
   sheen?: number;
+  /** A thunk, so no texture is generated for a garnish nobody ordered. */
+  normalMap?: () => THREE.Texture;
+  normalScale?: number;
 }
 
 export const TOPPING_MATERIALS: Record<Topping, ToppingMaterialSpec> = {
@@ -456,7 +466,15 @@ export const TOPPING_MATERIALS: Record<Topping, ToppingMaterialSpec> = {
   // Set sugar is nearly glass: a hard, narrow highlight and a wet skin over it.
   "caramel-shard": { color: TOPPING_COLORS["caramel-shard"], roughness: 0.15, metalness: 0, clearcoat: 0.58 },
   "butterscotch-crunch": { color: TOPPING_COLORS["butterscotch-crunch"], roughness: 0.5, metalness: 0, clearcoat: 0.22 },
-  "biscoff-biscuit": { color: TOPPING_COLORS["biscoff-biscuit"], roughness: 0.72, metalness: 0, clearcoat: 0 },
+  /* The only topping with a normal map. Everything else in the catalogue is a
+     small curved solid whose silhouette does the work; a biscuit is a flat plane
+     held up to the key light, and a plane with a constant normal is plastic
+     whatever colour it is. Roughness a shade up from the old 0.72 as well —
+     speculoos is drier than that. */
+  "biscoff-biscuit": {
+    color: TOPPING_COLORS["biscoff-biscuit"], roughness: 0.78, metalness: 0, clearcoat: 0,
+    normalMap: biscuitCrumb, normalScale: 0.45,
+  },
   "biscoff-crumb": { color: TOPPING_COLORS["biscoff-crumb"], roughness: 0.82, metalness: 0, clearcoat: 0 },
   macaron: { color: TOPPING_COLORS.macaron, roughness: 0.68, metalness: 0, clearcoat: 0.05, sheen: 0.3 },
   "meringue-kiss": { color: TOPPING_COLORS["meringue-kiss"], roughness: 0.62, metalness: 0, clearcoat: 0.06, sheen: 0.35 },
@@ -484,7 +502,12 @@ export const TOPPING_PALETTES: Partial<Record<Topping, string[]>> = {
   "pineapple-chunk": ["#E0AF48", "#D6A23A", "#E8C169"],
   truffle: ["#3B2419", "#48301F", "#32200F"],
   "butterscotch-crunch": ["#C1863C", "#AE7430", "#D19E58"],
-  "biscoff-crumb": ["#C0905F", "#AC7C4C", "#CFA478"],
+  /* Follows the whole biscuit down, but not all the way. Crumb is fresh broken
+     faces and scatters paler than the baked outside it came off, so the three of
+     these stay a step lighter than TOPPING_COLORS["biscoff-biscuit"] — what they
+     cannot be is a different biscuit, which is what they became when the biscuit
+     was deepened and this was left at its old value. */
+  "biscoff-crumb": ["#B58453", "#A17140", "#C4986C"],
   /* Darker than the pistachio frosting they sit on, deliberately. At #A6BC70
      these were within a few percent of `pistacho`'s own #B6C79B coat and the ring
      of them disappeared into it — a garnish has to be a different value from the

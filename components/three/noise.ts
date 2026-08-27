@@ -228,3 +228,27 @@ export const boardGrain = () =>
  */
 export const frostingRoughness = () =>
   luminanceMap("frosting-rough", { size: 256, frequency: 4.5, octaves: 3, depth: 0.3 });
+
+/**
+ * Speculoos crumb — the fine, shallow pitting all over a moulded biscuit.
+ *
+ * The one topping with a normal map, because it is the one topping with a face
+ * broad and flat enough to have nothing on it. Everything else in the catalogue
+ * is a small curved solid whose silhouette is doing the work; a biscuit is a
+ * 60mm plane held up to the key light, and a plane with a constant normal is
+ * plastic no matter what colour it is.
+ *
+ * Frequency is read against the biscuit's own UVs, which ExtrudeGeometry writes
+ * in shape units — and those are square, u running 1.0 over the biscuit's 60mm
+ * length and v running 0.4 over its 25mm width, so one tile covers it without any
+ * repeat and without stretching. 30 is a pit every 2mm.
+ *
+ * 512, not the 256 the other fine fields use. A value-noise lattice at 256 and
+ * this frequency is six pixels to a cell, and six-pixel cells read as a woven
+ * grid rather than as crumb — the one texture here whose frequency is high enough
+ * for its own lattice to show. The side walls get the same UVs squashed into a
+ * 6mm thickness and so wear a stretched version of the field, which is wrong and
+ * is also two pixels of a piece lying face up.
+ */
+export const biscuitCrumb = () =>
+  normalMap("biscuit-crumb", { size: 512, frequency: 30, octaves: 3, strength: 6 });

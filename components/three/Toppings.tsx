@@ -580,6 +580,8 @@ function ToppingLayer({
         metalness={mat.metalness}
         clearcoat={mat.clearcoat}
         clearcoatRoughness={0.3}
+        normalMap={mat.normalMap?.()}
+        normalScale={[mat.normalScale ?? 1, mat.normalScale ?? 1]}
         sheen={mat.sheen ?? 0}
         sheenColor="#FFE9CC"
         envMapIntensity={spec.kind === "gold-leaf" ? 1.6 : 0.8}
