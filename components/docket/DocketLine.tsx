@@ -48,7 +48,7 @@ export function DocketLine({ label, value, delta }: Props) {
     <div
       className={[
         "flex items-baseline gap-2 border py-[3px] font-mono text-micro leading-[1.9] tabular-nums",
-        "-mx-1.5 rounded-ticket px-1.5 transition-colors duration-[600ms]",
+        "-mx-1.5 px-1.5 transition-colors duration-[600ms]",
         changed && !reduced ? "border-brass-edge bg-brass-tint" : "border-transparent bg-transparent",
       ].join(" ")}
     >

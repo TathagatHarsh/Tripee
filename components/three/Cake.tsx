@@ -6,6 +6,7 @@ import * as THREE from "three";
 import type { CakeConfig } from "@/lib/schema";
 import { seedFrom } from "@/lib/seed";
 import { CakeBoard } from "./CakeBoard";
+import { Crumbs } from "./Crumbs";
 import { MessagePlaque, plaqueFootprint } from "./MessagePlaque";
 import { Tier } from "./Tier";
 import { Toppings } from "./Toppings";
@@ -85,6 +86,19 @@ export function Cake({
   return (
     <group>
       {showBoard && <CakeBoard radius={tiers[0].radius} cakeRadius={tiers[0].radius} />}
+
+      {/* Debris from the cut, so it needs both a board to land on and a cut to
+          have come out of. Outside the reveal below: the hero is never sliced,
+          and crumbs are not something a decorator puts on. */}
+      {showBoard && sliced && (
+        <Crumbs
+          config={config}
+          radius={tiers[0].radius}
+          seed={seed}
+          castShadow={castShadow}
+          sector={DEFAULT_SLICE}
+        />
+      )}
 
       {tiers.map((dims, i) => rise(
         <Tier

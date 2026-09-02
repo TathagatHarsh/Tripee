@@ -26,9 +26,21 @@ export const HIGH: QualitySettings = {
   antialias: true,
 };
 
+/**
+ * `dpr` is a clamp on the device's own pixel ratio, and 1 was the harshest value
+ * available. On a phone reporting 3, that drew the cake at a ninth of the screen's
+ * pixels and left the browser to upscale — which is what "the render quality is
+ * very bad on mobile" is, and this file's own comment above `useQuality` already
+ * says a downgrade here "is very visible and completely silent".
+ *
+ * Resolution should be the *last* thing a weak device gives up, because it is the
+ * only one of these five the eye reads directly. Segments, shadows, instances and
+ * antialiasing are all cheaper to lose and LOW still loses all four. 1.5 is a
+ * bounded step — 2.25x the pixels of 1, still well under a modern phone's 3.
+ */
 export const LOW: QualitySettings = {
   tier: "low",
-  dpr: [1, 1],
+  dpr: [1, 1.5],
   segments: 32,
   shadows: false,
   contactShadows: true,

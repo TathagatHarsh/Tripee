@@ -47,3 +47,18 @@ next-env.d.ts
 # Playwright
 /test-results/
 /playwright-report/
+
+# scroll-film working sources (heavy mp4s, masters)
+/film-assets/
+
+# Flow source clips and their QC frames (heavy, regenerable)
+/gsap-v/
+
+# iCloud conflict copies ("frame_0346 2.webp", "manifest 3.json"). A sync can
+# leave three thousand of these in public/film, which is 87MB of nothing.
+* [0-9].*
+* [0-9][0-9].*
+
+# Cake photo sources. These are shot once and converted into
+# public/presets/*.webp, which is what the site actually serves.
+/pics/

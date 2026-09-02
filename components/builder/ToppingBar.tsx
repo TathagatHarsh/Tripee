@@ -43,6 +43,17 @@ export function ToppingBar() {
    * when state has to follow something outside it: one extra render, no frame
    * where the bar shows the wrong thing.
    */
+  /*
+   * Below lg the two pill strips are collapsed behind a summary row — see the
+   * button that opens it.
+   *
+   * Deliberately not reset when the topping or the placement changes: someone who
+   * opened the bar is placing things, and closing it under them on every tap would
+   * be the control taking a view about when they are finished. The whole value of
+   * these settings is watching the cake move while you hold them.
+   */
+  const [open, setOpen] = useState(false);
+
   const [pick, setPick] = useState<Topping | null>(null);
   const [count, setCount] = useState(chosen.length);
   if (chosen.length !== count) {
@@ -63,7 +74,7 @@ export function ToppingBar() {
   const many = chosen.length > 1;
 
   return (
-    <div className="flex shrink-0 flex-col gap-1.5 rounded-card border border-rule-strong bg-paper/90 px-2 py-1.5 shadow-elev-1 backdrop-blur-[6px]">
+    <div className="flex shrink-0 flex-col gap-1.5 border border-rule-strong bg-paper/90 px-2 py-1.5 backdrop-blur-[6px]">
       {/*
         A row per kind of control, and the name riding along with the slider
         rather than taking a row of its own.
@@ -79,6 +90,54 @@ export function ToppingBar() {
         tighter and it hid Crown past the right edge at every width that actually
         occurs, and a control you cannot see is worse than a row you can.
       */}
+      {/*
+        The mobile disclosure.
+
+        Measured on a 375x812 phone: the two pill strips are 76px each, because
+        five placement pills need 381px of a 301px row and wrap, and the bar came
+        to 214px — 35% of the 618px the builder has to share between the render,
+        this bar and the topping picker. The render was getting 182px of an 812px
+        screen, which is a preview of nothing.
+
+        They cannot simply be made to fit. "White Chocolate Curl" alone is 211px,
+        and scrolling the strip sideways was tried and reverted for the good reason
+        recorded below: it hid Crown past the right edge.
+
+        So on a phone they are one row until they are asked for, and the summary
+        carries what collapsing would otherwise cost — which topping the bar is
+        aimed at, and where it is putting it. Density stays outside this and stays
+        live, because sweeping it while the top fills up is the entire argument for
+        the bar existing at all.
+
+        From lg the strips are shown outright and this button is display:none, so
+        it leaves the accessibility tree with its own box and nothing is left
+        announcing a control that is not there.
+      */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        aria-controls="topping-pills"
+        className="flex min-h-9 items-center gap-2 border border-rule bg-paper/70 px-2 text-left lg:hidden"
+      >
+        <Swatch hex={meta.swatch} />
+        <span className="truncate text-meta text-ink">{meta.name}</span>
+        <span aria-hidden className="shrink-0 text-rule-strong">·</span>
+        <span className="shrink-0 font-mono text-micro tracking-[0.14em] text-steel uppercase">
+          {PLACEMENTS.find(x => x.value === spec.placement)?.short}
+        </span>
+        {/* A hairline rule, because without one the placement and the action ran
+            together as a single phrase — "BORDER CHANGE" — and the only word on
+            the row that is a verb stopped looking like one. */}
+        <span className="ml-auto flex shrink-0 items-center self-stretch border-l border-rule pl-2.5 font-mono text-micro tracking-[0.14em] text-ink uppercase">
+          {open ? "Done" : "Change"}
+        </span>
+      </button>
+
+      <div
+        id="topping-pills"
+        className={`${open ? "flex" : "hidden"} flex-col gap-1.5 lg:flex`}
+      >
       {many && (
         <div className="flex flex-wrap items-center gap-1">
           {chosen.map((t) => {
@@ -119,6 +178,7 @@ export function ToppingBar() {
             {p.short}
           </button>
         ))}
+        </div>
       </div>
 
       <div className="flex min-h-9 flex-wrap items-center gap-x-2.5 gap-y-1">
@@ -159,7 +219,7 @@ export function ToppingBar() {
 /** Both strips are the same single-select language, so they are the same pill. */
 function pill(on: boolean): string {
   return [
-    "flex min-h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-meta",
+    "flex min-h-9 shrink-0 items-center gap-2 border px-3 text-meta",
     "transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)]",
     on
       ? "border-ink bg-ink text-paper"
@@ -171,7 +231,7 @@ function Swatch({ hex }: { hex?: string }) {
   return (
     <span
       aria-hidden
-      className="size-[15px] shrink-0 rounded-full shadow-[inset_0_0_0_1px_rgb(23_22_26/0.18)]"
+      className="size-[15px] shrink-0 rounded-full border border-ink/20"
       style={{ background: hex }}
     />
   );

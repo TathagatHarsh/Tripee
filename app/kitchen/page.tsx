@@ -44,7 +44,7 @@ export default async function KitchenBoard({
   if (!hasDatabase()) {
     return (
       <Shell counts={{}} filter={null} total={0}>
-        <p className="rounded-card border border-rule bg-paper px-4 py-3.5 text-body leading-snug text-steel">
+        <p className="border border-rule bg-paper px-4 py-3.5 text-body leading-snug text-steel">
           {NO_DATABASE_MESSAGE}
         </p>
       </Shell>
@@ -70,7 +70,7 @@ export default async function KitchenBoard({
   return (
     <Shell counts={counts} filter={filter} total={total}>
       {orders.length === 0 ? (
-        <p className="rounded-card border border-rule bg-paper px-4 py-3.5 text-body text-steel">
+        <p className="border border-rule bg-paper px-4 py-3.5 text-body text-steel">
           Nothing here{filter ? ` at "${STATUS_LABEL[filter]}"` : " yet"}.
         </p>
       ) : (
@@ -85,15 +85,15 @@ export default async function KitchenBoard({
             const drifted = recomputed !== null && recomputed !== o.totalPaise;
 
             return (
-              <li key={o.id} className="overflow-hidden rounded-panel border border-rule bg-paper shadow-elev-1">
+              <li key={o.id} className="overflow-hidden border border-rule bg-paper ">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule px-4 py-3">
                   <div className="flex items-baseline gap-3">
-                    <span className="font-mono text-item font-bold tracking-wide">{o.ref}</span>
-                    <span className="rounded-ticket border border-rule px-2 py-0.5 font-mono text-micro text-steel">
+                    <span className="font-mono text-item font-medium tracking-wide">{o.ref}</span>
+                    <span className="border border-rule px-2 py-0.5 font-mono text-micro text-steel">
                       {STATUS_LABEL[o.status]}
                     </span>
                   </div>
-                  <span className="font-mono text-item font-bold tabular-nums">
+                  <span className="font-mono text-item font-medium tabular-nums">
                     {formatINR(o.totalPaise)}
                   </span>
                 </div>
@@ -112,7 +112,7 @@ export default async function KitchenBoard({
                 </dl>
 
                 {drifted && (
-                  <p role="alert" className="mx-4 mb-3 rounded-card border border-seal/40 bg-seal-tint px-3.5 py-2.5 text-meta leading-snug">
+                  <p role="alert" className="mx-4 mb-3 border border-seal/40 bg-seal-tint px-3.5 py-2.5 text-meta leading-snug">
                     Quoted {formatINR(o.totalPaise)}, but today&rsquo;s prices make this
                     cake {formatINR(recomputed!)}. The quoted figure is what was
                     agreed — the sheet below is regenerated and shows the new one.
@@ -129,7 +129,7 @@ export default async function KitchenBoard({
                     </pre>
                   </details>
                 ) : (
-                  <p role="alert" className="mx-4 mb-3 rounded-card border border-seal/40 bg-seal-tint px-3.5 py-2.5 text-meta">
+                  <p role="alert" className="mx-4 mb-3 border border-seal/40 bg-seal-tint px-3.5 py-2.5 text-meta">
                     This order&rsquo;s stored configuration no longer validates against
                     the current schema, so no sheet can be produced. Ring the customer.
                   </p>
@@ -174,7 +174,7 @@ function Shell({
       href={href}
       aria-current={active ? "page" : undefined}
       className={[
-        "inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-meta",
+        "inline-flex min-h-11 items-center gap-2 border px-4 text-meta",
         "transition-colors duration-[--dur-ui]",
         active
           ? "border-ink bg-ink text-paper"

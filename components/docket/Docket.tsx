@@ -42,15 +42,15 @@ export function Docket({ config, stamped, reference, className, chromeless }: Pr
 
   return (
     <Frame
-      className={`relative flex flex-col bg-paper ${chromeless ? "" : "shadow-elev-2"} ${className ?? ""}`}
+      className={`relative flex flex-col bg-paper ${chromeless ? "" : "shadow-sheet"} ${className ?? ""}`}
       {...(chromeless ? {} : { "aria-label": "Order docket" })}
     >
       {!chromeless && (
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-dashed border-rule px-[18px] pt-4 pb-3.5">
-          <span className="font-mono text-micro font-bold tracking-[0.14em] whitespace-nowrap">
+          <span className="font-mono text-micro font-medium tracking-[0.14em] whitespace-nowrap">
             ORDER DOCKET
           </span>
-          <span className="font-mono text-micro font-bold tracking-[0.14em] whitespace-nowrap text-brass">
+          <span className="font-mono text-micro font-medium tracking-[0.14em] whitespace-nowrap text-brass">
             #{d.ref}
           </span>
         </div>
@@ -104,7 +104,7 @@ export function Docket({ config, stamped, reference, className, chromeless }: Pr
 
       {stamped && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="stamp rounded-ticket px-4 py-2 font-mono text-body font-bold uppercase">
+          <div className="stamp px-4 py-2 font-mono text-body font-medium uppercase">
             {stamped}
           </div>
         </div>

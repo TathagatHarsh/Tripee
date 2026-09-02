@@ -87,7 +87,7 @@ export function StepNav() {
             href={`/build/${s.slug}`}
             aria-current={state === "current" ? "step" : undefined}
             className={[
-              "flex min-h-11 shrink-0 items-center gap-2.5 rounded-card pr-3 pl-2",
+              "flex min-h-11 shrink-0 items-center gap-2.5 pr-3 pl-2",
               "text-body whitespace-nowrap transition-colors duration-[--dur-ui]",
               state === "todo" ? "text-steel hover:text-ink" : "text-ink",
             ].join(" ")}
@@ -95,8 +95,8 @@ export function StepNav() {
             <span
               aria-hidden
               className={[
-                "grid size-[26px] shrink-0 place-items-center rounded-[6px] border",
-                "font-mono text-micro font-bold tabular-nums",
+                "grid size-[26px] shrink-0 place-items-center border",
+                "font-mono text-micro font-medium tabular-nums",
                 state === "current" ? "border-ink bg-ink text-paper" : "",
                 state === "done" ? "border-rule-strong bg-paper text-ink" : "",
                 state === "todo" ? "border-rule bg-transparent text-steel" : "",
@@ -133,10 +133,10 @@ export function PhaseMeters() {
 
         return (
           <div key={p.name} className="flex flex-1 flex-col gap-[7px]">
-            <div className="h-[3px] overflow-hidden rounded-full bg-slab-deep">
+            <div className="h-[3px] overflow-hidden bg-slab-deep">
               <div
                 className={[
-                  "h-full rounded-full transition-[width] duration-[--dur-settle] ease-[--ease-out]",
+                  "h-full transition-[width] duration-[--dur-settle] ease-[--ease-out]",
                   active ? "bg-brass" : "bg-ink",
                 ].join(" ")}
                 style={{ width: `${width}%` }}
@@ -145,7 +145,7 @@ export function PhaseMeters() {
             <span
               className={[
                 "hidden text-meta leading-none min-[1440px]:block",
-                active ? "font-semibold text-ink" : "text-steel",
+                active ? "font-medium text-ink" : "text-steel",
               ].join(" ")}
             >
               {p.name}

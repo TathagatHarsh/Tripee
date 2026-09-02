@@ -22,6 +22,30 @@ export function previewRef(c: CakeConfig): string {
   return "MC-" + (1000 + (seedFrom(c) % 9000)).toString();
 }
 
+/** One slab of the cut cake, bottom to top. Mirrors `slabStack` in the 3D. */
+export interface CakeLayer {
+  type: "sponge" | "filling";
+  flavor: string;
+}
+
+/**
+ * The cake read the way it is built, not the way it is configured: sponge,
+ * filling, sponge. `layers` counts the sponge slabs, so the filling sits in the
+ * n-1 gaps between them — the same stack `slabStack` extrudes for the section
+ * view. A cake with no filling has nothing but frosting scrape in the gaps, so
+ * the gaps go unlisted rather than being named after something you did not order.
+ */
+export function deriveLayers(c: CakeConfig): CakeLayer[] {
+  const sponge = titleCase(c.sponge);
+  const filling = c.filling === "none" ? null : titleCase(c.filling);
+  const out: CakeLayer[] = [];
+  for (let i = 0; i < c.layers; i++) {
+    if (i > 0 && filling) out.push({ type: "filling", flavor: filling });
+    out.push({ type: "sponge", flavor: sponge });
+  }
+  return out;
+}
+
 export interface DocketRow {
   key: string;
   label: string;

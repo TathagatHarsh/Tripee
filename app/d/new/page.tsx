@@ -39,12 +39,12 @@ export default async function InlineDesign({
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
-      <Link href="/" className="font-mono text-meta font-bold tracking-[0.2em]">
+      <Link href="/" className="font-mono text-meta font-medium tracking-[0.2em]">
         MAKEMYCAKE
       </Link>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1.3fr_1fr]">
-        <div className="cake-stage cake-panel overflow-hidden rounded-panel p-6">
+        <div className="cake-stage overflow-hidden p-6">
           <div className="aspect-square">
             <CakePreview config={config} autoRotate />
           </div>
@@ -59,7 +59,7 @@ export default async function InlineDesign({
             {titleCase(config.frosting)} · {titleCase(config.finish)} finish
           </p>
 
-          <div className="rounded-panel border border-rule bg-paper p-5 shadow-elev-1">
+          <div className="border border-rule bg-paper p-5 ">
             <PriceBreakdown price={priceCake(config)} />
           </div>
 

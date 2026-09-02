@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { allergenLine, deriveAllergens } from "@/lib/allergens";
 import { resolveSlot, servicePincode, zoneForPincode } from "@/lib/delivery";
-import { buildDocket, previewRef, renderSpecSheet } from "@/lib/docket";
+import { buildDocket, deriveLayers, previewRef, renderSpecSheet } from "@/lib/docket";
 import { formatDelta, formatINR } from "@/lib/format";
 import { canSubmit } from "@/lib/rules";
 import { decodeConfig, encodeConfig, makeOrderRef } from "@/lib/share";
@@ -197,5 +197,26 @@ describe("presets", () => {
 
   it("has unique slugs", () => {
     expect(new Set(PRESETS.map(p => p.slug)).size).toBe(PRESETS.length);
+  });
+});
+
+describe("layers", () => {
+  it("puts filling in the gaps between the sponge slabs", () => {
+    const l = deriveLayers(cake({ layers: 3, sponge: "belgian-chocolate", filling: "chocolate-mousse" }));
+    expect(l.map(x => `${x.flavor} ${x.type}`)).toEqual([
+      "Belgian Chocolate sponge",
+      "Chocolate Mousse filling",
+      "Belgian Chocolate sponge",
+      "Chocolate Mousse filling",
+      "Belgian Chocolate sponge",
+    ]);
+  });
+
+  it("lists sponge only when nothing is filled between the layers", () => {
+    const l = deriveLayers(cake({ layers: 2, filling: "none" }));
+    expect(l).toEqual([
+      { type: "sponge", flavor: "Vanilla" },
+      { type: "sponge", flavor: "Vanilla" },
+    ]);
   });
 });

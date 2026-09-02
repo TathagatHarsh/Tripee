@@ -42,8 +42,8 @@ export function PresetCard({
   return (
     <li
       className={
-        "group flex flex-col overflow-hidden rounded-panel border border-rule bg-paper " +
-        "shadow-elev-1 transition-[box-shadow,border-color,translate] " +
+        "group flex flex-col overflow-hidden border border-rule bg-paper " +
+        "transition-[box-shadow,border-color,translate] " +
         /*
          * `var(...)` spelled out, not the `[--dur-ui]` shorthand used elsewhere
          * in this codebase. Tailwind v4 dropped that shorthand, so
@@ -52,7 +52,7 @@ export function PresetCard({
          * built stylesheet, not assumed.
          */
         "duration-[var(--dur-ui)] ease-[var(--ease-out)] " +
-        "hover:border-steel hover:shadow-elev-3 " +
+        "hover:border-steel " +
         // The lift is motion, so it waits to be asked for.
         "motion-safe:hover:-translate-y-1"
       }
@@ -103,7 +103,7 @@ export function PresetCard({
           <Heading className="min-w-0 font-sans text-item font-medium tracking-[-0.008em]">
             {preset.name}
           </Heading>
-          <span className="shrink-0 font-mono text-meta font-bold tabular-nums">
+          <span className="shrink-0 font-mono text-meta font-medium tabular-nums">
             {formatINR(priceCake(preset.config).total)}
           </span>
         </div>

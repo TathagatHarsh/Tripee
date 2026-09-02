@@ -151,7 +151,10 @@ const PLAIN_SHOT: Shot = {
    */
   fill: 1.22,
   offsetX: 0,
-  exposure: 1.05,
+  /* §5.2: ACES, exposure 1.0. This was 1.05 — a twentieth of a stop over, which
+     was compensating for a fill and an environment that have both since come
+     down. HERO_SHOT keeps its own correction; see the note there. */
+  exposure: 1.0,
 };
 
 /**
@@ -234,7 +237,9 @@ export function CakeScene({
 
   return (
     <Canvas
-      className={className}
+      /* §5.2's 2% film grain. The class lands on Canvas's own outer div, which
+         already carries position:relative and overflow:hidden — see the utility. */
+      className={`film-grain ${className ?? ""}`}
       shadows={q.shadows ? "soft" : false}
       dpr={q.dpr}
       gl={{
@@ -342,7 +347,8 @@ function Framing({
   const initialCamera = useThree(s => s.camera);
   const reduced = useReducedMotion() || !animate;
 
-  const aspect = useThree(s => s.size.width / Math.max(1, s.size.height));
+  const size = useThree(s => s.size);
+  const aspect = size.width / Math.max(1, size.height);
 
   const target = useMemo(() => {
     const { height, radius } = cakeFocus(config);
@@ -393,7 +399,27 @@ function Framing({
      * about the sides.
      */
     const need = shot.fit === "height" ? needV : Math.max(needV, needH);
-    const distance = THREE.MathUtils.clamp(need * shot.fill, 2.6, 12);
+
+    /*
+     * `fill`'s air is composition on a large frame and waste on a small one.
+     *
+     * 22% margin round a 600px canvas is a cake standing on a table with room to
+     * breathe, which is the point of it. Round the 182px the builder's canvas
+     * measures on a 375x812 phone — with the stage split between the render and
+     * the topping bar — the same 22% is 40px of empty chipboard, and the cake it
+     * frames is 140px of a 812px screen. At that size nobody is reading the
+     * composition; they are trying to see the cake.
+     *
+     * So the air is spent in proportion to the frame that holds it: full above
+     * 300px, tapering to a quarter of it at 200px and below. The floor matters —
+     * this must not reach the preset cards or the hero, which are composed and
+     * are not short of room, so the ramp is written against canvas height in CSS
+     * pixels rather than against a breakpoint.
+     */
+    const roomy = THREE.MathUtils.clamp((size.height - 200) / 100, 0, 1);
+    const fill = 1 + (shot.fill - 1) * (0.25 + 0.75 * roomy);
+
+    const distance = THREE.MathUtils.clamp(need * fill, 2.6, 12);
 
     /*
      * The cake sits in a group offset by -0.55; look at its actual middle.
@@ -407,7 +433,7 @@ function Framing({
     // Lifting the look-at spends vertical margin at the bottom of the frame, so it
     // stays small: 0.56 of the height cropped the board on a three-tier.
     return { distance, lookY: height * 0.53 - 0.55 };
-  }, [config, aspect, shot]);
+  }, [config, aspect, size.height, shot]);
 
   const applied = useRef(false);
 

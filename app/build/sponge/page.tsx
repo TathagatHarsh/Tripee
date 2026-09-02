@@ -12,22 +12,26 @@ export default function SpongeStep() {
 
   return (
     <div className="flex flex-col gap-7">
-      <div>
-        <StepHeader
-          title="The cake itself"
-          hint="This is what people taste first."
-        />
-        <OptionGrid
-          options={SPONGES}
-          label="Sponge"
-          selected={(c) => c.sponge}
-          patch={(sponge) => ({ sponge })}
-        />
-      </div>
+      <StepHeader
+        title="The sponge layers"
+        hint="Every layer is baked from this one. It is what people taste first."
+      />
 
+      {/*
+        Dietary sits ABOVE the fourteen sponges, not below them.
+
+        The controls column scrolls on its own and the page does not, so there is
+        no scrollbar to suggest anything follows the grid. Measured at 1440, 768
+        and 375, this fieldset landed between 1351px and 1884px down the column —
+        never on screen at any width — for the two controls on this step that
+        carry an allergen and change the price.
+
+        Eggless is our default rather than an upsell, and a default nobody can
+        find is not a default. Two rows before the grid is the whole cost.
+      */}
       <fieldset>
         <GroupHeader title="Dietary" hint="Both are separate bakes, so both change the price." />
-        <div className="flex flex-col gap-2.5">
+        <div className="grid gap-2.5 @md:grid-cols-2">
           <DietOption
             label="Eggless"
             blurb="Our default. The crumb is slightly denser and holds moisture better."
@@ -42,6 +46,13 @@ export default function SpongeStep() {
           />
         </div>
       </fieldset>
+
+      <OptionGrid
+        options={SPONGES}
+        label="Sponge"
+        selected={(c) => c.sponge}
+        patch={(sponge) => ({ sponge })}
+      />
 
       <ViolationCard />
     </div>
@@ -59,10 +70,10 @@ function DietOption({
   return (
     <label
       className={[
-        "flex min-h-11 cursor-pointer items-start gap-3 rounded-card border px-4 py-3.5",
+        "flex min-h-11 cursor-pointer items-start gap-3 border px-4 py-3.5",
         "transition-[background-color,border-color,box-shadow] duration-[--dur-ui] ease-[--ease-out]",
         checked
-          ? "border-ink bg-paper shadow-elev-1"
+          ? "border-ink bg-paper "
           : "border-rule bg-paper hover:border-rule-strong",
       ].join(" ")}
     >

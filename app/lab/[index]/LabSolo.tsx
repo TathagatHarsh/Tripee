@@ -12,7 +12,7 @@ export function LabSolo({ index }: { index: number }) {
     <div className="relative h-full w-full">
       <LazyCakeScene config={LAB_CONFIGS[index].config} followView />
 
-      <label className="absolute bottom-3 left-3 flex items-center gap-2 rounded-sm border border-rule bg-paper/85 px-3 py-2 text-meta text-steel">
+      <label className="absolute bottom-3 left-3 flex items-center gap-2 border border-rule bg-paper/85 px-3 py-2 text-meta text-steel">
         <input
           type="checkbox"
           checked={sliced}

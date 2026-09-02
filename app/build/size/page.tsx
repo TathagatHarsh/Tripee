@@ -53,7 +53,7 @@ export default function SizeStep() {
                 aria-pressed={active}
                 aria-describedby={blocked ? `why-tiers-${tiers}` : undefined}
                 className={[
-                  "flex min-h-11 flex-col gap-1.5 rounded-card border px-4 py-3.5 text-left",
+                  "flex min-h-11 flex-col gap-1.5 border px-4 py-3.5 text-left",
                   "transition-[background-color,border-color,box-shadow] duration-[--dur-ui] ease-[--ease-out]",
                   cardState(active, off),
                 ].join(" ")}
@@ -62,7 +62,7 @@ export default function SizeStep() {
                   {tiers} tier{tiers > 1 ? "s" : ""}
                 </span>
                 <span
-                  className={`font-mono text-micro font-bold tabular-nums ${optionText.delta(active)}`}
+                  className={`font-mono text-micro font-medium tabular-nums ${optionText.delta(active)}`}
                 >
                   {formatDelta(deltaFor(config, patch))}
                 </span>
@@ -95,7 +95,7 @@ export default function SizeStep() {
                 onClick={() => set({ layers })}
                 aria-pressed={active}
                 className={[
-                  "flex min-h-11 flex-col gap-1.5 rounded-card border px-4 py-3.5 text-left",
+                  "flex min-h-11 flex-col gap-1.5 border px-4 py-3.5 text-left",
                   "transition-[background-color,border-color,box-shadow] duration-[--dur-ui] ease-[--ease-out]",
                   cardState(active, false),
                 ].join(" ")}
@@ -104,7 +104,7 @@ export default function SizeStep() {
                   {layers} layers
                 </span>
                 <span
-                  className={`font-mono text-micro font-bold tabular-nums ${optionText.delta(active)}`}
+                  className={`font-mono text-micro font-medium tabular-nums ${optionText.delta(active)}`}
                 >
                   {formatDelta(deltaFor(config, { layers }))}
                 </span>
