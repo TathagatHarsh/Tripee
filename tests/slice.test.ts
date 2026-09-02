@@ -15,11 +15,10 @@ import { Finish, Shape } from "@/lib/schema";
  */
 
 const H = 0.9;
-/** A bundt is a ring: inside BUNDT_CORE there is only the shaft, not cake. */
-const SOLID_RADII = { solid: [0.25, 0.4, 0.55, 0.7, 0.85], bundt: [0.5, 0.65, 0.8] };
+const SOLID_RADII = [0.25, 0.4, 0.55, 0.7, 0.85];
 const HALF = DEFAULT_SLICE.width / 2;
 const SHAPES = Shape.options;
-const LATHE: Shape[] = ["round", "bundt"];
+const LATHE: Shape[] = ["round"];
 
 function mesh(g: THREE.BufferGeometry) {
   const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
@@ -69,11 +68,11 @@ describe("cutaway", () => {
     const g = sponge(shape, radius);
     for (const sign of [1, -1] as const) {
       let sampled = 0;
-      for (const rf of SOLID_RADII[shape === "bundt" ? "bundt" : "solid"]) {
+      for (const rf of SOLID_RADII) {
         const at = cutAt(g, radius * rf, sign);
         // A miss means the ray left the cake before reaching the cut — a corner of
-        // a hexagon, the cleft of a heart, the short side of a rectangle, the core
-        // of a bundt. Nothing to assert about those, so long as some radius lands.
+        // a hexagon, the cleft of a heart, the short side of a rectangle. Nothing
+        // to assert about those, so long as some radius lands.
         if (Number.isNaN(at)) continue;
         expect(at, `${shape} r=${rf} side=${sign}`).toBeCloseTo(HALF, 1);
         sampled++;
@@ -87,7 +86,7 @@ describe("cutaway", () => {
       const sp = sponge(shape, radius);
       for (const finish of Finish.options) {
         const sh = shell(shape, radius, finish);
-        for (const rf of SOLID_RADII[shape === "bundt" ? "bundt" : "solid"]) {
+        for (const rf of SOLID_RADII) {
           for (const sign of [1, -1] as const) {
             const a = cutAt(sp, radius * rf, sign), b = cutAt(sh, radius * rf, sign);
             if (Number.isNaN(a) || Number.isNaN(b)) continue;
@@ -117,12 +116,9 @@ describe("cutaway", () => {
    * landed on the inside of the far wall, because the shell was a zero-thickness
    * surface with nothing at all on its cut edge.
    *
-   * Round only, though the band is built for both lathes and bundt goes through the
-   * same `capBand` path. A bundt's profile does not scale to `radius` — BUNDT_PROFILE
-   * carries its own radial fractions — and its flute then makes the outer radius a
-   * function of angle, so aiming a ray at the middle of its band means importing
-   * both of those and reimplementing the flute here. Not worth coupling a test to;
-   * the bundt is checked by eye instead.
+   * Round only. It is the one lathe left, and the extruded shapes put the band
+   * at an outer radius that is a function of angle, so aiming a ray at the middle
+   * of one means reimplementing the outline here.
    */
   it("round: the frosting shows its thickness at the cut", () => {
     const shape = "round" as const;

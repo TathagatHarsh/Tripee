@@ -24,18 +24,17 @@ interface Props {
  * seeded jitter — a mechanically identical stack is what gives a render away.
  */
 export function SpongeLayers({ config, shape, dims, seed, segments, castShadow, sector }: Props) {
-  // A bundt is baked in one piece in a ring mould. It has no layers to show.
-  const hasFilling = config.filling !== "none" && shape !== "bundt";
+  const hasFilling = config.filling !== "none";
   // On a cut cake the stack is lifted a hair off the shell's own base, which is
   // otherwise coplanar with it and fights for the same pixels at the cut.
   const inset = sector ? 0.008 : 0;
 
   const slabs = useMemo(
     () => slabStack(
-      shape === "bundt" ? 1 : config.layers,
+      config.layers,
       dims.height - inset * 2, dims.radius, hasFilling, seed,
     ),
-    [shape, config.layers, dims.height, inset, dims.radius, hasFilling, seed],
+    [config.layers, dims.height, inset, dims.radius, hasFilling, seed],
   );
 
   const spongeGeo = useDisposed(useMemo(

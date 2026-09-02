@@ -60,9 +60,7 @@ export function Tier({
   const tierSeed = seed ^ ((index + 1) * 0x9e3779b9);
   const sector: Sector | undefined = sliced ? DEFAULT_SLICE : undefined;
 
-  // A bundt is glazed, not frosted — the glaze is poured over and coats the
-  // whole ring. There is no partial-coverage version of that.
-  const covered = config.coverage === "full" || shape === "bundt";
+  const covered = config.coverage === "full";
 
   const shell = useDisposed(useMemo(() => {
     if (!covered) return null;

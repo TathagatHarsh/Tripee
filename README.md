@@ -99,7 +99,7 @@ Anything that looks random is seeded from a hash of the config (`lib/seed.ts`).
 Drips, topping scatter and layer jitter must not reshuffle on a re-render; a cake
 that visibly rearranges itself looks broken.
 
-`/lab` renders twelve deliberately extreme cakes side by side, whole or cut. It
+`/lab` renders eleven deliberately extreme cakes side by side, whole or cut. It
 is how the look was found — `docs/renders/LOG.md` has the pass-by-pass record
 and the list of things that went wrong on the way.
 
@@ -153,9 +153,14 @@ Two things are deliberately unfinished, and both are visible in the code:
    actually delivered" section that only renders when there is something true to
    put in it. Stock photography under that label would be a lie, and the review
    page only works if it can be trusted.
-2. **The bundt is the weakest render in the set.** It reads correctly as a fluted
-   glazed ring, but it is the least appetising of the twelve. It is first on the
-   cut list in the plan, so it did not get a tenth pass.
+2. **The two-tier heart has an unresolved tier ratio.** A heart over a round
+   reads correctly, but the diameter step between the two was set by eye rather
+   than measured against a real tin.
+
+The bundt used to be the second entry here — the weakest render in the set, and
+first on the cut list. It has been cut: the shape is withdrawn, its geometry is
+deleted, and a saved design that names it now loads as the round it was closest
+to (`lib/schema.coerceLegacy`).
 
 Not started, by design: payments, authentication, an admin dashboard, inventory,
 delivery tracking, reviews, notifications.

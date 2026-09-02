@@ -174,7 +174,7 @@ export function place(
    * slab stack and no shell at all (see Tier.covered / SpongeLayers), so on those
    * the sponge top is the real surface and adding anything would float the fruit.
    */
-  const covered = config.coverage === "full" || shapeAt(tiers.length - 1) === "bundt";
+  const covered = config.coverage === "full";
   const topY = top.y + top.height + (covered ? shellThickness(top.radius) : 0);
 
   const out: Placed[] = [];

@@ -48,11 +48,6 @@ export const SHAPES: Option<Shape>[] = [
     blurb: "Six flat faces to decorate. Reads modern.",
     glyph: "M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3Z",
   },
-  {
-    value: "bundt", name: "Bundt",
-    blurb: "Ring mould, fluted sides. Glaze rather than frost.",
-    glyph: "M12 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19Zm0 6a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z",
-  },
 ];
 
 export const SIZES: Option<SizeBand>[] = [
@@ -117,7 +112,7 @@ export const COVERAGES: Option<Coverage>[] = [
   { value: "full", name: "Full", blurb: "Sides and top completely covered." },
   { value: "semi-naked", name: "Semi-naked", blurb: "Thin scrape — the sponge shows through." },
   { value: "naked", name: "Naked", blurb: "Frosting between layers only. Sides bare." },
-  { value: "top-only", name: "Top only", blurb: "Sides bare, top loaded. Good for bundt." },
+  { value: "top-only", name: "Top only", blurb: "Sides bare, top loaded. Shows the crumb." },
 ];
 
 export const FINISHES: Option<Finish>[] = [

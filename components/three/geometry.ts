@@ -23,11 +23,6 @@ export function baseHeight(size: SizeBand): number {
   return (3.6 + DIAMETER_IN[size] * 0.06) * IN;
 }
 
-/** Bundt tins are deeper than a sandwich tin, and it shows. */
-export function heightFor(shape: Shape, size: SizeBand): number {
-  return baseHeight(size) * (shape === "bundt" ? 1.16 : 1);
-}
-
 /**
  * Diameter step between tiers.
  *
@@ -90,9 +85,9 @@ export interface TierDims {
   y: number;
 }
 
-export function tierDims(size: SizeBand, tiers: number, shape: Shape = "round"): TierDims[] {
+export function tierDims(size: SizeBand, tiers: number): TierDims[] {
   const r0 = baseRadius(size);
-  const h0 = heightFor(shape, size) * (tiers === 1 ? 1 : STACK_HEIGHT_FACTOR);
+  const h0 = baseHeight(size) * (tiers === 1 ? 1 : STACK_HEIGHT_FACTOR);
   const rr = TIER_RADIUS_RATIO[tiers] ?? TIER_RADIUS_RATIO[1];
   const hr = TIER_HEIGHT_RATIO[tiers] ?? TIER_HEIGHT_RATIO[1];
 
@@ -528,8 +523,6 @@ export function tierGeometry({
       : latheWithUV(profile, segments);
   }
 
-  if (shape === "bundt") return bundtGeometry(radius, height, segments, sector, capCut, capBand);
-
   const full = polygonFor(shape, radius - b);
   const inset = sector ? cutShape(full, sector, b) : full;
   const g = new THREE.ExtrudeGeometry(inset, {
@@ -565,16 +558,8 @@ function cutLathe(
   /**
    * Bevel the cut faces by this much — §5.3, requirement 4. See beveledCap.
    *
-   * Off by default, and passed only by the round path, for two reasons.
-   *
-   * A bundt cannot take it. bundtGeometry flutes the whole geometry *after* this
-   * returns and then calls computeVertexNormals, which overwrites every normal the
-   * bevel exists to carry; the ring would be dead weight. Its profile is also a
-   * closed ring that begins and ends on the core rather than on the axis, so
-   * insetProfile's end-clamping — which is what keeps a bevel off the crease — is
-   * wrong for it at the seam.
-   *
-   * And the frosting shell does not want it. The shell caps through `capBand`, and
+   * Off by default, and passed only by the round path, because the frosting shell
+   * does not want it. The shell caps through `capBand`, and
    * that band is 2–4mm wide: 0.5mm off each side of it is a third of the one
    * feature §5.3 puts first.
    */
@@ -734,7 +719,7 @@ function capGeometry(
    * It used to be (π/2 − φ), which is the same rotation the other way and puts the
    * cap at (π − φ): both cut faces came out mirrored onto the far side of the cake,
    * buried inside solid sponge where nothing could see them, leaving the actual cut
-   * uncapped. Every round and bundt cutaway was hollow — you looked straight through
+   * uncapped. Every lathe cutaway was hollow — you looked straight through
    * the slice at the inside of the far wall and at the pac-man notch in the layer
    * discs across the cake.
    */
@@ -869,240 +854,6 @@ function onPlane(
   return t >= 0 && t <= 1 ? new THREE.Vector2().lerpVectors(a, b, t) : null;
 }
 
-/**
- * The bundt. `docs/SESSION-SUMMARY.md` calls it the weakest of the twelve renders
- * and it is worse than that reads: what it actually looked like was a plant pot.
- *
- * Four separate faults, all of them about silhouette:
- *
- *  1. The outer wall was dead straight from the base bevel to half height, and then
- *     turned in. A bundt tin is the other way round — it is *widest near the top*
- *     and tapers down towards the base, because the tin has to release the cake.
- *     Straight-sided-then-domed is a bucket; wide-shouldered-and-tapering is a
- *     bundt, and the difference is legible from across a room.
- *  2. The centre shaft ran at a constant `ri` all the way down to the board, and
- *     the top surface simply stopped at it — so the hole was an open pipe you could
- *     see down, right through to the board. A tin's core is a cone, wider at the
- *     top, and the cake wraps *over* the inner wall in the same curve it wraps over
- *     the outer one. That closes the eye's path into the middle, which is what stops
- *     it reading as a container.
- *  3. Eleven profile points meant no vertical subdivision to flute against, and
- *     0.11 of radius at the widest was a ripple. A bundt's flutes are deep — a
- *     third of the wall — and they run over the shoulder and down into the hole.
- *  4. The flute amplitude was keyed to `(rad - ri)/(r - ri)`, i.e. to how far out a
- *     vertex was, so the flutes faded to nothing at the top of the dome exactly
- *     where a real bundt's flutes converge most tightly.
- */
-/** Flutes round a bundt. Exported so the glaze can follow the same ridges. */
-export const BUNDT_FLUTES = 14;
-
-/** Radius of the centre core, as a fraction of the cake's own radius. */
-const BUNDT_CORE = 0.3;
-
-/**
- * The bundt's profile in normalised (radius, height) pairs, as data rather than as
- * a sequence of calls, because two things need it: the cake, and the glaze poured
- * over the cake. Deriving the glaze from the same numbers is the only way its skirt
- * can sit *on* the dome rather than near it.
- *
- * The winding, as a path: start at the foot of the centre core, out along the base,
- * up the outer wall, over the shoulder and the crown, down the inner shoulder into
- * the hole, and back down the core to the board. Reverse it and the cake renders
- * inside-out — that was bug 5 in the render log, and writing this out in the reading
- * order of the shape rather than in winding order reproduced it exactly: an open
- * crater with a lit interior. Sampled densely enough that the fluting has vertices
- * to move.
- */
-const BUNDT_PROFILE: [number, number][] = [
-  [BUNDT_CORE, 0],  // foot of the core, on the board
-  [0.84, 0],        // out along the base
-  [0.88, 0.03],
-  [0.94, 0.13],
-  [0.98, 0.28],
-  [1, 0.44],        // the widest point, a little below mid-height
-  [0.99, 0.58],
-  [0.96, 0.71],     // and rolling in from here — this is the dome
-  [0.9, 0.82],
-  [0.8, 0.91],
-  [0.68, 0.97],
-  [0.56, 1],        // the crown, well inboard of the widest point
-  [0.46, 0.98],
-  [0.38, 0.92],     // over the inner lip and down into the hole
-  [0.33, 0.8],
-  [0.31, 0.56],
-  [BUNDT_CORE, 0.3],  // the core runs to the board, so the hole is a hole
-  [BUNDT_CORE, 0],
-];
-
-/** The flute modulation, shared by the cake and by the glaze on it. */
-function bundtFlute(theta: number, t: number, radFrac: number): number {
-  const outer = THREE.MathUtils.smoothstep(radFrac, BUNDT_CORE * 1.35, BUNDT_CORE * 1.75);
-  const envelope = Math.min(1, t / 0.06) * Math.min(1, (1 - t) / 0.1) * outer;
-  return 1 + 0.115 * envelope * Math.cos(BUNDT_FLUTES * theta);
-}
-
-/**
- * Glaze poured over a bundt.
- *
- * Three attempts at running the generic drip system over this shape all failed for
- * the same reason, and it is worth writing down: that system assumes a *pooled top
- * edge over a vertical wall*, and a bundt has neither. Runs placed at free angles
- * either buried themselves in a flute crest or hung in mid-air over a trough; snapped
- * to the crests they sat on the ridges correctly but still detached, because a run
- * descending plumb leaves a dome the instant the dome starts curving inward.
- *
- * What a poured glaze actually is, on this shape, is a *coat with an uneven skirt*:
- * it covers the crown, wraps the inner lip, and reaches further down the troughs than
- * the ridges, because that is where a liquid collects. So it is built as a shell of
- * the cake's own surface, offset outward by a glaze thickness, ending at a per-angle
- * height. It cannot detach, because it is a copy of the thing it sits on.
- */
-export function glazeCapGeometry(
-  radius: number,
-  height: number,
-  segments: number,
-  seed: number,
-): THREE.BufferGeometry {
-  // From the inner lip, over the crown, down the outer wall. Reversed out of the
-  // cake's own profile, so the two can never drift apart.
-  const start = BUNDT_PROFILE.findIndex(([, y]) => y === 0.92 as number);
-  const capPath = BUNDT_PROFILE.slice(4, start + 1).reverse();
-
-  const arc: number[] = [0];
-  for (let i = 1; i < capPath.length; i++) {
-    arc.push(arc[i - 1] + Math.hypot(
-      (capPath[i][0] - capPath[i - 1][0]) * radius,
-      (capPath[i][1] - capPath[i - 1][1]) * height,
-    ));
-  }
-  const total = arc[arc.length - 1] || 1;
-
-  /** Sample the cap path at a fraction of its own arc length. */
-  const sample = (f: number): [number, number] => {
-    const d = THREE.MathUtils.clamp(f, 0, 1) * total;
-    let k = 0;
-    while (k < arc.length - 2 && arc[k + 1] < d) k++;
-    const u = (d - arc[k]) / Math.max(1e-6, arc[k + 1] - arc[k]);
-    return [
-      capPath[k][0] + (capPath[k + 1][0] - capPath[k][0]) * u,
-      capPath[k][1] + (capPath[k + 1][1] - capPath[k][1]) * u,
-    ];
-  };
-
-  const rng = mulberry32(seed ^ 0x9d2c5680);
-  const rows = 12;
-  const cols = Math.max(24, Math.round(segments));
-  /*
-   * Clearance over the cake, not a physical glaze thickness. `shellGeometry` displaces
-   * the surface underneath by its own fbm, base fillet and top crown — up to about 2%
-   * of the radius — none of which this cap reproduces, so anything tighter than that
-   * budget lets the cake poke through and the two surfaces tear into each other.
-   */
-  const thickness = Math.max(0.02, radius * 0.045);
-
-  // One phase per cake, so two bundts of different configs pour differently.
-  const phaseA = rng() * Math.PI * 2;
-  const phaseB = rng() * Math.PI * 2;
-
-  const pos: number[] = [];
-  const uv: number[] = [];
-  const idx: number[] = [];
-
-  for (let c = 0; c <= cols; c++) {
-    const theta = (c / cols) * Math.PI * 2;
-    // Deeper in the troughs than on the ridges: cos is +1 on a crest, so this
-    // subtracts reach there. Plus two slow waves, so the skirt is not periodic in
-    // the flutes alone — glaze does not know how many flutes the tin had.
-    const crest = (Math.cos(BUNDT_FLUTES * theta) + 1) / 2;
-    const wave = Math.sin(theta * 2 + phaseA) * 0.5 + Math.sin(theta * 3.7 + phaseB) * 0.5;
-    const reach = THREE.MathUtils.clamp(0.72 - crest * 0.2 + wave * 0.12, 0.3, 1);
-
-    for (let r = 0; r <= rows; r++) {
-      const f = (r / rows) * reach;
-      const [radFrac, t] = sample(f);
-      const k = bundtFlute(theta, t, radFrac);
-      const rad = radFrac * k * radius + thickness;
-      pos.push(Math.cos(theta) * rad, t * height, Math.sin(theta) * rad);
-      uv.push(c / cols, r / rows);
-    }
-  }
-
-  for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < rows; r++) {
-      const i0 = c * (rows + 1) + r;
-      const i1 = i0 + 1;
-      const i2 = (c + 1) * (rows + 1) + r;
-      const i3 = i2 + 1;
-      // Wound so the cap faces outward. The frosting renders FrontSide, so the other
-      // winding shows the inside of the glaze and reads as dark torn shards.
-      idx.push(i0, i2, i1, i1, i2, i3);
-    }
-  }
-
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  weldNormals(g);
-  return g;
-}
-
-function bundtGeometry(
-  r: number,
-  h: number,
-  segments: number,
-  sector?: Sector,
-  capCut = true,
-  capBand?: number,
-): THREE.BufferGeometry {
-  /*
-   * Wound so the surface normals face out of the ring, not into it. Reverse this
-   * order and the cake renders inside-out — that was bug 5 in the render log, and
-   * writing this profile out in the reading order of the shape rather than in the
-   * winding order reproduced it exactly: an open crater with a lit interior.
-   *
-   * The winding, as a path: start at the foot of the centre core, out along the
-   * base, up the outer wall, over the shoulder and the crown, down the inner
-   * shoulder into the hole, and back down the core to the board. Sampled densely
-   * enough that the fluting below has vertices to move.
-   */
-  const pts = BUNDT_PROFILE.map(([rad, y]) => new THREE.Vector2(rad * r, y * h));
-
-  const g = sector
-    ? cutLathe(pts, segments, sector, capCut, capBand)
-    : latheWithUV(pts, segments);
-
-  /*
-   * Radial fluting — the thing that makes a bundt a bundt.
-   *
-   * Keyed to height rather than to radius, so the flutes run the whole way over the
-   * shoulder and converge at the crown the way a tin's do, and pinched out only in
-   * the last few percent at the very top and at the foot, where the metal of a real
-   * tin is flat.
-   */
-  const pos = g.attributes.position as THREE.BufferAttribute;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    const rad = Math.hypot(x, z);
-    if (rad < 1e-5) continue;
-
-    // Faded at the foot and at the crown; full depth across the body and the
-    // shoulder, where the flutes of a real tin converge and are most legible. Only
-    // the outer wall is fluted: a tin's centre tube is smooth, and rippling the
-    // inside of the hole reads as a mistake.
-    const t = THREE.MathUtils.clamp(y / h, 0, 1);
-    const theta = Math.atan2(z, x);
-    const k = bundtFlute(theta, t, rad / r);
-    pos.setX(i, x * k);
-    pos.setZ(i, z * k);
-  }
-  pos.needsUpdate = true;
-  g.computeVertexNormals();
-  weldNormals(g);
-  return g;
-}
-
 /* ------------------------------------------------------------------ *
  * Frosting shell
  * ------------------------------------------------------------------ */
@@ -1164,7 +915,7 @@ export function shellGeometry(
   const H = opts.height + t;
   const B = Math.min((opts.radius + t) * 0.13, H * 0.2, 0.1);
   const amp = FINISH_AMPLITUDE[opts.finish] * (opts.radius / 1.1);
-  const lathe = opts.shape === "round" || opts.shape === "bundt";
+  const lathe = opts.shape === "round";
   const g = tierGeometry({
     ...opts,
     // Frosting is a skin, not a solid.
@@ -1445,18 +1196,6 @@ export function dripSpecs(
   seed: number,
   radius: number,
   count?: number,
-  /**
-   * Drop the angular jitter, so each run lands exactly on `count` evenly spaced
-   * positions.
-   *
-   * This exists for the bundt. Every other shape has a cylindrical wall, where a run
-   * can break away anywhere along the rim; a bundt has a *fluted* one, and a run
-   * placed at an arbitrary angle either buries itself in a crest or hangs in mid-air
-   * over a trough. Both happened, and floating white spikes over the troughs looked
-   * considerably worse than no glaze at all. Real glaze follows the ridges, so the
-   * runs are snapped to them.
-   */
-  snap = false,
 ): DripSpec[] {
   const rng = mulberry32(seed ^ 0x5bf03635);
   // Twelve drips 2mm across, spaced two inches apart, read as candle wax
@@ -1465,7 +1204,7 @@ export function dripSpecs(
   const n = count ?? Math.round(THREE.MathUtils.clamp(radius * 22, 14, 34));
   const out: DripSpec[] = [];
   for (let i = 0; i < n; i++) {
-    const jitter = snap ? 0 : (rng() - 0.5) * (Math.PI / n) * 1.6;
+    const jitter = (rng() - 0.5) * (Math.PI / n) * 1.6;
     // Two thirds of a real pour barely leaves the rim; the long ones are the
     // exception, and it is the *contrast* that reads as gravity. A uniform
     // 0.14–0.48 spread gave every drip a middling length and no contrast at all.
@@ -1490,27 +1229,11 @@ export function dripSpecs(
 }
 
 /**
- * The radius the frosting actually pools at, which is not the tier radius on a
- * domed bundt.
- *
- * 0.88 was measured against the old bundt, whose widest point was its straight
- * outer wall. The rebuilt one is a dome that bulges to the full radius a little
- * below mid-height (see bundtGeometry), so a ring at 0.88 sits *inside* the
- * silhouette — which is what left the glaze hoop hovering above the shoulder with
- * its drips hanging down the inside of it.
- */
-export function rimRadius(shape: Shape, radius: number): number {
-  // On the flute crest, which is where the runs are snapped to (see dripSpecs'
-  // `snap`). The crest stands 11.5% proud of the mean wall.
-  return shape === "bundt" ? radius * 1.108 : radius;
-}
-
-/**
  * The pooled ring of frosting at the top edge, following the real silhouette.
  *
  * `seed` makes the pool uneven. A tube of constant radius swept along a perfect
  * ring is a torus, and a torus reads as a plastic hoop pressed onto the cake —
- * which is precisely how the bundt's glaze looked. Real poured frosting gathers
+ * which is precisely how a poured coat used to look. Real poured frosting gathers
  * thickly in some places and thinly in others, so the *path* rises, falls, and
  * breathes in and out. Displacing the path rather than the tube's radius keeps
  * this a single cheap TubeGeometry.
@@ -1524,7 +1247,7 @@ export function rimGeometry(
 ): THREE.BufferGeometry {
   const ring = outline?.length
     ? outline.map(p => ({ ...p, x: p.x + p.nx * tube * 0.5, z: p.z + p.nz * tube * 0.5 }))
-    : outlinePoints(shape, rimRadius(shape, radius) + tube * 0.9, 96);
+    : outlinePoints(shape, radius + tube * 0.9, 96);
 
   // Sampled down to at most 96 control points: a CatmullRom through 200 points
   // only 3mm apart turns any per-point displacement into a visible zigzag.
@@ -2170,7 +1893,7 @@ export interface OutlinePoint {
 export function outlinePoints(shape: Shape, radius: number, count: number): OutlinePoint[] {
   const n = Math.max(6, Math.round(count));
 
-  if (shape === "round" || shape === "bundt") {
+  if (shape === "round") {
     return Array.from({ length: n }, (_, i) => {
       const a = (i / n) * Math.PI * 2;
       return { x: Math.cos(a) * radius, z: Math.sin(a) * radius, nx: Math.cos(a), nz: Math.sin(a), yaw: -a };
@@ -2312,18 +2035,6 @@ export function shellOutline(
 ): OutlinePoint[] {
   const { R, B } = shellMetrics(radius, height);
 
-  if (shape === "bundt") {
-    /*
-     * No `+ B` here, unlike the extruded shapes below. That bevel offset is what
-     * pushed the glaze ring 8mm clear of the dome and left it hanging in mid-air
-     * as a hoop: a bundt is a lathe, so its silhouette *is* its profile radius,
-     * with no bevel inset to compensate for. The anchor is the shoulder, a little
-     * above the widest point, which is where glaze poured over the crown breaks
-     * away and runs.
-     */
-    return outlinePoints(shape, rimRadius(shape, R), count);
-  }
-
   if (shape === "round") {
     // lathePoints flares the base to R·1.012 and tapers back to R at the top of
     // the wall, which is where the frosting gathers before it runs.
@@ -2362,15 +2073,8 @@ function shellMetrics(radius: number, height: number) {
  * the bevel rather than at the wall, the drip a customer paid ₹120 for did not
  * appear anywhere on any shape.
  */
-export function shellRimY(radius: number, height: number, shape: Shape = "round"): number {
+export function shellRimY(radius: number, height: number): number {
   const { H, B } = shellMetrics(radius, height);
-  // A bundt has no top edge to run off. Glaze poured over the crown runs down the
-  // dome and only breaks away where the wall turns under, at the widest point,
-  // which bundtGeometry puts a little below mid-height. Anchoring it at H - B like
-  // every other shape hung the drips from the crown, so they ran down the *inside*
-  // of the hole.
-  // Where the dome turns under and a run breaks away from the surface.
-  if (shape === "bundt") return H * 0.46;
   return H - B;
 }
 
@@ -2454,7 +2158,6 @@ export function surfaceRadius(shape: Shape, radius: number): number {
     case "rectangle": return radius * 0.9;
     case "hexagon": return radius * 0.9;
     case "heart": return radius * 0.78;
-    case "bundt": return radius * 0.95;
     default: return radius;
   }
 }
