@@ -1,0 +1,94 @@
+/*
+ * CARBON COPY — design tokens
+ *
+ * Transcribed from docs/makemycake-carbon-copy-blueprint.md §1.2 (colour system)
+ * and §1.4 (rules, dividers, grid, spacing, radii, shadows).
+ *
+ * There are deliberately NO --radius-* tokens. §1.4: "Radii: 0 on everything.
+ * Delete --radius-* from your token file entirely so it cannot creep back."
+ */
+
+:root {
+  /* ── §1.2 Papers ─────────────────────────────────────────────────────── */
+  --paper: #e8e7e1;   /* TOP COPY. Cool grey-white bond. Not cream. Main background. */
+  --paper-2: #dfd3b8; /* MANILA. Kitchen-ticket stock. Carbon copies, second sheets. */
+  --paper-3: #cfc9ba; /* CHIPBOARD. The desk. Behind sheets, builder viewport, tray backs. */
+
+  /* ── §1.2 Inks ───────────────────────────────────────────────────────── */
+  --ink: #22211e;     /* Graphite. Never #000. All primary text. */
+  --ink-60: #5c594f;  /* Secondary text, Switzer descriptions. */
+  --ink-35: #918c7e;  /* Tertiary, dot leaders, placeholder carets, disabled. */
+  --ink-15: #c2bcac;  /* Hairline rules, sheet edges, input baselines. */
+
+  --carbon: #3b3e93;  /* CARBON VIOLET-BLUE. The kitchen's ink. Signature colour. */
+  --carbon-ghost: rgba(59, 62, 147, 0.62); /* Pressure-transfer ghosting, second copy. */
+
+  --stamp: #a82f27;   /* Stamp-pad red. Maximum four uses in the entire journey. */
+
+  /* ── §1.2 Sponge → --accent ──────────────────────────────────────────── */
+  --vanilla: #e0ce9a;
+  --belgian-choc: #46291b;
+  --red-velvet: #8a231f;
+  --butterscotch: #b2742d;
+  --coffee: #563520;
+  --lemon: #d8ba42;
+  --pineapple: #ddb955;
+
+  /* ── §1.2 Frosting → --accent-2 ──────────────────────────────────────── */
+  --whipped: #f1ebdf;
+  --am-butter: #ebd9b2;
+  --swiss-mer: #eee4d2;
+  --cream-cheese: #ede1c9;
+  --dark-ganache: #2a1911;
+  --milk-ganache: #674028;
+  --white-ganache: #e7dbc2;
+
+  /*
+   * Set at runtime from the chosen sponge / frosting. Three consumers only:
+   * a 3% paper tint, a 4% key-light tint on the specimen, and the 2px active
+   * line marker. 600ms ease-out — the slowest motion in the system.
+   */
+  --accent: var(--vanilla);
+  --accent-2: var(--whipped);
+  --accent-warm: 600ms;
+
+  /* ── §1.4 Shadows — the single sheet-elevation shadow, nothing else ───── */
+  --shadow-sheet: 0 12px 28px -20px rgba(34, 33, 30, 0.4);
+
+  /* ── §1.4 Rules ──────────────────────────────────────────────────────── */
+  --rule-hairline: 1px solid var(--ink-15);  /* between ticket lines, under inputs */
+  --rule-section: 1px solid var(--ink);      /* between ticket sections */
+  --rule-tear: 1px dashed var(--ink-15);     /* + perforation dots, twice only */
+  --rule-leader: 1px dotted var(--ink-35);   /* real border-bottom on a flex spacer */
+
+  /* ── §1.4 Spacing scale (4px base). Only these values exist. ─────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --space-32: 128px;
+
+  /* ── §1.4 Baseline — Feed translates by whole line-heights ───────────── */
+  --line: 28px;         /* a ticket line, desktop */
+  --line-height: 20px;  /* type inside the line */
+  --line-pad: 4px;      /* top and bottom */
+
+  /* ── §1.4 Grid — homepage, archive, bakery. The builder ignores it. ──── */
+  --grid-columns: 12;
+  --grid-max: 1440px;
+  --grid-gutter: 24px;
+  --grid-margin: 32px;
+  --builder-split: 58fr 42fr; /* fixed two-pane split, outside the grid */
+}
+
+/* §1.4 A ticket line is 36px on mobile — touch target. */
+@media (max-width: 767px) {
+  :root {
+    --line: 36px;
+  }
+}

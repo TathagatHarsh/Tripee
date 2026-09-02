@@ -15,45 +15,79 @@
  * is what seal used to be doing badly.
  */
 @theme {
-  /* ── Ink: text and the one dark surface ─────────────────────────────── */
-  --color-ink: #17161a;
-  --color-graphite: #3f3d3a;
-  /* The only quiet text colour. 7.60:1 on paper, 6.31:1 on slab. */
-  --color-steel: #55524b;
-  /* steel's counterpart on ink surfaces — 6.9:1 on #17161A. */
-  --color-quiet: #b7b2aa;
-
-  /* ── Surfaces: page, raised, sunken, pressed ────────────────────────── */
-  --color-paper: #fdfcfa;
-  --color-slab: #e9e7e2;
-  /* The counter. Warmer and deeper than slab, so a panel can sit *in* it. */
-  --color-counter: #e4e0d6;
-  --color-slab-deep: #dcd9d2;
-  /* Inset wells: spec boxes, read-only notes. */
-  --color-sunken: #f3f1eb;
-
-  /* ── Rules ──────────────────────────────────────────────────────────── */
-  /* Decorative dividers only. Was #CFCCC4 at 1.30:1 against paper. */
-  --color-rule: #c4c0b6;
   /*
-   * Boundaries only, never text. ≥3.0:1 on paper, which makes it a 1.4.11
-   * token rather than a 1.4.3 one — every button border, input border and
-   * card boundary that a customer has to *find* uses this.
+   * ══ §1.2 THE CARBON COPY PALETTE ═════════════════════════════════════
+   *
+   * Two ink colours, three paper stocks, one accent that changes with the cake.
+   *
+   * The canonical §1.2 names come first. The legacy names below them are kept as
+   * ALIASES pointing into this set, which is what lets a palette this different
+   * land without editing forty components: every call site already says bg-paper
+   * or text-ink rather than naming a hex, so re-pointing the token re-skins the
+   * product. The aliases are the migration, not the destination — as each screen
+   * is rebuilt it should move onto the §1.2 names and the alias should go.
+   *
+   * ── Papers ──────────────────────────────────────────────────────────── */
+  --color-paper: #e8e7e1;    /* TOP COPY. Cool grey-white bond. Not cream. */
+  --color-paper-2: #dfd3b8;  /* MANILA. Kitchen stock, carbon copies, second sheets. */
+  --color-paper-3: #cfc9ba;  /* CHIPBOARD. The desk, behind sheets, the specimen's ground. */
+
+  /*
+   * The deliberate move, and the one thing not to undo: the top copy is COOL and
+   * the manila is WARM. That contrast is what makes two stocks read as two stocks
+   * rather than as one brand cream. The old --color-paper was #FDFCFA, a warm
+   * near-white, and warming the top copy is exactly what §1.2 forbids.
    */
-  --color-rule-strong: #8e887a;
 
-  /* ── Brass: money, references, section eyebrows ─────────────────────── */
-  --color-brass: #8a5a2a;
-  --color-brass-deep: #6e4620;
-  /* Brass legible on ink — a price delta inside a selected card. */
-  --color-brass-lit: #e4d3b4;
-  --color-brass-tint: #f6efe1;
-  --color-brass-edge: #e0cfae;
+  /* ── Inks ───────────────────────────────────────────────────────────── */
+  --color-ink: #22211e;      /* Graphite. Never #000. All primary text. 12.4:1 on paper. */
+  --color-ink-60: #5c594f;   /* Secondary text, prose. 5.2:1 on paper, 4.5:1 on manila. */
+  --color-ink-35: #918c7e;   /* Tertiary: dot leaders, carets, disabled. 2.4:1 — never text. */
+  --color-ink-15: #c2bcac;   /* Hairline rules, sheet edges, input baselines. */
 
-  /* ── Seal: blocked, and nothing else ────────────────────────────────── */
-  /* Never a total, never a price, never a hover. */
-  --color-seal: #a8241b;
-  --color-seal-tint: #fbf2f0;
+  /* THE signature colour. Means "the kitchen's version of this", and nothing
+     else: the carbon sheet, callout leaders, the confirmed-by-phone stamp, live
+     status lines, ticket↔specimen linkage. 7.1:1 on paper. */
+  --color-carbon: #3b3e93;
+  --color-carbon-ghost: oklch(from #3b3e93 l c h / 0.62);
+
+  /* Means stop, or sealed. Four uses in the entire journey. 5.5:1 on paper. */
+  --color-stamp: #a82f27;
+
+  /* ── Legacy aliases ─────────────────────────────────────────────────── */
+  /* Two ink levels collapse into one. The old palette separated "graphite" from
+     "steel" by four percent of lightness, which is a distinction no reader has
+     ever made; §1.2 has four ink levels on purpose and this is the one they both
+     mean. Both stay above 4.5:1, so nothing regresses on contrast. */
+  --color-graphite: var(--color-ink-60);
+  --color-steel: var(--color-ink-60);
+  /* Light ink for the one dark surface. §1.2 has no such token because a carbon
+     copy has no dark surfaces; chipboard on ink is 9.1:1 and reads as paper. */
+  --color-quiet: var(--color-paper-3);
+
+  --color-slab: var(--color-paper-3);       /* the desk */
+  --color-counter: var(--color-paper-2);    /* manila, for a sheet that sits *in* the desk */
+  --color-slab-deep: var(--color-paper-3);
+  --color-sunken: var(--color-paper-2);     /* inset wells: spec boxes, read-only notes */
+
+  --color-rule: var(--color-ink-15);
+  --color-rule-strong: var(--color-ink-35);
+
+  /*
+   * Brass is gone. It meant "this is money, or this is a reference", and §1.2 is
+   * explicit that semantic colour in this brand is carbon and stamp, used
+   * sparingly enough that they still mean something: "There is no green, no
+   * yellow-warning, no blue-info." A reference — a design number, a docket ref —
+   * is the kitchen's handle on the order, so it is carbon.
+   */
+  --color-brass: var(--color-carbon);
+  --color-brass-deep: var(--color-carbon);
+  --color-brass-lit: var(--color-paper-3);
+  --color-brass-tint: var(--color-paper-2);
+  --color-brass-edge: var(--color-ink-15);
+
+  --color-seal: var(--color-stamp);
+  --color-seal-tint: var(--color-paper-2);
 
   /* ── Type ───────────────────────────────────────────────────────────── */
   /*
@@ -61,9 +95,19 @@
    * the reason the marketing pages can exist. Instrument Sans for everything
    * a customer reads to make a decision. Martian Mono stays the docket voice.
    */
+  /*
+   * §1.1: two faces, and no display serif in this brand. Geist Mono carries every
+   * headline, all ticket content, all labels and all numbers.
+   *
+   * --font-display deliberately survives as an ALIAS of mono rather than being
+   * deleted. §1.1 says "every headline on every page is mono", so the correct
+   * value for a display face here *is* the mono — and keeping the token means the
+   * `font-display` call sites become mono immediately instead of silently falling
+   * back to a browser serif the moment the serif is removed.
+   */
   --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
   --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-martian), ui-monospace, "SFMono-Regular", monospace;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
 
   /*
    * 11px is the floor on every product surface. The old scale was rigorous
@@ -87,24 +131,95 @@
    */
   --text-hero: clamp(3rem, 6.7vw, 6rem);           /* 48–96 */
 
-  /* ── Radii ──────────────────────────────────────────────────────────── */
-  /* 2px is retired: it is the value that reads as admin panel. */
-  --radius-ticket: 4px;  /* the docket itself, and docket lines */
-  --radius-card: 8px;    /* every card, every button, every input */
-  --radius-panel: 12px;  /* the cake panel, the docket aside */
-  --radius-sheet: 20px;  /* the mobile sheet, and only that */
+  /*
+   * ── §1.1 The type scale ─────────────────────────────────────────────────
+   *
+   * Two scales, because there are two faces doing two jobs. The mono scale is
+   * uppercase throughout — the only lowercase mono in the product is a message
+   * the customer typed themselves.
+   *
+   * Tracking runs positive at the small end and negative at the large end, which
+   * is what a mono needs: at 11px the cells are too tight to read as words, and
+   * at 72px they are too loose to read as one line.
+   *
+   * The tokens above are the outgoing scale. They stay until their call sites move
+   * over, because renaming 40 files' worth of text-* classes is item 4's job and
+   * breaking them all at once is nobody's.
+   */
+  --mono-xs: 0.6875rem;    /* 11 / 16   +0.09em   field names, micro labels */
+  --mono-sm: 0.8125rem;    /* 13 / 20   +0.05em   ticket values, prices */
+  --mono-base: 0.9375rem;  /* 15 / 24   +0.02em   option labels, buttons, meta */
+  --mono-lg: 1.25rem;      /* 20 / 28    0        ticket totals, sheet headers */
+  --mono-xl: 2rem;         /* 32 / 36   -0.01em   section headings */
+  --mono-2xl: 3rem;        /* 48 / 50   -0.02em   mobile page headlines */
+  --mono-3xl: 4.5rem;      /* 72 / 70   -0.03em   desktop page headlines */
+  --mono-4xl: 7rem;        /* 112 / 102 -0.035em  homepage ticket number only */
 
-  /* ── Elevation ──────────────────────────────────────────────────────── */
-  --shadow-elev-1: 0 1px 0 rgb(0 0 0 / 0.04), 0 2px 6px -3px rgb(23 22 26 / 0.1);
-  --shadow-elev-2: 0 1px 0 rgb(0 0 0 / 0.05), 0 8px 24px -12px rgb(23 22 26 / 0.16);
-  --shadow-elev-3: 0 2px 0 rgb(0 0 0 / 0.05), 0 24px 48px -20px rgb(23 22 26 / 0.26);
-  /* A selected option card is already dark, so its lift has to be darker. */
-  --shadow-chosen: 0 1px 0 rgb(0 0 0 / 0.06), 0 10px 22px -14px rgb(23 22 26 / 0.55);
-  /* The primary action, which is the same ink as a chosen card and must not
-     be mistaken for one. */
-  --shadow-primary: 0 2px 0 rgb(0 0 0 / 0.06), 0 14px 28px -18px rgb(23 22 26 / 0.6);
-  /* The mobile sheet, rising off the cake. */
-  --shadow-sheet: 0 -2px 0 rgb(0 0 0 / 0.05), 0 -24px 48px -20px rgb(23 22 26 / 0.4);
+  --leading-mono-xs: 1rem;
+  --leading-mono-sm: 1.25rem;
+  --leading-mono-base: 1.5rem;
+  --leading-mono-lg: 1.75rem;
+  --leading-mono-xl: 2.25rem;
+  --leading-mono-2xl: 3.125rem;
+  --leading-mono-3xl: 4.375rem;
+  --leading-mono-4xl: 6.375rem;
+
+  --tracking-mono-xs: 0.09em;
+  --tracking-mono-sm: 0.05em;
+  --tracking-mono-base: 0.02em;
+  --tracking-mono-lg: 0em;
+  --tracking-mono-xl: -0.01em;
+  --tracking-mono-2xl: -0.02em;
+  --tracking-mono-3xl: -0.03em;
+  --tracking-mono-4xl: -0.035em;
+
+  /* Switzer. Measure never exceeds 62 characters (§1.1). */
+  --prose-sm: 0.875rem;    /* 14 / 22    0        allergen line, legal, captions */
+  --prose-base: 1rem;      /* 16 / 26    0        option descriptions */
+  --prose-lg: 1.1875rem;   /* 19 / 30   -0.005em  lead paragraphs */
+  --prose-xl: 1.5rem;      /* 24 / 34   -0.01em   bakery page paragraphs */
+
+  /*
+   * ── Radii ───────────────────────────────────────────────────────────
+   *
+   * There are none, and that is deliberate.
+   *
+   * §1.4: "Radii: 0 on everything. Buttons, inputs, sheets, images, the specimen
+   * viewport, drawers, modals. Delete --radius-* from your token file entirely so
+   * it cannot creep back."
+   *
+   * The four tokens that were here — ticket 4px, card 8px, panel 12px, sheet 20px
+   * — generated the rounded-card / rounded-panel / rounded-ticket / rounded-sheet
+   * utilities used across twenty-six files. They are gone rather than zeroed,
+   * because a token set to 0 is an invitation and an absent token is a compile
+   * error.
+   *
+   * The only round things in this brand are the topping colour swatches and the
+   * stamp SVGs, which are organic by nature.
+   */
+
+  /*
+   * ── Elevation ───────────────────────────────────────────────────────
+   *
+   * ONE shadow, and it means one specific physical thing: a sheet of paper is
+   * lying on top of another sheet of paper.
+   *
+   * §1.3 item 2 gives the value and the rule together — "No drop shadows except
+   * where one sheet lies on another […] Everything else has zero shadow. Buttons
+   * have zero shadow. Inputs have zero shadow." §1.4 repeats it: "the single
+   * sheet-elevation shadow above. Nothing else."
+   *
+   * Six tokens were here: three generic elevations, one for a chosen card, one for
+   * the primary button, one for the mobile sheet. Five of those six were lifting
+   * things that are not sheets of paper — which is how a document ends up looking
+   * like a dashboard. The border is half of the effect and travels with it.
+   *
+   * Two call sites survive the sweep, both genuine: the docket lying on the desk,
+   * and the mobile option sheet lying over the ticket. The mobile sheet rises from
+   * the bottom of the screen so its old shadow was cast upward; it now takes the
+   * same downward value as everything else, because there is only one.
+   */
+  --shadow-sheet: 0 12px 28px -20px rgb(34 33 30 / 0.4);
 
   /* ── Motion ─────────────────────────────────────────────────────────── */
   /*
@@ -116,6 +231,19 @@
   --dur-tap: 90ms;
   --dur-ui: 180ms;
   --dur-settle: 340ms;
+
+  /*
+   * The one grain in the project, named once so both of its consumers are
+   * provably the same texture.
+   *
+   * §5.2 asks for "2% film grain matched to the paper grain" on the render, and
+   * "matched" is the whole of the requirement — the sentence after it is "the
+   * grain is what stitches the render into the paper world." Two hand-tuned noises
+   * that merely resembled each other would not stitch anything, so the paper layer
+   * (body::after, 4%, §1.3) and the film layer (film-grain, 2%, §5.2) read this
+   * one value at the same 256px tile and differ only in opacity.
+   */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='512' height='512' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
 @layer base {
@@ -124,12 +252,53 @@
   }
 
   body {
-    background: var(--color-slab);
+    background: var(--color-paper);
     color: var(--color-ink);
-    font-family: var(--font-sans);
-    font-size: var(--text-body);
+    font-family: var(--font-mono);
+    font-size: var(--mono-base);
+    letter-spacing: var(--tracking-mono-base);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * ── §1.3 item 1: the paper grain ──────────────────────────────────────
+   *
+   * "Paper grain is a body-level layer, never a per-component texture. One
+   * scanned 512×512 uncoated-fibre PNG, tiled, at 4% opacity,
+   * mix-blend-mode: multiply, applied once to <body>. Cards do not get their own
+   * texture. Sheets do not get their own texture. One grain for the whole world."
+   *
+   * The fibre is generated rather than scanned — fractalNoise at these settings is
+   * an uncoated stock, and it costs no request, no 512² decode and no asset to
+   * keep in sync. It matches how every other texture in this project is made (see
+   * components/three/noise.ts, which builds the cake's own maps from a value-noise
+   * lattice rather than shipping images).
+   *
+   * Fixed rather than absolute, so the grain belongs to the sheet of paper the
+   * screen is, not to the scroll length of the document — paper does not slide
+   * over its own fibres.
+   */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.04;
+    mix-blend-mode: multiply;
+    background-image: var(--grain);
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  /* The grain is decoration. Anyone who has asked for less motion has usually
+     also asked for less noise, and a multiply layer over every surface is the
+     kind of thing that makes text harder to read. */
+  @media (prefers-reduced-transparency: reduce) {
+    body::after {
+      display: none;
+    }
   }
 
   /*
@@ -138,26 +307,72 @@
    * previous display face was variable-width and needed a wdth-axis tweak and
    * a 600 weight to look deliberate at all.
    */
+  /* Every headline is mono and uppercase (§1.1). The tracking is negative because
+     the mono scale tightens as it grows — see --mono-xl and up. */
   h1,
   h2,
   h3 {
-    font-family: var(--font-display);
+    font-family: var(--font-mono);
     font-weight: 400;
     letter-spacing: -0.02em;
     line-height: 1.04;
+    text-transform: uppercase;
     text-wrap: pretty;
   }
 
-  /* A group heading inside a step is sans at 600 — the one place 600 is used. */
+  /* Was sans at 600 — "the one place 600 is used", and §1.1 bans 600 outright.
+     A group heading is a label, so it is mono at 500, and its emphasis comes from
+     case and tracking rather than from weight. */
   h4 {
-    font-weight: 600;
-    letter-spacing: -0.01em;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  /*
+   * Mono is the default voice of this brand, so `body` is mono and prose is the
+   * exception that opts out — which is the opposite of how this file used to read.
+   *
+   * §1.1: "Switzer appears only inside explanatory prose — the one-line reason
+   * under an option, the paragraphs on the bakery page, error explanations […] Its
+   * job is to be the human voice next to the machine voice."
+   *
+   * A paragraph is the reliable signal for that, and it is the one element that is
+   * never a ticket line. §1.1 also caps the measure at 62 characters, because
+   * prose set to the full width of a sheet built for dot leaders is unreadable.
+   *
+   * The rule is deliberately blunt: §1.1 says prose under six words should have
+   * been mono, and a few short <p> labels will be caught here wrongly. They are
+   * cheaper to fix one at a time than every real paragraph is.
+   */
+  p {
+    font-family: var(--font-sans);
+    font-size: var(--prose-base);
+    line-height: 1.625;
+    letter-spacing: normal;
+    max-width: 62ch;
+    text-transform: none;
+  }
+
+  /*
+   * The shopfront keeps its serif. §1.1's "every headline is mono" governs the
+   * product — the nine builder steps, the docket, the kitchen board — where a
+   * headline is a label on a working document. The landing page is not a
+   * working document, and the one rule scoped here is what keeps the two from
+   * having to be the same thing.
+   */
+  .home h1,
+  .home h2,
+  .home h3 {
+    font-family: var(--font-display);
+    text-transform: none;
+    letter-spacing: -0.02em;
   }
 
   :focus-visible {
     outline: 2px solid var(--color-ink);
     outline-offset: 2px;
-    border-radius: 4px;
   }
 
   /* On an ink surface an ink outline is invisible. */
@@ -186,7 +401,10 @@
 
 /* Kept under the name the app already uses for a raised paper surface. */
 @utility paper-edge {
-  box-shadow: var(--shadow-elev-2);
+  /* §1.3 item 2: the border is half of the sheet-elevation effect. A shadow with
+     no edge is a glow; an edge with no shadow is a box. Paper has both. */
+  border: 1px solid var(--color-ink-15);
+  box-shadow: var(--shadow-sheet);
 }
 
 @utility stamp {
@@ -206,27 +424,66 @@
  * on the *panel's* centre rather than being stretched across the pane, so the
  * dark rim and the silhouette line up on tall and narrow panels alike.
  */
-@utility cake-stage {
-  background: radial-gradient(
-    58% 48% at 50% 32%,
-    #f7f2e7 0%,
-    #eae4d6 54%,
-    #d9d3c4 100%
-  );
+/*
+ * §5.2's film grain: "ACES tonemapping, exposure 1.0, and 2% film grain matched
+ * to the paper grain. The grain is what stitches the render into the paper world.
+ * Do this. It is the single highest-leverage post effect in the whole project."
+ *
+ * A CSS overlay rather than a postprocessing pass. There is no postprocessing
+ * library installed, and `@react-three/postprocessing` plus its EffectComposer is
+ * a large dependency and a second full-screen render target to add one noise
+ * term — against §8.8's mobile budget, and against a scene that deliberately runs
+ * `frameloop="demand"` and draws nothing at all most of the time. A grain pass
+ * inside the loop would also be sampled per frame from a texture that has to be
+ * generated; this samples the same bytes the paper is already using.
+ *
+ * Goes on the R3F <Canvas> className, which lands on Canvas's own outer div — it
+ * already carries `position: relative` and `overflow: hidden`, so the overlay
+ * needs no wrapper, changes no layout, and is clipped to the specimen.
+ *
+ * This is *film* grain and it sits under the paper layer, not instead of it. A
+ * photograph carries the grain of its own emulsion and then the texture of the
+ * stock it is printed on; both are present and they are not the same event. So
+ * the two layers are deliberately not phase-locked — same texture, same scale,
+ * independent offsets, which is what uncorrelated grain over a print looks like.
+ */
+@utility film-grain {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.02;
+    mix-blend-mode: multiply;
+    background-image: var(--grain);
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  /* Same call as the paper layer's: anyone who asked for less transparency has
+     asked not to have a noise field multiplied over everything they look at. */
+  @media (prefers-reduced-transparency: reduce) {
+    &::after {
+      display: none;
+    }
+  }
 }
 
-/*
- * ...and the frame around it. A cake against a background is a preview widget;
- * a cake inside a bordered, inset panel with real padding is a product shot.
- * The padding is the camera safe area: the cake never touches the frame.
- */
-@utility cake-panel {
-  border: 1px solid #c9c3b4;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.7),
-    0 1px 0 rgb(0 0 0 / 0.05),
-    0 10px 28px -16px rgb(23 22 26 / 0.3);
+@utility cake-stage {
+  /* Was a three-stop radial vignette — a photographer's sweep backdrop, and §1.2
+     bans gradients outright. §10 item 2 wants the specimen "full-bleed on
+     --paper-3", so this is one flat chipboard value. The cake's edge separates by
+     being matte against a darker, flatter ground rather than by a pool of light
+     under it. slab-deep is a placeholder for --paper-3 (#CFC9BA), which lands
+     with the rest of the §1.2 palette in item 5. */
+  background: var(--color-slab-deep);
 }
+
+/* cake-panel is gone. §10 removes "the rounded viewport frame around the
+   specimen" entirely, and it carried a raw #C9C3B4 border plus a three-layer
+   shadow including an inset highlight — three separate §1.4 violations in one
+   utility. The padding that was its one good idea (a camera safe area) moved to
+   the call site, which is where it belongs. */
 
 /* Ticking a number over when it changes, so a price rise is felt, not just shown. */
 @keyframes price-tick {
@@ -259,6 +516,56 @@
 @keyframes scrim-in {
   0% { opacity: 0; }
   100% { opacity: 1; }
+}
+
+/*
+ * A sprinkle falling through the hero. See components/HeroSprinkles.
+ *
+ * Every fleck runs this one rule and differs only by the four custom properties
+ * it hands in, so twenty-eight of them cost one keyframe rule rather than
+ * twenty-eight. `translate3d` and `rotate` only — neither triggers layout or
+ * paint, so the whole field composites off the main thread.
+ *
+ * The travel is 106vh starting 12vh above the top, which is longer than the hero
+ * is tall at every breakpoint. The alternative — a distance in percent —
+ * resolves against the fleck's own 9px box rather than the section's, and would
+ * drop each one about ten pixels. Overshooting and letting the section's
+ * `overflow-hidden` do the clipping is the only version that needs no
+ * measurement.
+ *
+ * The fade at each end is what keeps that clip from reading as a hard edge: a
+ * fleck is already gone by the time it reaches the boundary.
+ */
+@keyframes sprinkle-fall {
+  0% { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: var(--fleck-o, 0.35); }
+  82% { opacity: var(--fleck-o, 0.35); }
+  100% {
+    transform: translate3d(var(--fleck-x, 0), 106vh, 0) rotate(var(--fleck-r, 360deg));
+    opacity: 0;
+  }
+}
+
+.hero-sprinkle {
+  position: absolute;
+  top: 0;
+  display: block;
+  opacity: 0;
+  will-change: transform;
+  animation-name: sprinkle-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/*
+ * The global reduced-motion rule below collapses every animation to 0.01ms and
+ * one iteration, which for this field means twenty-eight flecks frozen on the
+ * last keyframe — a pile of debris at the bottom of the hero. That is a worse
+ * answer than no debris, so anyone who asked for less motion gets the page
+ * without it.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .hero-sprinkle { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

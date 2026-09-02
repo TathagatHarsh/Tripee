@@ -32,7 +32,7 @@ export default async function LabSoloPage({
       </div>
       <p className="mb-4 max-w-2xl text-sm text-steel">{entry.note}</p>
 
-      <div className="h-[78dvh] overflow-hidden rounded-sm bg-paper paper-edge">
+      <div className="h-[78dvh] overflow-hidden bg-paper paper-edge">
         <LabSolo index={i} />
       </div>
     </main>

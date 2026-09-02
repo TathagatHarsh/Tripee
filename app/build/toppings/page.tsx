@@ -71,7 +71,7 @@ export default function ToppingsStep() {
                 aria-pressed={active}
                 aria-describedby={off ? "toppings-full" : undefined}
                 className={[
-                  "flex min-h-11 items-center gap-3 rounded-card border px-4 py-3.5 text-left",
+                  "flex min-h-11 items-center gap-3 border px-4 py-3.5 text-left",
                   "transition-[background-color,border-color,box-shadow,transform] duration-[--dur-ui] ease-[--ease-out]",
                   off ? "cursor-not-allowed" : "motion-safe:hover:-translate-y-px",
                   cardState(active, off),
@@ -79,7 +79,7 @@ export default function ToppingsStep() {
               >
                 <span
                   aria-hidden
-                  className="size-[22px] shrink-0 rounded-full shadow-[inset_0_0_0_1px_rgb(23_22_26/0.18)]"
+                  className="size-[22px] shrink-0 rounded-full border border-ink/20"
                   style={{ background: o.swatch }}
                 />
                 <span className="min-w-0 flex-1">
@@ -91,7 +91,7 @@ export default function ToppingsStep() {
                   </span>
                 </span>
                 <span
-                  className={`shrink-0 font-mono text-micro font-bold whitespace-nowrap tabular-nums ${optionText.delta(active)}`}
+                  className={`shrink-0 font-mono text-micro font-medium whitespace-nowrap tabular-nums ${optionText.delta(active)}`}
                 >
                   {active ? "ADDED" : formatDelta(delta)}
                 </span>
@@ -108,7 +108,7 @@ export default function ToppingsStep() {
       </div>
 
       {chosen.length > 0 && (
-        <p className="rounded-card border border-dashed border-rule-strong bg-sunken px-4 py-3.5 text-meta text-steel">
+        <p className="border border-dashed border-rule-strong bg-sunken px-4 py-3.5 text-meta text-steel">
           Placement and density sit on the preview, so the cake changes while you
           set them.
         </p>

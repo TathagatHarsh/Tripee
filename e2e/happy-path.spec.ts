@@ -30,11 +30,11 @@ test("a stranger can build a cake, be corrected, and get an order reference", as
   await page.getByRole("button", { name: /^2 tiers/ }).click();
 
   // Sponge
-  await page.getByRole("link", { name: "Sponge →" }).click();
+  await page.getByRole("link", { name: "Sponge layers →" }).click();
   await page.getByRole("radio", { name: /^Belgian Chocolate/ }).click();
 
   // Filling
-  await page.getByRole("link", { name: "Filling →" }).click();
+  await page.getByRole("link", { name: "Between layers →" }).click();
   await page.getByRole("radio", { name: /^Salted Caramel/ }).click();
 
   // Frosting — whipped cream cannot hold two tiers. Take the offered fix.

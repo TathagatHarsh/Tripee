@@ -255,6 +255,58 @@ function weldNormals(g: THREE.BufferGeometry) {
 }
 
 /**
+ * One millimetre, in world units. Every figure §5.3 gives is in millimetres and
+ * one world unit is 90.7mm, so writing them as `0.3 * MM` is the only way the
+ * numbers in the code can be checked against the numbers in the document.
+ */
+export const MM = IN / 25.4;
+
+/**
+ * How far a squeezed band bellies out past its own rim.
+ *
+ * §5.3, requirement 3: the filling "squeezes at the cut edge: a 0.3mm bulge where
+ * it meets the exterior, with a very slight sag." It is an absolute, not a
+ * fraction of the radius — paste pressed out from between two layers does not know
+ * how wide the cake is.
+ *
+ * 0.3mm is well under a pixel of silhouette at any framing this site uses, and it
+ * is not meant to be read as one. What it buys is shading: bowing the wall swings
+ * its normal through about 13 degrees over the height of the band, so the belly
+ * takes the key light and the two rims fall away from it.
+ */
+export const FILLING_SQUEEZE = 0.3 * MM;
+
+/**
+ * How wide the bevel round a cut face is.
+ *
+ * §5.3, requirement 4: "The cut face has a 0.5mm bevel with a soft highlight, so it
+ * does not read as a boolean operation." That is the whole of the requirement, and
+ * the reason is the one it gives: a perfectly sharp edge between two flat faces is
+ * the signature of a subtraction, because nothing a knife touches is that sharp.
+ */
+export const CUT_BEVEL = 0.5 * MM;
+
+/** Where the belly sits up the band. Below the middle — that part is the sag. */
+const SQUEEZE_BELLY = 0.42;
+
+/**
+ * A squeezed band's bow: 0 at both rims, 1 at the belly.
+ *
+ * Smoothstep on each side, so the wall leaves both bevel arcs with zero slope and
+ * meets itself with zero slope at the belly. No crease anywhere for a specular to
+ * catch on, which matters more here than the shape does — a band this small is
+ * read entirely off its shading.
+ *
+ * The belly below the midline is the whole of the "very slight sag": paste
+ * squeezed out of a stack slumps before it sets, so the fat of the band sits low
+ * and the shadow it throws lands on the sponge underneath it.
+ */
+function squeezeBow(t: number): number {
+  const u = t < SQUEEZE_BELLY ? t / SQUEEZE_BELLY : (1 - t) / (1 - SQUEEZE_BELLY);
+  return u * u * (3 - 2 * u);
+}
+
+/**
  * Round tiers get a lathe so the base can flare very slightly, as cakes settle.
  *
  * `wallSteps` subdivides the straight side wall. The profile used to jump
@@ -266,7 +318,8 @@ function weldNormals(g: THREE.BufferGeometry) {
  * of them.
  */
 function lathePoints(
-  r: number, h: number, bevel: number, flare = 1.012, wallSteps = 26,
+  r: number, h: number, bevel: number,
+  flare = 1.012, wallSteps = 26, squeeze = 0,
 ): THREE.Vector2[] {
   const pts: THREE.Vector2[] = [];
   const rb = r * flare;
@@ -292,7 +345,10 @@ function lathePoints(
   const x0 = rb;
   for (let i = 1; i <= wallSteps; i++) {
     const t = i / wallSteps;
-    pts.push(new THREE.Vector2(x0 + (r - x0) * t, y0 + (y1 - y0) * t));
+    pts.push(new THREE.Vector2(
+      x0 + (r - x0) * t + squeezeBow(t) * squeeze,
+      y0 + (y1 - y0) * t,
+    ));
   }
 
   arc(r - bevel, h - bevel, bevel, 0, Math.PI / 2);
@@ -306,6 +362,78 @@ function lathePoints(
   }
 
   return pts;
+}
+
+/**
+ * A lathe profile turned into a *band* of thickness `t`, hugging its inside.
+ *
+ * This is what lets the frosting show its own thickness at a cut. §5.3 puts it
+ * first of the five things the cut surface needs, and is blunt about why: "The
+ * frosting shell shows its thickness at the cut as a visible 2–4mm band. Right now
+ * the shell reads as zero-thickness paint, which is the main reason the section
+ * looks fake."
+ *
+ * The shell is a surface, not a solid, so at a cut there was nothing to see — you
+ * looked past the 3–4mm of air between shell and sponge straight to the backface of
+ * the far wall. The air was already there and correctly sized (see shellThickness);
+ * nothing filled it.
+ *
+ * `capGeometry` already knows how to triangulate a profile and stand it up in the
+ * cut plane. Hand it this instead of the whole profile and the flat cross-section
+ * it produces is the frosting band rather than a slab across the whole cake — which
+ * is the thing `capCut: false` exists to prevent, and why this is a separate door
+ * rather than a flag on that one.
+ *
+ * The offset runs along each point's own 2D normal, so the band keeps its width
+ * round the base bevel, up the wall and over the lid, the way a scraper leaves it.
+ * The loop stays a simple polygon: the outer edge runs base → rim → lid, the inner
+ * edge returns lid → rim → base, and on a round tier both closing segments lie on
+ * the axis at x = 0. That holds while t stays under the bevel B, which it does at
+ * every size the catalogue sells.
+ */
+/**
+ * The outward 2D normal of a profile at point `i`.
+ *
+ * Central-difference tangent, so a point on an arc leans on both its neighbours
+ * rather than on whichever segment happens to come first, turned a quarter-turn:
+ * (ty, -tx)/len.
+ *
+ * Checked against the three places it matters, in the profile's own winding order
+ * (axis → rim → up the wall → over the lid → axis):
+ *   base, tangent (+1, 0)  →  (0, -1)  points at the board;
+ *   wall, tangent (0, +1)  →  (+1, 0)  points away from the axis;
+ *   lid,  tangent (-1, 0)  →  (0, +1)  points at the sky.
+ * All three are outward, so subtracting moves into the cake.
+ */
+function outwardNormal(profile: THREE.Vector2[], i: number): THREE.Vector2 {
+  const prev = profile[Math.max(0, i - 1)];
+  const next = profile[Math.min(profile.length - 1, i + 1)];
+  const tx = next.x - prev.x;
+  const ty = next.y - prev.y;
+  const len = Math.hypot(tx, ty) || 1;
+  return new THREE.Vector2(ty / len, -tx / len);
+}
+
+/**
+ * A profile moved `t` into its own solid, along its own normals.
+ *
+ * The clamps keep the two axis points on the axis: their normals are purely
+ * vertical, so x never moves off 0 there, and an inset profile therefore closes on
+ * the same line the original does rather than opening a groove down the middle of
+ * the cake.
+ */
+function insetProfile(profile: THREE.Vector2[], t: number): THREE.Vector2[] {
+  return profile.map((p, i) => {
+    const n = outwardNormal(profile, i);
+    return new THREE.Vector2(
+      Math.max(0, p.x - n.x * t),
+      Math.max(0, p.y - n.y * t),
+    );
+  });
+}
+
+function bandProfile(profile: THREE.Vector2[], t: number): THREE.Vector2[] {
+  return [...profile, ...insetProfile(profile, t).reverse()];
 }
 
 /* ------------------------------------------------------------------ *
@@ -354,21 +482,53 @@ export interface BodyOpts {
    * wall with two faces missing. `shellGeometry` sets those cuts back instead.
    */
   capCut?: boolean;
+  /**
+   * Close a lathe's cut with a *band* of this thickness instead of a full face —
+   * the frosting showing its own edge at the cut (§5.3, requirement 1).
+   *
+   * This is the middle option between `capCut: true` (a solid cross-section, right
+   * for sponge and filling) and `capCut: false` (nothing at all, which is what made
+   * the shell read as zero-thickness paint). Only lathes need it: an extruded
+   * shape's wall already follows its two radial cut edges and so already shows a
+   * cross-section — see `setBack`, which pushes those edges *behind* the sponge's
+   * for exactly that reason.
+   */
+  capBand?: number;
+  /**
+   * Belly this body's wall out past its own rim — the filling squeezing where it
+   * meets the exterior (§5.3, requirement 3). See FILLING_SQUEEZE.
+   *
+   * Setting it also drops the base flare, because the two are the same millimetres
+   * pulling opposite ways. A tier's 1.2% flare is a cake settling under its own
+   * weight over 100mm of height; inherited by a 3mm band it becomes a 1.4mm wedge —
+   * five times the bulge, and running the other way, so the band came out a cone
+   * and shaded like one. A band does not settle. It gets squashed.
+   *
+   * Round only. An extruded shape's slab already carries ExtrudeGeometry's bevel
+   * round both ends, which is convex in the right direction and reads as a
+   * meniscus; what it cannot be asked for is a belly off the centre, and there is
+   * no per-step radial control on ExtrudeGeometry to add one. The sag is a round
+   * cake's for now.
+   */
+  squeeze?: number;
 }
 
 export function tierGeometry({
-  shape, radius, height, segments = 72, bevel, sector, capCut = true,
+  shape, radius, height, segments = 72, bevel, sector, capCut = true, capBand,
+  squeeze,
 }: BodyOpts): THREE.BufferGeometry {
   const b = bevel ?? Math.min(radius * 0.09, height * 0.18, 0.07);
 
   if (shape === "round") {
-    const profile = lathePoints(radius, height, b);
+    const profile = squeeze
+      ? lathePoints(radius, height, b, 1, 26, squeeze)
+      : lathePoints(radius, height, b);
     return sector
-      ? cutLathe(profile, segments, sector, capCut)
+      ? cutLathe(profile, segments, sector, capCut, capBand, CUT_BEVEL)
       : latheWithUV(profile, segments);
   }
 
-  if (shape === "bundt") return bundtGeometry(radius, height, segments, sector, capCut);
+  if (shape === "bundt") return bundtGeometry(radius, height, segments, sector, capCut, capBand);
 
   const full = polygonFor(shape, radius - b);
   const inset = sector ? cutShape(full, sector, b) : full;
@@ -401,6 +561,24 @@ function cutLathe(
   segments: number,
   sector: Sector,
   capped = true,
+  capBand?: number,
+  /**
+   * Bevel the cut faces by this much — §5.3, requirement 4. See beveledCap.
+   *
+   * Off by default, and passed only by the round path, for two reasons.
+   *
+   * A bundt cannot take it. bundtGeometry flutes the whole geometry *after* this
+   * returns and then calls computeVertexNormals, which overwrites every normal the
+   * bevel exists to carry; the ring would be dead weight. Its profile is also a
+   * closed ring that begins and ends on the core rather than on the axis, so
+   * insetProfile's end-clamping — which is what keeps a bevel off the crease — is
+   * wrong for it at the seam.
+   *
+   * And the frosting shell does not want it. The shell caps through `capBand`, and
+   * that band is 2–4mm wide: 0.5mm off each side of it is a third of the one
+   * feature §5.3 puts first.
+   */
+  rim = 0,
 ): THREE.BufferGeometry {
   const half = sector.width / 2;
   const phiStart = sector.centre + half;
@@ -408,7 +586,17 @@ function cutLathe(
 
   const kept = Math.max(8, Math.round(segments * (phiLength / (Math.PI * 2))));
   const wall = latheWithUV(profile, kept, phiStart, phiLength);
-  if (!capped) return wall;
+
+  /*
+   * Three ways to close a cut, not two.
+   *
+   * A solid body caps with its whole profile. The frosting shell caps with a band
+   * of its own thickness — see bandProfile. And `capped: false` with no band is
+   * still available, and still means nothing at all.
+   */
+  const band = capBand !== undefined && capBand > 1e-6;
+  if (!capped && !band) return wall;
+  const capFrom = band ? bandProfile(profile, capBand!) : profile;
 
   /*
    * The two cut faces look in opposite directions — away from the missing wedge on
@@ -421,8 +609,8 @@ function cutLathe(
    * turn round.
    */
   const caps = [
-    capGeometry(profile, phiStart, false),
-    capGeometry(profile, phiStart + phiLength, true),
+    capGeometry(capFrom, phiStart, false, band ? 0 : rim),
+    capGeometry(capFrom, phiStart + phiLength, true, band ? 0 : rim),
   ];
   const merged = mergeGeometries([wall, ...caps], false);
 
@@ -437,17 +625,106 @@ function cutLathe(
 }
 
 /**
+ * A cut face with a bevel round its rim — §5.3, requirement 4.
+ *
+ * The bevel is a `b`-wide ring inside the cap's own outline, kept **in the plane of
+ * the cap** and given normals tilted 45 degrees toward the surface the rim runs
+ * into. So it shades as a chamfer without being displaced as one.
+ *
+ * That is a deliberate choice, not a shortcut. A displaced chamfer has to take the
+ * material off *both* faces that meet at the edge: the cap insets by b, and the
+ * wall must set back by b as well, or the two no longer meet and the cut opens a
+ * b-wide slot to the inside of the cake. Setting a lathe's wall back means
+ * shrinking phiLength, and an angle is a fixed *arc* — so a single dφ is 0.5mm of
+ * setback at the rim and almost nothing by the time the lid reaches the axis, which
+ * is a chamfer that tapers to nothing exactly where the lid's edge is most visible.
+ * Doing it properly means rebuilding the cut as a swept surface.
+ *
+ * And it would buy nothing. 0.5mm is about one pixel at the framings this site
+ * uses, so a displaced chamfer and a shaded one are the same handful of pixels; the
+ * difference between them is entirely the highlight, which is the half the document
+ * actually asks for. What the in-plane version cannot do is open a seam.
+ *
+ * Round lathes only — see the caller.
+ */
+function beveledCap(profile: THREE.Vector2[], b: number): THREE.BufferGeometry {
+  const n = profile.length;
+  const inner = insetProfile(profile, b);
+
+  const pos: number[] = [], nor: number[] = [], uv: number[] = [], idx: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const nrm = outwardNormal(profile, i);
+    // 45 degrees: halfway between the cut face's own +Z and the outward normal of
+    // whatever the rim runs into — the wall on the way up, the lid on the way back.
+    const k = 1 / Math.SQRT2;
+
+    pos.push(profile[i].x, profile[i].y, 0);
+    nor.push(nrm.x * k, nrm.y * k, k);
+    uv.push(profile[i].x, profile[i].y);
+
+    pos.push(inner[i].x, inner[i].y, 0);
+    nor.push(0, 0, 1);
+    uv.push(inner[i].x, inner[i].y);
+  }
+
+  /*
+   * Quads along the profile only, never across the closing segment.
+   *
+   * ShapeGeometry closes the outline on the axis, from (0, h) back to (0, 0), and
+   * insetProfile leaves the two axis points on the axis — so the inner outline
+   * closes on that same line, just shorter. The sliver between the two closing
+   * segments therefore has no area, and skipping it leaves the ring plus the inner
+   * face covering exactly the outer face's area. No hole, and no bevel down the
+   * crease where the two cut faces meet, which is not an edge a knife makes.
+   */
+  for (let i = 0; i < n - 1; i++) {
+    const a = 2 * i, d = 2 * i + 1, bb = 2 * (i + 1), c = 2 * (i + 1) + 1;
+    idx.push(a, bb, c, a, c, d);
+  }
+
+  const ring = new THREE.BufferGeometry();
+  ring.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  ring.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  // (x, y), which is what ShapeGeometry's own WorldUVGenerator lays down, so the
+  // ring and the face it rims read one continuous set of UVs.
+  ring.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  ring.setIndex(idx);
+
+  const face = new THREE.ShapeGeometry(new THREE.Shape(inner));
+  const merged = mergeGeometries([face, ring], false);
+  if (!merged) return face;
+  face.dispose();
+  ring.dispose();
+  return merged;
+}
+
+/**
  * The profile itself, triangulated flat and stood up in the plane at `phi`.
  * Rendered double-sided, because a cut face is looked at from whichever side
  * the customer happens to have rotated towards.
+ *
+ * `rim` bevels the edge — see beveledCap.
  */
 function capGeometry(
   profile: THREE.Vector2[],
   phi: number,
   flip: boolean,
+  rim = 0,
 ): THREE.BufferGeometry {
-  const shape = new THREE.Shape(profile.map(p => new THREE.Vector2(Math.max(0, p.x), p.y)));
-  const g = new THREE.ShapeGeometry(shape);
+  const pts = profile.map(p => new THREE.Vector2(Math.max(0, p.x), p.y));
+
+  /*
+   * The guard is the inset turning the outline inside out. Every profile the
+   * catalogue renders clears it by a wide margin — the tightest is a filling band
+   * at 3.6mm against a 2mm floor — but an inverted polygon triangulates into
+   * overlapping garbage rather than failing, so it is worth one comparison to make
+   * sure a future profile cannot get there quietly.
+   */
+  const ys = pts.map(p => p.y);
+  const span = Math.max(...ys) - Math.min(...ys);
+  const g = rim > 0 && span > rim * 4
+    ? beveledCap(pts, rim)
+    : new THREE.ShapeGeometry(new THREE.Shape(pts));
 
   /*
    * ShapeGeometry lies in XY. Lathe places a profile point at
@@ -777,6 +1054,7 @@ function bundtGeometry(
   segments: number,
   sector?: Sector,
   capCut = true,
+  capBand?: number,
 ): THREE.BufferGeometry {
   /*
    * Wound so the surface normals face out of the ring, not into it. Reverse this
@@ -791,7 +1069,9 @@ function bundtGeometry(
    */
   const pts = BUNDT_PROFILE.map(([rad, y]) => new THREE.Vector2(rad * r, y * h));
 
-  const g = sector ? cutLathe(pts, segments, sector, capCut) : latheWithUV(pts, segments);
+  const g = sector
+    ? cutLathe(pts, segments, sector, capCut, capBand)
+    : latheWithUV(pts, segments);
 
   /*
    * Radial fluting — the thing that makes a bundt a bundt.
@@ -889,6 +1169,13 @@ export function shellGeometry(
     ...opts,
     // Frosting is a skin, not a solid.
     capCut: false,
+    /*
+     * ...but a skin has an edge, and at a cut you are looking straight at it.
+     * §5.3, requirement 1. Lathes only: an extruded shape's wall already carries
+     * its own cross-section, which is what `setBack` on the next line is
+     * compensating for.
+     */
+    capBand: lathe && opts.sector ? t : undefined,
     sector: opts.sector && (lathe ? opts.sector : setBack(opts.sector, opts.radius, amp)),
     radius: opts.radius + t,
     height: H,
@@ -924,6 +1211,36 @@ export function shellGeometry(
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
     const sideness = 1 - Math.abs(nor.getY(i));
 
+    /*
+     * How much of this vertex's normal points away from the axis, and from that,
+     * whether it is on a cut face.
+     *
+     * Every displacement below this line was written for a closed cake, where the
+     * only surfaces are a wall and a lid. The band caps added at the cut are a
+     * third kind of surface and they break both assumptions: their normals are
+     * horizontal, so `sideness` reads 1 and calls them wall, and they are *flat in
+     * a plane through the axis*, so moving them radially slides them along
+     * themselves and moving them along their normal lifts them out of plane.
+     *
+     * The two facts separate all three cleanly:
+     *
+     *   surface      sideness   radialness   cutFace
+     *   wall            1           1           0
+     *   lid             0           0           0
+     *   cut cap         1           0           1
+     *
+     * `cutFace` is the product that isolates the third row. It is a smooth factor
+     * rather than a test, because the cap's outer rim shares its vertices with the
+     * wall's cut edge — weldNormals above has already averaged their normals — so
+     * those land mid-scale at roughly 0.3 and must keep moving *with* the wall or
+     * the band tears away from the surface it belongs to.
+     */
+    const radius0 = Math.hypot(x, z);
+    const radialness = radius0 > 1e-4
+      ? Math.abs((nor.getX(i) * x + nor.getZ(i) * z) / radius0)
+      : 0;
+    const cutFace = sideness * (1 - radialness);
+
     let d = (fbm3(x * freq + ox, y * freq + oy, z * freq + oz, 3) - 0.5) * 2 * amp;
 
     // These two were tuned against a lathe that had two vertices down the whole
@@ -955,6 +1272,17 @@ export function shellGeometry(
       d += Math.sin(theta * 3.5 + y * 22) * amp * 0.42;
       d += Math.sin(theta * 6.5 - y * 9 + oy) * amp * 0.3;
     }
+
+    /*
+     * A cut face is what a knife left, so it is flat.
+     *
+     * Displacing it along its own normal would lift it out of the cut plane — 0.5mm
+     * on a smooth finish, which reads as a knife smear and is welcome, but 2.5mm on
+     * rustic, which is enough to poke through the sponge's cut face on one side or
+     * recede behind it on the other. Damped, not zeroed: the rim keeps most of its
+     * movement so it stays welded to the wall's cut edge.
+     */
+    d *= 1 - cutFace * 0.85;
 
     let nx = x + nor.getX(i) * d;
     const ny = y + nor.getY(i) * d;
@@ -988,7 +1316,20 @@ export function shellGeometry(
       const crown = Math.exp(-Math.pow((y - wallTop * 0.985) / (H * 0.045), 2)) * t * 0.4;
       const wobble = (fbm3(nx * 0.9 + ow, y * 0.6, nz * 0.9 + ow, 2) - 0.5) * 2
         * opts.radius * 0.006;
-      const dr = (fillet + crown + wobble) * sideness;
+      /*
+       * `1 - cutFace` is what keeps the band a band.
+       *
+       * A cut cap reads as sideness 1, so without this it collects the full fillet,
+       * crown and wobble — and being flat in a plane through the axis, a radial push
+       * slides its inner edge straight outwards. The fillet alone is 55% of t near
+       * the base, so the frosting band would close to under half its width at the
+       * board and taper open going up: exactly the zero-thickness-paint look the
+       * band exists to fix, reintroduced by the line meant to make the wall
+       * hand-made.
+       *
+       * The rim still moves, because it is welded to the wall's cut edge and has to.
+       */
+      const dr = (fillet + crown + wobble) * sideness * (1 - cutFace);
       nx += (nx / rad) * dr;
       nz += (nz / rad) * dr;
     }
@@ -1620,8 +1961,14 @@ export function rosetteGeometry(): THREE.BufferGeometry {
  * Board and plaque
  * ------------------------------------------------------------------ */
 
+/** The board's own thickness, and how far CakeBoard drops it below the cake. */
+export const BOARD_H = 0.055;
+export const BOARD_DROP = 0.05;
+/** The board's lid in world y. Anything that sits *on* the board sits on this. */
+export const BOARD_TOP = BOARD_H - BOARD_DROP;
+
 export function boardGeometry(radius: number): THREE.BufferGeometry {
-  const h = 0.055;
+  const h = BOARD_H;
   const r = radius * 1.3;
 
   /*
@@ -1656,6 +2003,121 @@ export function boardGeometry(radius: number): THREE.BufferGeometry {
   }
 
   return latheWithUV(pts, 64);
+}
+
+/* ------------------------------------------------------------------ *
+ * Loose crumbs
+ * ------------------------------------------------------------------ */
+
+/**
+ * One crumb, knocked out of round.
+ *
+ * A 20-face icosahedron is already close to what a crumb of sponge is — a small
+ * angular lump — and at 1-3mm it covers two or three pixels, so anything more is
+ * triangles nobody sees. The displacement is a function of the vertex's own
+ * direction rather than of an index, because PolyhedronGeometry is non-indexed and
+ * duplicates its vertices per face: drive it from a counter and every face pulls
+ * away from its neighbours and the crumb comes apart.
+ *
+ * Normalised to a maximum radius of exactly 1, *after* the displacement rather than
+ * before it. Instances carry the real size, so all of them share this one upload —
+ * and normalising means an instance's scale is the crumb's actual half-extent in
+ * millimetres, instead of that times whatever the noise happened to do. Without it
+ * a "1.5mm" crumb is really 1.9mm and §5.3's size band is not a thing the test can
+ * check.
+ */
+export function crumbGeometry(): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(1, 0);
+  const pos = g.attributes.position as THREE.BufferAttribute;
+
+  let max = 0;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const k = 0.74 + fbm3(x * 2.1 + 4.7, y * 2.1 + 1.3, z * 2.1 + 8.9, 2) * 0.52;
+    pos.setXYZ(i, x * k, y * k, z * k);
+    max = Math.max(max, Math.hypot(x * k, y * k, z * k));
+  }
+  for (let i = 0; i < pos.count; i++) {
+    pos.setXYZ(i, pos.getX(i) / max, pos.getY(i) / max, pos.getZ(i) / max);
+  }
+
+  pos.needsUpdate = true;
+  g.computeVertexNormals();
+  return g;
+}
+
+export interface Crumb {
+  position: THREE.Vector3;
+  rotation: THREE.Euler;
+  /** Non-uniform: a crumb that fell off a cut face is not a ball. */
+  scale: THREE.Vector3;
+}
+
+/**
+ * Crumbs on the board beneath a cut — §5.3, requirement 5: "6 to 12 tiny instanced
+ * meshes with sponge material, scattered with a seed. They cost nothing and they
+ * are the single detail that makes people believe it."
+ *
+ * Seeded from the config, like every other scatter in this project, because
+ * `e2e/visual.spec.ts` compares committed PNGs and a crumb that moves between two
+ * renders of the same design fails every one of them.
+ *
+ * Two populations, which is what actually happens when a slice is lifted out: some
+ * fall into the notch it came from, and the rest end up on the board just in front
+ * of the cut, spread a little wider than the wedge itself. Nothing is scattered
+ * anywhere else — a crumb behind an uncut cake has no story.
+ *
+ * They do **not** scale with the cake. A crumb is a crumb, the same argument
+ * `scaleForSize` makes about a strawberry.
+ */
+export function scatterCrumbs(seed: number, radius: number, sector: Sector): Crumb[] {
+  const rng = mulberry32(seed ^ 0x5eed6a11);
+  const half = sector.width / 2;
+  const count = 6 + Math.floor(rng() * 7);   // 6-12 inclusive
+
+  const out: Crumb[] = [];
+  for (let i = 0; i < count; i++) {
+    const inNotch = rng() < 0.45;
+
+    /*
+     * In the notch, kept off the two cut faces by a fifth of the wedge at each
+     * side — a crumb welded into the sponge wall reads as a lump, not a crumb.
+     * Outside, wider than the wedge, because they bounce.
+     */
+    const phi = sector.centre + (rng() * 2 - 1) * (inNotch ? half * 0.6 : half + 0.42);
+    const r = radius * (inNotch ? 0.28 + rng() * 0.6 : 1.06 + rng() * 0.16);
+
+    /*
+     * 1-3mm across, flattened, because a crumb settles on a face rather than
+     * balancing on a corner. `s` is a half-extent, so 0.5-1.5mm is a diameter of
+     * 1-3mm — exactly, since crumbGeometry normalises to radius 1.
+     *
+     * One horizontal axis is `s` exactly and the other is shortened, so the
+     * footprint is an ellipse and `s` is genuinely the crumb's longest dimension.
+     * Jittering *both* axes downward, which is what this did first, quietly moved
+     * the floor: the shortest crumb came out 0.78mm rather than 1mm, because
+     * nothing guaranteed either axis ever reached `s`. The test caught it.
+     *
+     * Nothing is lost by fixing the major axis. The rotation below is random about
+     * all three, so no two crumbs point their long side the same way.
+     */
+    const s = (0.5 + rng()) * MM;
+    const sy = s * (0.5 + rng() * 0.34);
+
+    out.push({
+      position: new THREE.Vector3(
+        Math.sin(phi) * r,
+        // Bedded a hair into the board rather than balanced on it: at this size a
+        // crumb resting exactly tangent reads as hovering.
+        BOARD_TOP + sy * 0.82,
+        Math.cos(phi) * r,
+      ),
+      rotation: new THREE.Euler(rng() * Math.PI, rng() * Math.PI * 2, rng() * Math.PI),
+      scale: new THREE.Vector3(s, sy, s * (0.62 + rng() * 0.38)),
+    });
+  }
+
+  return out;
 }
 
 export function plaqueGeometry(width: number, height: number): THREE.BufferGeometry {

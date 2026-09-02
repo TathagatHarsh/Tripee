@@ -70,10 +70,10 @@ export default async function PresetsPage({
     <div className="min-h-dvh bg-paper">
       <header className="flex h-[78px] items-center justify-between gap-6 border-b border-rule px-4 sm:px-8 lg:px-14">
         <div className="flex min-w-0 items-center gap-3.5">
-          <Link href="/" className="font-mono text-meta font-bold tracking-[0.2em]">
+          <Link href="/" className="font-mono text-meta font-medium tracking-[0.2em]">
             MAKEMYCAKE
           </Link>
-          <span aria-hidden className="hidden size-1 rounded-full bg-rule sm:block" />
+          <span aria-hidden className="hidden size-1 bg-rule sm:block" />
           <span className="hidden font-mono text-micro tracking-[0.1em] text-steel sm:block">
             PRESETS
           </span>
@@ -90,7 +90,7 @@ export default async function PresetsPage({
               {PRESETS.length} finished designs
             </span>
             <h1 className="text-display">
-              Cakes we already <span className="italic">know by heart.</span>
+              Cakes we already <span className="text-steel">know by heart.</span>
             </h1>
           </div>
           <p className="max-w-[44ch] text-lede leading-relaxed text-steel">

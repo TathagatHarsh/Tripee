@@ -1,0 +1,547 @@
+/*
+ * The film route's own layer.
+ *
+ * Everything here is scoped under .film so that adding a landing page cannot
+ * reach into /build or /presets. The palette, the type scale and the single
+ * sheet-elevation shadow all come from app/globals.css §1.2 — this file adds
+ * only what a scroll film needs and the product did not already have: the
+ * sponge's accent, the seven motions, the specimen window, and a perforation.
+ */
+
+.film {
+  /*
+   * --accent is set by the chosen sponge, and Belgian Chocolate is the sponge
+   * for the whole film. It has exactly three consumers, marked below, and if a
+   * reader can point at it and say "the colour changed", it is too strong.
+   */
+  --accent: #46291b;
+
+  /*
+   * Consumer 1 of 3: a 3% tint on the paper, warmed to over 600ms when the
+   * SPONGE line prints in CH1.
+   *
+   * No `background` is declared in the resting state, and that omission is the
+   * point. .film also carries the tokens, so it sits on every section — and a
+   * background here loaded after Tailwind beat `bg-paper-2` and `bg-paper-3`,
+   * which quietly flattened the manila kitchen section and the chipboard desk
+   * under the two copies back to plain paper. The page ground is set once, on
+   * the root, and a section that wants a different stock says so.
+   */
+  transition: background 600ms ease-out;
+}
+
+.film[data-warm="true"] {
+  background: color-mix(in oklab, var(--color-paper) 97%, var(--accent));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   THE SEVEN MOTIONS
+
+   Every DOM movement on this page is one of these, and each is something a
+   machine or a hand could do. If a mechanism cannot be named, the motion does
+   not exist. Nothing fades, nothing scales on hover, nothing lifts.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* PRINT — a line arriving out of a head, left to right, with the carriage's
+   own 1px of vertical play for the first third of the stroke. */
+@keyframes film-print {
+  0% { clip-path: inset(0 100% 0 0); transform: translateY(1px); }
+  33% { transform: translateY(-1px); }
+  34% { transform: translateY(0); }
+  100% { clip-path: inset(0 0 0 0); transform: translateY(0); }
+}
+
+/* FEED — paper advancing by whole line-heights, never by a fraction of one. */
+@keyframes film-feed {
+  0% { transform: translateY(28px); }
+  100% { transform: translateY(0); }
+}
+
+/* STAMP — a hand bringing a stamp down and lifting it. */
+@keyframes film-stamp {
+  0% { transform: rotate(var(--stamp-angle)) scale(1.06); }
+  100% { transform: rotate(var(--stamp-angle)) scale(1); }
+}
+
+/* STRIKE — a rule drawn through a value that is no longer true. */
+@keyframes film-strike {
+  0% { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
+}
+
+/* SLIDE — a sheet crossing the desk. */
+@keyframes film-slide {
+  0% { transform: translateX(-24px); }
+  100% { transform: translateX(0); }
+}
+
+/* The block caret on an input, blinking at the rate a terminal does. */
+@keyframes film-caret {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   THE TICKET
+   ───────────────────────────────────────────────────────────────────────── */
+
+.film-ticket-line {
+  display: flex;
+  align-items: baseline;
+  min-height: 28px;
+  line-height: 28px;
+  font-family: var(--font-mono);
+  font-size: var(--mono-sm);
+  letter-spacing: var(--tracking-mono-sm);
+  text-transform: uppercase;
+  position: relative;
+  padding-left: 12px;
+}
+
+/* A real dot leader: a flex spacer with a dotted baseline, so the dots run the
+   exact distance between a label and its value and land on the same baseline
+   whatever the two are. A background-image of dots cannot do the last part. */
+.film-leader {
+  flex: 1;
+  margin: 0 8px 5px;
+  border-bottom: 1px dotted var(--color-ink-35);
+}
+
+/* The 2px marker in the gutter of the line currently printing. Consumer 3 of 3
+   for --accent. */
+.film-ticket-line::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--accent);
+  opacity: 0;
+}
+
+.film-ticket-line[data-active="true"]::before {
+  opacity: 1;
+}
+
+.film-ticket-line[data-printed="false"] {
+  visibility: hidden;
+}
+
+.film-ticket-line[data-printed="true"] .film-print {
+  animation: film-print 180ms linear both;
+}
+
+.film-value {
+  color: var(--color-ink);
+  text-align: right;
+}
+
+.film-label {
+  color: var(--color-ink-60);
+}
+
+/* The set a value was chosen from, at the end of its line. */
+.film-choices {
+  margin-left: 12px;
+  min-width: 46px;
+  text-align: right;
+  color: var(--color-ink-35);
+  font-size: var(--mono-xs);
+  letter-spacing: var(--tracking-mono-xs);
+  white-space: nowrap;
+}
+
+/* A value that has just changed, printing in place — the running total. */
+.film-print-now {
+  animation: film-print 180ms linear both;
+}
+
+/*
+ * The skip link. It used to be an 11px dotted link laid over the photograph:
+ * the lowest-contrast element in the specimen and a 17px tap target. It now
+ * sits on the paper beneath the window with a thumb-sized height, and it is
+ * still a leader link — no box, no button, no chevron.
+ */
+.film-skip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-end;
+  height: 44px;
+  margin-top: 4px;
+  color: var(--color-ink-60);
+  font-family: var(--font-mono);
+  font-size: var(--mono-xs);
+  letter-spacing: var(--tracking-mono-xs);
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.film-skip > * ,
+.film-skip {
+  border-bottom: 0;
+}
+
+.film-skip:hover {
+  color: var(--color-ink);
+}
+
+/*
+ * ── THE DOCUMENT ON A PHONE ───────────────────────────────────────────────
+ *
+ * A label, a dot leader and a value cannot share 327px. Below 768px every
+ * ticket line on the page — the film's, both copies, the nine steps, the six
+ * sizes, the five slots, the three zones — was wrapping label and value into
+ * each other with the leaders vanishing, so the computed total, the payoff of
+ * the whole film, never reached the fold on the device most readers are on.
+ *
+ * So the leader is dropped and the pair stacks: the label above in the quiet
+ * ink, the value beneath it at reading size, and a hairline doing the job the
+ * dots did. The Print motion and the accent marker are untouched.
+ */
+@media (max-width: 767px) {
+  .film-ticket-line {
+    display: block;
+    min-height: 0;
+    line-height: 20px;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--color-ink-15);
+  }
+
+  .film-leader {
+    display: none;
+  }
+
+  .film-label {
+    display: block;
+    font-size: var(--mono-xs);
+    letter-spacing: var(--tracking-mono-xs);
+  }
+
+  .film-value {
+    display: block;
+    margin-top: 4px;
+    text-align: left;
+    font-size: var(--mono-sm);
+  }
+
+  .film-choices {
+    display: inline;
+    margin-left: 0;
+    min-width: 0;
+  }
+
+  .film-ticket-line::before {
+    top: 0;
+    bottom: 12px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PERFORATION — used exactly twice on this page: the top edge of the ticket,
+   and the tear line between the two copies. Dots punched through the stock,
+   not a decorative border.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.film-perf-top {
+  height: 8px;
+  background-image: radial-gradient(circle at 4px 4px, var(--color-ink-15) 1.5px, transparent 1.6px);
+  background-size: 8px 8px;
+  background-repeat: repeat-x;
+}
+
+/* The tear runs across the sheets on a phone and down between them on a desk,
+   because that is the axis the two copies are stacked on in each case. One
+   perforation, turned ninety degrees — not a second one. */
+.film-perf-tear {
+  width: 100%;
+  height: 8px;
+  background-image: radial-gradient(circle at 4px 4px, var(--color-ink-35) 1.5px, transparent 1.6px);
+  background-size: 8px 8px;
+  background-repeat: repeat-x;
+}
+
+@media (min-width: 768px) {
+  .film-perf-tear {
+    width: 8px;
+    height: auto;
+    margin: 0 -4px;
+    align-self: stretch;
+    cursor: ew-resize;
+    background-repeat: repeat-y;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   THE SPECIMEN WINDOW
+
+   Ruled, not framed. No vignette and no edge gradient — §1.2 bans gradients
+   outright, so the frame is drawn contain-fit over a flat paper letterbox and
+   the window's own hairline is what separates it from the page.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.film-specimen {
+  /* The canvas paints its own letterbox, so the fill has to be a value the
+     canvas can read rather than a class it can wear. Declared here as a token
+     and inherited by the canvas, so the letterbox and the page ground are the
+     same colour by construction and cannot drift apart in a later edit. */
+  --letterbox: var(--color-paper);
+  position: relative;
+  border: 1px solid var(--color-ink-15);
+  background: var(--color-paper);
+  overflow: hidden;
+}
+
+.film-specimen canvas,
+.film-specimen .film-poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--color-paper);
+}
+
+/* Consumer 2 of 3 for --accent: a 4% key-light tint over the film, so the
+   specimen sits in the same light as the paper around it. */
+.film-specimen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: var(--accent);
+  opacity: 0.04;
+  mix-blend-mode: multiply;
+}
+
+/* The carbon callouts, projected onto the frame. */
+.film-callout {
+  position: absolute;
+  z-index: 3;
+  color: var(--color-carbon);
+  font-family: var(--font-mono);
+  font-size: var(--mono-xs);
+  letter-spacing: var(--tracking-mono-xs);
+  text-transform: uppercase;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.film-callout-rule {
+  height: 1px;
+  width: 48px;
+  background: var(--color-carbon);
+  transform-origin: left center;
+  animation: film-strike 140ms linear both;
+}
+
+.film-callout[data-side="left"] {
+  flex-direction: row-reverse;
+  transform: translate(-100%, -50%);
+}
+
+.film-callout[data-side="left"] .film-callout-rule {
+  transform-origin: right center;
+}
+
+.film-callout[data-side="right"] {
+  transform: translate(0, -50%);
+}
+
+.film-callout-label {
+  animation: film-print 180ms linear both;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   INPUTS — no box. A baseline rule and a block caret, which is what a form on
+   a printed docket actually is.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.film-field {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--color-ink-15);
+  background: none;
+  padding: 8px 0;
+  font-family: var(--font-mono);
+  font-size: var(--mono-base);
+  letter-spacing: var(--tracking-mono-base);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  outline: none;
+}
+
+.film-field::placeholder {
+  color: var(--color-ink-35);
+  text-transform: uppercase;
+}
+
+.film-field:focus {
+  border-bottom-color: var(--color-ink);
+}
+
+.film-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--color-ink);
+  vertical-align: -0.12em;
+  animation: film-caret 1.06s step-end infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   THE ONE BUTTON
+
+   On hover a second 1px outline lands 3px right and down, like a second
+   impression of the same die. The button itself does not move and does not
+   change colour — a button that jumps under the cursor is a button that was
+   never a stamp.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.film-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 24px;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.film-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--color-ink);
+  transform: translate(3px, 3px);
+  opacity: 0;
+}
+
+.film-button:hover::after,
+.film-button:focus-visible::after {
+  opacity: 1;
+}
+
+/* A dotted-underline leader link. No box, no button, no chevron. */
+.film-link {
+  color: var(--color-ink);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--color-ink-35);
+  font-family: var(--font-mono);
+  font-size: var(--mono-xs);
+  letter-spacing: var(--tracking-mono-xs);
+  text-transform: uppercase;
+}
+
+.film-link:hover {
+  border-bottom-color: var(--color-ink);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOTION CLASSES used by the sections below the film. Nothing here is
+   scroll-triggered: the sections are simply there when you arrive at them.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.film-feed {
+  animation: film-feed 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.film-slide {
+  animation: film-slide 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.film-stamp {
+  animation: film-stamp 160ms cubic-bezier(0.2, 1.2, 0.4, 1) both;
+  transform: rotate(var(--stamp-angle));
+}
+
+/* The masthead Feeds down from 88px to 48px. It does not fade, and it does not
+   shrink its type — a letterhead that changes size is a letterhead that has
+   been photocopied at the wrong setting. */
+.film-masthead {
+  height: 88px;
+  border-bottom: 1px solid var(--color-ink);
+  transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.film-masthead[data-fed="true"] {
+  height: 48px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .film-masthead {
+    transition: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   RE-FRAMED FILM CROPS
+
+   The kitchen section reuses frames the film already ran past, cropped tighter
+   so they are a second look rather than a repeat. A background-image is used
+   rather than an <img> for one specific reason: before the crops are cut, a
+   missing background is an empty sheet and a missing <img> is a broken-image
+   glyph, and this page has no state in which it shows an error icon.
+
+   The radial mask is the one exception to "no gradients": it is a mask, not a
+   fill — nothing on the page is coloured by it. Without it a photograph sits in
+   a hard rectangle it has not earned, on a page made of hairlines.
+   ───────────────────────────────────────────────────────────────────────── */
+.film-crop {
+  background-color: var(--color-paper-2);
+  background-size: cover;
+  background-position: center;
+  -webkit-mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 52%, transparent 100%);
+  mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 52%, transparent 100%);
+}
+
+/* The docket, printed exactly as lib/docket.ts renders it for the kitchen. */
+.film-docket {
+  font-family: var(--font-mono);
+  font-size: var(--mono-sm);
+  line-height: var(--leading-mono-sm);
+  letter-spacing: 0;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* The stubs rail. Scrolls sideways on its own rather than making the page do
+   it — a rail that steals the page's horizontal scroll is a rail that traps a
+   thumb on a phone. */
+.film-rail {
+  display: flex;
+  gap: 32px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-bottom: 16px;
+}
+
+.film-rail > * {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 767px) {
+  .film-rail {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    overflow-x: visible;
+  }
+
+  .film-rail > * {
+    width: 100% !important;
+  }
+}

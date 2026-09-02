@@ -84,7 +84,7 @@ export function OptionGrid<T extends string>({
             onKeyDown={(e) => onKeyDown(e, index)}
             aria-describedby={blocked ? `why-${o.value}` : undefined}
             className={[
-              "flex min-h-[76px] flex-col items-start gap-[7px] rounded-card border px-4 py-3.5 text-left",
+              "flex min-h-[76px] flex-col items-start gap-[7px] border px-4 py-3.5 text-left",
               "transition-[background-color,border-color,color,box-shadow,transform]",
               "duration-[--dur-ui] ease-[--ease-out] motion-safe:hover:-translate-y-px",
               cardState(active, off),
@@ -109,10 +109,10 @@ export function OptionGrid<T extends string>({
                 <span
                   aria-hidden
                   className={[
-                    "size-[22px] shrink-0 rounded-[5px] transition-shadow",
+                    "size-[22px] shrink-0 transition-shadow",
                     active
-                      ? "shadow-[inset_0_0_0_1px_rgb(253_252_250/0.3)]"
-                      : "shadow-[inset_0_0_0_1px_rgb(23_22_26/0.16)]",
+                      ? ""
+                      : "",
                   ].join(" ")}
                   style={{ background: o.swatch }}
                 />
@@ -128,7 +128,7 @@ export function OptionGrid<T extends string>({
                   a card a customer scans for. */}
               {delta !== 0 && (
                 <span
-                  className={`shrink-0 font-mono text-micro font-bold whitespace-nowrap tabular-nums ${optionText.delta(active)}`}
+                  className={`shrink-0 font-mono text-micro font-medium whitespace-nowrap tabular-nums ${optionText.delta(active)}`}
                 >
                   {formatDelta(delta)}
                 </span>

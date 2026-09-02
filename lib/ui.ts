@@ -29,7 +29,7 @@ const SIZE: Record<Size, string> = {
 
 const VARIANT: Record<Variant, string> = {
   primary:
-    "border border-ink bg-ink text-paper shadow-primary " +
+    "border border-ink bg-ink text-paper " +
     "hover:bg-graphite hover:border-graphite",
   secondary:
     "border border-rule-strong bg-paper text-ink hover:border-ink",
@@ -46,9 +46,9 @@ const VARIANT: Record<Variant, string> = {
  */
 const OFF =
   "disabled:cursor-not-allowed disabled:border-rule disabled:bg-slab-deep " +
-  "disabled:text-steel disabled:shadow-none " +
+  "disabled:text-steel " +
   "aria-disabled:cursor-not-allowed aria-disabled:border-rule " +
-  "aria-disabled:bg-slab-deep aria-disabled:text-steel aria-disabled:shadow-none";
+  "aria-disabled:bg-slab-deep aria-disabled:text-steel ";
 
 /*
  * `duration-[var(--dur-ui)]`, not `duration-[--dur-ui]`.
@@ -66,7 +66,7 @@ export function btn(
   extra = "",
 ): string {
   return [
-    "inline-flex shrink-0 items-center justify-center gap-2 rounded-card font-medium",
+    "inline-flex shrink-0 items-center justify-center gap-2 font-medium",
     "whitespace-nowrap transition-[background-color,border-color,color,box-shadow]",
     "duration-[var(--dur-ui)] ease-[var(--ease-out)]",
     SIZE[size],
@@ -89,7 +89,7 @@ export function btn(
  */
 export function pager(current = false, extra = ""): string {
   return [
-    "inline-flex min-h-11 min-w-11 items-center justify-center rounded-card px-3.5",
+    "inline-flex min-h-11 min-w-11 items-center justify-center px-3.5",
     "font-mono text-meta tabular-nums",
     "transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)]",
     current
@@ -103,7 +103,7 @@ export function pager(current = false, extra = ""): string {
 /** A square icon-only control at the same height as a `md` button. */
 export function iconBtn(extra = ""): string {
   return [
-    "inline-flex size-11 shrink-0 items-center justify-center rounded-card",
+    "inline-flex size-11 shrink-0 items-center justify-center ",
     "border border-rule bg-paper text-graphite",
     "transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)]",
     "enabled:hover:border-rule-strong enabled:hover:text-ink",
@@ -119,7 +119,7 @@ export function iconBtn(extra = ""): string {
  */
 export function field(extra = ""): string {
   return [
-    "h-13 w-full rounded-card border border-rule-strong bg-paper px-4 text-item text-ink",
+    "h-13 w-full border border-rule-strong bg-paper px-4 text-item text-ink",
     "transition-colors duration-[var(--dur-ui)] focus:border-ink",
     extra,
   ].join(" ");
@@ -150,9 +150,9 @@ export const eyebrowQuiet =
  * customer learns it once on the shape step and reads it for the next eight.
  */
 export const optionCard = {
-  rest: "border-rule bg-paper shadow-[0_1px_0_rgb(0_0_0/0.03)] hover:border-rule-strong hover:shadow-elev-1",
-  selected: "border-ink bg-ink shadow-chosen",
-  blocked: "border-dashed border-seal/50 bg-counter shadow-none",
+  rest: "border-rule bg-paper hover:border-rule-strong ",
+  selected: "border-ink bg-ink ",
+  blocked: "border-dashed border-seal/50 bg-counter ",
 } as const;
 
 /** Text colours that go with the three card states above. */

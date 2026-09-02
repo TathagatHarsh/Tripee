@@ -208,8 +208,8 @@ export const DRIP_PALETTE: { name: string; hex: string }[] = [
 export const STEPS = [
   { slug: "shape", title: "Shape", hint: "Start with the outline." },
   { slug: "size", title: "Size & tiers", hint: "How many people are eating?" },
-  { slug: "sponge", title: "Sponge", hint: "The cake itself." },
-  { slug: "filling", title: "Filling", hint: "What sits between the layers." },
+  { slug: "sponge", title: "Sponge layers", hint: "Every layer is this sponge." },
+  { slug: "filling", title: "Between layers", hint: "What goes in the gaps." },
   { slug: "frosting", title: "Frosting", hint: "What covers it." },
   { slug: "finish", title: "Colour & finish", hint: "Surface and hue." },
   { slug: "toppings", title: "Toppings", hint: "What lands on it." },

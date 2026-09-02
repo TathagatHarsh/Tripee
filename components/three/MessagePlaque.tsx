@@ -138,7 +138,18 @@ export function plaqueFootprint(config: CakeConfig, tiers: TierDims[]): PlaqueFo
  * real relief without a font file or a network fetch.
  */
 function messageTexture(text: string, ink: string, width: number, height: number) {
-  const W = 1024;
+  /*
+   * §5.3: "Render the message to a 2048px canvas texture using a real script
+   * webfont." The plaque is the one surface in the scene carrying actual
+   * letterforms, and a script face is mostly thin diagonal strokes — the first
+   * thing to go when a texture is undersampled. At 1024 across a plaque that can
+   * be 1.58 world units wide, the hairlines were landing on about one texel and
+   * breaking up.
+   *
+   * H is derived, so this is a 2048×~700 RGBA upload rather than a square one:
+   * roughly 5.7MB, and only for cakes that actually carry a message.
+   */
+  const W = 2048;
   const H = Math.round((W * height) / width);
   const canvas = document.createElement("canvas");
   canvas.width = W;

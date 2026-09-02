@@ -76,7 +76,7 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
       <div className="hidden shrink-0 items-center gap-7 border-b border-rule bg-paper px-6 lg:flex lg:h-[78px]">
         <div className="flex min-w-[8.25rem] flex-col gap-1">
           <span className={eyebrow}>{phase}</span>
-          <span className="font-mono text-micro font-bold tracking-[0.1em] text-ink">
+          <span className="font-mono text-micro font-medium tracking-[0.1em] text-ink">
             Step {index + 1} of {stepCount}
           </span>
         </div>
@@ -121,7 +121,13 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
           */}
           <div
             className={[
-              "cake-stage cake-panel relative overflow-hidden rounded-panel p-4 lg:h-full lg:p-6",
+              /* §10 item 2: no rounded container, no inset panel, no frame. The
+                 specimen sits full-bleed on the chipboard. Padding stays, because
+                 it is the camera safe area — the cake never touches the edge. */
+              /* p-4 is a sixth of the canvas below lg — measured, the stage is
+                 438px on a 375x812 phone and the cake gets 182 of it. The safe
+                 area is still there, it is just no longer desktop-sized. */
+              "cake-stage relative overflow-hidden p-2 sm:p-3 lg:h-full lg:p-6",
               onToppings ? "h-[54dvh] md:h-[56dvh]" : "h-[39dvh] md:h-[44dvh]",
             ].join(" ")}
           >
@@ -152,11 +158,6 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
 
               {hydrated && onToppings && <ToppingBar />}
             </div>
-
-            <span className="pointer-events-none absolute top-4 left-4 flex h-[30px] items-center gap-2 rounded-full border border-rule-strong bg-paper/85 px-3 font-mono text-micro tracking-[0.14em] text-graphite backdrop-blur-[6px] lg:top-5 lg:left-[22px]">
-              <span aria-hidden className="size-[5px] rounded-full bg-brass" />
-              LIVE 3D
-            </span>
 
             {/* Caption and hint: desktop only, where there is room below the
                 cake that the cake does not want. */}
@@ -238,7 +239,7 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
 
         {/* ── The docket, from 1280 up ────────────────────────────────── */}
         <div className="hidden xl:block xl:h-full xl:min-h-0 xl:p-[22px] xl:pl-[10px]">
-          {hydrated && <Docket config={config} className="h-full rounded-panel border border-rule" />}
+          {hydrated && <Docket config={config} className="h-full border border-rule" />}
         </div>
       </div>
     </div>
@@ -252,7 +253,7 @@ function ShellBar({ reference }: { reference?: string }) {
       <div className="flex min-w-0 items-center gap-3.5">
         <Link
           href="/"
-          className="shrink-0 font-mono text-meta font-bold tracking-[0.2em] text-ink"
+          className="shrink-0 font-mono text-meta font-medium tracking-[0.2em] text-ink"
         >
           MAKEMYCAKE
         </Link>
@@ -306,11 +307,11 @@ function MobileTotal({
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex min-h-12 flex-1 flex-col items-center justify-center rounded-card border border-rule-strong bg-paper font-mono transition-colors duration-[--dur-ui] hover:border-ink xl:hidden"
+        className="flex min-h-12 flex-1 flex-col items-center justify-center border border-rule-strong bg-paper font-mono transition-colors duration-[--dur-ui] hover:border-ink xl:hidden"
       >
         <span
           key={total}
-          className="text-meta font-bold text-ink tabular-nums motion-safe:animate-[price-tick_var(--dur-settle)_var(--ease-out)]"
+          className="text-meta font-medium text-ink tabular-nums motion-safe:animate-[price-tick_var(--dur-settle)_var(--ease-out)]"
         >
           {formatINR(total)}
         </span>
@@ -322,13 +323,13 @@ function MobileTotal({
         aria-label="Order docket"
         onClose={() => setOpen(false)}
         onClick={(e) => { if (e.target === sheet.current) close(); }}
-        className="m-0 mt-auto max-h-[86dvh] w-full max-w-none rounded-t-sheet border-0 bg-paper p-0 shadow-sheet backdrop:bg-ink/40 open:flex open:flex-col motion-safe:open:animate-[sheet-up_var(--dur-settle)_var(--ease-out)]"
+        className="m-0 mt-auto max-h-[86dvh] w-full max-w-none border-0 bg-paper p-0 shadow-sheet backdrop:bg-ink/40 open:flex open:flex-col motion-safe:open:animate-[sheet-up_var(--dur-settle)_var(--ease-out)]"
       >
         <div className="flex justify-center pt-2.5 pb-1">
-          <span aria-hidden className="h-1 w-[38px] rounded-full bg-rule" />
+          <span aria-hidden className="h-1 w-[38px] bg-rule" />
         </div>
         <div className="flex items-center justify-between gap-3 border-b border-dashed border-rule px-5 pt-2 pb-3">
-          <span className="font-mono text-micro font-bold tracking-[0.14em]">
+          <span className="font-mono text-micro font-medium tracking-[0.14em]">
             ORDER DOCKET
           </span>
           <button type="button" onClick={close} className={iconBtn()} aria-label="Close the docket">
@@ -336,7 +337,7 @@ function MobileTotal({
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <Docket config={config} className="rounded-none border-0 shadow-none" chromeless />
+          <Docket config={config} className="border-0 " chromeless />
         </div>
         <div className="border-t border-rule px-5 pt-3.5 pb-[max(1.625rem,env(safe-area-inset-bottom))]">
           <button type="button" onClick={close} className={btn("primary", "lg", "w-full")}>
@@ -370,11 +371,11 @@ function describeCake(c: Parameters<typeof buildDocket>[0]): string {
 function ControlSkeleton() {
   return (
     <div className="space-y-3" aria-hidden>
-      <div className="h-8 w-48 animate-pulse rounded-card bg-slab-deep" />
-      <div className="h-4 w-56 animate-pulse rounded-card bg-slab-deep" />
+      <div className="h-8 w-48 animate-pulse bg-slab-deep" />
+      <div className="h-4 w-56 animate-pulse bg-slab-deep" />
       <div className="grid grid-cols-1 gap-2.5 pt-3 @md:grid-cols-2">
         {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="h-[76px] animate-pulse rounded-card bg-slab-deep" />
+          <div key={i} className="h-[76px] animate-pulse bg-slab-deep" />
         ))}
       </div>
     </div>

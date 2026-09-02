@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { HeroCake } from "@/components/HeroCake";
 import { HeroReveal } from "@/components/HeroReveal";
+import { HeroSprinkles } from "@/components/HeroSprinkles";
 import { PresetCard } from "@/components/PresetCard";
 import { PresetPager } from "@/components/PresetPager";
 import { Docket } from "@/components/docket/Docket";
@@ -29,34 +30,105 @@ const ZONE_LEAD = [
 
 export default function Home() {
   return (
-    <div className="bg-paper">
-      <header className="sticky top-0 z-20 flex h-[78px] items-center justify-between gap-6 border-b border-rule bg-paper/95 px-4 backdrop-blur-md sm:px-8 lg:px-14">
-        <div className="flex min-w-0 items-center gap-3.5">
-          <span className="font-mono text-meta font-bold tracking-[0.2em]">MAKEMYCAKE</span>
-          <span aria-hidden className="hidden size-1 rounded-full bg-rule sm:block" />
-          <span className="hidden font-mono text-micro tracking-[0.1em] text-steel sm:block">
-            JUBILEE HILLS
-          </span>
-        </div>
+    <div className="home bg-paper">
+      {/*
+        ── The bar ──────────────────────────────────────────────────────────
+        Three things were wrong with it, and none of them were the colours.
 
-        <nav aria-label="Sections" className="hidden gap-9 text-body text-graphite lg:flex">
-          <a href="#presets" className="transition-colors hover:text-ink">Presets</a>
-          <a href="#how" className="transition-colors hover:text-ink">How it works</a>
-          <a href="#bakery" className="transition-colors hover:text-ink">The bakery</a>
+        ONE CTA, NOT TWO. "Explore presets" and "Start building" were both
+        boxed, both 44px, side by side — which is two primary actions and
+        therefore none: the eye has to choose before it has read anything. The
+        secondary is now a text link on a rule. Still findable, still a 44px tap
+        target, no longer competing. There is exactly one filled rectangle in
+        the bar and it is the thing we want pressed.
+
+        THE WORDMARK HAD NO RANK. It was set at 13px — the same size as the nav,
+        the buttons and the meta — so the bar was five things at one weight and
+        read as a toolbar. At 17px with wider tracking it is the largest thing
+        on the bar, which is what a wordmark is for. §1.1 holds: the emphasis is
+        case, size and tracking, never a heavier cut.
+
+        THE MIDDLE WAS A HOLE. Below lg the nav is hidden, so the bar was a
+        wordmark, 900px of nothing, then two boxes — which is the state in the
+        screenshot. `flex-1` hands the nav every pixel the two end zones do not
+        want and centres the links inside it, so they sit optically between the
+        zones rather than hard against the left one. Deliberately flex and not
+        `absolute left-1/2`: absolute centring measures from the viewport rather
+        than from the gap, so at 1024px the centred links land on top of the
+        actions. A flex item cannot collide with its siblings.
+
+        78px → 68px. This is chrome, and it was taller than the 44px control it
+        contains by more than that control's own height again.
+      */}
+      <header className="sticky top-0 z-30 flex h-[68px] items-center gap-6 border-b border-rule bg-paper/90 px-4 backdrop-blur-md sm:px-8 lg:px-14">
+        <Link
+          href="/"
+          className="flex min-w-0 shrink-0 items-center gap-3.5"
+          aria-label="Makemycake, home"
+        >
+          <span className="font-mono text-item font-medium tracking-[0.2em] uppercase">
+            Makemycake
+          </span>
+          {/* A rule, not a dot. Everything else on this site that divides two
+              things is a hairline; the 4px square read as a bullet.
+
+              `lg:hidden xl:block` is the one piece of real estate the nav can
+              take when it needs it. Between 1024 and 1279 the three links, the
+              wordmark, the locality and two actions do not fit on one line, and
+              the nav lost — "HOW IT WORKS" and "THE BAKERY" each broke onto two
+              lines and the bar grew a second row of text. The locality is the
+              least load-bearing thing up here, so it stands down for that band
+              and comes back at xl. */}
+          <span aria-hidden className="hidden h-3.5 w-px bg-rule sm:block lg:hidden xl:block" />
+          <span className="hidden font-mono text-micro tracking-[0.14em] text-steel uppercase sm:block lg:hidden xl:block">
+            Jubilee Hills
+          </span>
+        </Link>
+
+        <nav
+          aria-label="Sections"
+          className="hidden flex-1 items-center justify-center gap-6 lg:flex xl:gap-10"
+        >
+          {[
+            ["Presets", "#presets"],
+            ["How it works", "#how"],
+            ["The bakery", "#bakery"],
+          ].map(([label, href]) => (
+            <a
+              key={href}
+              href={href}
+              /* The link is the 44px target; the rule lives on the span inside
+                 it. Putting `border-b` on the target itself parks the rule at
+                 the bottom of a 44px box — a hairline floating twenty pixels
+                 under the word, attached to nothing. `whitespace-nowrap`
+                 because a nav item that wraps mid-label is not a nav item. */
+              className="group inline-flex min-h-11 items-center whitespace-nowrap font-mono text-micro tracking-[0.14em] text-steel uppercase transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] hover:text-ink"
+            >
+              <span className="border-b border-transparent pb-0.5 transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] group-hover:border-ink">
+                {label}
+              </span>
+            </a>
+          ))}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-2.5">
-          {/* The `hidden` has to sit on a wrapper. `btn()` puts `inline-flex` in
-              its own base classes, and when two display utilities land in the
-              same Tailwind layer the stylesheet order settles it, not the order
-              they appear in the attribute — so this button never hid, and on a
-              phone it and "Start building" crowded straight over the wordmark.
-              `sm:contents` puts the link back in the flex row untouched. */}
-          <span className="hidden sm:contents">
-            <Link href="/presets" className={btn("secondary", "md")}>
+        {/* `ml-auto` because on the breakpoints where the nav is hidden there is
+            no flex-1 item left to push these to the right. */}
+        <div className="ml-auto flex shrink-0 items-center gap-6">
+          {/* The old `sm:contents` wrapper is gone with the reason for it: it
+              existed only because `btn()` hard-codes `inline-flex`, which beat
+              `hidden` in the cascade. This is not a `btn()`, so `sm:inline-flex`
+              is enough. */}
+          <Link
+            href="/presets"
+            className="group hidden min-h-11 items-center whitespace-nowrap font-mono text-micro tracking-[0.14em] text-graphite uppercase transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] hover:text-ink sm:inline-flex"
+          >
+            {/* Same split as the nav links: 44px of target on the link, the rule
+                on the text. This one is visible at rest — it is an action, and
+                the rule is what is left of the box it used to be in. */}
+            <span className="border-b border-rule-strong pb-0.5 transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] group-hover:border-ink">
               Explore presets
-            </Link>
-          </span>
+            </span>
+          </Link>
           <Link href="/build/shape" className={btn("primary", "md")}>
             Start building
           </Link>
@@ -78,7 +150,35 @@ export default function Home() {
           clipped paragraph, a CTA half off the edge. Flooring the minimum at 0
           lets the track be the width it actually has and the text wrap.
         */}
-        <section className="grid grid-cols-[minmax(0,1fr)] items-center gap-10 bg-[linear-gradient(180deg,#FDFCFA_0%,#F2EEE6_62%,#EBE7DD_100%)] px-4 pt-12 pb-16 sm:px-8 lg:min-h-[724px] lg:grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] lg:gap-0 lg:px-0 lg:py-0 lg:pl-14">
+        {/*
+          ── Closing the gap ──────────────────────────────────────────────
+          At 1440 the copy's widest line ended at x≈600 and the cake's board
+          started at x≈900: three hundred pixels of nothing down the middle of
+          the first screen. Neither column was overflowing — both were
+          UNDER-filling. The copy sat in a 699px track wearing a 46ch measure,
+          and the cake sat centred in a 685px track at 460px wide, so each
+          column contributed its own slack to the same hole.
+
+          So both sides give some back rather than one side being shoved across:
+          the tracks re-weight 1.02/1 → 0.95/1.05, the measure widens to 52ch
+          (below), and the stage grows (components/HeroCake), which grows the
+          cake with it — the hero shot is `fit: contain`, so the cake is sized
+          by its box.
+
+          What is left is a gutter of about 150px, which is a gutter and not a
+          hole, and the sprinkles fall through it.
+
+          `isolate` + `-z-10`: a negative z-index child paints above its
+          parent's background but below every in-flow sibling, so the flecks
+          pass behind the headline and the cake without needing a z-index on
+          anything else. `isolate` keeps that negative layer inside this
+          section instead of letting it search for a stacking context up the
+          tree and end up behind the page. `overflow-hidden` is what clips the
+          field — see the keyframe note in globals.css.
+        */}
+        <section className="relative isolate grid grid-cols-[minmax(0,1fr)] items-center gap-10 overflow-hidden bg-[linear-gradient(180deg,#FDFCFA_0%,#F2EEE6_62%,#EBE7DD_100%)] px-4 pt-12 pb-16 sm:px-8 lg:min-h-[780px] lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-0 lg:px-0 lg:py-0 lg:pl-14">
+          <HeroSprinkles className="-z-10" />
+
           <HeroReveal className="flex max-w-[41.25rem] flex-col justify-center gap-7 lg:gap-8">
             <span className={`${eyebrow} tracking-[0.24em]`}>
               Single bakery · Jubilee Hills · Hyderabad
@@ -90,7 +190,10 @@ export default function Home() {
               <span className="text-graphite italic">Designed by you.</span>
             </h1>
 
-            <p className="max-w-[46ch] text-lede leading-relaxed text-steel">
+            {/* 46ch → 52ch. Still inside §1.1's 62-character ceiling, and it is
+                the copy column's widest line, so it is the line that decides
+                where the left half of the hero visually ends. */}
+            <p className="max-w-[52ch] text-lede leading-relaxed text-steel">
               Nine choices, one cake, rendered in front of you as you make them. The
               price is itemised from the first tap — and nobody takes your money
               until we have spoken.
@@ -107,9 +210,9 @@ export default function Home() {
 
             <ul className="flex flex-wrap items-center gap-4 pt-1 font-mono text-micro tracking-[0.13em] text-steel uppercase">
               <li>Live price from step one</li>
-              <li aria-hidden className="size-[3px] rounded-full bg-rule" />
+              <li aria-hidden className="size-[3px] bg-rule" />
               <li>No payment now</li>
-              <li aria-hidden className="size-[3px] rounded-full bg-rule" />
+              <li aria-hidden className="size-[3px] bg-rule" />
               <li>{ZONE_LEAD[0].hours}-hour lead time</li>
             </ul>
           </HeroReveal>
@@ -135,20 +238,20 @@ export default function Home() {
                 cap only ever binds where it has to. */}
             <div
               aria-hidden
-              className="pointer-events-none absolute top-1/2 left-1/2 size-[40rem] max-w-full -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(50%_50%_at_50%_40%,rgba(250,245,234,.95),rgba(250,245,234,0)_72%)]"
+              className="pointer-events-none absolute top-1/2 left-1/2 size-[40rem] max-w-full -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(50%_50%_at_50%_40%,rgba(250,245,234,.95),rgba(250,245,234,0)_72%)]"
             />
             <HeroCake config={HERO} />
 
             <div className="pointer-events-none absolute top-4 right-4 hidden text-right font-mono text-micro leading-loose tracking-[0.1em] text-steel lg:top-24 lg:right-14 lg:block">
               <div className="text-graphite uppercase">{HERO_CAKE_NAME}</div>
               <div className="uppercase">{servingsLabel(HERO)}</div>
-              <div className="font-bold text-ink">{formatINR(priceCake(HERO).total)}</div>
+              <div className="font-medium text-ink">{formatINR(priceCake(HERO).total)}</div>
             </div>
           </div>
         </section>
 
         {/* ── The catalogue, in four numbers ────────────────────────────── */}
-        <dl className="grid grid-cols-2 border-y border-slab-deep bg-slab lg:grid-cols-4">
+        <dl className="grid grid-cols-2 border-y border-rule bg-paper lg:grid-cols-4">
           {[
             ["Shapes", SHAPES.length],
             ["Sponges", SPONGES.length],
@@ -159,9 +262,9 @@ export default function Home() {
               key={label}
               className={[
                 "px-6 py-7 sm:px-10",
-                i < 3 ? "lg:border-r lg:border-slab-deep" : "",
-                i % 2 === 0 ? "border-r border-slab-deep lg:border-r" : "",
-                i < 2 ? "border-b border-slab-deep lg:border-b-0" : "",
+                i < 3 ? "lg:border-r lg:border-rule" : "",
+                i % 2 === 0 ? "border-r border-rule lg:border-r" : "",
+                i < 2 ? "border-b border-rule lg:border-b-0" : "",
               ].join(" ")}
             >
               <dd className="font-display text-[2.375rem] leading-none">{n}</dd>
@@ -282,8 +385,8 @@ export default function Home() {
             exactly the drift this section claims cannot happen.
           */}
           <div className="flex items-center justify-center overflow-hidden bg-[linear-gradient(180deg,#E4E0D6,#D8D3C7)] px-4 py-16 sm:px-8">
-            <div className="w-[21.25rem] max-w-full rotate-[-1.6deg] shadow-elev-3">
-              <Docket config={HERO} className="max-h-[32rem] rounded-ticket border border-rule" />
+            <div className="w-[21.25rem] max-w-full rotate-[-1.6deg] ">
+              <Docket config={HERO} className="max-h-[32rem] border border-rule" />
             </div>
           </div>
         </section>
@@ -296,7 +399,7 @@ export default function Home() {
           <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
             <div className="flex flex-col gap-3.5">
               <h2 className="text-[2rem]">
-                One kitchen. <span className="italic">One city.</span>
+                One kitchen. <span className="text-steel">One city.</span>
               </h2>
               <p className="max-w-[34ch] text-body leading-relaxed text-steel">
                 We bake to order in Jubilee Hills and deliver across Hyderabad.
@@ -336,7 +439,7 @@ export default function Home() {
           </h2>
           <Link
             href="/build/shape"
-            className="inline-flex min-h-14 items-center gap-3 rounded-card bg-paper px-8 text-item font-medium text-ink transition-colors duration-[--dur-ui] hover:bg-counter"
+            className="inline-flex min-h-14 items-center gap-3 bg-paper px-8 text-item font-medium text-ink transition-colors duration-[--dur-ui] hover:bg-counter"
           >
             Start building <span aria-hidden className="font-mono text-meta">→</span>
           </Link>

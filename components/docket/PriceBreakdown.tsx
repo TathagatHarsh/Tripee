@@ -47,7 +47,7 @@ export function PriceBreakdown({
       {row("Subtotal", price.subtotal)}
       {row(`GST @ ${Math.round(price.gstRate * 100)}%`, price.gst)}
 
-      <div className="mt-2.5 flex items-baseline gap-1 border-t border-ink pt-2.5 font-mono text-meta font-bold tabular-nums text-ink">
+      <div className="mt-2.5 flex items-baseline gap-1 border-t border-ink pt-2.5 font-mono text-meta font-medium tabular-nums text-ink">
         <span className="shrink-0 tracking-[0.1em]">TOTAL</span>
         <span aria-hidden className="min-w-2 grow self-stretch" />
         <span

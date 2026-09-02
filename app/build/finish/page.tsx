@@ -28,7 +28,7 @@ export default function FinishStep() {
         />
 
         {fixedColour ? (
-          <p className="rounded-card border border-rule bg-sunken px-4 py-3.5 text-meta leading-snug text-graphite">
+          <p className="border border-rule bg-sunken px-4 py-3.5 text-meta leading-snug text-graphite">
             Ganache is chocolate and cream — its colour comes from the chocolate, so
             there is nothing to tint. Pick a different frosting if you want a colour.
           </p>
@@ -65,10 +65,10 @@ export default function FinishStep() {
 
         <label
           className={[
-            "flex min-h-11 cursor-pointer items-start gap-3 rounded-card border px-4 py-3.5",
+            "flex min-h-11 cursor-pointer items-start gap-3 border px-4 py-3.5",
             "transition-[background-color,border-color,box-shadow] duration-[--dur-ui] ease-[--ease-out]",
             config.hasDrip
-              ? "border-ink bg-paper shadow-elev-1"
+              ? "border-ink bg-paper "
               : dripOff
                 ? "cursor-not-allowed border-dashed border-seal/50 bg-counter"
                 : "border-rule bg-paper hover:border-rule-strong",
@@ -86,7 +86,7 @@ export default function FinishStep() {
               <span className={`text-item font-medium ${dripOff ? "text-steel" : "text-ink"}`}>
                 Chocolate drip
               </span>
-              <span className="shrink-0 font-mono text-micro font-bold text-brass tabular-nums">
+              <span className="shrink-0 font-mono text-micro font-medium text-brass tabular-nums">
                 {formatDelta(deltaFor(config, { hasDrip: !config.hasDrip }))}
               </span>
             </span>

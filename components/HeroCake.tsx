@@ -19,7 +19,15 @@ export function HeroCake({ config }: { config: CakeConfig }) {
       {/* Grab, not pointer: the cake turns, it is not a button. `touch-pan-y`
           leaves vertical swipes to the page, so a phone can still scroll past
           a canvas that fills most of its width. */}
-      <div className="relative h-[clamp(20rem,42vw,38.75rem)] w-full cursor-grab touch-pan-y active:cursor-grabbing">
+      {/* 42vw/38.75rem → 47vw/42rem. The hero shot is `fit: "contain"` (see
+          three/CakeScene HERO_SHOT), so the cake is sized by the box it is
+          given and no part of the camera has to be re-tuned: a taller stage is
+          a bigger cake. It was 460px wide inside a 685px column, which left
+          110px of empty page on the side facing the copy and was half of the
+          gap down the middle of the hero. The phone floor stays at 20rem — the
+          cake already fills the width there, and more height would only push
+          the copy further off the first screen. */}
+      <div className="relative h-[clamp(20rem,47vw,42rem)] w-full cursor-grab touch-pan-y active:cursor-grabbing">
         <CakePreview config={config} hero />
       </div>
 
@@ -29,8 +37,8 @@ export function HeroCake({ config }: { config: CakeConfig }) {
           so an absolutely-placed badge lands on the board and covers the thing it
           is describing. In flow it simply sits beneath, which is where the brief
           asks for it anyway. */}
-      <span className="pointer-events-none mt-3 flex h-[34px] items-center gap-2.5 rounded-full border border-rule bg-paper/90 px-3.5 font-mono text-micro tracking-[0.13em] whitespace-nowrap text-steel uppercase backdrop-blur-[6px] lg:absolute lg:bottom-12 lg:left-1/2 lg:mt-0 lg:-translate-x-1/2">
-        <span aria-hidden className="size-1.5 rounded-full bg-brass" />
+      <span className="pointer-events-none mt-3 flex h-[34px] items-center gap-2.5 border border-rule bg-paper/90 px-3.5 font-mono text-micro tracking-[0.13em] whitespace-nowrap text-steel uppercase backdrop-blur-[6px] lg:absolute lg:bottom-12 lg:left-1/2 lg:mt-0 lg:-translate-x-1/2">
+        <span aria-hidden className="size-1.5 bg-brass" />
         Live 3D · Drag to turn
       </span>
     </>

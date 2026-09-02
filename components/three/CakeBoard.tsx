@@ -3,7 +3,7 @@
 import * as THREE from "three";
 import { useMemo } from "react";
 import { BOARD_MATERIAL } from "./materials";
-import { boardGeometry } from "./geometry";
+import { BOARD_DROP, boardGeometry } from "./geometry";
 import { boardGrain, boardNormal } from "./noise";
 import { bakeOcclusion, useDisposed } from "./useDisposable";
 
@@ -53,7 +53,7 @@ export function CakeBoard({ radius, cakeRadius }: { radius: number; cakeRadius?:
   }, []);
 
   return (
-    <mesh geometry={geometry} position={[0, -0.05, 0]} receiveShadow castShadow>
+    <mesh geometry={geometry} position={[0, -BOARD_DROP, 0]} receiveShadow castShadow>
       <meshPhysicalMaterial
         color={BOARD_MATERIAL.color}
         map={grainMap}

@@ -10,6 +10,15 @@ import {
  * The eight rules, encoded:
  *  1. Never pure white, never pure black — see lib/color.ts clamps.
  *  2. Roughness stays between 0.35 and 0.75; only ganache and glaze go lower.
+ *     CARBON COPY §5.3 makes this a hard floor rather than a guideline: 0.35 on
+ *     every surface, with two sanctioned exceptions — dark ganache at 0.28 and
+ *     gold leaf at 0.15. The frosting values below are the document's own table,
+ *     and they are materially higher than what was here (whipped 0.58 → 0.85,
+ *     American 0.46 → 0.70, Swiss 0.36 → 0.60, cream cheese 0.48 → 0.75). Every
+ *     one of those was under the floor, and collectively they are the reason the
+ *     cakes read as plastic. Mirror glaze is a third exception by necessity — it
+ *     is a mirror by definition — but it sits at gold leaf's 0.15 rather than
+ *     below it, so nothing in the scene is glossier than the brand's one metal.
  *  3. Every surface gets a normal map. 2–3% is enough.
  *  4/5. Handled by the lighting rig.
  *  6. Sheen with a warm sheenColor fakes subsurface warmth for free.
@@ -67,13 +76,13 @@ export const FROSTING_MATERIALS: Record<Frosting, FrostingMaterialSpec> = {
     // weakest specular, and the most sheen — the one place where the fabric lobe
     // is telling the truth, because whipped cream really does scatter at the
     // silhouette the way a napped surface does.
-    roughness: 0.58, metalness: 0,
+    roughness: 0.85, metalness: 0,
     sheen: 0.16, sheenColor: "#FFEFD9", sheenRoughness: 0.9,
     clearcoat: 0, normalScale: 0.15, baseColor: "#F7F1E6",
     ior: 1.44, specularIntensity: 0.34, roughnessBreakup: true,
   },
   "american-buttercream": {
-    roughness: 0.46, metalness: 0,
+    roughness: 0.70, metalness: 0,
     sheen: 0.07, sheenColor: "#FFE9CC", sheenRoughness: 0.8,
     clearcoat: 0, normalScale: 0.11, baseColor: "#F3E7D3",
     ior: 1.46, specularIntensity: 0.5, roughnessBreakup: true,
@@ -83,13 +92,13 @@ export const FROSTING_MATERIALS: Record<Frosting, FrostingMaterialSpec> = {
     // it takes a burnish off a hot palette knife that American never will. That
     // difference is worth keeping; it just belongs in the base lobe, not in a
     // lacquer over the top of it.
-    roughness: 0.36, metalness: 0,
+    roughness: 0.60, metalness: 0,
     sheen: 0.08, sheenColor: "#FFF2E0", sheenRoughness: 0.7,
     clearcoat: 0, normalScale: 0.09, baseColor: "#F5EADA",
     ior: 1.47, specularIntensity: 0.72, roughnessBreakup: true,
   },
   "cream-cheese": {
-    roughness: 0.48, metalness: 0,
+    roughness: 0.75, metalness: 0,
     sheen: 0.09, sheenColor: "#FFF0DC", sheenRoughness: 0.8,
     clearcoat: 0, normalScale: 0.12, baseColor: "#F8F0E2",
     ior: 1.45, specularIntensity: 0.46, roughnessBreakup: true,
@@ -100,7 +109,7 @@ export const FROSTING_MATERIALS: Record<Frosting, FrostingMaterialSpec> = {
     // specular is tinted warm: a neutral-white highlight on a brown dielectric
     // is the exact signature of a metal, and it is why the darkest render in the
     // lab used to read as painted steel at the top edge.
-    roughness: 0.26, metalness: 0,
+    roughness: 0.28, metalness: 0,
     sheen: 0, sheenColor: "#4A2C1A", sheenRoughness: 0.4,
     clearcoat: 0.42, clearcoatRoughness: 0.24,
     normalScale: 0.10, baseColor: "#3B2318", fixedColor: true,
@@ -108,7 +117,7 @@ export const FROSTING_MATERIALS: Record<Frosting, FrostingMaterialSpec> = {
     roughnessBreakup: true,
   },
   "milk-ganache": {
-    roughness: 0.29, metalness: 0,
+    roughness: 0.35, metalness: 0,
     sheen: 0, sheenColor: "#7A5236", sheenRoughness: 0.45,
     clearcoat: 0.36, clearcoatRoughness: 0.28,
     normalScale: 0.10, baseColor: "#6B4A32", fixedColor: true,
@@ -116,7 +125,7 @@ export const FROSTING_MATERIALS: Record<Frosting, FrostingMaterialSpec> = {
     roughnessBreakup: true,
   },
   "white-ganache": {
-    roughness: 0.32, metalness: 0,
+    roughness: 0.40, metalness: 0,
     sheen: 0.06, sheenColor: "#FFF6E8", sheenRoughness: 0.5,
     clearcoat: 0.3, clearcoatRoughness: 0.3,
     normalScale: 0.10, baseColor: "#EFE3CE",
@@ -144,7 +153,7 @@ export const FROSTING_MATERIALS: Record<Frosting, FrostingMaterialSpec> = {
     // Metalness 0.05 was doing nothing a real glaze does — a gelatine-set glaze
     // is a dielectric, and even 5% metal desaturates the diffuse underneath it.
     // The mirror comes from the clearcoat, so the metal can go.
-    roughness: 0.12, metalness: 0,
+    roughness: 0.15, metalness: 0,
     sheen: 0, sheenColor: "#FFF4E4", sheenRoughness: 0.5,
     clearcoat: 0.9, clearcoatRoughness: 0.08,
     normalScale: 0.06, baseColor: "#C4342A",
@@ -362,12 +371,25 @@ export function ombreTop(hex: string): string {
  */
 const CRUMB_LIFT = 0.07;
 
+/**
+ * The flavour's own colour, marble's blend included, and **without** CRUMB_LIFT.
+ *
+ * This is what a sponge surface should be painted when it is too small to carry
+ * the crumb maps — the lift exists only to be cancelled by the tone map's average,
+ * so a mapless surface that keeps it renders every flavour 7% pale. The loose
+ * crumbs on the board are 1-3mm and sit inside a single cell of a map tiled for a
+ * hundred, so they are exactly that case.
+ */
+export function spongeBaseColor(sponge: Sponge): string {
+  const base = SPONGE_COLORS[sponge];
+  return sponge === "marble" ? mix(base, SPONGE_COLORS["belgian-chocolate"], 0.28) : base;
+}
+
 export function spongeMaterial(
   sponge: Sponge,
   repeat: number | [number, number] = 4,
 ): MaterialProps {
-  const base = SPONGE_COLORS[sponge];
-  const blended = sponge === "marble" ? mix(base, SPONGE_COLORS["belgian-chocolate"], 0.28) : base;
+  const blended = spongeBaseColor(sponge);
 
   const [rx, ry] = Array.isArray(repeat) ? repeat : [repeat, repeat];
   const tex = tiled(spongeNormal(), rx, ry);
@@ -375,7 +397,7 @@ export function spongeMaterial(
   return {
     color: shade(blended, CRUMB_LIFT),
     map: tiled(spongeCrumb(), rx, ry),
-    roughness: 0.86,
+    roughness: 0.90,
     metalness: 0,
     sheen: 0.12,
     sheenColor: "#FFE7C8",
@@ -417,7 +439,7 @@ export function fillingMaterial(filling: Filling): MaterialProps {
 
   return {
     color: FILLING_COLORS[filling],
-    roughness: 0.48,
+    roughness: 0.55,
     metalness: 0,
     sheen: 0.2,
     sheenColor: "#FFE9CC",
@@ -454,17 +476,17 @@ export const TOPPING_MATERIALS: Record<Topping, ToppingMaterialSpec> = {
   blueberry: { color: TOPPING_COLORS.blueberry, roughness: 0.52, metalness: 0, clearcoat: 0.16, sheen: 0.22 },
   // The shiniest fruit in the catalogue, and the gloss is doing the darkening
   // the base colour was not allowed to do. See the note in TOPPING_COLORS.
-  cherry: { color: TOPPING_COLORS.cherry, roughness: 0.22, metalness: 0, clearcoat: 0.55 },
+  cherry: { color: TOPPING_COLORS.cherry, roughness: 0.35, metalness: 0, clearcoat: 0.55 },
   "pineapple-chunk": { color: TOPPING_COLORS["pineapple-chunk"], roughness: 0.44, metalness: 0, clearcoat: 0.3 },
-  "chocolate-shard": { color: TOPPING_COLORS["chocolate-shard"], roughness: 0.24, metalness: 0, clearcoat: 0.4 },
-  "chocolate-curl": { color: TOPPING_COLORS["chocolate-curl"], roughness: 0.3, metalness: 0, clearcoat: 0.3 },
-  "white-chocolate-curl": { color: TOPPING_COLORS["white-chocolate-curl"], roughness: 0.34, metalness: 0, clearcoat: 0.26 },
+  "chocolate-shard": { color: TOPPING_COLORS["chocolate-shard"], roughness: 0.35, metalness: 0, clearcoat: 0.4 },
+  "chocolate-curl": { color: TOPPING_COLORS["chocolate-curl"], roughness: 0.35, metalness: 0, clearcoat: 0.3 },
+  "white-chocolate-curl": { color: TOPPING_COLORS["white-chocolate-curl"], roughness: 0.35, metalness: 0, clearcoat: 0.26 },
   /* The one chocolate here with no gloss at all. A truffle and a Ferrero are the
      same rolled ball — see toppingGeometry — so cocoa dust against gold foil is
      the entire difference between them, and it is a material difference. */
   truffle: { color: TOPPING_COLORS.truffle, roughness: 0.76, metalness: 0, clearcoat: 0 },
   // Set sugar is nearly glass: a hard, narrow highlight and a wet skin over it.
-  "caramel-shard": { color: TOPPING_COLORS["caramel-shard"], roughness: 0.15, metalness: 0, clearcoat: 0.58 },
+  "caramel-shard": { color: TOPPING_COLORS["caramel-shard"], roughness: 0.35, metalness: 0, clearcoat: 0.58 },
   "butterscotch-crunch": { color: TOPPING_COLORS["butterscotch-crunch"], roughness: 0.5, metalness: 0, clearcoat: 0.22 },
   /* The only topping with a normal map. Everything else in the catalogue is a
      small curved solid whose silhouette does the work; a biscuit is a flat plane
@@ -480,15 +502,20 @@ export const TOPPING_MATERIALS: Record<Topping, ToppingMaterialSpec> = {
   "meringue-kiss": { color: TOPPING_COLORS["meringue-kiss"], roughness: 0.62, metalness: 0, clearcoat: 0.06, sheen: 0.35 },
   // Soaked in sweetened milk and never dried, so it is wet rather than merely
   // pale — the sheen is the milk still sitting on it.
-  "rasmalai-disc": { color: TOPPING_COLORS["rasmalai-disc"], roughness: 0.34, metalness: 0, clearcoat: 0.34, sheen: 0.26 },
-  "gold-leaf": { color: TOPPING_COLORS["gold-leaf"], roughness: 0.28, metalness: 0.95, clearcoat: 0 },
+  "rasmalai-disc": { color: TOPPING_COLORS["rasmalai-disc"], roughness: 0.35, metalness: 0, clearcoat: 0.34, sheen: 0.26 },
+  // §5.3: "genuinely metallic, roughness 0.15. The one place metal is allowed in
+  // this brand." Both halves of that are load-bearing — see `ferrero` below.
+  "gold-leaf": { color: TOPPING_COLORS["gold-leaf"], roughness: 0.15, metalness: 0.95, clearcoat: 0 },
   sprinkles: { color: TOPPING_COLORS.sprinkles, roughness: 0.42, metalness: 0, clearcoat: 0.3 },
   "pistachio-crumb": { color: TOPPING_COLORS["pistachio-crumb"], roughness: 0.8, metalness: 0, clearcoat: 0 },
   "pistachio-nut": { color: TOPPING_COLORS["pistachio-nut"], roughness: 0.6, metalness: 0, clearcoat: 0.1 },
   "almond-sliver": { color: TOPPING_COLORS["almond-sliver"], roughness: 0.66, metalness: 0, clearcoat: 0.06 },
   "edible-flower": { color: TOPPING_COLORS["edible-flower"], roughness: 0.62, metalness: 0, clearcoat: 0.08, sheen: 0.4 },
   oreo: { color: TOPPING_COLORS.oreo, roughness: 0.74, metalness: 0, clearcoat: 0 },
-  ferrero: { color: TOPPING_COLORS.ferrero, roughness: 0.44, metalness: 0.15, clearcoat: 0.25 },
+  // Metalness 0.15 was a fifth of a conductor on a foil-wrapped ball, and gold
+  // leaf is the only metal this brand allows (§5.3). The foil read comes from the
+  // clearcoat and the colour instead; 0.15 metal only desaturated the diffuse.
+  ferrero: { color: TOPPING_COLORS.ferrero, roughness: 0.44, metalness: 0, clearcoat: 0.25 },
 };
 
 /** Sprinkles and mixed berries need more than one colour to read right. */

@@ -7,7 +7,7 @@ import { ViolationCard } from "@/components/builder/ViolationCard";
 import { PriceBreakdown } from "@/components/docket/PriceBreakdown";
 import { deriveAllergens } from "@/lib/allergens";
 import { resolveSlot } from "@/lib/delivery";
-import { buildDocket, renderSpecSheet } from "@/lib/docket";
+import { buildDocket, deriveLayers, renderSpecSheet } from "@/lib/docket";
 import { formatINR } from "@/lib/format";
 import { DELIVERED_PHOTOS } from "@/lib/photos";
 import { priceCake } from "@/lib/pricing";
@@ -57,6 +57,7 @@ export default function ReviewStep() {
   const docket = buildDocket(config);
   const allergens = deriveAllergens(config);
   const servings = deriveServings(config);
+  const layers = deriveLayers(config);
   const handling = deriveHandling(config);
   const slot = resolveSlot(config.delivery, config.pincode);
   // The server refuses an order with no name or no reachable number, so the
@@ -191,9 +192,9 @@ export default function ReviewStep() {
       <ViolationCard />
 
       {/* Who we call. Above the order button, because the button depends on it. */}
-      <section className="flex flex-col gap-3.5 rounded-panel border border-rule bg-paper p-5">
+      <section className="flex flex-col gap-3.5 border border-rule bg-paper p-5">
         <div className="flex flex-col gap-[3px]">
-          <h2 className="text-group font-sans font-semibold tracking-[-0.01em]">
+          <h2 className="text-group font-sans font-medium tracking-[-0.01em]">
             Who is this for?
           </h2>
           <p className="text-meta text-steel">
@@ -223,7 +224,7 @@ export default function ReviewStep() {
       </section>
 
       {/* The one ink surface in the flow, and the reason the flow exists. */}
-      <section className="flex flex-col gap-4 rounded-panel bg-ink p-6 shadow-elev-3">
+      <section className="flex flex-col gap-4 bg-ink p-6 ">
         <div className="flex items-end justify-between gap-4">
           <div className="flex min-w-0 flex-col gap-1.5">
             <span className="font-mono text-micro tracking-[0.16em] whitespace-nowrap text-quiet">
@@ -231,15 +232,15 @@ export default function ReviewStep() {
             </span>
             <span
               key={price.total}
-              className="font-mono text-[1.625rem] leading-none font-bold text-paper tabular-nums motion-safe:animate-[price-tick_var(--dur-settle)_var(--ease-out)]"
+              className="font-mono text-[1.625rem] leading-none font-medium text-paper tabular-nums motion-safe:animate-[price-tick_var(--dur-settle)_var(--ease-out)]"
             >
               {formatINR(price.total)}
             </span>
           </div>
-          <span className="flex h-[30px] shrink-0 items-center gap-2 rounded-full border border-graphite px-3 font-mono text-micro tracking-[0.1em] whitespace-nowrap text-quiet">
+          <span className="flex h-[30px] shrink-0 items-center gap-2 border border-graphite px-3 font-mono text-micro tracking-[0.1em] whitespace-nowrap text-quiet">
             <span
               aria-hidden
-              className={`size-[5px] rounded-full ${stage.kind === "idle" ? "bg-[#8FA85E]" : "bg-brass"}`}
+              className={`size-[5px] ${stage.kind === "idle" ? "bg-[#8FA85E]" : "bg-brass"}`}
             />
             {stage.kind === "idle" ? "PRICE CONFIRMED" : "CHECKING"}
           </span>
@@ -260,7 +261,7 @@ export default function ReviewStep() {
            * changes the colours, not the alpha.
            */
           className={[
-            "flex min-h-14 items-center justify-center rounded-card bg-paper px-6 text-item font-medium text-ink",
+            "flex min-h-14 items-center justify-center bg-paper px-6 text-item font-medium text-ink",
             "transition-colors duration-[--dur-ui] ease-[--ease-out] hover:bg-counter",
             "disabled:cursor-not-allowed disabled:bg-graphite disabled:text-quiet",
           ].join(" ")}
@@ -272,21 +273,21 @@ export default function ReviewStep() {
           <button
             type="button"
             onClick={save}
-            className="flex min-h-11 flex-1 items-center justify-center rounded-card border border-graphite text-body text-quiet transition-colors duration-[--dur-ui] hover:border-quiet hover:text-paper"
+            className="flex min-h-11 flex-1 items-center justify-center border border-graphite text-body text-quiet transition-colors duration-[--dur-ui] hover:border-quiet hover:text-paper"
           >
             Save &amp; share
           </button>
           <button
             type="button"
             onClick={download}
-            className="flex min-h-11 flex-1 items-center justify-center rounded-card border border-graphite text-body text-quiet transition-colors duration-[--dur-ui] hover:border-quiet hover:text-paper"
+            className="flex min-h-11 flex-1 items-center justify-center border border-graphite text-body text-quiet transition-colors duration-[--dur-ui] hover:border-quiet hover:text-paper"
           >
             Download docket
           </button>
         </div>
 
         {stage.kind === "error" && (
-          <p role="alert" className="rounded-card border border-seal bg-seal/15 px-4 py-3 text-meta leading-snug text-paper">
+          <p role="alert" className="border border-seal bg-seal/15 px-4 py-3 text-meta leading-snug text-paper">
             {stage.message}
           </p>
         )}
@@ -307,8 +308,18 @@ export default function ReviewStep() {
         <Row k="Shape" v={`${cap(config.shape)}, ${config.tiers} tier${config.tiers > 1 ? "s" : ""}`} />
         <Row k="Weight" v={`${config.size}`} />
         <Row k="Serves" v={`${servings.min}–${servings.max} · ${servings.basis}`} />
-        <Row k="Sponge" v={`${cap(config.sponge)}, ${config.layers} layers`} />
-        <Row k="Filling" v={cap(config.filling)} />
+        <Row
+          k="Layers"
+          v={
+            <span className="flex flex-col gap-0.5">
+              {layers.map((l, i) => (
+                <span key={i}>
+                  {l.flavor} {l.type}
+                </span>
+              ))}
+            </span>
+          }
+        />
         <Row k="Frosting" v={`${cap(config.frosting)}, ${cap(config.coverage)}, ${cap(config.finish)}`} />
         {config.hasDrip && <Row k="Drip" v="Yes" />}
         <Row
@@ -357,7 +368,7 @@ export default function ReviewStep() {
           </div>
           <div className="grid grid-cols-2 gap-2.5 @lg:grid-cols-3">
             {DELIVERED_PHOTOS.map(p => (
-              <figure key={p.src} className="overflow-hidden rounded-card border border-rule bg-paper">
+              <figure key={p.src} className="overflow-hidden border border-rule bg-paper">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={p.src} alt={p.alt} className="w-full" />
                 <figcaption className="px-3 py-2.5 text-meta leading-snug text-steel">
@@ -390,7 +401,7 @@ function Placed({
       <span className={eyebrow}>Order placed</span>
       <h1 className="text-heading">
         Order{" "}
-        <span className="font-mono text-[0.8em] font-bold tracking-[-0.01em]">
+        <span className="font-mono text-[0.8em] font-medium tracking-[-0.01em]">
           {reference}
         </span>
       </h1>
@@ -414,7 +425,7 @@ function Placed({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-panel border border-rule bg-paper px-5 py-4">
+    <section className="border border-rule bg-paper px-5 py-4">
       <h2 className="mb-2 font-mono text-micro tracking-[0.18em] text-brass uppercase">
         {title}
       </h2>
@@ -423,7 +434,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
+function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex gap-3 border-b border-rule py-2 last:border-0">
       <span className="w-24 shrink-0 font-mono text-micro text-steel">{k}</span>

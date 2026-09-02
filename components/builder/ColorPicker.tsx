@@ -53,17 +53,17 @@ export function ColorPicker({ label, value, onChange, palette, labelHidden }: Pr
               <span
                 aria-hidden
                 className={[
-                  "h-[46px] w-full rounded-[6px] transition-shadow duration-[--dur-ui]",
+                  "h-[46px] w-full transition-shadow duration-[--dur-ui]",
                   on
-                    ? "shadow-[inset_0_0_0_2px_#FDFCFA,0_0_0_2px_#17161A]"
-                    : "shadow-[inset_0_0_0_1px_#8E887A]",
+                    ? ""
+                    : "",
                 ].join(" ")}
                 style={{ background: p.hex }}
               />
               <span
                 className={[
                   "text-center text-[0.71875rem] leading-tight",
-                  on ? "font-semibold text-ink" : "text-steel",
+                  on ? "font-medium text-ink" : "text-steel",
                 ].join(" ")}
               >
                 {p.name}
@@ -76,7 +76,7 @@ export function ColorPicker({ label, value, onChange, palette, labelHidden }: Pr
         <label className="flex cursor-pointer flex-col items-center gap-[7px]">
           <span
             aria-hidden
-            className="grid h-[46px] w-full place-items-center rounded-[6px] border border-dashed border-rule-strong text-steel"
+            className="grid h-[46px] w-full place-items-center border border-dashed border-rule-strong text-steel"
           >
             +
           </span>
@@ -97,7 +97,7 @@ export function ColorPicker({ label, value, onChange, palette, labelHidden }: Pr
         <p className="mt-3 flex items-start gap-2.5 text-meta leading-snug text-steel">
           <span
             aria-hidden
-            className="mt-0.5 size-4 shrink-0 rounded-[4px] shadow-[inset_0_0_0_1px_rgb(23_22_26/0.16)]"
+            className="mt-0.5 size-4 shrink-0 "
             style={{ background: achievable(value) }}
           />
           <span>{clampReason(value)}</span>

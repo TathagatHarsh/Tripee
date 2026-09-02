@@ -24,7 +24,18 @@ interface ViewState {
 }
 
 export const useView = create<ViewState>()((set) => ({
-  sliced: false,
+  /*
+   * Section is the default; the whole cake is the toggle. §5.3: "Section view is
+   * the default. Whole cake is the toggle." — and §10 promotes "Cut a slice" from
+   * a small grey button to the opening view.
+   *
+   * The argument is that a photograph of an iced cylinder is something a
+   * photographer will always beat you at, whereas nobody else can show a customer
+   * the inside of the cake they are halfway through choosing. The section is the
+   * one view where sponge, filling and layer count are all visible at once, which
+   * is most of what the builder spends nine steps asking about.
+   */
+  sliced: true,
   toggleSlice: () => set((s) => ({ sliced: !s.sliced })),
 
   composingMessage: false,

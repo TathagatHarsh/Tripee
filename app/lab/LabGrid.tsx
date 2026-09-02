@@ -56,7 +56,7 @@ export function LabGrid() {
           return (
             <figure
               key={entry.label}
-              className="overflow-hidden rounded-sm bg-paper paper-edge"
+              className="overflow-hidden bg-paper paper-edge"
             >
               <button
                 type="button"
@@ -74,7 +74,7 @@ export function LabGrid() {
 
               <figcaption className="border-t border-rule px-3 py-2.5">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-meta font-semibold ">
+                  <span className="text-meta font-medium ">
                     {entry.label}
                   </span>
                   <span className="font-mono text-meta tabular-nums text-steel">
@@ -99,7 +99,7 @@ export function LabGrid() {
           onClick={() => setBig(null)}
         >
           <div
-            className="h-[min(88vh,88vw)] w-[min(88vh,88vw)] overflow-hidden rounded-sm bg-paper"
+            className="h-[min(88vh,88vw)] w-[min(88vh,88vw)] overflow-hidden bg-paper"
             onClick={(e) => e.stopPropagation()}
           >
             <LazyCakeScene config={LAB_CONFIGS[big].config} autoRotate={autoRotate} />

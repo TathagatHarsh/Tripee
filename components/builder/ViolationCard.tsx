@@ -32,7 +32,7 @@ export function ViolationCard({ field }: { field?: keyof CakeConfig }) {
             key={v.id}
             role={block ? "alert" : "status"}
             className={[
-              "flex flex-col gap-3 rounded-card border px-4",
+              "flex flex-col gap-3 border px-4",
               block
                 ? "border-seal/40 bg-seal-tint py-4"
                 : "border-rule bg-paper py-3.5",
