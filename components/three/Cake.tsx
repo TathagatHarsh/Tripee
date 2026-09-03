@@ -69,8 +69,8 @@ export function Cake({
 }: Props) {
   const seed = useMemo(() => seedFrom(config), [config]);
   const tiers = useMemo(
-    () => tierDims(config.size, config.tiers, config.shape),
-    [config.size, config.tiers, config.shape],
+    () => tierDims(config.size, config.tiers),
+    [config.size, config.tiers],
   );
 
   // Worked out once and handed to the toppings, so nothing lands on the words.
@@ -179,7 +179,7 @@ function Rise({
 
 /** Where the camera should look, given how tall the cake ended up. */
 export function cakeFocus(config: CakeConfig): { height: number; radius: number } {
-  const tiers = tierDims(config.size, config.tiers, config.shape);
+  const tiers = tierDims(config.size, config.tiers);
   const top = tiers[tiers.length - 1];
   return {
     height: top.y + top.height,

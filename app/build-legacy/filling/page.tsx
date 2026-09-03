@@ -1,8 +1,8 @@
 "use client";
 
-import { OptionGrid } from "@/components/builder/OptionGrid";
-import { StepHeader } from "@/components/builder/StepHeader";
-import { ViolationCard } from "@/components/builder/ViolationCard";
+import { OptionGrid } from "@/components/builder-legacy/OptionGrid";
+import { StepHeader } from "@/components/builder-legacy/StepHeader";
+import { ViolationCard } from "@/components/builder-legacy/ViolationCard";
 import { FILLINGS } from "@/lib/catalog";
 import { btn } from "@/lib/ui";
 import { useView } from "@/lib/view";

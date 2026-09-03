@@ -6,9 +6,10 @@ import { formatDelta, formatINR } from "@/lib/format";
 import { canSubmit } from "@/lib/rules";
 import { decodeConfig, encodeConfig, makeOrderRef } from "@/lib/share";
 import { mulberry32, scatterDisc, seedFrom } from "@/lib/seed";
-import { CakeConfig, DEFAULT_CAKE, migrateConfig, type CakeConfig as Cfg } from "@/lib/schema";
+import { CakeConfig, DEFAULT_CAKE, Shape, migrateConfig, type CakeConfig as Cfg } from "@/lib/schema";
 import { deriveHandling, deriveServings } from "@/lib/servings";
 import { PRESETS } from "@/lib/presets";
+import { SHAPES } from "@/lib/catalog";
 
 const cake = (patch: Partial<Cfg> = {}): Cfg => ({ ...DEFAULT_CAKE, ...patch });
 
@@ -147,6 +148,36 @@ describe("schema migration", () => {
 
   it("rejects a config with an unknown enum value", () => {
     expect(migrateConfig({ ...DEFAULT_CAKE, sponge: "durian" })).toBeNull();
+  });
+
+  /*
+   * Bundt was withdrawn as a shape. A saved design that names it is a cake
+   * somebody configured and may have shared, so it has to keep loading — the
+   * whole point of the coercion is that a withdrawn value does not take the
+   * other fifteen fields down with it.
+   */
+  it("loads a withdrawn shape as the shape it was closest to", () => {
+    const saved = { ...DEFAULT_CAKE, shape: "bundt", sponge: "marble" as const };
+    const loaded = migrateConfig(saved);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.shape).toBe("round");
+    // Everything else on that ticket survives, which is the part that matters.
+    expect(loaded!.sponge).toBe("marble");
+    expect(loaded).toEqual({ ...DEFAULT_CAKE, shape: "round", sponge: "marble" });
+  });
+
+  it("leaves a coerced shape alone when it was never a bundt", () => {
+    for (const shape of Shape.options) {
+      expect(migrateConfig({ ...DEFAULT_CAKE, shape })!.shape).toBe(shape);
+    }
+  });
+
+  it("no longer offers Bundt anywhere a customer can pick a shape", () => {
+    expect(Shape.options).not.toContain("bundt");
+    expect(SHAPES.map(s => s.value)).not.toContain("bundt");
+    // The picker and the schema must not drift: a card with no enum value behind
+    // it is a shape a customer can choose and the server will reject.
+    expect(SHAPES.map(s => s.value).sort()).toEqual([...Shape.options].sort());
   });
 
   it("rejects a config missing the version", () => {

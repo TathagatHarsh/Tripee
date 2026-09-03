@@ -2,7 +2,7 @@ import { DEFAULT_CAKE, type CakeConfig } from "@/lib/schema";
 
 const c = (patch: Partial<CakeConfig>): CakeConfig => ({ ...DEFAULT_CAKE, ...patch });
 
-/** The extremes, deliberately. If all twelve look edible, the look is found. */
+/** The extremes, deliberately. If all of them look edible, the look is found. */
 export const LAB_CONFIGS: { label: string; note: string; config: CakeConfig }[] = [
   {
     label: "Darkest ganache",
@@ -108,16 +108,6 @@ export const LAB_CONFIGS: { label: string; note: string; config: CakeConfig }[] 
       shape: "heart", size: "1kg", frosting: "white-ganache", finish: "ombre",
       frostingColor: "#D9A0A0", sponge: "red-velvet", filling: "raspberry-compote",
       message: "I love you",
-    }),
-  },
-  {
-    label: "Bundt",
-    note: "Lathe plus radial fluting. Glazed, not frosted.",
-    config: c({
-      shape: "bundt", size: "1kg", coverage: "top-only",
-      frosting: "white-ganache", finish: "smooth", frostingColor: "#EFD9A0",
-      sponge: "marble", hasDrip: true, dripColor: "#E8D9BE",
-      toppings: [{ kind: "pistachio-crumb", placement: "top-ring", density: 3 }],
     }),
   },
 ];

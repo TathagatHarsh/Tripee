@@ -25,7 +25,9 @@ export default async function LabSoloPage({
       <div className="mb-3 flex items-baseline justify-between gap-4">
         <h1 className="text-sm ">{entry.label}</h1>
         <nav className="flex gap-3 text-meta text-steel">
-          <Link href="/lab" className="underline underline-offset-4">All twelve</Link>
+          <Link href="/lab" className="underline underline-offset-4">
+            All {LAB_CONFIGS.length}
+          </Link>
           {i > 0 && <Link href={`/lab/${i - 1}`}>Prev</Link>}
           {i < LAB_CONFIGS.length - 1 && <Link href={`/lab/${i + 1}`}>Next</Link>}
         </nav>

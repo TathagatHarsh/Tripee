@@ -20,7 +20,7 @@ export function LabGrid() {
         <div>
           <h1 className="text-3xl">Render lab</h1>
           <p className="mt-1 max-w-2xl text-sm text-steel">
-            Twelve extremes at once. Squint at it — does the silhouette read as a cake?
+            {LAB_CONFIGS.length} extremes at once. Squint at it — does the silhouette read as a cake?
             Would you eat it? If anyone says &ldquo;plastic&rdquo;, &ldquo;wax&rdquo; or
             &ldquo;3D model&rdquo;, it is not done.
           </p>

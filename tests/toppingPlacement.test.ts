@@ -18,7 +18,7 @@ import type { Coverage, Shape, ToppingPlacement } from "@/lib/schema";
 const SHAPES: Shape[] = ["round", "square", "rectangle", "hexagon", "heart"];
 
 function fixture(shape: Shape, placement: ToppingPlacement, density = 3, seed = 12345) {
-  const tiers = tierDims("2kg", 1, shape);
+  const tiers = tierDims("2kg", 1);
   const geo = toppingGeo("strawberry");
   const size = geo.scale * scaleForSize(tiers[0].radius);
   const { radius, height } = tiers[0];
@@ -174,7 +174,7 @@ describe("top-face garnishes clear the frosting they are laid on", () => {
   for (const kind of Topping.options) {
     for (const placement of TOP) {
       it(`seats ${kind} (${placement}) on the shell, not the sponge`, () => {
-        const tiers = tierDims("1.5kg", 1, "round");
+        const tiers = tierDims("1.5kg", 1);
         const geo = toppingGeo(kind);
         const size = geo.scale * scaleForSize(tiers[0].radius);
         const placed = place(
@@ -211,13 +211,13 @@ describe("top-face garnishes clear the frosting they are laid on", () => {
 
   /*
    * The other half, and the reason the lift is conditional. A naked or semi-naked
-   * cake has no shell at all — Tier builds one only for `full` coverage (and for a
-   * bundt, which is glazed) — so lifting by a thickness that is not there would
-   * float the fruit above bare sponge.
+   * cake has no shell at all — Tier builds one only for `full` coverage — so
+   * lifting by a thickness that is not there would float the fruit above bare
+   * sponge.
    */
   for (const coverage of ["naked", "semi-naked", "top-only"] as Coverage[]) {
     it(`sits ${coverage} garnishes on the sponge, which is the real surface`, () => {
-      const tiers = tierDims("1.5kg", 1, "round");
+      const tiers = tierDims("1.5kg", 1);
       const geo = toppingGeo("strawberry");
       const size = geo.scale * scaleForSize(tiers[0].radius);
       const spongeTop = tiers[0].y + tiers[0].height;

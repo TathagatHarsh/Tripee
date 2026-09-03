@@ -4,7 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { create, useStore } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { temporal } from "zundo";
-import { CakeConfig, DEFAULT_CAKE } from "./schema";
+import { CakeConfig, DEFAULT_CAKE, coerceLegacy } from "./schema";
 
 interface CakeState {
   config: CakeConfig;
@@ -37,7 +37,15 @@ export const useCake = create<CakeState>()(
       skipHydration: true,
       merge: (persisted, current) => {
         const p = persisted as { config?: unknown } | undefined;
-        const parsed = CakeConfig.safeParse(p?.config);
+        /*
+         * coerceLegacy, not a bare parse: a withdrawn option value would
+         * otherwise fail validation on a *required* field, and the salvage below
+         * can only drop optional ones — so a saved bundt lost the entire design
+         * rather than one shape. schema.coerceLegacy is the single place that
+         * knows what old values mean.
+         */
+        const stored = coerceLegacy(p?.config);
+        const parsed = CakeConfig.safeParse(stored);
         if (parsed.success) return { ...current, config: parsed.data };
 
         // All-or-nothing was too blunt. `pincode` is validated as /^\d{6}$/ and
@@ -45,7 +53,7 @@ export const useCake = create<CakeState>()(
         // then reloaded had the entire cake they had spent ten minutes on thrown
         // away and replaced with the default — because of one optional field
         // that was mid-typing. Drop the fields that failed and keep the design.
-        const salvaged = { ...(p?.config as Record<string, unknown> | undefined) };
+        const salvaged = { ...(stored as Record<string, unknown> | undefined) };
         for (const issue of parsed.error.issues) {
           const key = issue.path[0];
           if (typeof key === "string") delete salvaged[key];

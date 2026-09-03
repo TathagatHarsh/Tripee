@@ -5,8 +5,7 @@ import { useMemo } from "react";
 import type { CakeConfig, Shape } from "@/lib/schema";
 import { achievable } from "@/lib/color";
 import {
-  dripSpecs, dripsGeometry, glazeCapGeometry, outlinePoints, phiOf, rimGeometry,
-  rimRadius, shellRimY, shellThickness,
+  dripSpecs, dripsGeometry, outlinePoints, phiOf, rimGeometry, shellRimY,
   type OutlinePoint, type Sector, type TierDims,
 } from "./geometry";
 import { frostingNormal } from "./noise";
@@ -49,24 +48,9 @@ export function Drip({ config, shape, dims, seed, castShadow, silhouette, sector
   const anchors = useMemo(
     () => silhouette && silhouette.length
       ? silhouette
-      : outlinePoints(shape, rimRadius(shape, dims.radius) + 0.018, 240),
+      : outlinePoints(shape, dims.radius + 0.018, 240),
     [silhouette, shape, dims.radius],
   );
-
-  /* A bundt is glazed rather than dripped — see geometry.glazeCapGeometry for why the
-   * generic runs cannot work on a fluted dome. */
-  const glaze = useDisposed(useMemo(
-    () => {
-      if (shape !== "bundt") return null;
-      // Built off the *shell's* outer dimensions, not the tier's. The frosting shell
-      // is one thickness proud of the tier it covers, so a cap sized to the tier is
-      // a cap rendered inside the cake — which is exactly what happened: the glaze
-      // was there, correct, and completely invisible.
-      const t = shellThickness(dims.radius);
-      return glazeCapGeometry(dims.radius + t, dims.height + t, 72, seed);
-    },
-    [shape, dims.radius, dims.height, seed],
-  ));
 
   /*
    * The wedge is culled here rather than at render time. Each drip used to be its
@@ -74,7 +58,6 @@ export function Drip({ config, shape, dims, seed, castShadow, silhouette, sector
    * merged into one buffer, it has to come out before the geometry is built.
    */
   const specs = useMemo(() => {
-    if (shape === "bundt") return [];
     const all = dripSpecs(seed, dims.radius);
     if (!sector) return all;
     return all.filter(s => {
@@ -87,7 +70,7 @@ export function Drip({ config, shape, dims, seed, castShadow, silhouette, sector
       while (d < -Math.PI) d += Math.PI * 2;
       return Math.abs(d) >= sector.width / 2;
     });
-  }, [seed, dims.radius, sector, anchors, shape]);
+  }, [seed, dims.radius, sector, anchors]);
 
   const geo = useDisposed(useMemo(
     () => dripsGeometry(specs, anchors),
@@ -128,31 +111,14 @@ export function Drip({ config, shape, dims, seed, castShadow, silhouette, sector
   // The top of the frosting's side wall, not the top of the sponge. The shell
   // is a thickness taller and wider than the tier it covers, so measuring from
   // dims.height put the whole rim inside the cake.
-  const rimY = dims.y + shellRimY(dims.radius, dims.height, shape);
+  const rimY = dims.y + shellRimY(dims.radius, dims.height);
 
   return (
     <group position={[0, rimY, 0]}>
       {/* The pool that gathers at the top edge before it runs. A cut cake has
-          no continuous rim to pool along, so it is left off — and so does a bundt,
-          which has no top edge at all: glaze poured over a dome coats the crown and
-          runs straight down the flutes. A tube swept round its shoulder is a torus,
-          and a torus on a fluted cake reads as a plastic hoop, which is exactly how
-          it looked. */}
-      {!sector && shape !== "bundt" && (
+          no continuous rim to pool along, so it is left off. */}
+      {!sector && (
         <mesh geometry={ringGeo} castShadow={castShadow}>
-          {material}
-        </mesh>
-      )}
-
-      {/* The poured coat, which is what a glazed bundt has instead. It hangs off the
-          group's rim offset like everything else here, so it is lifted back to the
-          tier's own base. */}
-      {glaze && (
-        <mesh
-          geometry={glaze}
-          position={[0, -shellRimY(dims.radius, dims.height, shape), 0]}
-          castShadow={castShadow}
-        >
           {material}
         </mesh>
       )}

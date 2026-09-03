@@ -414,8 +414,8 @@ export function spongeMaterial(
 
 /**
  * Tile count that keeps one texture tile about `tile` world units on both axes.
- * Round and bundt tiers are lathes; everything else is extruded and already has
- * roughly world-scaled UVs.
+ * A round tier is a lathe; everything else is extruded and already has roughly
+ * world-scaled UVs.
  */
 export function tileRepeat(
   shape: string,
@@ -423,7 +423,7 @@ export function tileRepeat(
   height: number,
   tile = 1.5,
 ): [number, number] {
-  if (shape === "round" || shape === "bundt") {
+  if (shape === "round") {
     const around = (Math.PI * 2 * radius) / tile;
     const along = (height + radius) / tile;   // lathe v runs the profile length
     return [Math.max(2, Math.round(around)), Math.max(1, Math.round(along))];

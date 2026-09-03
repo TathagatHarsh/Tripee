@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
  * Pixel baselines for the render.
  *
  * Every render bug in this project so far was found by a person looking at a
- * PNG — the inside-out bundt, the mirrored plaque, the drip ring hovering off
+ * PNG — an inside-out lathe, the mirrored plaque, the drip ring hovering off
  * a heart. None of them would have survived a diff. This is that diff.
  *
  * It only works because the cake is deterministic: scatter, drips and layer
@@ -19,7 +19,7 @@ async function settle(page: import("@playwright/test").Page) {
 }
 
 test.describe("render baselines", () => {
-  test("the twelve extremes, whole", async ({ page }) => {
+  test("the extremes, whole", async ({ page }) => {
     await page.goto("/lab");
     await settle(page);
     await expect(page).toHaveScreenshot("lab-whole.png", {
@@ -28,7 +28,7 @@ test.describe("render baselines", () => {
     });
   });
 
-  test("the twelve extremes, cut", async ({ page }) => {
+  test("the extremes, cut", async ({ page }) => {
     await page.goto("/lab");
     await page.waitForSelector("canvas");
     await page.getByLabel("Cut a slice").check();
