@@ -1,11 +1,22 @@
-// Persistence only. The catalogue and the pricing engine live in lib/, not here:
-// lib/catalog.ts is what the UI renders and lib/pricing.ts is the authority on
-// money, and both are imported identically by the browser, the server and the
-// CLI. A CatalogItem table used to mirror them and was never read by a single
-// line of application code, so it was removed rather than left to drift.
+// What the database holds is what cannot be recomputed: saved designs, orders
+// with their price lines frozen at the moment they were agreed, and — since the
+// admin portal — the catalogue itself.
 //
-// What the database holds is what cannot be recomputed: saved designs, and
-// orders with their price lines frozen at the moment they were agreed.
+// That last one has been tried before and got it wrong. A CatalogItem table
+// mirrored lib/catalog.ts and lib/pricing.ts, was derived from them on every
+// seed, and was read by nothing; migration 2_drop_catalog_item removed it. The
+// lesson is not "never put the catalogue in the database" — a bakery has to be
+// able to reprice a filling without a deploy. The lesson is that a catalogue in
+// two places is worse than a catalogue in either one. So CatalogOption is now
+// the only authority on price, availability, copy and order, and the old
+// constants survive only as lib/catalogDefaults.ts: the seed's input, and the
+// fallback for a deployment with no database. Nothing reads them at runtime
+// while a database is reachable.
+//
+// The distinction that matters: these tables store what the bakery decides
+// about an option. They do not decide which options can exist — lib/schema.ts's
+// Zod enums do, because a new topping also needs a mesh, an allergen entry and
+// possibly a rule, none of which a price field can conjure.
 
 generator client {
   provider = "prisma-client-js"
@@ -100,4 +111,108 @@ model OrderItem {
   position  Int
 
   @@index([orderId])
+}
+
+/// The ten dimensions of a cake, mirroring the Zod enums in lib/schema.ts.
+///
+/// A closed list, not a free-form string, because every value here is already
+/// spoken by code that cannot be configured: `topping` has meshes and placement
+/// maths, `size` has diameters and serving counts. A bakery adding an eleventh
+/// dimension is a development task, and this enum failing to compile is the
+/// correct way to find that out.
+enum CatalogCategory {
+  shape
+  size
+  sponge
+  filling
+  frosting
+  coverage
+  finish
+  topping
+  placement
+  delivery
+}
+
+/// One option a customer can pick, and what the bakery has decided about it.
+///
+/// Seeded from lib/catalogDefaults.ts so that day one prices exactly what the
+/// hardcoded constants used to, and edited from /admin thereafter.
+model CatalogOption {
+  id       String          @id @default(cuid())
+  category CatalogCategory
+  /// The Zod enum literal this row describes, e.g. "red-velvet". Validated
+  /// against lib/schema.ts on write: a row naming an option the code cannot
+  /// render is a broken picker, and the database cannot check that itself.
+  value    String
+
+  name  String
+  blurb String
+  /// The same choice named for a 36px pill. Placements only — "Scattered on
+  /// top" does not fit the strip that sits over the render. `name` stays the
+  /// one that is read aloud, so nothing is hidden from a screen reader.
+  shortName String?
+  /// Swatch chip colour. Null for options that are not a colour (sizes, slots).
+  swatch String?
+  /// A 24x24 SVG path. Shapes only — the picker draws the silhouette.
+  glyph  String?
+
+  /// Paise. A base price when category is `size`, a delta everywhere else.
+  ///
+  /// One column rather than two, because Postgres cannot conditionally require
+  /// a second column based on this one's category any more than a comment can;
+  /// a nullable `basePricePaise` would buy documentation, not enforcement. The
+  /// per-category meaning is enforced where it can be — the admin write path.
+  /// Named neutrally so nothing reads as a delta when it is not one.
+  priceInputPaise Int
+
+  /// How much this size scales every other option's delta. Size rows only:
+  /// pistachio on a 2kg cake costs more pistachio than on a 1kg one. Null
+  /// everywhere else, and read only for `size`.
+  multiplier Float?
+
+  /// Withdrawn from new orders, without erasing the past. An existing design or
+  /// order naming this option still loads, still renders and still prices —
+  /// exactly how schema.coerceLegacy treats a withdrawn shape. Deletion is the
+  /// thing that would break history, which is why the admin offers this instead.
+  isAvailable Boolean @default(true)
+
+  /// Ascending. What the customer's picker is ordered by.
+  sortOrder Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Two rows for one option would make "the price of red velvet" ambiguous,
+  /// and which one won would come down to row order.
+  @@unique([category, value])
+  /// Every read is "this category, in display order".
+  @@index([category, sortOrder])
+}
+
+/// The charges that are formulas rather than options, and the tax rate.
+///
+/// These were constants in lib/pricing.ts, and they are prices like any other —
+/// a bakery that cannot change what a second tier costs without a deploy is the
+/// problem this portal exists to solve. They are not CatalogOption rows because
+/// they attach to no pickable option: nobody selects "18% GST".
+///
+/// One row, id "singleton", upserted. A settings table that can hold two rows
+/// eventually holds two rows.
+model PricingSettings {
+  id String @id @default("singleton")
+
+  /// Per additional tier beyond the first — dowels, boards, assembly.
+  tierSurchargePaise Int
+  /// Per sponge layer beyond three.
+  layerSurchargePaise Int
+  messagePipingPaise  Int
+  dripPaise           Int
+  sugarFreePaise      Int
+
+  /// Basis points: 1800 is 18%. An integer because this file does not put money
+  /// or the multipliers of money in floats.
+  gstBasisPoints Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
