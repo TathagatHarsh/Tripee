@@ -135,7 +135,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main>
+      <main id="main">
         {/* ── Hero ──────────────────────────────────────────────────────── */}
         {/*
           `minmax(0, …)` on every track, which is doing real work rather than
@@ -319,9 +319,15 @@ export default function Home() {
             <h2 className="text-heading">Start from one of ours</h2>
             <Link
               href="/presets"
-              className="shrink-0 font-mono text-micro tracking-[0.14em] text-brass uppercase underline-offset-4 hover:underline"
+              className="group shrink-0 font-mono text-micro tracking-[0.14em] text-graphite uppercase transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] hover:text-ink"
             >
-              Browse the catalogue →
+              {/* Same rule as the header's presets link at line 122: visible at
+                  rest, because this is an action. Colour is not the affordance —
+                  the rule is. No min-h-11 here: the parent is items-end, and a
+                  44px centred box would lift this off the h2's bottom edge. */}
+              <span className="border-b border-rule-strong pb-0.5 transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] group-hover:border-ink">
+                Browse the catalogue →
+              </span>
             </Link>
           </div>
 

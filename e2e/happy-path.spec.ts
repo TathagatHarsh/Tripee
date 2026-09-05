@@ -27,7 +27,7 @@ test("a stranger can build a cake, be corrected, and get an order reference", as
 
   // Size and tiers — two tiers on a 1kg cake is blocked, and says so.
   await page.getByRole("radio", { name: /^2 kg/ }).click();
-  await page.getByRole("button", { name: /^2 tiers/ }).click();
+  await page.getByRole("radio", { name: /^2 tiers/ }).click();
 
   // Sponge
   await page.getByRole("link", { name: "Sponge layers →" }).click();
@@ -65,7 +65,7 @@ test("a stranger can build a cake, be corrected, and get an order reference", as
 
   // The docket picked all of it up.
   await expect(docket).toContainText("SWISS MERINGUE");
-  await expect(docket).toContainText("HAPPY BIRTHDAY AMMA");
+  await expect(docket).toContainText("Happy Birthday Amma");
 
   // Review, and place the order.
   await page.getByRole("link", { name: "Review →" }).click();
@@ -128,16 +128,29 @@ test("cutting a slice exposes the inside and leaves the price alone", async ({ p
   await page.getByRole("radio", { name: /^Salted Caramel/ }).click();
   await expect(docket).toContainText("SALTED CARAMEL");
 
+  // This step renders the view toggle twice on purpose — once by the canvas and
+  // once in the content, under the same name, so it stays reachable on a phone
+  // (see the comment in app/build/filling/page.tsx). Scope to the in-content one
+  // so the query names a single control.
+  const toggle = (name: string) =>
+    page.locator("#main").getByRole("button", { name });
+
+  // The section view is the default (lib/view.ts), so the whole cake is the
+  // thing you ask for, not the thing you land on. Start from it, so the round
+  // trip below is whole -> cut -> whole.
+  await toggle("Whole cake").click();
+  await expect(toggle("Cut a slice")).toBeVisible();
+
   const before = await docket.textContent();
 
   // A cut is a way of looking at the cake, not a thing you order: the docket,
   // the price and the config must all be untouched by it.
-  await page.getByRole("button", { name: "Cut a slice" }).click();
-  await expect(page.getByRole("button", { name: "Whole cake" })).toBeVisible();
+  await toggle("Cut a slice").click();
+  await expect(toggle("Whole cake")).toBeVisible();
   expect(await docket.textContent()).toBe(before);
 
-  await page.getByRole("button", { name: "Whole cake" }).click();
-  await expect(page.getByRole("button", { name: "Cut a slice" })).toBeVisible();
+  await toggle("Whole cake").click();
+  await expect(toggle("Cut a slice")).toBeVisible();
 });
 
 test("the message plaque lifts while typing and settles when done", async ({ page }) => {
@@ -216,5 +229,5 @@ test("a preset opens where the customer still has a choice to make", async ({ pa
   await page.getByPlaceholder("Happy Birthday Amma").fill("Happy Birthday Ammu");
 
   await page.getByRole("link", { name: "Review →" }).click();
-  await expect(docket).toContainText("HAPPY BIRTHDAY AMMU");
+  await expect(docket).toContainText("Happy Birthday Ammu");
 });

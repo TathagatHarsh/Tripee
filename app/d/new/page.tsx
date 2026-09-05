@@ -24,7 +24,7 @@ export default async function InlineDesign({
 
   if (!config) {
     return (
-      <main className="mx-auto flex max-w-xl flex-col items-center gap-5 px-4 py-24 text-center">
+      <main id="main" className="mx-auto flex max-w-xl flex-col items-center gap-5 px-4 py-24 text-center">
         <h1 className="text-heading">That link didn&rsquo;t survive the journey</h1>
         <p className="text-body leading-relaxed text-steel">
           Cake designs travel in the address bar, and something trimmed this one.
@@ -38,7 +38,7 @@ export default async function InlineDesign({
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
+    <main id="main" className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
       <Link href="/" className="font-mono text-meta font-medium tracking-[0.2em]">
         MAKEMYCAKE
       </Link>

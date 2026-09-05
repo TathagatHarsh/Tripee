@@ -76,7 +76,7 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
       <div className="hidden shrink-0 items-center gap-7 border-b border-rule bg-paper px-6 lg:flex lg:h-[78px]">
         <div className="flex min-w-[8.25rem] flex-col gap-1">
           <span className={eyebrow}>{phase}</span>
-          <span className="font-mono text-micro font-medium tracking-[0.1em] text-ink">
+          <span className="font-mono text-micro tracking-[0.1em] text-steel">
             Step {index + 1} of {stepCount}
           </span>
         </div>
@@ -200,6 +200,7 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
             for the ring to indicate.
           */}
           <main
+            id="main"
             ref={controls}
             className="@container min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 focus-visible:outline-none sm:px-5 lg:px-3.5"
             tabIndex={-1}

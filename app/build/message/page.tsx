@@ -48,6 +48,7 @@ export default function MessageStep() {
           <span className="sr-only">Piped message</span>
           <input
             type="text"
+            autoComplete="off"
             maxLength={60}
             value={message}
             placeholder="Happy Birthday Amma"
@@ -109,6 +110,7 @@ export default function MessageStep() {
           </span>
           <input
             inputMode="numeric"
+            autoComplete="postal-code"
             pattern="\d{6}"
             maxLength={6}
             value={typed}
@@ -135,10 +137,10 @@ export default function MessageStep() {
           <p>{slot.note}</p>
           {slot.zoneName && <p>Zone: {slot.zoneName}</p>}
           {!slot.available && slot.unavailableReason && (
-            <p className="text-seal">{slot.unavailableReason}</p>
+            <p className="text-ink">{slot.unavailableReason}</p>
           )}
           {unknownPincode && (
-            <p className="text-seal">
+            <p className="text-ink">
               We don&rsquo;t deliver to {config.pincode} yet. Store pickup still works.
             </p>
           )}

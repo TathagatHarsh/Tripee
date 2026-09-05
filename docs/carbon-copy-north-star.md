@@ -26,7 +26,7 @@ Paste this at the start of any new design or development session.
 --carbon   #3B3E93   carbon violet-blue — the signature colour, means "the kitchen's version"
 --stamp    #A82F27   stamp red — max four uses in the whole journey
 ```
-Plus **`--accent`**, set by the chosen sponge, driving three things only: a 3% paper tint, a 4% key-light tint on the 3D, and the 2px next-line marker. 600ms ease-out. If the user can point at it, it is too strong.
+Plus **`--accent`**, set by the chosen sponge, driving three things only: a 3% paper tint, a 4% key-light tint on the 3D, and the 2px next-line marker. 600ms ease-out. If the user can point at it, it is too strong. Shipped on `/film` only, where the sponge is fixed. The builder does not set it: the third consumer is a ticket line, and there is no ticket yet. `docs/progress.md` §4 lists what else here has not shipped.
 
 **No terracotta, no clay, no cream, no gold, no black backgrounds, no gradients, no glassmorphism.**
 

@@ -87,7 +87,7 @@ export function Docket({ config, stamped, reference, className, chromeless }: Pr
           one block of text nobody can afford to misread. Monospace stays,
           because the docket is a ticket. The 9.5px did not.
         */}
-        <Block label="ALLERGENS">{allergenLine(config)}</Block>
+        <Block label="ALLERGENS"><span className="uppercase">{allergenLine(config)}</span></Block>
         {d.diet.caveat && <Block label="NOTE">{d.diet.caveat}</Block>}
         <Block label="HANDLING">
           {handling.storage} · best before {handling.bestBefore}

@@ -9,7 +9,7 @@ import { blockerFor } from "@/lib/rules";
 import { formatDelta } from "@/lib/format";
 import { servingsLabel } from "@/lib/servings";
 import { useConfig, useSetConfig } from "@/lib/store";
-import { cardState, optionText } from "@/lib/ui";
+import { cardState, optionText, radioArrowKeys } from "@/lib/ui";
 
 export default function SizeStep() {
   const config = useConfig();
@@ -39,8 +39,8 @@ export default function SizeStep() {
           title="Tiers"
           hint="Stacked rounds. Bigger cakes hold more of them."
         />
-        <div className="grid grid-cols-3 gap-2.5">
-          {[1, 2, 3].map((tiers) => {
+        <div role="radiogroup" aria-label="Tiers" className="grid grid-cols-3 gap-2.5">
+          {[1, 2, 3].map((tiers, index) => {
             const patch = { tiers };
             const blocked = blockerFor(config, patch);
             const active = config.tiers === tiers;
@@ -49,8 +49,11 @@ export default function SizeStep() {
               <button
                 key={tiers}
                 type="button"
-                onClick={() => { if (!blocked) set(patch); }}
-                aria-pressed={active}
+                role="radio"
+                aria-checked={active}
+                tabIndex={active ? 0 : -1}
+                onClick={() => set(patch)}
+                onKeyDown={(e) => radioArrowKeys(e, index, 3, (i) => set({ tiers: i + 1 }))}
                 aria-describedby={blocked ? `why-tiers-${tiers}` : undefined}
                 className={[
                   "flex min-h-11 flex-col gap-1.5 border px-4 py-3.5 text-left",
@@ -85,15 +88,18 @@ export default function SizeStep() {
           title="Sponge layers"
           hint="How many times the filling repeats inside each tier."
         />
-        <div className="grid grid-cols-3 gap-2.5">
-          {[2, 3, 4].map((layers) => {
+        <div role="radiogroup" aria-label="Sponge layers" className="grid grid-cols-3 gap-2.5">
+          {[2, 3, 4].map((layers, index) => {
             const active = config.layers === layers;
             return (
               <button
                 key={layers}
                 type="button"
+                role="radio"
+                aria-checked={active}
+                tabIndex={active ? 0 : -1}
                 onClick={() => set({ layers })}
-                aria-pressed={active}
+                onKeyDown={(e) => radioArrowKeys(e, index, 3, (i) => set({ layers: i + 2 }))}
                 className={[
                   "flex min-h-11 flex-col gap-1.5 border px-4 py-3.5 text-left",
                   "transition-[background-color,border-color,box-shadow] duration-[--dur-ui] ease-[--ease-out]",

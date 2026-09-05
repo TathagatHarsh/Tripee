@@ -206,6 +206,7 @@ export default function ReviewStep() {
           <span className="font-mono text-micro tracking-[0.14em] text-steel">NAME</span>
           <input
             value={name}
+            autoComplete="name"
             onChange={(e) => setName(e.target.value)}
             placeholder="Who is collecting?"
             className={field()}
@@ -215,6 +216,7 @@ export default function ReviewStep() {
           <span className="font-mono text-micro tracking-[0.14em] text-steel">PHONE</span>
           <input
             inputMode="tel"
+            autoComplete="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="10 digits"
@@ -426,7 +428,7 @@ function Placed({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border border-rule bg-paper px-5 py-4">
-      <h2 className="mb-2 font-mono text-micro tracking-[0.18em] text-brass uppercase">
+      <h2 className={`mb-2 ${eyebrow}`}>
         {title}
       </h2>
       {children}

@@ -53,7 +53,7 @@ export default async function SharedDesign({
   db.design.update({ where: { slug }, data: { views: { increment: 1 } } }).catch(() => {});
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
+    <main id="main" className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
       <Link href="/" className="font-mono text-meta font-medium tracking-[0.2em]">
         MAKEMYCAKE
       </Link>
@@ -88,7 +88,7 @@ export default async function SharedDesign({
           </div>
 
           <div className="flex flex-col gap-1.5 font-mono text-micro leading-relaxed text-steel">
-            <p>{allergenLine(config)}</p>
+            <p className="uppercase">{allergenLine(config)}</p>
             <p>
               {servingsLabel(config)} · {handling.storage} · best before{" "}
               {handling.bestBefore}

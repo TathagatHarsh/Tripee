@@ -122,7 +122,7 @@ export function ToppingBar() {
       >
         <Swatch hex={meta.swatch} />
         <span className="truncate text-meta text-ink">{meta.name}</span>
-        <span aria-hidden className="shrink-0 text-rule-strong">·</span>
+        <span aria-hidden className="shrink-0 text-rule">·</span>
         <span className="shrink-0 font-mono text-micro tracking-[0.14em] text-steel uppercase">
           {PLACEMENTS.find(x => x.value === spec.placement)?.short}
         </span>
@@ -223,7 +223,7 @@ function pill(on: boolean): string {
     "transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)]",
     on
       ? "border-ink bg-ink text-paper"
-      : "border-rule bg-paper/70 text-steel hover:border-rule-strong hover:text-ink",
+      : "border-rule-strong bg-paper/70 text-steel hover:border-ink hover:text-ink",
   ].join(" ");
 }
 

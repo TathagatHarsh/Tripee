@@ -108,7 +108,7 @@ export default function ToppingsStep() {
       </div>
 
       {chosen.length > 0 && (
-        <p className="border border-dashed border-rule-strong bg-sunken px-4 py-3.5 text-meta text-steel">
+        <p className="border border-dashed border-rule bg-sunken px-4 py-3.5 text-meta text-steel">
           Placement and density sit on the preview, so the cake changes while you
           set them.
         </p>

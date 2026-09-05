@@ -77,6 +77,14 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   /* §1.2 --paper, the top copy. Was #E9E7E2, which was the old --color-slab. */
   themeColor: "#E8E7E1",
+  /* This product is light-only on purpose, so it has to say so. Renders
+     <meta name="color-scheme" content="only light">, which keeps the builder's
+     scrollbar and Chrome's autofill highlight on paper when the OS asks for
+     dark. `only light`, not `light`: plain `light` says the page supports a
+     light rendering, which still lets Chrome's Auto Dark Theme on Android
+     invert the paper. `only` is the opt-out. Not a dark theme — a declaration
+     that there isn't one. */
+  colorScheme: "only light",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -90,7 +98,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       {/* bg-slab was chipboard, which is the desk. The page itself is the top
           copy — §1.2 --paper. The desk only shows where a sheet is lying on it. */}
-      <body className="min-h-dvh bg-paper text-ink antialiased">{children}</body>
+      <body className="min-h-dvh bg-paper text-ink antialiased">
+        {/*
+         * Every page puts a header and, in the builder, a nine-step chip rail
+         * ahead of the content, which is a long walk on a keyboard and a longer
+         * one on a screen reader. Parked above the top edge and slid down on
+         * focus, so it prints itself in the top-left like any other line on this
+         * paper. Positioned rather than `sr-only focus:not-sr-only` — that pair
+         * left it 1x1 and absolute even while focused, because sr-only's own
+         * position won the cascade.
+         */}
+        <a
+          href="#main"
+          className="fixed left-4 -top-20 z-[100] inline-flex min-h-11 items-center border border-ink bg-paper px-4 font-mono text-meta text-ink focus:top-4"
+        >
+          Skip to content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }

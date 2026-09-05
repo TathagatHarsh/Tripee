@@ -178,7 +178,7 @@ function Shell({
         "transition-colors duration-[--dur-ui]",
         active
           ? "border-ink bg-ink text-paper"
-          : "border-rule bg-paper text-graphite hover:border-rule-strong hover:text-ink",
+          : "border-rule-strong bg-paper text-graphite hover:border-ink hover:text-ink",
       ].join(" ")}
     >
       {label}
@@ -189,7 +189,7 @@ function Shell({
   );
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-10 sm:px-8">
+    <main id="main" className="mx-auto max-w-4xl px-4 py-10 sm:px-8">
       <header className="mb-8 flex flex-col gap-3">
         <span className={eyebrow}>The board</span>
         <h1 className="text-heading">Kitchen</h1>

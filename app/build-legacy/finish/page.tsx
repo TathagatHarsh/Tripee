@@ -86,7 +86,7 @@ export default function FinishStep() {
               <span className={`text-item font-medium ${dripOff ? "text-steel" : "text-ink"}`}>
                 Chocolate drip
               </span>
-              <span className="shrink-0 font-mono text-micro font-medium text-brass tabular-nums">
+              <span className="shrink-0 font-mono text-micro font-medium text-ink tabular-nums">
                 {formatDelta(deltaFor(config, { hasDrip: !config.hasDrip }))}
               </span>
             </span>

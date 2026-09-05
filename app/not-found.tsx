@@ -3,7 +3,7 @@ import { btn, eyebrow } from "@/lib/ui";
 
 export default function NotFound() {
   return (
-    <main className="mx-auto grid min-h-dvh max-w-xl place-items-center px-4 text-center">
+    <main id="main" className="mx-auto grid min-h-dvh max-w-xl place-items-center px-4 text-center">
       <div className="flex flex-col items-center gap-5">
         <span className={eyebrow}>404</span>
         <h1 className="text-heading">Nothing on this shelf</h1>

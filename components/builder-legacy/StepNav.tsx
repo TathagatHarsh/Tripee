@@ -199,16 +199,26 @@ export function StepFooter({ price }: { price?: React.ReactNode }) {
 
   return (
     <div className="shrink-0 border-t border-rule bg-slab px-3.5 pt-3.5 pb-[max(1.125rem,env(safe-area-inset-bottom))] lg:px-3.5">
+      {/* A paper strip inside the chipboard footer: seal on chipboard is
+          4.10:1, under the floor, and this is the one line a stuck customer
+          has to read. On paper the label is 5.47:1 and the message 12.99:1.
+          The literal BLOCKED is ViolationCard's label, repeated here so the
+          severity survives greyscale and protanopia — red alone does not. */}
       {blocked && next && (
-        <p className="mb-2.5 text-meta leading-snug text-seal">
-          {blockedHere || !blockerStep ? (
-            "Sort the note above before going on."
-          ) : (
-            <Link href={`/build-legacy/${blockerStep}`} className="underline underline-offset-2">
-              {blocker!.message} Fix it on{" "}
-              {STEPS.find(s => s.slug === blockerStep)?.title ?? blockerStep}.
-            </Link>
-          )}
+        <p className="mb-2.5 flex items-start gap-2.5 bg-paper px-3 py-2 text-meta leading-snug text-ink">
+          <span className="shrink-0 pt-[2px] font-mono text-micro tracking-[0.14em] text-seal">
+            BLOCKED
+          </span>
+          <span className="min-w-0 flex-1">
+            {blockedHere || !blockerStep ? (
+              "Sort the note above before going on."
+            ) : (
+              <Link href={`/build-legacy/${blockerStep}`} className="underline underline-offset-2">
+                {blocker!.message} Fix it on{" "}
+                {STEPS.find(s => s.slug === blockerStep)?.title ?? blockerStep}.
+              </Link>
+            )}
+          </span>
         </p>
       )}
 

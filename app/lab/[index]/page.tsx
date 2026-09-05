@@ -21,7 +21,7 @@ export default async function LabSoloPage({
   if (!entry) notFound();
 
   return (
-    <main className="min-h-dvh p-4 sm:p-6">
+    <main id="main" className="min-h-dvh p-4 sm:p-6">
       <div className="mb-3 flex items-baseline justify-between gap-4">
         <h1 className="text-sm ">{entry.label}</h1>
         <nav className="flex gap-3 text-meta text-steel">

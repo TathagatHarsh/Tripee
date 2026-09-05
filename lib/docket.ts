@@ -176,7 +176,7 @@ export function buildDocket(
     rows.push({
       key: "message",
       label: "MSG",
-      value: `"${c.message.trim().toUpperCase()}"`,
+      value: `"${c.message.trim()}"`,
       delta: byLabel("Message piping", "labour"),
     });
   }

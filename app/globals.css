@@ -10,15 +10,20 @@
  * nothing above a step subhead could be built at all: no hero, no marketing
  * page, no payoff on review.
  *
- * The accent still means one thing only — blocked — and now there is a second,
- * quieter one (brass) that means "this is money, or this is a reference", which
- * is what seal used to be doing badly.
+ * The accent still means one thing only — blocked. Carbon (the brass alias)
+ * means "this is the kitchen's version of it" and nothing else: docket refs,
+ * design numbers, NOTE-severity marks. Money is NOT carbon — a price is full
+ * ink, and the +/− sign carries the emphasis. An interactive thing is never
+ * signalled by colour alone; it carries a rule.
  */
 @theme {
   /*
    * ══ §1.2 THE CARBON COPY PALETTE ═════════════════════════════════════
    *
-   * Two ink colours, three paper stocks, one accent that changes with the cake.
+   * Two ink colours, three paper stocks. The sponge-driven --accent of §1.2 is
+   * NOT defined here: it ships on /film only, where the sponge is fixed
+   * (app/film/film.css, all three consumers marked in the source). See
+   * docs/progress.md §4.
    *
    * The canonical §1.2 names come first. The legacy names below them are kept as
    * ALIASES pointing into this set, which is what lets a palette this different
@@ -41,7 +46,13 @@
 
   /* ── Inks ───────────────────────────────────────────────────────────── */
   --color-ink: #22211e;      /* Graphite. Never #000. All primary text. 12.4:1 on paper. */
-  --color-ink-60: #5c594f;   /* Secondary text, prose. 5.2:1 on paper, 4.5:1 on manila. */
+  /* Secondary text, prose. Measured: 6.4:1 on paper, 5.4:1 on manila, 4.8:1 on
+     CHIPBOARD. That third pairing is why this is #535148 and not the #5c594f it
+     was — slab/slab-deep surfaces are chipboard, and ink-60 on chipboard measured
+     4.24:1, under the 4.5:1 floor, on the builder's undo/redo labels and the
+     "drag to turn" hint. Darkening the token fixes every chipboard call site at
+     once. Check all three papers before touching this value. */
+  --color-ink-60: #535148;
   --color-ink-35: #918c7e;   /* Tertiary: dot leaders, carets, disabled. 2.4:1 — never text. */
   --color-ink-15: #c2bcac;   /* Hairline rules, sheet edges, input baselines. */
 
@@ -71,7 +82,7 @@
   --color-sunken: var(--color-paper-2);     /* inset wells: spec boxes, read-only notes */
 
   --color-rule: var(--color-ink-15);
-  --color-rule-strong: var(--color-ink-35);
+  --color-rule-strong: var(--color-ink-60);
 
   /*
    * Brass is gone. It meant "this is money, or this is a reference", and §1.2 is
@@ -114,7 +125,7 @@
    * below 18px and simply absent above it, which is why three separate ad-hoc
    * clamp() expressions had grown in the page components.
    */
-  --text-micro: 0.6875rem;   /* 11px — docket lines, mono, references */
+  --text-micro: 0.75rem;     /* 12px — docket lines, mono, references */
   --text-meta: 0.8125rem;    /* 13px — captions, blurbs on a dense card */
   --text-body: 0.9375rem;    /* 15px — blurbs, descriptions, paragraphs */
   --text-item: 1.0625rem;    /* 17px — the name of a thing you can choose */
