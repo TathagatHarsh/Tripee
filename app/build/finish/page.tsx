@@ -4,7 +4,9 @@ import { ColorPicker } from "@/components/builder/ColorPicker";
 import { OptionGrid } from "@/components/builder/OptionGrid";
 import { GroupHeader, StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
-import { DRIP_PALETTE, FINISHES, FROSTING_PALETTE } from "@/lib/catalog";
+import { DRIP_PALETTE, FROSTING_PALETTE } from "@/lib/catalog";
+import { offeredOrSelected } from "@/lib/catalogSnapshot";
+import { useCatalog } from "@/lib/catalogStore";
 import { deltaFor } from "@/lib/pricing";
 import { blockerFor } from "@/lib/rules";
 import { formatDelta } from "@/lib/format";
@@ -13,6 +15,8 @@ import { useConfig, useSetConfig } from "@/lib/store";
 
 export default function FinishStep() {
   const config = useConfig();
+  const catalog = useCatalog();
+  const finishes = offeredOrSelected(catalog, "finish", config.finish);
   const set = useSetConfig();
 
   const fixedColour = FROSTING_MATERIALS[config.frosting].fixedColor;
@@ -52,7 +56,7 @@ export default function FinishStep() {
       <fieldset>
         <GroupHeader title="Finish" hint="How the surface is worked once it is on." />
         <OptionGrid
-          options={FINISHES}
+          options={finishes}
           label="Finish"
           columns={3}
           selected={(c) => c.finish}

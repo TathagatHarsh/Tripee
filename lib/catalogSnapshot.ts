@@ -1,4 +1,9 @@
 import type { CatalogCategory } from "@prisma/client";
+import {
+  Coverage, DeliverySlot as DeliverySlotEnum, Filling as FillingEnum,
+  Finish as FinishEnum, Frosting as FrostingEnum, Shape, SizeBand as SizeBandEnum,
+  Sponge as SpongeEnum, Topping as ToppingEnum, ToppingPlacement,
+} from "./schema";
 import type {
   DeliverySlot, Filling, Finish, Frosting, SizeBand, Sponge, Topping,
 } from "./schema";
@@ -78,6 +83,29 @@ export const CATEGORIES: CatalogCategory[] = [
   "coverage", "finish", "topping", "placement", "delivery",
 ];
 
+/**
+ * What each category is allowed to name.
+ *
+ * The database will accept any string in `value`, and a row naming an option
+ * the code cannot render is a broken picker — a shape with no geometry, a
+ * topping with no mesh or allergen entry. Postgres cannot check that, so the
+ * admin write path does, against the same Zod enums the rest of the product
+ * validates against. This is also the list the admin UI shows: the bakery
+ * chooses what an option costs, not which options can exist.
+ */
+export const VALUES_BY_CATEGORY: Record<CatalogCategory, readonly string[]> = {
+  shape: Shape.options,
+  size: SizeBandEnum.options,
+  sponge: SpongeEnum.options,
+  filling: FillingEnum.options,
+  frosting: FrostingEnum.options,
+  coverage: Coverage.options,
+  finish: FinishEnum.options,
+  topping: ToppingEnum.options,
+  placement: ToppingPlacement.options,
+  delivery: DeliverySlotEnum.options,
+};
+
 function priceIndex<K extends string>(entries: CatalogEntry[]): Record<K, number> {
   const out = {} as Record<K, number>;
   for (const e of entries) out[e.value as K] = e.priceInputPaise;
@@ -127,6 +155,31 @@ export function offered(
   category: CatalogCategory,
 ): CatalogEntry[] {
   return snapshot.byCategory[category].filter((e) => e.isAvailable);
+}
+
+/**
+ * What a picker shows: everything on offer, plus whatever is already chosen.
+ *
+ * The second half matters. Withdrawing a filling has to stop new customers
+ * choosing it without reaching into designs that already name it — and somebody
+ * halfway through building a cake, or opening a link a friend sent, is holding
+ * exactly such a design. Dropping it from the grid would show them a step with
+ * nothing selected and silently misrepresent their own cake back to them. It
+ * stays visible, stays selected, and stays priced; it simply is not something
+ * anyone else can newly pick.
+ *
+ * The cast is safe by construction: values are checked against lib/schema's
+ * enums when the admin writes them, and snapshotFrom backfills anything the
+ * table is missing, so every value here is a real member of T.
+ */
+export function offeredOrSelected<T extends string>(
+  snapshot: CatalogSnapshot,
+  category: CatalogCategory,
+  current: T,
+): (CatalogEntry & { value: T })[] {
+  return snapshot.byCategory[category].filter(
+    (e) => e.isAvailable || e.value === current,
+  ) as (CatalogEntry & { value: T })[];
 }
 
 /**

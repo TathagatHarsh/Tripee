@@ -3,7 +3,9 @@
 import { ColorPicker } from "@/components/builder/ColorPicker";
 import { GroupHeader, StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
-import { DELIVERY_OPTIONS, FROSTING_PALETTE } from "@/lib/catalog";
+import { FROSTING_PALETTE } from "@/lib/catalog";
+import { offeredOrSelected } from "@/lib/catalogSnapshot";
+import { useCatalog } from "@/lib/catalogStore";
 import { OptionGrid } from "@/components/builder/OptionGrid";
 import { resolveSlot, servicePincode } from "@/lib/delivery";
 import { shade } from "@/lib/color";
@@ -14,6 +16,8 @@ import { btn, field, monoField } from "@/lib/ui";
 
 export default function MessageStep() {
   const config = useConfig();
+  const catalog = useCatalog();
+  const deliveries = offeredOrSelected(catalog, "delivery", config.delivery);
   const set = useSetConfig();
   const composing = useView(s => s.composingMessage);
   const setComposing = useView(s => s.setComposingMessage);
@@ -98,7 +102,7 @@ export default function MessageStep() {
         <GroupHeader title="Delivery" hint="Lead time depends on your pincode zone." />
 
         <OptionGrid
-          options={DELIVERY_OPTIONS}
+          options={deliveries}
           label="Delivery"
           selected={(c) => c.delivery}
           patch={(delivery) => ({ delivery })}

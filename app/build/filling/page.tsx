@@ -3,11 +3,16 @@
 import { OptionGrid } from "@/components/builder/OptionGrid";
 import { StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
-import { FILLINGS } from "@/lib/catalog";
+import { offeredOrSelected } from "@/lib/catalogSnapshot";
+import { useCatalog } from "@/lib/catalogStore";
+import { useConfig } from "@/lib/store";
 import { btn } from "@/lib/ui";
 import { useView } from "@/lib/view";
 
 export default function FillingStep() {
+  const config = useConfig();
+  const catalog = useCatalog();
+  const fillings = offeredOrSelected(catalog, "filling", config.filling);
   const sliced = useView((s) => s.sliced);
   const toggleSlice = useView((s) => s.toggleSlice);
 
@@ -43,7 +48,7 @@ export default function FillingStep() {
       </div>
 
       <OptionGrid
-        options={FILLINGS}
+        options={fillings}
         label="Filling"
         selected={(c) => c.filling}
         patch={(filling) => ({ filling })}

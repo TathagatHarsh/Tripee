@@ -3,7 +3,8 @@
 import { OptionGrid } from "@/components/builder/OptionGrid";
 import { GroupHeader, StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
-import { SIZES } from "@/lib/catalog";
+import { offeredOrSelected } from "@/lib/catalogSnapshot";
+import { useCatalog } from "@/lib/catalogStore";
 import { deltaFor } from "@/lib/pricing";
 import { blockerFor } from "@/lib/rules";
 import { formatDelta } from "@/lib/format";
@@ -13,6 +14,8 @@ import { cardState, optionText, radioArrowKeys } from "@/lib/ui";
 
 export default function SizeStep() {
   const config = useConfig();
+  const catalog = useCatalog();
+  const sizes = offeredOrSelected(catalog, "size", config.size);
   const set = useSetConfig();
 
   return (
@@ -23,7 +26,7 @@ export default function SizeStep() {
           hint="Weight sets the servings. Tiers set the drama."
         />
         <OptionGrid
-          options={SIZES}
+          options={sizes}
           label="Size"
           columns={3}
           selected={(c) => c.size}
