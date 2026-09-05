@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
+import { CatalogSync } from "@/components/CatalogSync";
 import "./globals.css";
 
 /*
@@ -114,6 +115,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
+        {/*
+          * Prices for every client component that is not under /build.
+          *
+          * The presets, the lab and the shared-design pages all show a total,
+          * and none of them sits under a layout that fetches a catalogue. This
+          * fetches one after mount; until it lands they show the prices this
+          * build shipped with, which is the right thing to be showing while
+          * waiting.
+          *
+          * Under /build it costs nothing: that layout seeds the store during
+          * render, and CatalogSync skips its fetch when the store is already
+          * server-seeded.
+          */}
+        <CatalogSync />
         {children}
       </body>
     </html>

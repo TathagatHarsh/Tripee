@@ -10,6 +10,7 @@ import { resolveSlot } from "@/lib/delivery";
 import { buildDocket, deriveLayers, renderSpecSheet } from "@/lib/docket";
 import { formatINR } from "@/lib/format";
 import { DELIVERED_PHOTOS } from "@/lib/photos";
+import { useCatalog } from "@/lib/catalogStore";
 import { priceCake } from "@/lib/pricing";
 import { canSubmit } from "@/lib/rules";
 import type { CakeConfig } from "@/lib/schema";
@@ -53,8 +54,9 @@ export default function ReviewStep() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
-  const price = priceCake(config);
-  const docket = buildDocket(config);
+  const catalog = useCatalog();
+  const price = priceCake(config, catalog);
+  const docket = buildDocket(config, catalog);
   const allergens = deriveAllergens(config);
   const servings = deriveServings(config);
   const layers = deriveLayers(config);
@@ -157,7 +159,7 @@ export default function ReviewStep() {
   }
 
   function download() {
-    const blob = new Blob([renderSpecSheet(config, { ref: stage.kind === "placed" ? stage.ref : undefined })], {
+    const blob = new Blob([renderSpecSheet(config, catalog, { ref: stage.kind === "placed" ? stage.ref : undefined })], {
       type: "text/plain;charset=utf-8",
     });
     const a = document.createElement("a");

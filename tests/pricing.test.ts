@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { priceCake, deltaFor } from "@/lib/pricing";
+import { priceCake as priceWith, deltaFor as deltaWith } from "@/lib/pricing";
+import { DEFAULT_SNAPSHOT } from "@/lib/catalogDefaults";
 import { DEFAULT_CAKE, type CakeConfig } from "@/lib/schema";
+
+/*
+ * The engine takes a catalogue now, and these tests pin it to the one the
+ * product shipped with. That makes every rupee below do a second job: it was a
+ * test of the arithmetic, and it is now also the proof that the rows the seed
+ * writes are the prices this bakery has always charged. Change a default and
+ * these fail, which is the intended alarm.
+ *
+ * Wrapped rather than threaded through all two dozen call sites, so the
+ * assertions read exactly as they did before the catalogue moved.
+ */
+const priceCake = (c: CakeConfig) => priceWith(c, DEFAULT_SNAPSHOT);
+const deltaFor = (c: CakeConfig, patch: Partial<CakeConfig>) =>
+  deltaWith(c, patch, DEFAULT_SNAPSHOT);
 
 const cake = (patch: Partial<CakeConfig> = {}): CakeConfig => ({ ...DEFAULT_CAKE, ...patch });
 

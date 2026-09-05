@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { deriveAllergens } from "@/lib/allergens";
 import { FILLINGS, FROSTINGS, SHAPES, SPONGES, STEPS, TOPPINGS } from "@/lib/catalog";
+import { DEFAULT_SNAPSHOT } from "@/lib/catalogDefaults";
 import { SLOTS } from "@/lib/delivery";
 import { FSSAI_LICENCE, renderSpecSheet } from "@/lib/docket";
 import { PRESETS } from "@/lib/presets";
@@ -102,7 +103,7 @@ export function FilmHome() {
           <div className="min-w-0 lg:col-span-7">
             {/* The one shadow on this page: a sheet lying on the desk. */}
             <pre className="film-docket paper-edge bg-paper p-[32px]">
-              {renderSpecSheet(FILM_CAKE)}
+              {renderSpecSheet(FILM_CAKE, DEFAULT_SNAPSHOT)}
             </pre>
             <p className="mt-[16px] text-[length:var(--prose-sm)] text-ink-60">
               {allergens.eggless ? "Eggless is what we bake by default" : "Contains egg"} —{" "}

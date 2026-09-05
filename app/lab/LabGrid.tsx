@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { LazyCakeScene } from "@/components/three/LazyCakeScene";
+import { useCatalog } from "@/lib/catalogStore";
 import { priceCake } from "@/lib/pricing";
 import { formatINR } from "@/lib/format";
 import { validateCake } from "@/lib/rules";
@@ -13,6 +14,7 @@ export function LabGrid() {
   const [big, setBig] = useState<number | null>(null);
   const sliced = useView(s => s.sliced);
   const toggleSlice = useView(s => s.toggleSlice);
+  const catalog = useCatalog();
 
   return (
     <main id="main" className="min-h-dvh px-4 py-8 sm:px-8">
@@ -50,7 +52,7 @@ export function LabGrid() {
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {LAB_CONFIGS.map((entry, i) => {
-          const price = priceCake(entry.config);
+          const price = priceCake(entry.config, catalog);
           const notes = validateCake(entry.config);
 
           return (

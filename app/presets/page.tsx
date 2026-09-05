@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PresetCard } from "@/components/PresetCard";
+import { getCatalogSnapshot } from "@/lib/catalogData";
 import { PRESETS } from "@/lib/presets";
 import { btn, eyebrow, pager } from "@/lib/ui";
 
@@ -56,6 +57,7 @@ export default async function PresetsPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const { page } = await searchParams;
+  const catalog = await getCatalogSnapshot();
   const pages = Math.ceil(PRESETS.length / PER_PAGE);
   /* A page number off a URL is untrusted: "abc" is NaN, "0" and "-3" index
      before the start, "9e9" past the end. Clamped rather than 404'd — a stale
@@ -110,7 +112,7 @@ export default async function PresetsPage({
             /* h2, because the h1 on this page is the catalogue's own title. On
                the landing page these sit under a section heading and are h3 —
                see the note on `as` in components/PresetCard. */
-            <PresetCard key={p.slug} preset={p} as="h2" />
+            <PresetCard key={p.slug} preset={p} catalog={catalog} as="h2" />
           ))}
         </ul>
 

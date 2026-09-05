@@ -8,6 +8,7 @@
  * This exists so pricing and rules can be exercised without a browser.
  */
 import { readFileSync } from "node:fs";
+import { DEFAULT_SNAPSHOT } from "../lib/catalogDefaults";
 import { renderSpecSheet } from "../lib/docket";
 import { PRESETS, presetBySlug } from "../lib/presets";
 import { validateCake } from "../lib/rules";
@@ -52,7 +53,7 @@ function main() {
   }
 
   const violations = validateCake(config);
-  console.log(renderSpecSheet(config));
+  console.log(renderSpecSheet(config, DEFAULT_SNAPSHOT));
 
   if (violations.length) {
     console.log("");

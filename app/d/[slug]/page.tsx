@@ -7,6 +7,7 @@ import { PriceBreakdown } from "@/components/docket/PriceBreakdown";
 import { db, hasDatabase } from "@/lib/db";
 import { allergenLine } from "@/lib/allergens";
 import { formatINR, titleCase } from "@/lib/format";
+import { getCatalogSnapshot } from "@/lib/catalogData";
 import { priceCake } from "@/lib/pricing";
 import { migrateConfig } from "@/lib/schema";
 import { deriveHandling, servingsLabel } from "@/lib/servings";
@@ -32,7 +33,7 @@ export async function generateMetadata({
   const c = found.config;
   return {
     title: `${titleCase(c.size)} ${titleCase(c.sponge)} cake — Makemycake`,
-    description: `${titleCase(c.frosting)}, ${titleCase(c.finish)} finish. ${formatINR(priceCake(c).total)} including GST.`,
+    description: `${titleCase(c.frosting)}, ${titleCase(c.finish)} finish. ${formatINR(priceCake(c, await getCatalogSnapshot()).total)} including GST.`,
   };
 }
 
@@ -46,7 +47,9 @@ export default async function SharedDesign({
   if (!found) notFound();
 
   const { config } = found;
-  const price = priceCake(config);
+  // Repriced on read rather than trusting Design.totalPaise, which was cached
+  // when the design was saved and predates any repricing since.
+  const price = priceCake(config, await getCatalogSnapshot());
   const handling = deriveHandling(config);
 
   // Views are interesting and nobody is harmed if one is lost to a race.

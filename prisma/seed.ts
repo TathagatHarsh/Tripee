@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { priceCake } from "../lib/pricing";
 import {
-  DEFAULT_GST_BASIS_POINTS, DEFAULT_ROWS, DEFAULT_SETTINGS,
+  DEFAULT_GST_BASIS_POINTS, DEFAULT_ROWS, DEFAULT_SETTINGS, snapshotFrom,
 } from "../lib/catalogDefaults";
 import { PRESETS } from "../lib/presets";
 
@@ -69,8 +69,46 @@ async function main() {
     if (row.createdAt.getTime() === row.updatedAt.getTime()) written++;
   }
 
+  /*
+   * Price the presets from the catalogue as it now stands, not from the
+   * defaults this file just offered. On a database where somebody has already
+   * repriced a sponge, those are different numbers, and the gallery should show
+   * what the bakery charges rather than what the code shipped with.
+   *
+   * Read straight through snapshotFrom rather than lib/catalogData's
+   * getCatalogSnapshot: that one is wrapped in unstable_cache, which needs a
+   * Next request context this script does not have.
+   */
+  const settings = await db.pricingSettings.findUniqueOrThrow({
+    where: { id: "singleton" },
+  });
+  const rows = await db.catalogOption.findMany();
+  const catalog = snapshotFrom(
+    rows.map((r) => ({
+      category: r.category,
+      value: r.value,
+      name: r.name,
+      blurb: r.blurb,
+      ...(r.shortName === null ? {} : { shortName: r.shortName }),
+      ...(r.swatch === null ? {} : { swatch: r.swatch }),
+      ...(r.glyph === null ? {} : { glyph: r.glyph }),
+      priceInputPaise: r.priceInputPaise,
+      ...(r.multiplier === null ? {} : { multiplier: r.multiplier }),
+      isAvailable: r.isAvailable,
+      sortOrder: r.sortOrder,
+    })),
+    {
+      tierSurchargePaise: settings.tierSurchargePaise,
+      layerSurchargePaise: settings.layerSurchargePaise,
+      messagePipingPaise: settings.messagePipingPaise,
+      dripPaise: settings.dripPaise,
+      sugarFreePaise: settings.sugarFreePaise,
+      gstRate: settings.gstBasisPoints / 10_000,
+    },
+  );
+
   for (const p of PRESETS) {
-    const totalPaise = priceCake(p.config).total;
+    const totalPaise = priceCake(p.config, catalog).total;
     await db.design.upsert({
       where: { slug: p.slug },
       create: { slug: p.slug, config: p.config, totalPaise },

@@ -5,6 +5,7 @@ import { LoadConfig } from "@/components/builder/LoadConfig";
 import { PriceBreakdown } from "@/components/docket/PriceBreakdown";
 import { decodeConfig } from "@/lib/share";
 import { titleCase } from "@/lib/format";
+import { getCatalogSnapshot } from "@/lib/catalogData";
 import { priceCake } from "@/lib/pricing";
 import { btn, eyebrow } from "@/lib/ui";
 
@@ -60,7 +61,7 @@ export default async function InlineDesign({
           </p>
 
           <div className="border border-rule bg-paper p-5 ">
-            <PriceBreakdown price={priceCake(config)} />
+            <PriceBreakdown price={priceCake(config, await getCatalogSnapshot())} />
           </div>
 
           <div>

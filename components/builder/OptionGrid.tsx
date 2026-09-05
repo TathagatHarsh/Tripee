@@ -2,6 +2,7 @@
 
 import type { Option } from "@/lib/catalog";
 import type { CakeConfig } from "@/lib/schema";
+import { useCatalog } from "@/lib/catalogStore";
 import { deltaFor } from "@/lib/pricing";
 import { blockerFor } from "@/lib/rules";
 import { formatDelta } from "@/lib/format";
@@ -40,6 +41,7 @@ export function OptionGrid<T extends string>({
   const config = useConfig();
   const set = useSetConfig();
   const current = selected(config);
+  const catalog = useCatalog();
 
   // Container queries, not viewport ones: the controls column is narrow on a
   // wide screen, and swatches squeezed into two 160px columns are unreadable.
@@ -58,7 +60,7 @@ export function OptionGrid<T extends string>({
       {options.map((o, index) => {
         const p = patch(o.value);
         const blocked = blockerFor(config, p);
-        const delta = deltaFor(config, p);
+        const delta = deltaFor(config, p, catalog);
         const active = current === o.value;
         const off = !!blocked && !active;
 

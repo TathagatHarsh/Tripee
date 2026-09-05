@@ -4,6 +4,7 @@ import {
 } from "@/lib/catalog";
 import { resolveSlot } from "@/lib/delivery";
 import { formatINR } from "@/lib/format";
+import { DEFAULT_SNAPSHOT } from "@/lib/catalogDefaults";
 import { priceCake } from "@/lib/pricing";
 import { validateCake, type RuleViolation } from "@/lib/rules";
 import type { CakeConfig, DeliverySlot, SizeBand } from "@/lib/schema";
@@ -109,7 +110,7 @@ const VALUES: Record<string, string> = {
   finish: `${upper(FROSTING_PALETTE.find(p => p.hex === c.frostingColor)!.name)} · ${upper(name(FINISHES, c.finish))}`,
   toppings: TOPPING_VALUE,
   message: c.message?.trim() ? `"${upper(c.message.trim())}"` : "— NONE",
-  review: formatINR(priceCake(c).total),
+  review: formatINR(priceCake(c, DEFAULT_SNAPSHOT).total),
 };
 
 const DRIP_SUFFIX = ` · ${upper(DRIP_PALETTE.find(d => d.hex === c.dripColor)!.name)} DRIP`;
@@ -164,7 +165,7 @@ const STAGES: CakeConfig[] = [
   { ...c },                                                          // CH7 the docket total
 ];
 
-export const CHAPTER_TOTALS: string[] = STAGES.map(s => formatINR(priceCake(s).total));
+export const CHAPTER_TOTALS: string[] = STAGES.map(s => formatINR(priceCake(s, DEFAULT_SNAPSHOT).total));
 
 export const FILM_TOTAL = VALUES.review;
 
@@ -183,7 +184,7 @@ export const SIZE_TABLE = SIZES.map(s => ({
   label: upper(s.name),
   diameter: `${DIAMETER_IN[s.value]} IN`,
   serves: servingsRange(s.value),
-  total: formatINR(priceCake({ ...c, size: s.value }).total),
+  total: formatINR(priceCake({ ...c, size: s.value }, DEFAULT_SNAPSHOT).total),
 }));
 
 /**
@@ -192,7 +193,7 @@ export const SIZE_TABLE = SIZES.map(s => ({
  * lib/pricing, and a second copy of it here would drift on the first price change.
  */
 export const DELIVERY_TABLE = DELIVERY_OPTIONS.map(o => {
-  const line = priceCake({ ...c, delivery: o.value }).lines.find(l => l.kind === "delivery");
+  const line = priceCake({ ...c, delivery: o.value }, DEFAULT_SNAPSHOT).lines.find(l => l.kind === "delivery");
   const slot = resolveSlot(o.value);
   return {
     label: upper(o.name),

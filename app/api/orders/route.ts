@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { deriveAllergens } from "@/lib/allergens";
+import { getCatalogSnapshot } from "@/lib/catalogData";
 import { resolveSlot } from "@/lib/delivery";
 import { priceCake } from "@/lib/pricing";
 import { validateCake } from "@/lib/rules";
@@ -64,8 +65,14 @@ export async function POST(req: Request) {
     );
   }
 
-  // Authoritative price. The client's number is advisory only.
-  const price = priceCake(parsed.data);
+  /*
+   * Authoritative price. The client's number is advisory only — and now its
+   * *catalogue* is too: the builder priced against whatever it fetched when the
+   * page loaded, which may be minutes old and may predate an admin's edit. This
+   * reads the catalogue as it is now, and what it produces is what gets frozen
+   * onto the order below.
+   */
+  const price = priceCake(parsed.data, await getCatalogSnapshot());
 
   if (body.clientTotal && body.clientTotal !== price.total) {
     // Could be a stale client, could be tampering. Either way the server wins.

@@ -1,4 +1,30 @@
+import type { CatalogSnapshot } from "./catalogSnapshot";
 import type { CakeConfig } from "./schema";
+
+/**
+ * The pricing engine: a pure function of a cake and a catalogue.
+ *
+ * The prices themselves used to be constants in this file, which meant the
+ * bakery could not change what a filling cost without a deploy. They now live
+ * in CatalogOption, and this takes the catalogue as an argument.
+ *
+ * Explicitly an argument, rather than something this module reads for itself.
+ * The tempting version keeps `priceCake(config)` and looks the catalogue up
+ * internally — but the same function runs in a browser, where the catalogue
+ * arrives over the wire and can be a moment stale, and on the server, where an
+ * order is priced for real. One function with two hidden sources is a single
+ * refactor away from pricing an order off whatever the client happened to be
+ * holding. Passing the catalogue in makes each caller say which one it means,
+ * and leaves no global for a server path to read by accident.
+ *
+ * Who passes what:
+ *   - server (app/api/*, app/kitchen) — `await getCatalogSnapshot()`, the
+ *     database's answer, and the only one that decides money;
+ *   - client (the builder) — the hydrated store, for the running estimate.
+ *
+ * The estimate is advisory and app/api/orders re-prices before writing, which
+ * is the arrangement that was already here.
+ */
 
 export interface PriceLine {
   label: string;      // shown to the customer, plain language
@@ -17,145 +43,49 @@ export interface PriceBreakdown {
   currency: "INR";
 }
 
-const RUPEES = (n: number) => Math.round(n * 100);
-
-const BASE_BY_SIZE: Record<CakeConfig["size"], number> = {
-  "0.5kg": RUPEES(650),
-  "1kg":   RUPEES(1200),
-  "1.5kg": RUPEES(1700),
-  "2kg":   RUPEES(2200),
-  "3kg":   RUPEES(3200),
-  "5kg":   RUPEES(5200),
-};
-
-const SPONGE_DELTA: Record<CakeConfig["sponge"], number> = {
-  vanilla: 0,
-  marble: 0,
-  funfetti: RUPEES(50),
-  "red-velvet": RUPEES(150),
-  butterscotch: RUPEES(100),
-  coffee: RUPEES(100),
-  lemon: RUPEES(100),
-  pineapple: RUPEES(100),
-  carrot: RUPEES(150),
-  coconut: RUPEES(120),
-  mango: RUPEES(200),        // seasonal
-  saffron: RUPEES(320),      // grams of it, and the grams are the price
-  "belgian-chocolate": RUPEES(250),
-  pistachio: RUPEES(350),
-};
-
-const FILLING_DELTA: Record<CakeConfig["filling"], number> = {
-  none: 0,
-  "strawberry-jam": RUPEES(80),
-  "cookie-crumb": RUPEES(90),
-  "vanilla-custard": RUPEES(110),
-  "lemon-curd": RUPEES(130),
-  "pineapple-crush": RUPEES(120),
-  "cherry-compote": RUPEES(170),
-  "raspberry-compote": RUPEES(160),
-  "blueberry-compote": RUPEES(190),
-  "chocolate-mousse": RUPEES(150),
-  "salted-caramel": RUPEES(150),
-  rabri: RUPEES(220),
-  "biscoff-spread": RUPEES(240),
-  nutella: RUPEES(200),
-  "hazelnut-praline": RUPEES(260),
-  "pistachio-cream": RUPEES(320),
-  "fresh-fruit": RUPEES(180),
-};
-
-const FROSTING_DELTA: Record<CakeConfig["frosting"], number> = {
-  "whipped-cream": 0,
-  "american-buttercream": RUPEES(100),
-  "cream-cheese": RUPEES(200),
-  "swiss-meringue": RUPEES(250),
-  "milk-ganache": RUPEES(180),
-  "dark-ganache": RUPEES(200),
-  "white-ganache": RUPEES(220),
-  fondant: RUPEES(500),
-  "mirror-glaze": RUPEES(450),
-};
-
-const FINISH_LABOUR: Record<CakeConfig["finish"], number> = {
-  smooth: 0,
-  rustic: 0,
-  combed: RUPEES(80),
-  ombre: RUPEES(150),
-  ruffle: RUPEES(250),
-  rosette: RUPEES(200),
-};
-
-const TOPPING_UNIT: Record<string, number> = {
-  sprinkles: RUPEES(30),
-  "chocolate-curl": RUPEES(60),
-  "white-chocolate-curl": RUPEES(70),
-  "biscoff-crumb": RUPEES(90),
-  "butterscotch-crunch": RUPEES(90),
-  "caramel-shard": RUPEES(100),
-  "pineapple-chunk": RUPEES(120),
-  "almond-sliver": RUPEES(130),
-  "biscoff-biscuit": RUPEES(160),
-  truffle: RUPEES(180),
-  cherry: RUPEES(210),
-  blueberry: RUPEES(230),
-  "pistachio-nut": RUPEES(240),
-  "rasmalai-disc": RUPEES(280),
-  "chocolate-shard": RUPEES(90),
-  "pistachio-crumb": RUPEES(100),
-  oreo: RUPEES(80),
-  "meringue-kiss": RUPEES(110),
-  strawberry: RUPEES(150),
-  "mixed-berry": RUPEES(250),
-  ferrero: RUPEES(200),
-  macaron: RUPEES(280),
-  "edible-flower": RUPEES(300),
-  "gold-leaf": RUPEES(450),
-};
-
-const DELIVERY_FEE: Record<CakeConfig["delivery"], number> = {
-  pickup: 0,
-  standard: RUPEES(60),
-  "same-day": RUPEES(120),
-  "express-4hr": RUPEES(250),
-  midnight: RUPEES(300),
-};
-
-const SIZE_MULTIPLIER: Record<CakeConfig["size"], number> = {
-  "0.5kg": 0.7, "1kg": 1, "1.5kg": 1.3,
-  "2kg": 1.6, "3kg": 2.1, "5kg": 3,
-};
-
-export function priceCake(c: CakeConfig): PriceBreakdown {
+export function priceCake(c: CakeConfig, catalog: CatalogSnapshot): PriceBreakdown {
+  const { price, settings } = catalog;
   const lines: PriceLine[] = [];
-  const mult = SIZE_MULTIPLIER[c.size];
+
+  /*
+   * Every lookup below is `?? 0`, and none of them should ever fire:
+   * snapshotFrom backfills any option the table is missing from the shipped
+   * defaults, and CakeConfig is Zod-validated, so the key is always a real enum
+   * member. The guard is here because the alternative to a wrong number is NaN,
+   * and NaN spreads — it would reach the customer as a blank total and the
+   * kitchen as an unreadable docket, with nothing naming the cause.
+   */
+  const mult = price.multiplierBySize[c.size] ?? 1;
 
   lines.push({
     label: `${c.size} ${c.shape} base`,
-    amount: BASE_BY_SIZE[c.size],
+    amount: price.baseBySize[c.size] ?? 0,
     kind: "base",
   });
 
-  if (SPONGE_DELTA[c.sponge]) {
+  const spongeDelta = price.spongeDelta[c.sponge] ?? 0;
+  if (spongeDelta) {
     lines.push({
       label: label(c.sponge) + " sponge",
-      amount: Math.round(SPONGE_DELTA[c.sponge] * mult),
+      amount: Math.round(spongeDelta * mult),
       kind: "modifier",
     });
   }
 
-  if (FILLING_DELTA[c.filling]) {
+  const fillingDelta = price.fillingDelta[c.filling] ?? 0;
+  if (fillingDelta) {
     lines.push({
       label: label(c.filling) + " filling",
-      amount: Math.round(FILLING_DELTA[c.filling] * mult),
+      amount: Math.round(fillingDelta * mult),
       kind: "modifier",
     });
   }
 
-  if (FROSTING_DELTA[c.frosting]) {
+  const frostingDelta = price.frostingDelta[c.frosting] ?? 0;
+  if (frostingDelta) {
     lines.push({
       label: label(c.frosting),
-      amount: Math.round(FROSTING_DELTA[c.frosting] * mult),
+      amount: Math.round(frostingDelta * mult),
       kind: "modifier",
     });
   }
@@ -164,7 +94,7 @@ export function priceCake(c: CakeConfig): PriceBreakdown {
   if (c.tiers > 1) {
     lines.push({
       label: `${c.tiers}-tier structure`,
-      amount: RUPEES(400) * (c.tiers - 1),
+      amount: settings.tierSurchargePaise * (c.tiers - 1),
       kind: "labour",
     });
   }
@@ -172,25 +102,26 @@ export function priceCake(c: CakeConfig): PriceBreakdown {
   if (c.layers > 3) {
     lines.push({
       label: `${c.layers} sponge layers`,
-      amount: RUPEES(120) * (c.layers - 3),
+      amount: settings.layerSurchargePaise * (c.layers - 3),
       kind: "modifier",
     });
   }
 
-  if (FINISH_LABOUR[c.finish]) {
+  const finishLabour = price.finishLabour[c.finish] ?? 0;
+  if (finishLabour) {
     lines.push({
       label: label(c.finish) + " finish",
-      amount: Math.round(FINISH_LABOUR[c.finish] * mult),
+      amount: Math.round(finishLabour * mult),
       kind: "labour",
     });
   }
 
   if (c.hasDrip) {
-    lines.push({ label: "Drip", amount: RUPEES(120), kind: "modifier" });
+    lines.push({ label: "Drip", amount: settings.dripPaise, kind: "modifier" });
   }
 
   for (const t of c.toppings) {
-    const unit = TOPPING_UNIT[t.kind] ?? RUPEES(100);
+    const unit = price.toppingUnit[t.kind] ?? 0;
     // density 1..5 → 0.6x .. 1.8x
     const densityFactor = 0.6 + (t.density - 1) * 0.3;
     lines.push({
@@ -201,23 +132,32 @@ export function priceCake(c: CakeConfig): PriceBreakdown {
   }
 
   if (c.message?.trim()) {
-    lines.push({ label: "Message piping", amount: RUPEES(80), kind: "labour" });
+    lines.push({
+      label: "Message piping",
+      amount: settings.messagePipingPaise,
+      kind: "labour",
+    });
   }
 
   if (c.sugarFree) {
-    lines.push({ label: "Sugar-free preparation", amount: RUPEES(250), kind: "modifier" });
+    lines.push({
+      label: "Sugar-free preparation",
+      amount: settings.sugarFreePaise,
+      kind: "modifier",
+    });
   }
 
-  if (DELIVERY_FEE[c.delivery]) {
+  const deliveryFee = price.deliveryFee[c.delivery] ?? 0;
+  if (deliveryFee) {
     lines.push({
       label: label(c.delivery) + " delivery",
-      amount: DELIVERY_FEE[c.delivery],
+      amount: deliveryFee,
       kind: "delivery",
     });
   }
 
   const subtotal = lines.reduce((s, l) => s + l.amount, 0);
-  const gstRate = 0.18;
+  const gstRate = settings.gstRate;
   const gst = Math.round(subtotal * gstRate);
   const total = subtotal + gst;
 
@@ -228,8 +168,9 @@ export function priceCake(c: CakeConfig): PriceBreakdown {
 export function deltaFor(
   c: CakeConfig,
   patch: Partial<CakeConfig>,
+  catalog: CatalogSnapshot,
 ): number {
-  return priceCake({ ...c, ...patch }).total - priceCake(c).total;
+  return priceCake({ ...c, ...patch }, catalog).total - priceCake(c, catalog).total;
 }
 
 export function label(s: string) {

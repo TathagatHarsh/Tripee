@@ -10,6 +10,7 @@ import { FILLINGS, SHAPES, SPONGES, TOPPINGS } from "@/lib/catalog";
 import { resolveSlot } from "@/lib/delivery";
 import { HERO_CAKE, HERO_CAKE_NAME } from "@/lib/hero";
 import { PRESETS } from "@/lib/presets";
+import { getCatalogSnapshot } from "@/lib/catalogData";
 import { priceCake } from "@/lib/pricing";
 import { formatINR } from "@/lib/format";
 import { servingsLabel } from "@/lib/servings";
@@ -28,7 +29,11 @@ const ZONE_LEAD = [
   { name: "Outer", hours: resolveSlot("standard", "500500").effectiveLeadHours },
 ];
 
-export default function Home() {
+export default async function Home() {
+  // The homepage quotes a real price for the hero cake and for every preset
+  // card, so it reads the catalogue the same way the builder does.
+  const catalog = await getCatalogSnapshot();
+
   return (
     <div className="home bg-paper">
       {/*
@@ -245,7 +250,7 @@ export default function Home() {
             <div className="pointer-events-none absolute top-4 right-4 hidden text-right font-mono text-micro leading-loose tracking-[0.1em] text-steel lg:top-24 lg:right-14 lg:block">
               <div className="text-graphite uppercase">{HERO_CAKE_NAME}</div>
               <div className="uppercase">{servingsLabel(HERO)}</div>
-              <div className="font-medium text-ink">{formatINR(priceCake(HERO).total)}</div>
+              <div className="font-medium text-ink">{formatINR(priceCake(HERO, catalog).total)}</div>
             </div>
           </div>
         </section>
@@ -353,7 +358,7 @@ export default function Home() {
             }
           >
             {PRESETS.map((p) => (
-              <PresetCard key={p.slug} preset={p} />
+              <PresetCard key={p.slug} preset={p} catalog={catalog} />
             ))}
           </PresetPager>
         </section>

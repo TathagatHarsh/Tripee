@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { CakeConfig } from "@/lib/schema";
+import { useCatalog } from "@/lib/catalogStore";
 import { buildDocket } from "@/lib/docket";
 import { allergenLine } from "@/lib/allergens";
 import { deriveHandling, servingsLabel } from "@/lib/servings";
@@ -35,7 +36,11 @@ interface Props {
  * and the total sits under the one solid rule on the ticket.
  */
 export function Docket({ config, stamped, reference, className, chromeless }: Props) {
-  const d = useMemo(() => buildDocket(config, { ref: reference }), [config, reference]);
+  const catalog = useCatalog();
+  const d = useMemo(
+    () => buildDocket(config, catalog, { ref: reference }),
+    [config, catalog, reference],
+  );
   const handling = deriveHandling(config);
 
   const Frame = chromeless ? "div" : "aside";

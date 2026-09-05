@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCatalog } from "@/lib/catalogStore";
 import { buildDocket } from "@/lib/docket";
 import { formatINR } from "@/lib/format";
 import { LazyCakeScene, SceneSkeleton } from "@/components/three/LazyCakeScene";
@@ -33,6 +34,9 @@ import { btn, eyebrow, iconBtn } from "@/lib/ui";
 export function BuilderShell({ children }: { children: React.ReactNode }) {
   const hydrated = useHydrated();
   const config = useConfig();
+  // Seeded by the layout before this renders, so it is the bakery's catalogue
+  // on the very first frame rather than the one compiled into the bundle.
+  const catalog = useCatalog();
   const pathname = usePathname();
   const sliced = useView(s => s.sliced);
   const toggleSlice = useView(s => s.toggleSlice);
@@ -45,7 +49,7 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
    * button back up to where a phone already has it.
    */
   const onToppings = pathname.endsWith("/toppings");
-  const docket = hydrated ? buildDocket(config) : null;
+  const docket = hydrated ? buildDocket(config, catalog) : null;
   const caption = hydrated ? describeCake(config) : null;
 
   /*

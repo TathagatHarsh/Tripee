@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { OrderStatus } from "@prisma/client";
+import { getCatalogSnapshot } from "@/lib/catalogData";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { renderSpecSheet } from "@/lib/docket";
 import { formatINR, formatIST } from "@/lib/format";
@@ -51,13 +52,14 @@ export default async function KitchenBoard({
     );
   }
 
-  const [orders, grouped] = await Promise.all([
+  const [orders, grouped, catalog] = await Promise.all([
     db.order.findMany({
       where: filter ? { status: filter } : undefined,
       orderBy: { createdAt: "desc" },
       take: 200,
     }),
     db.order.groupBy({ by: ["status"], _count: { _all: true } }),
+    getCatalogSnapshot(),
   ]);
 
   const counts: Partial<Record<OrderStatus, number>> = {};
@@ -78,10 +80,12 @@ export default async function KitchenBoard({
           {orders.map((o) => {
             const config = migrateConfig(o.config);
             // The stored total is the number the customer was quoted and is
-            // frozen. The sheet is regenerated from the config, so if the price
-            // tables have been edited and redeployed since, the two disagree —
-            // and the kitchen needs to know which one it is holding to.
-            const recomputed = config ? priceCake(config).total : null;
+            // frozen. The sheet is regenerated from the config, so if the
+            // catalogue has been edited since, the two disagree — and the
+            // kitchen needs to know which one it is holding to. This used to
+            // require a redeploy to happen; now it takes one admin and one
+            // afternoon, so the check earns its keep.
+            const recomputed = config ? priceCake(config, catalog).total : null;
             const drifted = recomputed !== null && recomputed !== o.totalPaise;
 
             return (
@@ -125,7 +129,7 @@ export default async function KitchenBoard({
                       Spec sheet
                     </summary>
                     <pre className="overflow-x-auto border-t border-rule bg-sunken px-4 py-3 font-mono text-micro leading-[1.7]">
-{renderSpecSheet(config, { ref: o.ref, createdAt: o.createdAt })}
+{renderSpecSheet(config, catalog, { ref: o.ref, createdAt: o.createdAt })}
                     </pre>
                   </details>
                 ) : (

@@ -1,19 +1,57 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * The kitchen board lists customer names and phone numbers, so it needs a gate.
+ * Two staff areas, two gates.
+ *
+ * The kitchen board lists customer names and phone numbers. The admin portal
+ * sets what the bakery charges. Both need a password, and neither should be
+ * reachable with the other's.
  *
  * HTTP Basic rather than an auth library: there is no User model, no session
- * and no signup, and inventing all three to put a password on one staff page
+ * and no signup, and inventing all three to put a password on two staff pages
  * would be a large amount of machinery for one bakery. The browser already
  * knows how to prompt for this, so it costs no login page and no dependency.
  *
- * The obvious ceiling: one shared credential, no per-person identity and no
- * audit trail of who advanced which docket. When staff need to be told apart,
- * this is the seam to replace — everything else stays as it is.
+ * Separate realms rather than one shared credential, because the two are not
+ * the same job: whoever is moving dockets on a counter tablet all day does not
+ * also need the ability to reprice the menu, and one password would hand it to
+ * them. Browsers cache credentials per realm, so the two stay apart on their
+ * own.
+ *
+ * The obvious ceiling, unchanged: one shared credential *per area*, no
+ * per-person identity, and no audit trail of who advanced which docket or who
+ * changed which price. When staff need to be told apart, this is the seam to
+ * replace — everything else stays as it is.
  */
 
-const REALM = 'Basic realm="Makemycake kitchen", charset="UTF-8"';
+interface Gate {
+  prefix: string;
+  realm: string;
+  user: string | undefined;
+  password: string | undefined;
+}
+
+/**
+ * Read per request rather than at module load: the edge runtime reuses a module
+ * instance across invocations, and an env var read once at import would survive
+ * a credential rotation until the next cold start.
+ */
+function gates(): Gate[] {
+  return [
+    {
+      prefix: "/admin",
+      realm: "Makemycake admin",
+      user: process.env.ADMIN_USER,
+      password: process.env.ADMIN_PASSWORD,
+    },
+    {
+      prefix: "/kitchen",
+      realm: "Makemycake kitchen",
+      user: process.env.KITCHEN_USER,
+      password: process.env.KITCHEN_PASSWORD,
+    },
+  ];
+}
 
 /**
  * The edge runtime has no `crypto.timingSafeEqual`, so compare every character
@@ -28,19 +66,31 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 export default function proxy(req: NextRequest) {
-  const user = process.env.KITCHEN_USER;
-  const password = process.env.KITCHEN_PASSWORD;
+  const gate = gates().find((g) => req.nextUrl.pathname.startsWith(g.prefix));
+
+  // The matcher below is what decides which paths arrive here, so a request
+  // with no gate is a matcher that has drifted from this list rather than a
+  // request to let through on trust.
+  if (!gate) {
+    return new NextResponse("Not found.\n", {
+      status: 404,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+
+  const { user, password } = gate;
 
   /*
    * Fail closed. An unconfigured gate must never degrade into an open door onto
-   * a page of customer phone numbers — which is exactly what "if no password is
-   * set, skip the check" would do on the first deployment where someone forgot
-   * to set the variable.
+   * a page of customer phone numbers, or onto the prices — which is exactly
+   * what "if no password is set, skip the check" would do on the first
+   * deployment where someone forgot to set the variable.
    */
   if (!user || !password) {
+    const prefix = gate.prefix.slice(1).toUpperCase();
     return new NextResponse(
-      "The kitchen board is not configured on this deployment.\n" +
-      "Set KITCHEN_USER and KITCHEN_PASSWORD.\n",
+      `The ${gate.prefix} area is not configured on this deployment.\n` +
+      `Set ${prefix}_USER and ${prefix}_PASSWORD.\n`,
       { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } },
     );
   }
@@ -68,17 +118,17 @@ export default function proxy(req: NextRequest) {
   return new NextResponse("Authentication required.\n", {
     status: 401,
     headers: {
-      "WWW-Authenticate": REALM,
+      "WWW-Authenticate": `Basic realm="${gate.realm}", charset="UTF-8"`,
       "content-type": "text/plain; charset=utf-8",
     },
   });
 }
 
 /**
- * `:path*` matches zero or more segments, so this covers /kitchen itself as
- * well as everything under it — including the POST a server action makes back
- * to the page it lives on.
+ * `:path*` matches zero or more segments, so each entry covers the area's own
+ * page as well as everything under it — including the POST a server action
+ * makes back to the page it lives on, which is how both boards write.
  */
 export const config = {
-  matcher: ["/kitchen/:path*"],
+  matcher: ["/admin/:path*", "/kitchen/:path*"],
 };
