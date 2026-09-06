@@ -194,7 +194,7 @@ export const SIZE_TABLE = SIZES.map(s => ({
  */
 export const DELIVERY_TABLE = DELIVERY_OPTIONS.map(o => {
   const line = priceCake({ ...c, delivery: o.value }, DEFAULT_SNAPSHOT).lines.find(l => l.kind === "delivery");
-  const slot = resolveSlot(o.value);
+  const slot = resolveSlot(o.value, undefined, DEFAULT_SNAPSHOT);
   return {
     label: upper(o.name),
     window: slot.window,
@@ -218,9 +218,9 @@ const ZONE_PROBES: { pincode: string; range: string }[] = [
 
 export const ZONE_TABLE = ZONE_PROBES.map(z => {
   const slots = DELIVERY_OPTIONS
-    .filter(o => resolveSlot(o.value, z.pincode).available)
+    .filter(o => resolveSlot(o.value, z.pincode, DEFAULT_SNAPSHOT).available)
     .map(o => upper(o.name));
-  const standard = resolveSlot("standard", z.pincode);
+  const standard = resolveSlot("standard", z.pincode, DEFAULT_SNAPSHOT);
   return {
     name: upper(standard.zoneName ?? ""),
     range: z.range,
@@ -269,5 +269,5 @@ export const HOUSE_RULES: { id: string; severity: RuleViolation["severity"]; mes
 
 /** Slots a pincode can actually have, for the intake's one-tap fix. */
 export function slotsFor(pincode: string): DeliverySlot[] {
-  return DELIVERY_OPTIONS.filter(o => resolveSlot(o.value, pincode).available).map(o => o.value);
+  return DELIVERY_OPTIONS.filter(o => resolveSlot(o.value, pincode, DEFAULT_SNAPSHOT).available).map(o => o.value);
 }

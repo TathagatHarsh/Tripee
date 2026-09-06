@@ -64,22 +64,22 @@ describe("servings and handling", () => {
 
 describe("delivery", () => {
   it("maps Hyderabad pincodes to zones", () => {
-    expect(zoneForPincode("500081")!.id).toBe("core");
-    expect(zoneForPincode("500500")!.id).toBe("outer");
-    expect(zoneForPincode("501401")!.id).toBe("extended");
-    expect(zoneForPincode("110001")).toBeNull();
-    expect(servicePincode("500081")).toBe(true);
+    expect(zoneForPincode("500081", DEFAULT_SNAPSHOT)!.id).toBe("core");
+    expect(zoneForPincode("500500", DEFAULT_SNAPSHOT)!.id).toBe("outer");
+    expect(zoneForPincode("501401", DEFAULT_SNAPSHOT)!.id).toBe("extended");
+    expect(zoneForPincode("110001", DEFAULT_SNAPSHOT)).toBeNull();
+    expect(servicePincode("500081", DEFAULT_SNAPSHOT)).toBe(true);
   });
 
   it("adds rider time in outer zones and withdraws express", () => {
-    expect(resolveSlot("standard", "500081").effectiveLeadHours).toBe(48);
-    expect(resolveSlot("standard", "500500").effectiveLeadHours).toBe(50);
-    expect(resolveSlot("express-4hr", "500500").available).toBe(false);
-    expect(resolveSlot("express-4hr", "500500").unavailableReason).toBeTruthy();
+    expect(resolveSlot("standard", "500081", DEFAULT_SNAPSHOT).effectiveLeadHours).toBe(48);
+    expect(resolveSlot("standard", "500500", DEFAULT_SNAPSHOT).effectiveLeadHours).toBe(50);
+    expect(resolveSlot("express-4hr", "500500", DEFAULT_SNAPSHOT).available).toBe(false);
+    expect(resolveSlot("express-4hr", "500500", DEFAULT_SNAPSHOT).unavailableReason).toBeTruthy();
   });
 
   it("never charges rider time against a pickup", () => {
-    expect(resolveSlot("pickup", "501401").effectiveLeadHours).toBe(24);
+    expect(resolveSlot("pickup", "501401", DEFAULT_SNAPSHOT).effectiveLeadHours).toBe(24);
   });
 });
 

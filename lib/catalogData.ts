@@ -2,6 +2,7 @@ import { unstable_cache, updateTag } from "next/cache";
 import { DEFAULT_SETTINGS, DEFAULT_SNAPSHOT, snapshotFrom } from "./catalogDefaults";
 import type { CatalogRow, CatalogSnapshot } from "./catalogSnapshot";
 import { db, hasDatabase } from "./db";
+import type { DeliverySlot } from "./schema";
 
 /**
  * The catalogue, read on the server.
@@ -46,6 +47,9 @@ function toRow(r: {
   glyph: string | null;
   priceInputPaise: number;
   multiplier: number | null;
+  leadHours: number | null;
+  slotWindow: string | null;
+  slotNote: string | null;
   isAvailable: boolean;
   sortOrder: number;
 }): CatalogRow {
@@ -59,6 +63,9 @@ function toRow(r: {
     ...(r.glyph === null ? {} : { glyph: r.glyph }),
     priceInputPaise: r.priceInputPaise,
     ...(r.multiplier === null ? {} : { multiplier: r.multiplier }),
+    ...(r.leadHours === null ? {} : { leadHours: r.leadHours }),
+    ...(r.slotWindow === null ? {} : { slotWindow: r.slotWindow }),
+    ...(r.slotNote === null ? {} : { slotNote: r.slotNote }),
     isAvailable: r.isAvailable,
     sortOrder: r.sortOrder,
   };
@@ -71,9 +78,14 @@ function toRow(r: {
  */
 const load = unstable_cache(
   async (): Promise<CatalogSnapshot> => {
-    const [rows, settings] = await Promise.all([
+    const [rows, settings, zones, bakery] = await Promise.all([
       db.catalogOption.findMany({ orderBy: [{ category: "asc" }, { sortOrder: "asc" }] }),
       db.pricingSettings.findUnique({ where: { id: "singleton" } }),
+      // Inactive zones are left behind entirely rather than carried with a
+      // flag: a zone that is off is a place we do not deliver to, and the
+      // resolver's "no zone" answer already says exactly that.
+      db.deliveryZone.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
+      db.bakerySettings.findUnique({ where: { id: "singleton" } }),
     ]);
 
     return snapshotFrom(
@@ -88,8 +100,18 @@ const load = unstable_cache(
             // Stored as basis points so the rate is never a float in the
             // database. 1800 -> 0.18, which is what PriceBreakdown reports.
             gstRate: settings.gstBasisPoints / 10_000,
+            minOrderPaise: settings.minOrderPaise,
           }
         : DEFAULT_SETTINGS,
+      zones.map((z) => ({
+        id: z.id,
+        name: z.name,
+        pincodeFrom: z.pincodeFrom,
+        pincodeTo: z.pincodeTo,
+        extraHours: z.extraHours,
+        slots: z.slots as DeliverySlot[],
+      })),
+      bakery ?? undefined,
     );
   },
   ["catalog-snapshot"],

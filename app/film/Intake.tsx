@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { resolveSlot, zoneForPincode } from "@/lib/delivery";
+import { DEFAULT_SNAPSHOT } from "@/lib/catalogDefaults";
 import { TICKET_NO } from "./cake";
 import { earliestDate, formatDay, parseWhen } from "./when";
 
@@ -38,13 +39,13 @@ export function Intake() {
   const resolved = parseWhen(when, now);
 
   const slot = pickup ? "pickup" : "standard";
-  const lead = resolveSlot(slot, pincode.length === 6 ? pincode : undefined);
+  const lead = resolveSlot(slot, pincode.length === 6 ? pincode : undefined, DEFAULT_SNAPSHOT);
   const earliest = earliestDate(now, lead.effectiveLeadHours);
 
   const constraints: Constraint[] = [];
 
   /* The pincode, against the zones in lib/delivery. */
-  if (pincode.length === 6 && !zoneForPincode(pincode)) {
+  if (pincode.length === 6 && !zoneForPincode(pincode, DEFAULT_SNAPSHOT)) {
     constraints.push({
       line: `WE DON'T RIDE TO ${pincode} YET`,
       fix: { label: "Collect it instead", apply: () => setPickup(true) },

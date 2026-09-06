@@ -61,7 +61,7 @@ export default function ReviewStep() {
   const servings = deriveServings(config);
   const layers = deriveLayers(config);
   const handling = deriveHandling(config);
-  const slot = resolveSlot(config.delivery, config.pincode);
+  const slot = resolveSlot(config.delivery, config.pincode, catalog);
   // The server refuses an order with no name or no reachable number, so the
   // button has to know that too — otherwise the only way to find out is to press
   // the primary action and be told no.

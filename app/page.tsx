@@ -24,15 +24,18 @@ const HERO = HERO_CAKE;
  * page is how a landing page ends up promising something the delivery module
  * disagrees with.
  */
-const ZONE_LEAD = [
-  { name: "Core", hours: resolveSlot("standard", "500001").effectiveLeadHours },
-  { name: "Outer", hours: resolveSlot("standard", "500500").effectiveLeadHours },
-];
-
 export default async function Home() {
   // The homepage quotes a real price for the hero cake and for every preset
   // card, so it reads the catalogue the same way the builder does.
   const catalog = await getCatalogSnapshot();
+
+  /* Derived from the delivery module rather than typed here, so the landing
+     page cannot promise a lead time the builder disagrees with — now including
+     when the bakery retimes a slot from /admin/delivery. */
+  const ZONE_LEAD = [
+    { name: "Core", hours: resolveSlot("standard", "500001", catalog).effectiveLeadHours },
+    { name: "Outer", hours: resolveSlot("standard", "500500", catalog).effectiveLeadHours },
+  ];
 
   return (
     <div className="home bg-paper">

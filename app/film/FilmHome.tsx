@@ -6,7 +6,7 @@ import Link from "next/link";
 import { deriveAllergens } from "@/lib/allergens";
 import { FILLINGS, FROSTINGS, SHAPES, SPONGES, STEPS, TOPPINGS } from "@/lib/catalog";
 import { DEFAULT_SNAPSHOT } from "@/lib/catalogDefaults";
-import { SLOTS } from "@/lib/delivery";
+
 import { FSSAI_LICENCE, renderSpecSheet } from "@/lib/docket";
 import { PRESETS } from "@/lib/presets";
 import { mulberry32 } from "@/lib/seed";
@@ -34,7 +34,7 @@ const NUMBERS: [string, string][] = [
   [String(TOPPINGS.length), "toppings"],
   [String(PRESETS.length), "we have made before"],
   [String(STEPS.length), "choices"],
-  [String(SLOTS.standard.leadHours), "hours"],
+  [String(DEFAULT_SNAPSHOT.slots.standard.leadHours), "hours"],
 ];
 
 const KITCHEN_DAY: [string, string][] = [
@@ -318,8 +318,8 @@ export function FilmHome() {
             <div>Hyderabad 500033</div>
           </div>
           <div className="text-[length:var(--mono-xs)] leading-[1.6] tracking-[var(--tracking-mono-xs)] uppercase">
-            <div>Counter {SLOTS.pickup.window.replace("Collect ", "")}</div>
-            <div>Standard lead {SLOTS.standard.leadHours} hours</div>
+            <div>Counter {DEFAULT_SNAPSHOT.slots.pickup.window.replace("Collect ", "")}</div>
+            <div>Standard lead {DEFAULT_SNAPSHOT.slots.standard.leadHours} hours</div>
             <div>One kitchen · One city</div>
             {/* A licence number is a regulatory identifier, so it is printed when
                 the environment carries the real one and the line is simply absent

@@ -72,7 +72,8 @@ export async function POST(req: Request) {
    * reads the catalogue as it is now, and what it produces is what gets frozen
    * onto the order below.
    */
-  const price = priceCake(parsed.data, await getCatalogSnapshot());
+  const catalog = await getCatalogSnapshot();
+  const price = priceCake(parsed.data, catalog);
 
   if (body.clientTotal && body.clientTotal !== price.total) {
     // Could be a stale client, could be tampering. Either way the server wins.
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
 
   const allergens = deriveAllergens(parsed.data);
   const servings = deriveServings(parsed.data);
-  const slot = resolveSlot(parsed.data.delivery, parsed.data.pincode);
+  const slot = resolveSlot(parsed.data.delivery, parsed.data.pincode, catalog);
 
   // The builder shows "we don't deliver to 560001 yet" and then lets the order
   // through anyway, which turns a clear refusal on screen into a phone call

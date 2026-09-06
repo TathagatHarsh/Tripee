@@ -76,7 +76,7 @@ export function buildDocket(
   const price = priceCake(c, catalog);
   const allergens = deriveAllergens(c);
   const handling = deriveHandling(c);
-  const slot = resolveSlot(c.delivery, c.pincode);
+  const slot = resolveSlot(c.delivery, c.pincode, catalog);
   const servings = deriveServings(c);
 
   /**

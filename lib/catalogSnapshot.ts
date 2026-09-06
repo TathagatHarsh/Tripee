@@ -33,6 +33,12 @@ export interface CatalogEntry {
   priceInputPaise: number;
   /** Sizes only — how much this size scales every other option's delta. */
   multiplier?: number;
+  /** Delivery rows only — hours from confirmation to arrival. */
+  leadHours?: number;
+  /** Delivery rows only — the window quoted to the customer. */
+  slotWindow?: string;
+  /** Delivery rows only — the cutoff or caveat under the window. */
+  slotNote?: string;
   isAvailable: boolean;
   sortOrder: number;
 }
@@ -69,6 +75,44 @@ export interface PricingSettingsSnapshot {
   sugarFreePaise: number;
   /** A fraction, not basis points: the engine's own output reports 0.18. */
   gstRate: number;
+  /** Smallest order the kitchen will take, before GST. Zero means no minimum. */
+  minOrderPaise: number;
+}
+
+/**
+ * What a delivery slot promises, derived from its own CatalogOption row.
+ *
+ * A slot is not a separate thing from the option a customer picks — it is that
+ * option read for its timing rather than its price — so this is projected off
+ * the delivery rows rather than stored twice.
+ */
+export interface DeliverySlotInfo {
+  slot: DeliverySlot;
+  name: string;
+  leadHours: number;
+  window: string;
+  note: string;
+}
+
+/** A pincode range, and what the distance costs in rider time. */
+export interface DeliveryZoneInfo {
+  id: string;
+  name: string;
+  pincodeFrom: number;
+  pincodeTo: number;
+  extraHours: number;
+  slots: DeliverySlot[];
+}
+
+/** The letterhead. Nothing here changes a total. */
+export interface BakeryInfo {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  hours: string;
+  /** Empty prints no line. See prisma/schema.prisma on why there is no default. */
+  fssaiLicence: string;
 }
 
 export interface CatalogSnapshot {
@@ -76,6 +120,10 @@ export interface CatalogSnapshot {
   byCategory: Record<CatalogCategory, CatalogEntry[]>;
   price: PriceTables;
   settings: PricingSettingsSnapshot;
+  slots: Record<DeliverySlot, DeliverySlotInfo>;
+  /** Active zones only, in display order. */
+  zones: DeliveryZoneInfo[];
+  bakery: BakeryInfo;
 }
 
 export const CATEGORIES: CatalogCategory[] = [
@@ -122,6 +170,8 @@ function priceIndex<K extends string>(entries: CatalogEntry[]): Record<K, number
 export function buildSnapshot(
   rows: CatalogRow[],
   settings: PricingSettingsSnapshot,
+  zones: DeliveryZoneInfo[],
+  bakery: BakeryInfo,
 ): CatalogSnapshot {
   const byCategory = {} as Record<CatalogCategory, CatalogEntry[]>;
   for (const c of CATEGORIES) byCategory[c] = [];
@@ -132,6 +182,24 @@ export function buildSnapshot(
   const multiplierBySize = {} as Record<SizeBand, number>;
   // A size carrying no multiplier scales nothing, rather than scaling to zero.
   for (const s of sizes) multiplierBySize[s.value as SizeBand] = s.multiplier ?? 1;
+
+  /*
+   * The slot table is a second reading of the delivery rows, not a second copy
+   * of them: a row is the option a customer picks, and this is that same row
+   * asked what it promises rather than what it costs. Deriving it here means a
+   * withdrawn slot cannot go missing from one view and linger in the other.
+   */
+  const slots = {} as Record<DeliverySlot, DeliverySlotInfo>;
+  for (const d of byCategory.delivery) {
+    const slot = d.value as DeliverySlot;
+    slots[slot] = {
+      slot,
+      name: d.name,
+      leadHours: d.leadHours ?? 0,
+      window: d.slotWindow ?? "",
+      note: d.slotNote ?? "",
+    };
+  }
 
   return {
     byCategory,
@@ -146,6 +214,9 @@ export function buildSnapshot(
       deliveryFee: priceIndex<DeliverySlot>(byCategory.delivery),
     },
     settings,
+    slots,
+    zones,
+    bakery,
   };
 }
 

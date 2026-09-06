@@ -29,9 +29,9 @@ export default function MessageStep() {
   // Leaving the step puts the plaque back on the cake, whatever state the
   // editor was left in.
   useEffect(() => () => setComposing(false), [setComposing]);
-  const slot = resolveSlot(config.delivery, config.pincode);
+  const slot = resolveSlot(config.delivery, config.pincode, catalog);
   const pincodeTyped = (config.pincode ?? "").length === 6;
-  const unknownPincode = pincodeTyped && !servicePincode(config.pincode);
+  const unknownPincode = pincodeTyped && !servicePincode(config.pincode, catalog);
 
   return (
     <div className="flex flex-col gap-7">

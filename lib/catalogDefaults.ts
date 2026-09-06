@@ -4,8 +4,8 @@ import {
   SHAPES, SIZES, SPONGES, TOPPINGS, type Option,
 } from "./catalog";
 import {
-  buildSnapshot, type CatalogRow, type CatalogSnapshot,
-  type PricingSettingsSnapshot,
+  buildSnapshot, type BakeryInfo, type CatalogRow, type CatalogSnapshot,
+  type DeliveryZoneInfo, type PricingSettingsSnapshot,
 } from "./catalogSnapshot";
 import type {
   DeliverySlot, Filling, Finish, Frosting, SizeBand, Sponge, Topping,
@@ -154,6 +154,99 @@ export const DEFAULT_SETTINGS: PricingSettingsSnapshot = {
   dripPaise: RUPEES(120),
   sugarFreePaise: RUPEES(250),
   gstRate: 0.18,
+  // No minimum is what this product shipped with, and a minimum nobody set is
+  // not one to invent on their behalf.
+  minOrderPaise: 0,
+};
+
+/**
+ * What each delivery slot promises. Moved verbatim out of lib/delivery's SLOTS.
+ *
+ * The window and the note are sentences rather than fields because that is what
+ * a bakery actually means: "order by 18:00 the previous day" is a cutoff, a
+ * reason and a consequence at once, and splitting it into a time column would
+ * lose the half that makes it useful.
+ */
+const DEFAULT_SLOT_INFO: Record<
+  DeliverySlot,
+  { leadHours: number; window: string; note: string }
+> = {
+  standard: {
+    leadHours: 48,
+    window: "10:00–20:00, day after tomorrow",
+    note: "Baked fresh the morning of delivery.",
+  },
+  "same-day": {
+    leadHours: 12,
+    window: "Order before 11:00, arrives 18:00–21:00",
+    note: "Limited to designs we can decorate in a single shift.",
+  },
+  "express-4hr": {
+    leadHours: 4,
+    window: "Within 4 hours of confirmation",
+    note: "Dedicated rider. Available 09:00–19:00.",
+  },
+  midnight: {
+    leadHours: 24,
+    window: "23:30–00:30",
+    note: "Rider calls on arrival. Order by 18:00 the previous day.",
+  },
+  pickup: {
+    leadHours: 24,
+    window: "Collect 10:00–21:00",
+    note: "Jubilee Hills counter. Bring the order reference.",
+  },
+};
+
+/**
+ * Hyderabad service zones, moved verbatim out of lib/delivery's ZONES.
+ *
+ * Express stops at the core because a rider cannot make a four-hour window
+ * across the city, and the extended zone takes only what survives the trip.
+ * These are refusals the bakery should be able to revise as it hires riders,
+ * which is the whole reason they are rows now.
+ */
+export const DEFAULT_ZONES: DeliveryZoneInfo[] = [
+  {
+    id: "core",
+    name: "Hyderabad core",
+    pincodeFrom: 500001,
+    pincodeTo: 500099,
+    extraHours: 0,
+    slots: ["standard", "same-day", "express-4hr", "midnight", "pickup"],
+  },
+  {
+    id: "outer",
+    name: "Hyderabad outer",
+    pincodeFrom: 500100,
+    pincodeTo: 500999,
+    extraHours: 2,
+    slots: ["standard", "same-day", "midnight", "pickup"],
+  },
+  {
+    id: "extended",
+    name: "Ranga Reddy / Medchal",
+    pincodeFrom: 501001,
+    pincodeTo: 502999,
+    extraHours: 6,
+    slots: ["standard", "pickup"],
+  },
+];
+
+/**
+ * The letterhead, as it stood before any of it was editable.
+ *
+ * The FSSAI licence still reads from the environment as its default, because
+ * lib/docket's position on inventing a registration number has not changed:
+ * unset means the line does not print. The database can now hold a real one.
+ */
+export const DEFAULT_BAKERY: BakeryInfo = {
+  name: "Makemycake",
+  phone: "+91 90000 00000",
+  email: "orders@makemycake.example",
+  address: "Road No. 36, Jubilee Hills, Hyderabad 500033",
+  hours: "Tue–Sun 10:00–21:00. Closed Mondays.",
+  fssaiLicence: process.env.NEXT_PUBLIC_FSSAI_LICENCE ?? "",
 };
 
 /** Basis points, for the row the seed writes. 0.18 -> 1800. */
@@ -198,13 +291,20 @@ export const DEFAULT_ROWS: CatalogRow[] = [
   ...toRows("finish", FINISHES, (v) => FINISH_LABOUR[v]),
   ...toRows("topping", TOPPINGS, (v) => TOPPING_UNIT[v]),
   ...toRows("placement", PLACEMENTS, free),
-  ...toRows("delivery", DELIVERY_OPTIONS, (v) => DELIVERY_FEE[v]),
+  // Delivery rows carry their timing as well as their fee: the slot a customer
+  // picks and the promise attached to it are the same row, read two ways.
+  ...toRows("delivery", DELIVERY_OPTIONS, (v) => DELIVERY_FEE[v]).map((r) => {
+    const info = DEFAULT_SLOT_INFO[r.value as DeliverySlot];
+    return { ...r, leadHours: info.leadHours, slotWindow: info.window, slotNote: info.note };
+  }),
 ];
 
-/** What the product priced before any of this was editable. */
+/** What the product priced and promised before any of this was editable. */
 export const DEFAULT_SNAPSHOT: CatalogSnapshot = buildSnapshot(
   DEFAULT_ROWS,
   DEFAULT_SETTINGS,
+  DEFAULT_ZONES,
+  DEFAULT_BAKERY,
 );
 
 /**
@@ -218,6 +318,8 @@ export const DEFAULT_SNAPSHOT: CatalogSnapshot = buildSnapshot(
 export function snapshotFrom(
   rows: CatalogRow[],
   settings: PricingSettingsSnapshot,
+  zones?: DeliveryZoneInfo[],
+  bakery?: BakeryInfo,
 ): CatalogSnapshot {
   const key = (r: { category: CatalogCategory; value: string }) =>
     `${r.category}:${r.value}`;
@@ -225,5 +327,18 @@ export function snapshotFrom(
   const merged = new Map(DEFAULT_ROWS.map((r) => [key(r), r]));
   for (const r of rows) merged.set(key(r), r);
 
-  return buildSnapshot([...merged.values()], settings);
+  /*
+   * Zones fall back wholesale rather than per row, unlike options. An option
+   * the table is missing is a gap to paper over; a zone table that is empty is
+   * a bakery that has not set one up yet, and quoting "we do not deliver
+   * anywhere" to every customer would be worse than quoting the map this
+   * product shipped with. Once there is one zone, that set is the answer —
+   * including for a pincode it deliberately excludes.
+   */
+  return buildSnapshot(
+    [...merged.values()],
+    settings,
+    zones && zones.length > 0 ? zones : DEFAULT_ZONES,
+    bakery ?? DEFAULT_BAKERY,
+  );
 }
