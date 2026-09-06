@@ -70,7 +70,7 @@ export default function SizeStep() {
                 <span
                   className={`font-mono text-micro font-medium tabular-nums ${optionText.delta(active)}`}
                 >
-                  {formatDelta(deltaFor(config, patch))}
+                  {formatDelta(deltaFor(config, patch, catalog))}
                 </span>
                 {blocked && (
                   <span
@@ -115,7 +115,7 @@ export default function SizeStep() {
                 <span
                   className={`font-mono text-micro font-medium tabular-nums ${optionText.delta(active)}`}
                 >
-                  {formatDelta(deltaFor(config, { layers }))}
+                  {formatDelta(deltaFor(config, { layers }, catalog))}
                 </span>
               </button>
             );

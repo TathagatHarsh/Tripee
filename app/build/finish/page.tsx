@@ -91,7 +91,7 @@ export default function FinishStep() {
                 Chocolate drip
               </span>
               <span className="shrink-0 font-mono text-micro font-medium text-ink tabular-nums">
-                {formatDelta(deltaFor(config, { hasDrip: !config.hasDrip }))}
+                {formatDelta(deltaFor(config, { hasDrip: !config.hasDrip }, catalog))}
               </span>
             </span>
             <span className="mt-1 block text-meta leading-snug text-steel">
