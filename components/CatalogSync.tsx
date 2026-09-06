@@ -28,10 +28,25 @@ import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
  * that reason.
  */
 export function CatalogSync({ snapshot }: { snapshot?: CatalogSnapshot }) {
-  if (snapshot) seedCatalog(snapshot);
+  /*
+   * Only on the very first paint, and the condition is the whole point.
+   *
+   * Writing to the store during render is safe exactly once: before anything
+   * has subscribed, nothing can be mid-render when the write lands. On a client
+   * navigation the server sends a structurally identical snapshot as a *new*
+   * object, so an unguarded seed fired again with the builder already mounted,
+   * and React rightly complained that CatalogSync was updating BuilderShell
+   * mid-render. Every seed after the first belongs in the effect below, where a
+   * store write is ordinary.
+   */
+  if (snapshot && !useCatalogStore.getState().fromServer) seedCatalog(snapshot);
 
   useEffect(() => {
-    if (snapshot) return;
+    if (snapshot) {
+      // The navigation case: same shape, newer values, applied after paint.
+      seedCatalog(snapshot);
+      return;
+    }
     // Already server-seeded by another CatalogSync on this page.
     if (useCatalogStore.getState().fromServer) return;
 
