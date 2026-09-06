@@ -157,3 +157,241 @@ export async function saveSettings(
   revalidatePath("/admin/catalog");
   return { ok: true, message: "Charges saved." };
 }
+
+/* ---------------------------------------------------------------- delivery */
+
+const SlotEdit = z.object({
+  id: z.string().min(1),
+  priceInputPaise: RupeeAmount,
+  leadHours: z
+    .string()
+    .trim()
+    .refine((s) => /^\d+$/.test(s), "Lead time is a whole number of hours.")
+    .transform(Number)
+    .refine((h) => h <= 24 * 90, "That is more than three months."),
+  slotWindow: z.string().trim().min(1, "Say when it arrives.").max(120),
+  slotNote: z.string().trim().max(200),
+});
+
+export async function saveDeliverySlot(
+  _prev: ActionResult | undefined,
+  form: FormData,
+): Promise<ActionResult> {
+  if (!hasDatabase()) return NO_DB;
+
+  const parsed = SlotEdit.safeParse({
+    id: form.get("id"),
+    priceInputPaise: form.get("fee"),
+    leadHours: form.get("leadHours"),
+    slotWindow: form.get("slotWindow"),
+    slotNote: form.get("slotNote"),
+  });
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
+  }
+
+  const { id, ...data } = parsed.data;
+  try {
+    // Scoped to the delivery category so this action cannot be pointed at a
+    // sponge and give it a lead time it has no meaning for.
+    const { count } = await db.catalogOption.updateMany({
+      where: { id, category: "delivery" },
+      data,
+    });
+    if (count === 0) return { ok: false, message: "That slot no longer exists. Reload the page." };
+  } catch {
+    return { ok: false, message: "That didn't save." };
+  }
+
+  revalidateCatalog();
+  revalidatePath("/admin/delivery");
+  return { ok: true, message: "Slot saved." };
+}
+
+const Pincode = z
+  .string()
+  .trim()
+  .refine((s) => /^\d{6}$/.test(s), "A pincode is six digits.")
+  .transform(Number);
+
+const ZoneEdit = z
+  .object({
+    name: z.string().trim().min(1, "A zone needs a name.").max(60),
+    pincodeFrom: Pincode,
+    pincodeTo: Pincode,
+    extraHours: z
+      .string()
+      .trim()
+      .refine((s) => /^\d+$/.test(s), "Extra time is a whole number of hours.")
+      .transform(Number)
+      .refine((h) => h <= 24 * 14, "That is more than a fortnight of rider time."),
+    slots: z
+      .array(z.string())
+      .min(1, "A zone with no slots delivers nothing — deactivate it instead."),
+  })
+  .refine((v) => v.pincodeFrom <= v.pincodeTo, {
+    message: "That range starts after it ends.",
+    path: ["pincodeTo"],
+  });
+
+/** Only slots the schema knows, so a zone cannot offer one nothing can render. */
+function readSlots(form: FormData): string[] {
+  const allowed = new Set(VALUES_BY_CATEGORY.delivery);
+  return form.getAll("slots").map(String).filter((s) => allowed.has(s));
+}
+
+export async function saveZone(
+  _prev: ActionResult | undefined,
+  form: FormData,
+): Promise<ActionResult> {
+  if (!hasDatabase()) return NO_DB;
+
+  const id = String(form.get("id") ?? "");
+  if (!id) return { ok: false, message: "That zone no longer exists. Reload the page." };
+
+  const parsed = ZoneEdit.safeParse({
+    name: form.get("name"),
+    pincodeFrom: form.get("pincodeFrom"),
+    pincodeTo: form.get("pincodeTo"),
+    extraHours: form.get("extraHours"),
+    slots: readSlots(form),
+  });
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
+  }
+
+  try {
+    await db.deliveryZone.update({
+      where: { id },
+      data: { ...parsed.data, isActive: form.get("isActive") === "on" },
+    });
+  } catch {
+    return { ok: false, message: "That zone no longer exists. Reload the page." };
+  }
+
+  revalidateCatalog();
+  revalidatePath("/admin/delivery");
+  return { ok: true, message: `${parsed.data.name} saved.` };
+}
+
+export async function addZone(
+  _prev: ActionResult | undefined,
+  form: FormData,
+): Promise<ActionResult> {
+  if (!hasDatabase()) return NO_DB;
+
+  const parsed = ZoneEdit.safeParse({
+    name: form.get("name"),
+    pincodeFrom: form.get("pincodeFrom"),
+    pincodeTo: form.get("pincodeTo"),
+    extraHours: form.get("extraHours"),
+    slots: readSlots(form),
+  });
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
+  }
+
+  const last = await db.deliveryZone.findFirst({ orderBy: { sortOrder: "desc" } });
+  await db.deliveryZone.create({
+    data: { ...parsed.data, sortOrder: (last?.sortOrder ?? -1) + 1 },
+  });
+
+  revalidateCatalog();
+  revalidatePath("/admin/delivery");
+  return { ok: true, message: `${parsed.data.name} added.` };
+}
+
+/**
+ * Zones are the one thing here that can genuinely be deleted.
+ *
+ * Nothing historical depends on one: an order froze its own leadHours when it
+ * was placed, so removing the zone that produced that number changes no past
+ * order and no past docket. Deactivating is still the softer move and the page
+ * offers it first — this exists for a zone drawn by mistake.
+ */
+export async function deleteZone(form: FormData): Promise<void> {
+  if (!hasDatabase()) return;
+  const id = String(form.get("id") ?? "");
+  if (!id) return;
+
+  await db.deliveryZone.delete({ where: { id } }).catch(() => {});
+  revalidateCatalog();
+  revalidatePath("/admin/delivery");
+}
+
+export async function saveMinOrder(
+  _prev: ActionResult | undefined,
+  form: FormData,
+): Promise<ActionResult> {
+  if (!hasDatabase()) return NO_DB;
+
+  const parsed = RupeeAmount.safeParse(form.get("minOrder"));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
+  }
+
+  await db.pricingSettings.update({
+    where: { id: "singleton" },
+    data: { minOrderPaise: parsed.data },
+  });
+
+  revalidateCatalog();
+  revalidatePath("/admin/delivery");
+  return { ok: true, message: parsed.data === 0 ? "Minimum removed." : "Minimum saved." };
+}
+
+/* -------------------------------------------------------------- the bakery */
+
+const Bakery = z.object({
+  name: z.string().trim().min(1, "The bakery needs a name.").max(80),
+  phone: z.string().trim().min(1, "A number customers can ring.").max(40),
+  email: z.string().trim().email("That is not an email address.").max(120),
+  address: z.string().trim().min(1, "Where the counter is.").max(200),
+  hours: z.string().trim().min(1, "When the counter is open.").max(200),
+  /*
+   * Deliberately unvalidated beyond a length, and deliberately allowed to be
+   * empty. An FSSAI number is a real registration; a format check here would
+   * only teach somebody the shape of a plausible fake, and empty already means
+   * "print no line" rather than "print nothing yet".
+   */
+  fssaiLicence: z.string().trim().max(40),
+  orderNotifyEmail: z
+    .string()
+    .trim()
+    .max(120)
+    .refine(
+      (s) => s === "" || z.string().email().safeParse(s).success,
+      "That is not an email address.",
+    ),
+});
+
+export async function saveBakery(
+  _prev: ActionResult | undefined,
+  form: FormData,
+): Promise<ActionResult> {
+  if (!hasDatabase()) return NO_DB;
+
+  const parsed = Bakery.safeParse({
+    name: form.get("name"),
+    phone: form.get("phone"),
+    email: form.get("email"),
+    address: form.get("address"),
+    hours: form.get("hours"),
+    fssaiLicence: form.get("fssaiLicence"),
+    orderNotifyEmail: form.get("orderNotifyEmail"),
+  });
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
+  }
+
+  const { orderNotifyEmail, ...rest } = parsed.data;
+  await db.bakerySettings.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", ...rest, orderNotifyEmail: orderNotifyEmail || null },
+    update: { ...rest, orderNotifyEmail: orderNotifyEmail || null },
+  });
+
+  revalidateCatalog();
+  revalidatePath("/admin/settings");
+  return { ok: true, message: "Saved." };
+}

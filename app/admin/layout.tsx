@@ -21,9 +21,19 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/**
+ * Five sections, not the seven the brief sketched.
+ *
+ * Pricing and Availability are not their own screens because they are not their
+ * own decisions: what a filling costs and whether it is on today are two fields
+ * on the same row, and splitting them would mean finding the ganache twice.
+ */
 const TABS = [
-  { href: "/admin/catalog", label: "Catalogue" },
+  { href: "/admin", label: "Today" },
   { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/catalog", label: "Catalogue" },
+  { href: "/admin/delivery", label: "Delivery" },
+  { href: "/admin/settings", label: "Bakery" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

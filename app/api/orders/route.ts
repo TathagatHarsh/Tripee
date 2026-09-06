@@ -3,6 +3,7 @@ import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { deriveAllergens } from "@/lib/allergens";
 import { getCatalogSnapshot } from "@/lib/catalogData";
 import { resolveSlot } from "@/lib/delivery";
+import { notifyNewOrder } from "@/lib/notify";
 import { priceCake } from "@/lib/pricing";
 import { validateCake } from "@/lib/rules";
 import { CakeConfig } from "@/lib/schema";
@@ -132,6 +133,24 @@ export async function POST(req: Request) {
             })),
           },
         },
+      });
+
+      /*
+       * Awaited, not fired and forgotten. On a serverless runtime the function
+       * can be frozen the moment this handler returns, so a dangling promise is
+       * a notification that sometimes happens — worse than one that never does,
+       * because nobody would know to look. It cannot throw: lib/notify swallows
+       * channel failures precisely so a courtesy cannot cost the customer an
+       * order that is already written.
+       */
+      await notifyNewOrder({
+        ref: order.ref,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        totalPaise: order.totalPaise,
+        deliverySlot: order.deliverySlot,
+        leadHours: order.leadHours,
+        dueAt: new Date(order.createdAt.getTime() + order.leadHours * 3600_000),
       });
 
       return Response.json({ orderId: order.ref, price, violations }, { status: 201 });
