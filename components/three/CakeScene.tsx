@@ -240,6 +240,16 @@ export function CakeScene({
       /* §5.2's 2% film grain. The class lands on Canvas's own outer div, which
          already carries position:relative and overflow:hidden — see the utility. */
       className={`film-grain ${className ?? ""}`}
+      /*
+       * Hidden from screen readers, not forgotten by them. Every surface that
+       * mounts this already states the cake in words next to it — the builder
+       * writes "1kg square cake, vanilla sponge, covered in american buttercream"
+       * above the docket, preset cards carry a heading and a description, the lab
+       * carries its label. A canvas cannot be read, so announcing it here would
+       * add a bare "canvas" to the reading order and nothing else; the sentence
+       * beside it is the accessible version of this picture.
+       */
+      aria-hidden
       shadows={q.shadows ? "soft" : false}
       dpr={q.dpr}
       gl={{

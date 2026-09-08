@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { allergenLine, deriveAllergens } from "@/lib/allergens";
 import { resolveSlot, servicePincode, zoneForPincode } from "@/lib/delivery";
+import { DEFAULT_SNAPSHOT } from "@/lib/catalogDefaults";
 import { buildDocket, deriveLayers, previewRef, renderSpecSheet } from "@/lib/docket";
 import { formatDelta, formatINR } from "@/lib/format";
 import { canSubmit } from "@/lib/rules";
@@ -63,22 +64,22 @@ describe("servings and handling", () => {
 
 describe("delivery", () => {
   it("maps Hyderabad pincodes to zones", () => {
-    expect(zoneForPincode("500081")!.id).toBe("core");
-    expect(zoneForPincode("500500")!.id).toBe("outer");
-    expect(zoneForPincode("501401")!.id).toBe("extended");
-    expect(zoneForPincode("110001")).toBeNull();
-    expect(servicePincode("500081")).toBe(true);
+    expect(zoneForPincode("500081", DEFAULT_SNAPSHOT)!.id).toBe("core");
+    expect(zoneForPincode("500500", DEFAULT_SNAPSHOT)!.id).toBe("outer");
+    expect(zoneForPincode("501401", DEFAULT_SNAPSHOT)!.id).toBe("extended");
+    expect(zoneForPincode("110001", DEFAULT_SNAPSHOT)).toBeNull();
+    expect(servicePincode("500081", DEFAULT_SNAPSHOT)).toBe(true);
   });
 
   it("adds rider time in outer zones and withdraws express", () => {
-    expect(resolveSlot("standard", "500081").effectiveLeadHours).toBe(48);
-    expect(resolveSlot("standard", "500500").effectiveLeadHours).toBe(50);
-    expect(resolveSlot("express-4hr", "500500").available).toBe(false);
-    expect(resolveSlot("express-4hr", "500500").unavailableReason).toBeTruthy();
+    expect(resolveSlot("standard", "500081", DEFAULT_SNAPSHOT).effectiveLeadHours).toBe(48);
+    expect(resolveSlot("standard", "500500", DEFAULT_SNAPSHOT).effectiveLeadHours).toBe(50);
+    expect(resolveSlot("express-4hr", "500500", DEFAULT_SNAPSHOT).available).toBe(false);
+    expect(resolveSlot("express-4hr", "500500", DEFAULT_SNAPSHOT).unavailableReason).toBeTruthy();
   });
 
   it("never charges rider time against a pickup", () => {
-    expect(resolveSlot("pickup", "501401").effectiveLeadHours).toBe(24);
+    expect(resolveSlot("pickup", "501401", DEFAULT_SNAPSHOT).effectiveLeadHours).toBe(24);
   });
 });
 
@@ -198,13 +199,13 @@ describe("docket", () => {
   });
 
   it("lists a row for every choice that has been made", () => {
-    const d = buildDocket(cake({ hasDrip: true, message: "Hi", toppings: [{ kind: "oreo", placement: "base-border", density: 2 }] }));
+    const d = buildDocket(cake({ hasDrip: true, message: "Hi", toppings: [{ kind: "oreo", placement: "base-border", density: 2 }] }), DEFAULT_SNAPSHOT);
     const keys = d.rows.map(r => r.key);
     expect(keys).toEqual(expect.arrayContaining(["shape", "size", "sponge", "frosting", "drip", "message", "topping-oreo", "delivery"]));
   });
 
   it("renders a spec sheet containing the total, servings and handling", () => {
-    const sheet = renderSpecSheet(cake({ size: "1.5kg", sponge: "belgian-chocolate" }));
+    const sheet = renderSpecSheet(cake({ size: "1.5kg", sponge: "belgian-chocolate" }), DEFAULT_SNAPSHOT);
     expect(sheet).toContain("TOTAL");
     expect(sheet).toContain("Serves");
     expect(sheet).toContain("Best before");
@@ -214,7 +215,7 @@ describe("docket", () => {
   it("prints no FSSAI line unless a real licence number is configured", () => {
     // Inventing a food-safety registration number would be a lie about a
     // registration that does not exist, so the line is opt-in.
-    expect(renderSpecSheet(DEFAULT_CAKE)).not.toContain("FSSAI");
+    expect(renderSpecSheet(DEFAULT_CAKE, DEFAULT_SNAPSHOT)).not.toContain("FSSAI");
   });
 });
 

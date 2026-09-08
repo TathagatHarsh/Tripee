@@ -2,11 +2,12 @@
 
 import type { Option } from "@/lib/catalog";
 import type { CakeConfig } from "@/lib/schema";
+import { useCatalog } from "@/lib/catalogStore";
 import { deltaFor } from "@/lib/pricing";
 import { blockerFor } from "@/lib/rules";
 import { formatDelta } from "@/lib/format";
 import { useConfig, useSetConfig } from "@/lib/store";
-import { cardState, optionText } from "@/lib/ui";
+import { cardState, optionText, radioArrowKeys } from "@/lib/ui";
 
 interface Props<T extends string> {
   options: Option<T>[];
@@ -40,6 +41,7 @@ export function OptionGrid<T extends string>({
   const config = useConfig();
   const set = useSetConfig();
   const current = selected(config);
+  const catalog = useCatalog();
 
   // Container queries, not viewport ones: the controls column is narrow on a
   // wide screen, and swatches squeezed into two 160px columns are unreadable.
@@ -50,26 +52,15 @@ export function OptionGrid<T extends string>({
   }[columns];
 
   /** Left and right move through the group, the way radios are meant to. */
-  const onKeyDown = (e: React.KeyboardEvent, index: number) => {
-    const step =
-      e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 :
-      e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
-    if (!step) return;
-    e.preventDefault();
-    const next = options[(index + step + options.length) % options.length];
-    set(patch(next.value));
-    const el = e.currentTarget.parentElement?.children[
-      (index + step + options.length) % options.length
-    ] as HTMLElement | undefined;
-    el?.focus();
-  };
+  const onKeyDown = (e: React.KeyboardEvent, index: number) =>
+    radioArrowKeys(e, index, options.length, (i) => set(patch(options[i].value)));
 
   return (
     <div role="radiogroup" aria-label={label} className={`grid grid-cols-1 gap-2.5 ${cols}`}>
       {options.map((o, index) => {
         const p = patch(o.value);
         const blocked = blockerFor(config, p);
-        const delta = deltaFor(config, p);
+        const delta = deltaFor(config, p, catalog);
         const active = current === o.value;
         const off = !!blocked && !active;
 
@@ -124,8 +115,9 @@ export function OptionGrid<T extends string>({
                 {o.name}
               </span>
 
-              {/* Brass, not steel: this is money, and money is the one thing on
-                  a card a customer scans for. */}
+              {/* Full ink, not steel: this is money, and money is the one thing
+                  on a card a customer scans for. The +/− sign and the mono face
+                  carry it — carbon is reserved for the kitchen's own marks. */}
               {delta !== 0 && (
                 <span
                   className={`shrink-0 font-mono text-micro font-medium whitespace-nowrap tabular-nums ${optionText.delta(active)}`}

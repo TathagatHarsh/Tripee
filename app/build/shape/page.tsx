@@ -3,9 +3,14 @@
 import { OptionGrid } from "@/components/builder/OptionGrid";
 import { StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
-import { SHAPES } from "@/lib/catalog";
+import { offeredOrSelected } from "@/lib/catalogSnapshot";
+import { useCatalog } from "@/lib/catalogStore";
+import { useConfig } from "@/lib/store";
 
 export default function ShapeStep() {
+  const config = useConfig();
+  const catalog = useCatalog();
+  const shapes = offeredOrSelected(catalog, "shape", config.shape);
   return (
     <>
       <StepHeader
@@ -13,7 +18,7 @@ export default function ShapeStep() {
         hint="The silhouette everything else is built on."
       />
       <OptionGrid
-        options={SHAPES}
+        options={shapes}
         label="Shape"
         columns={3}
         selected={(c) => c.shape}

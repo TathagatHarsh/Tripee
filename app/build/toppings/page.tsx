@@ -2,7 +2,8 @@
 
 import { GroupHeader, StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
-import { TOPPINGS } from "@/lib/catalog";
+import { offered } from "@/lib/catalogSnapshot";
+import { useCatalog } from "@/lib/catalogStore";
 import { deltaFor } from "@/lib/pricing";
 import { formatDelta } from "@/lib/format";
 import type { Topping, ToppingPlacement } from "@/lib/schema";
@@ -24,6 +25,11 @@ const MAX = 4;
  */
 export default function ToppingsStep() {
   const config = useConfig();
+  const catalog = useCatalog();
+  // Withdrawn toppings simply leave the grid: unlike the single-select
+  // steps there is no "current" one to strand, and a topping already on
+  // the cake keeps its own chip in ToppingBar.
+  const toppings = offered(catalog, "topping");
   const set = useSetConfig();
   const chosen = config.toppings;
   const full = chosen.length >= MAX;
@@ -56,18 +62,18 @@ export default function ToppingsStep() {
         />
 
         <div className="grid grid-cols-1 gap-2.5 @md:grid-cols-2">
-          {TOPPINGS.map((o) => {
+          {toppings.map((o) => {
             const active = chosen.some(t => t.kind === o.value);
             const off = !active && full;
             const delta = deltaFor(config, {
-              toppings: [...chosen, { kind: o.value, placement: "top-scatter", density: 3 }],
-            });
+              toppings: [...chosen, { kind: o.value as Topping, placement: "top-scatter", density: 3 }],
+            }, catalog);
 
             return (
               <button
                 key={o.value}
                 type="button"
-                onClick={() => toggle(o.value)}
+                onClick={() => toggle(o.value as Topping)}
                 aria-pressed={active}
                 aria-describedby={off ? "toppings-full" : undefined}
                 className={[
@@ -108,7 +114,7 @@ export default function ToppingsStep() {
       </div>
 
       {chosen.length > 0 && (
-        <p className="border border-dashed border-rule-strong bg-sunken px-4 py-3.5 text-meta text-steel">
+        <p className="border border-dashed border-rule bg-sunken px-4 py-3.5 text-meta text-steel">
           Placement and density sit on the preview, so the cake changes while you
           set them.
         </p>

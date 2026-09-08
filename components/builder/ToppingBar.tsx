@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { PLACEMENTS, TOPPINGS } from "@/lib/catalog";
-import type { Topping, ToppingSpec } from "@/lib/schema";
+import { offered } from "@/lib/catalogSnapshot";
+import { useCatalog } from "@/lib/catalogStore";
+import type { Topping, ToppingPlacement, ToppingSpec } from "@/lib/schema";
 import { useConfig, useSetConfig } from "@/lib/store";
 
 /**
@@ -27,6 +28,13 @@ import { useConfig, useSetConfig } from "@/lib/store";
  */
 export function ToppingBar() {
   const chosen = useConfig().toppings;
+  const catalog = useCatalog();
+  /* Lookups run over every option, not just the offered ones: a topping
+     already on the cake has to keep its name and swatch after the bakery
+     withdraws it. Only the placement strip, which is a live picker, filters. */
+  const allToppings = catalog.byCategory.topping;
+  const allPlacements = catalog.byCategory.placement;
+  const placements = offered(catalog, "placement");
   const set = useSetConfig();
 
   /*
@@ -64,7 +72,7 @@ export function ToppingBar() {
   if (chosen.length === 0) return null;
 
   const spec = chosen.find(t => t.kind === pick) ?? chosen[chosen.length - 1];
-  const meta = TOPPINGS.find(t => t.value === spec.kind)!;
+  const meta = allToppings.find(t => t.value === spec.kind)!;
 
   const update = (patch: Partial<ToppingSpec>) =>
     set({
@@ -122,9 +130,9 @@ export function ToppingBar() {
       >
         <Swatch hex={meta.swatch} />
         <span className="truncate text-meta text-ink">{meta.name}</span>
-        <span aria-hidden className="shrink-0 text-rule-strong">·</span>
+        <span aria-hidden className="shrink-0 text-rule">·</span>
         <span className="shrink-0 font-mono text-micro tracking-[0.14em] text-steel uppercase">
-          {PLACEMENTS.find(x => x.value === spec.placement)?.short}
+          {allPlacements.find(x => x.value === spec.placement)?.shortName}
         </span>
         {/* A hairline rule, because without one the placement and the action ran
             together as a single phrase — "BORDER CHANGE" — and the only word on
@@ -141,7 +149,7 @@ export function ToppingBar() {
       {many && (
         <div className="flex flex-wrap items-center gap-1">
           {chosen.map((t) => {
-            const each = TOPPINGS.find(x => x.value === t.kind)!;
+            const each = allToppings.find(x => x.value === t.kind)!;
             const on = t.kind === spec.kind;
             return (
               <button
@@ -164,18 +172,18 @@ export function ToppingBar() {
         aria-label={`${meta.name} placement`}
         className="flex flex-wrap items-center gap-1"
       >
-        {PLACEMENTS.map(p => (
+        {placements.map(p => (
           <button
             key={p.value}
             type="button"
-            onClick={() => update({ placement: p.value })}
+            onClick={() => update({ placement: p.value as ToppingPlacement })}
             aria-pressed={spec.placement === p.value}
             /* The pill is abbreviated; the full name is the one that is spoken. */
             aria-label={p.name}
             title={p.name}
             className={pill(spec.placement === p.value)}
           >
-            {p.short}
+            {p.shortName}
           </button>
         ))}
         </div>
@@ -223,7 +231,7 @@ function pill(on: boolean): string {
     "transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)]",
     on
       ? "border-ink bg-ink text-paper"
-      : "border-rule bg-paper/70 text-steel hover:border-rule-strong hover:text-ink",
+      : "border-rule-strong bg-paper/70 text-steel hover:border-ink hover:text-ink",
   ].join(" ");
 }
 

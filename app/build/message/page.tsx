@@ -3,7 +3,9 @@
 import { ColorPicker } from "@/components/builder/ColorPicker";
 import { GroupHeader, StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
-import { DELIVERY_OPTIONS, FROSTING_PALETTE } from "@/lib/catalog";
+import { FROSTING_PALETTE } from "@/lib/catalog";
+import { offeredOrSelected } from "@/lib/catalogSnapshot";
+import { useCatalog } from "@/lib/catalogStore";
 import { OptionGrid } from "@/components/builder/OptionGrid";
 import { resolveSlot, servicePincode } from "@/lib/delivery";
 import { shade } from "@/lib/color";
@@ -14,6 +16,8 @@ import { btn, field, monoField } from "@/lib/ui";
 
 export default function MessageStep() {
   const config = useConfig();
+  const catalog = useCatalog();
+  const deliveries = offeredOrSelected(catalog, "delivery", config.delivery);
   const set = useSetConfig();
   const composing = useView(s => s.composingMessage);
   const setComposing = useView(s => s.setComposingMessage);
@@ -25,9 +29,9 @@ export default function MessageStep() {
   // Leaving the step puts the plaque back on the cake, whatever state the
   // editor was left in.
   useEffect(() => () => setComposing(false), [setComposing]);
-  const slot = resolveSlot(config.delivery, config.pincode);
+  const slot = resolveSlot(config.delivery, config.pincode, catalog);
   const pincodeTyped = (config.pincode ?? "").length === 6;
-  const unknownPincode = pincodeTyped && !servicePincode(config.pincode);
+  const unknownPincode = pincodeTyped && !servicePincode(config.pincode, catalog);
 
   return (
     <div className="flex flex-col gap-7">
@@ -48,6 +52,7 @@ export default function MessageStep() {
           <span className="sr-only">Piped message</span>
           <input
             type="text"
+            autoComplete="off"
             maxLength={60}
             value={message}
             placeholder="Happy Birthday Amma"
@@ -97,7 +102,7 @@ export default function MessageStep() {
         <GroupHeader title="Delivery" hint="Lead time depends on your pincode zone." />
 
         <OptionGrid
-          options={DELIVERY_OPTIONS}
+          options={deliveries}
           label="Delivery"
           selected={(c) => c.delivery}
           patch={(delivery) => ({ delivery })}
@@ -109,6 +114,7 @@ export default function MessageStep() {
           </span>
           <input
             inputMode="numeric"
+            autoComplete="postal-code"
             pattern="\d{6}"
             maxLength={6}
             value={typed}
@@ -135,10 +141,10 @@ export default function MessageStep() {
           <p>{slot.note}</p>
           {slot.zoneName && <p>Zone: {slot.zoneName}</p>}
           {!slot.available && slot.unavailableReason && (
-            <p className="text-seal">{slot.unavailableReason}</p>
+            <p className="text-ink">{slot.unavailableReason}</p>
           )}
           {unknownPincode && (
-            <p className="text-seal">
+            <p className="text-ink">
               We don&rsquo;t deliver to {config.pincode} yet. Store pickup still works.
             </p>
           )}

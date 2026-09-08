@@ -151,5 +151,5 @@ export function allergenLine(c: CakeConfig): string {
   const { allergens, eggless } = deriveAllergens(c);
   const diet = eggless ? "EGGLESS" : "CONTAINS EGG";
   if (allergens.length === 0) return diet;
-  return `${diet} · CONTAINS: ${allergens.join(", ").toUpperCase()}`;
+  return `${diet} · CONTAINS: ${allergens.join(", ")}`;
 }

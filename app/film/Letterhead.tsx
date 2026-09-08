@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { DEFAULT_SNAPSHOT } from "@/lib/catalogDefaults";
 import { useEffect, useState } from "react";
 
-import { SLOTS } from "@/lib/delivery";
+
 import { mulberry32 } from "@/lib/seed";
 
 /**
@@ -45,7 +46,7 @@ export function Masthead() {
 
         <div className="ml-auto flex items-center gap-[24px]">
           <span className="hidden text-[length:var(--mono-xs)] tracking-[var(--tracking-mono-xs)] text-ink-60 uppercase md:inline">
-            Counter {SLOTS.pickup.window.replace("Collect ", "")}
+            Counter {DEFAULT_SNAPSHOT.slots.pickup.window.replace("Collect ", "")}
           </span>
           <Link href="/presets" className="film-link">
             The catalogue

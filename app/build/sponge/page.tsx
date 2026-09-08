@@ -3,11 +3,14 @@
 import { OptionGrid } from "@/components/builder/OptionGrid";
 import { GroupHeader, StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
-import { SPONGES } from "@/lib/catalog";
+import { offeredOrSelected } from "@/lib/catalogSnapshot";
+import { useCatalog } from "@/lib/catalogStore";
 import { useConfig, useSetConfig } from "@/lib/store";
 
 export default function SpongeStep() {
   const config = useConfig();
+  const catalog = useCatalog();
+  const sponges = offeredOrSelected(catalog, "sponge", config.sponge);
   const set = useSetConfig();
 
   return (
@@ -48,7 +51,7 @@ export default function SpongeStep() {
       </fieldset>
 
       <OptionGrid
-        options={SPONGES}
+        options={sponges}
         label="Sponge"
         selected={(c) => c.sponge}
         patch={(sponge) => ({ sponge })}

@@ -34,7 +34,7 @@ const VARIANT: Record<Variant, string> = {
   secondary:
     "border border-rule-strong bg-paper text-ink hover:border-ink",
   quiet:
-    "border border-rule bg-transparent text-graphite hover:border-rule-strong hover:text-ink",
+    "border border-rule-strong bg-transparent text-graphite hover:border-ink hover:text-ink",
   seal:
     "border border-seal bg-seal text-paper hover:opacity-90",
 };
@@ -104,9 +104,9 @@ export function pager(current = false, extra = ""): string {
 export function iconBtn(extra = ""): string {
   return [
     "inline-flex size-11 shrink-0 items-center justify-center ",
-    "border border-rule bg-paper text-graphite",
+    "border border-rule-strong bg-paper text-graphite",
     "transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)]",
-    "enabled:hover:border-rule-strong enabled:hover:text-ink",
+    "enabled:hover:border-ink enabled:hover:text-ink",
     OFF,
     extra,
   ].join(" ");
@@ -133,11 +133,13 @@ export function monoField(extra = ""): string {
 /**
  * An eyebrow: the tracked-out mono line that names a section.
  *
- * 11px is the floor. The 8.5–10px tier the design document uses for its own
- * annotation chrome never ships.
+ * 12px is the floor. The 8.5–10px tier the design document uses for its own
+ * annotation chrome never ships. This was 11px; it moved because --text-micro
+ * carries content a customer reads to decide — price, servings, the step
+ * counter — and not only section chrome.
  */
 export const eyebrow =
-  "font-mono text-micro tracking-[0.18em] text-brass uppercase";
+  "font-mono text-micro tracking-[0.18em] text-ink uppercase";
 
 /** The same, but quiet — a status line rather than a section name. */
 export const eyebrowQuiet =
@@ -160,10 +162,40 @@ export const optionText = {
   name: (selected: boolean, blocked: boolean) =>
     selected ? "text-paper" : blocked ? "text-steel" : "text-ink",
   blurb: (selected: boolean) => (selected ? "text-quiet" : "text-steel"),
-  delta: (selected: boolean) => (selected ? "text-brass-lit" : "text-brass"),
+  delta: (selected: boolean) => (selected ? "text-quiet" : "text-ink"),
 } as const;
 
 /** Picks the card class for a state, so no caller has to remember the order. */
 export function cardState(selected: boolean, blocked: boolean): string {
   return selected ? optionCard.selected : blocked ? optionCard.blocked : optionCard.rest;
+}
+
+/**
+ * The keyboard half of a radiogroup: the arrows move focus and select, so one
+ * Tab reaches the group and the arrows do the rest.
+ *
+ * Here rather than in a component because `optionCard` above already calls
+ * itself the single-select language "a customer learns once on the shape step
+ * and reads for the next eight", and this is the keyboard clause of that same
+ * sentence. It is also the only module both the live and the -legacy trees
+ * already import, so this is one definition for all four groups instead of one
+ * per component tree.
+ *
+ * Typed structurally, not as React.KeyboardEvent, so this file stays a plain
+ * .ts with no React dependency. React's SyntheticEvent satisfies it.
+ */
+export function radioArrowKeys(
+  e: { key: string; preventDefault(): void; currentTarget: Element },
+  index: number,
+  count: number,
+  pick: (index: number) => void,
+) {
+  const step =
+    e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 :
+    e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+  if (!step) return;
+  e.preventDefault();
+  const next = (index + step + count) % count;
+  pick(next);
+  (e.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
 }

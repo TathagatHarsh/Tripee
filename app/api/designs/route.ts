@@ -1,3 +1,4 @@
+import { getCatalogSnapshot } from "@/lib/catalogData";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { CakeConfig } from "@/lib/schema";
 import { priceCake } from "@/lib/pricing";
@@ -21,7 +22,10 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid cake configuration" }, { status: 400 });
   }
 
-  const price = priceCake(parsed.data);
+  // Cached on the row so the gallery does not reprice every card it renders.
+  // A later admin edit makes it stale, which is why /d/[slug] reprices on read
+  // rather than trusting this.
+  const price = priceCake(parsed.data, await getCatalogSnapshot());
 
   // Collisions are vanishingly unlikely at 31^7, but a saved design that
   // silently overwrote someone else's would be unforgivable.

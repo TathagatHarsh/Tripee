@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { LoadConfig } from "@/components/builder/LoadConfig";
+import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
 import { formatINR } from "@/lib/format";
 import type { Preset } from "@/lib/presets";
 import { priceCake } from "@/lib/pricing";
@@ -34,9 +35,14 @@ import { servingsLabel } from "@/lib/servings";
  */
 export function PresetCard({
   preset,
+  catalog,
   as: Heading = "h3",
 }: {
   preset: Preset;
+  /* Passed in rather than fetched per card: the parent is already a Server
+     Component with the catalogue in hand, and a card is rendered a dozen at a
+     time. */
+  catalog: CatalogSnapshot;
   as?: "h2" | "h3";
 }) {
   return (
@@ -104,7 +110,7 @@ export function PresetCard({
             {preset.name}
           </Heading>
           <span className="shrink-0 font-mono text-meta font-medium tabular-nums">
-            {formatINR(priceCake(preset.config).total)}
+            {formatINR(priceCake(preset.config, catalog).total)}
           </span>
         </div>
 

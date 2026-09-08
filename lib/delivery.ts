@@ -1,96 +1,40 @@
+import type {
+  CatalogSnapshot, DeliverySlotInfo, DeliveryZoneInfo,
+} from "./catalogSnapshot";
 import type { DeliverySlot } from "./schema";
 
 /**
- * Named lead times per slot, per pincode. "Fast delivery" means nothing;
- * "arrives within 4 hours of confirmation" is a promise someone can hold us to.
+ * What we promise about getting a cake to somebody, and how far that reaches.
+ *
+ * The slots and the zones used to be constants in this file. They are rows now
+ * — a slot's timing on its own CatalogOption row, the zones in DeliveryZone —
+ * because "48 hours" and "we don't reach that pincode" are exactly what a
+ * bakery revises when it hires a rider or loses one, and neither should need a
+ * deploy.
+ *
+ * So these are pure functions over a snapshot, taking the catalogue as an
+ * argument for the same reason lib/pricing does: the same call runs in a
+ * browser against a catalogue that may be a moment stale, and on the server
+ * where an order is accepted or refused for real. Making the caller name which
+ * one it means leaves no global for a server path to read by accident.
+ *
+ * Named lead times, still. "Fast delivery" means nothing; "arrives within 4
+ * hours of confirmation" is a promise someone can hold us to.
  */
-export interface SlotInfo {
-  slot: DeliverySlot;
-  name: string;
-  /** Hours from order confirmation to arrival. */
-  leadHours: number;
-  window: string;
-  note: string;
-}
 
-export const SLOTS: Record<DeliverySlot, SlotInfo> = {
-  standard: {
-    slot: "standard",
-    name: "Standard",
-    leadHours: 48,
-    window: "10:00–20:00, day after tomorrow",
-    note: "Baked fresh the morning of delivery.",
-  },
-  "same-day": {
-    slot: "same-day",
-    name: "Same day",
-    leadHours: 12,
-    window: "Order before 11:00, arrives 18:00–21:00",
-    note: "Limited to designs we can decorate in a single shift.",
-  },
-  "express-4hr": {
-    slot: "express-4hr",
-    name: "Express 4-hour",
-    leadHours: 4,
-    window: "Within 4 hours of confirmation",
-    note: "Dedicated rider. Available 09:00–19:00.",
-  },
-  midnight: {
-    slot: "midnight",
-    name: "Midnight",
-    leadHours: 24,
-    window: "23:30–00:30",
-    note: "Rider calls on arrival. Order by 18:00 the previous day.",
-  },
-  pickup: {
-    slot: "pickup",
-    name: "Store pickup",
-    leadHours: 24,
-    window: "Collect 10:00–21:00",
-    note: "Jubilee Hills counter. Bring the order reference.",
-  },
-};
+/** Retained under its old name — the shape callers already destructure. */
+export type SlotInfo = DeliverySlotInfo;
 
-/** Hyderabad service zones. Outer zones add rider time to every slot. */
-interface Zone {
-  id: "core" | "outer" | "extended";
-  name: string;
-  extraHours: number;
-  /** Express is not offered beyond the core zone. */
-  slots: DeliverySlot[];
-}
-
-const ZONES: Record<Zone["id"], Zone> = {
-  core: {
-    id: "core",
-    name: "Hyderabad core",
-    extraHours: 0,
-    slots: ["standard", "same-day", "express-4hr", "midnight", "pickup"],
-  },
-  outer: {
-    id: "outer",
-    name: "Hyderabad outer",
-    extraHours: 2,
-    slots: ["standard", "same-day", "midnight", "pickup"],
-  },
-  extended: {
-    id: "extended",
-    name: "Ranga Reddy / Medchal",
-    extraHours: 6,
-    slots: ["standard", "pickup"],
-  },
-};
-
-export function zoneForPincode(pincode?: string): Zone | null {
+export function zoneForPincode(
+  pincode: string | undefined,
+  catalog: CatalogSnapshot,
+): DeliveryZoneInfo | null {
   if (!pincode || !/^\d{6}$/.test(pincode)) return null;
   const n = Number(pincode);
-  if (n >= 500001 && n <= 500099) return ZONES.core;
-  if (n >= 500100 && n <= 500999) return ZONES.outer;
-  if (n >= 501001 && n <= 502999) return ZONES.extended;
-  return null;
+  return catalog.zones.find((z) => n >= z.pincodeFrom && n <= z.pincodeTo) ?? null;
 }
 
-export interface ResolvedSlot extends SlotInfo {
+export interface ResolvedSlot extends DeliverySlotInfo {
   available: boolean;
   /** Lead time including the zone's rider surcharge. */
   effectiveLeadHours: number;
@@ -98,9 +42,13 @@ export interface ResolvedSlot extends SlotInfo {
   unavailableReason: string | null;
 }
 
-export function resolveSlot(slot: DeliverySlot, pincode?: string): ResolvedSlot {
-  const base = SLOTS[slot];
-  const zone = zoneForPincode(pincode);
+export function resolveSlot(
+  slot: DeliverySlot,
+  pincode: string | undefined,
+  catalog: CatalogSnapshot,
+): ResolvedSlot {
+  const base = catalog.slots[slot];
+  const zone = zoneForPincode(pincode, catalog);
 
   if (!zone) {
     return {
@@ -108,6 +56,8 @@ export function resolveSlot(slot: DeliverySlot, pincode?: string): ResolvedSlot 
       available: true,
       effectiveLeadHours: base.leadHours,
       zoneName: null,
+      // No pincode yet is not a refusal — it is a question nobody has answered.
+      // A pincode we do not recognise is a refusal, and says so.
       unavailableReason: pincode ? "We don't deliver to that pincode yet." : null,
     };
   }
@@ -116,6 +66,8 @@ export function resolveSlot(slot: DeliverySlot, pincode?: string): ResolvedSlot 
   return {
     ...base,
     available,
+    // Pickup is collected from the counter, so no rider crosses the city for it
+    // and the zone's travel time does not apply.
     effectiveLeadHours: base.leadHours + (slot === "pickup" ? 0 : zone.extraHours),
     zoneName: zone.name,
     unavailableReason: available
@@ -124,6 +76,9 @@ export function resolveSlot(slot: DeliverySlot, pincode?: string): ResolvedSlot 
   };
 }
 
-export function servicePincode(pincode?: string): boolean {
-  return zoneForPincode(pincode) !== null;
+export function servicePincode(
+  pincode: string | undefined,
+  catalog: CatalogSnapshot,
+): boolean {
+  return zoneForPincode(pincode, catalog) !== null;
 }

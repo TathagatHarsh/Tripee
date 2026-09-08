@@ -1,4 +1,5 @@
 import { deriveAllergens } from "./allergens";
+import type { CatalogSnapshot } from "./catalogSnapshot";
 import { resolveSlot } from "./delivery";
 import { docketAmount, formatIST, titleCase } from "./format";
 import { priceCake, type PriceBreakdown, type PriceLine } from "./pricing";
@@ -69,12 +70,13 @@ export interface DocketModel {
 /** The live docket beside the canvas — short rows, price deltas attached. */
 export function buildDocket(
   c: CakeConfig,
+  catalog: CatalogSnapshot,
   opts: { ref?: string; createdAt?: Date } = {},
 ): DocketModel {
-  const price = priceCake(c);
+  const price = priceCake(c, catalog);
   const allergens = deriveAllergens(c);
   const handling = deriveHandling(c);
-  const slot = resolveSlot(c.delivery, c.pincode);
+  const slot = resolveSlot(c.delivery, c.pincode, catalog);
   const servings = deriveServings(c);
 
   /**
@@ -176,7 +178,7 @@ export function buildDocket(
     rows.push({
       key: "message",
       label: "MSG",
-      value: `"${c.message.trim().toUpperCase()}"`,
+      value: `"${c.message.trim()}"`,
       delta: byLabel("Message piping", "labour"),
     });
   }
@@ -232,10 +234,11 @@ export function buildDocket(
  */
 export function renderSpecSheet(
   c: CakeConfig,
+  catalog: CatalogSnapshot,
   opts: { ref?: string; createdAt?: Date; width?: number } = {},
 ): string {
   const w = opts.width ?? 62;
-  const d = buildDocket(c, opts);
+  const d = buildDocket(c, catalog, opts);
   const out: string[] = [];
 
   const rule = (ch = "─") => ch.repeat(w);

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountMenu } from "@/components/AccountMenu";
 import { HeroCake } from "@/components/HeroCake";
 import { HeroReveal } from "@/components/HeroReveal";
 import { HeroSprinkles } from "@/components/HeroSprinkles";
@@ -10,6 +11,7 @@ import { FILLINGS, SHAPES, SPONGES, TOPPINGS } from "@/lib/catalog";
 import { resolveSlot } from "@/lib/delivery";
 import { HERO_CAKE, HERO_CAKE_NAME } from "@/lib/hero";
 import { PRESETS } from "@/lib/presets";
+import { getCatalogSnapshot } from "@/lib/catalogData";
 import { priceCake } from "@/lib/pricing";
 import { formatINR } from "@/lib/format";
 import { servingsLabel } from "@/lib/servings";
@@ -23,12 +25,19 @@ const HERO = HERO_CAKE;
  * page is how a landing page ends up promising something the delivery module
  * disagrees with.
  */
-const ZONE_LEAD = [
-  { name: "Core", hours: resolveSlot("standard", "500001").effectiveLeadHours },
-  { name: "Outer", hours: resolveSlot("standard", "500500").effectiveLeadHours },
-];
+export default async function Home() {
+  // The homepage quotes a real price for the hero cake and for every preset
+  // card, so it reads the catalogue the same way the builder does.
+  const catalog = await getCatalogSnapshot();
 
-export default function Home() {
+  /* Derived from the delivery module rather than typed here, so the landing
+     page cannot promise a lead time the builder disagrees with — now including
+     when the bakery retimes a slot from /admin/delivery. */
+  const ZONE_LEAD = [
+    { name: "Core", hours: resolveSlot("standard", "500001", catalog).effectiveLeadHours },
+    { name: "Outer", hours: resolveSlot("standard", "500500", catalog).effectiveLeadHours },
+  ];
+
   return (
     <div className="home bg-paper">
       {/*
@@ -60,7 +69,7 @@ export default function Home() {
         78px → 68px. This is chrome, and it was taller than the 44px control it
         contains by more than that control's own height again.
       */}
-      <header className="sticky top-0 z-30 flex h-[68px] items-center gap-6 border-b border-rule bg-paper/90 px-4 backdrop-blur-md sm:px-8 lg:px-14">
+      <header className="sticky top-0 z-30 flex h-[68px] items-center gap-3 border-b border-rule bg-paper/90 px-4 backdrop-blur-md sm:gap-6 sm:px-8 lg:px-14">
         <Link
           href="/"
           className="flex min-w-0 shrink-0 items-center gap-3.5"
@@ -79,8 +88,8 @@ export default function Home() {
               lines and the bar grew a second row of text. The locality is the
               least load-bearing thing up here, so it stands down for that band
               and comes back at xl. */}
-          <span aria-hidden className="hidden h-3.5 w-px bg-rule sm:block lg:hidden xl:block" />
-          <span className="hidden font-mono text-micro tracking-[0.14em] text-steel uppercase sm:block lg:hidden xl:block">
+          <span aria-hidden className="hidden h-3.5 w-px bg-rule md:block lg:hidden xl:block" />
+          <span className="hidden font-mono text-micro tracking-[0.14em] text-steel uppercase md:block lg:hidden xl:block">
             Jubilee Hills
           </span>
         </Link>
@@ -113,7 +122,7 @@ export default function Home() {
 
         {/* `ml-auto` because on the breakpoints where the nav is hidden there is
             no flex-1 item left to push these to the right. */}
-        <div className="ml-auto flex shrink-0 items-center gap-6">
+        <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-6">
           {/* The old `sm:contents` wrapper is gone with the reason for it: it
               existed only because `btn()` hard-codes `inline-flex`, which beat
               `hidden` in the cascade. This is not a `btn()`, so `sm:inline-flex`
@@ -129,13 +138,44 @@ export default function Home() {
               Explore presets
             </span>
           </Link>
-          <Link href="/build/shape" className={btn("primary", "md")}>
+          {/*
+            Hidden below sm, because below sm it does not fit.
+
+            The bar needs 384px to hold the wordmark, this button and the
+            account control; every phone narrower than that was scrolling
+            sideways, which put the account control off the right edge — the
+            reason this whole change exists. Measured, not guessed: 320px was
+            64px over, 360px 24px over, 375px 9px over.
+
+            This is the item that yields because it is the only one already on
+            screen twice. The hero's own "Start building →" is inside the first
+            viewport on a phone — directly under this bar — so nothing becomes
+            unreachable and no journey gets longer. The wordmark cannot yield
+            (56px would be left for ten characters) and the account control
+            cannot (44px is the touch target, and it is the thing being fixed).
+
+            `max-sm:hidden`, and NOT `hidden sm:inline-flex` — which is the
+            idiom four lines up and which silently does nothing here. btn()
+            hard-codes `inline-flex`, and a base `hidden` loses to it in the
+            cascade; that is the whole reason the `sm:contents` wrapper this
+            file used to carry existed. A `max-sm:` variant is emitted after the
+            base utilities, so it wins below 640px without an `!important` or a
+            wrapper element. Verified in the built stylesheet, not assumed.
+          */}
+          <Link
+            href="/build/shape"
+            className={btn("primary", "md", "max-sm:hidden")}
+          >
             Start building
           </Link>
+          {/* Last in the row on purpose, and now a fixed 44px square in every
+              state — so this end of the bar has one width, signed in or out,
+              and nothing here can push the call to action beside it. */}
+          <AccountMenu />
         </div>
       </header>
 
-      <main>
+      <main id="main">
         {/* ── Hero ──────────────────────────────────────────────────────── */}
         {/*
           `minmax(0, …)` on every track, which is doing real work rather than
@@ -245,7 +285,7 @@ export default function Home() {
             <div className="pointer-events-none absolute top-4 right-4 hidden text-right font-mono text-micro leading-loose tracking-[0.1em] text-steel lg:top-24 lg:right-14 lg:block">
               <div className="text-graphite uppercase">{HERO_CAKE_NAME}</div>
               <div className="uppercase">{servingsLabel(HERO)}</div>
-              <div className="font-medium text-ink">{formatINR(priceCake(HERO).total)}</div>
+              <div className="font-medium text-ink">{formatINR(priceCake(HERO, catalog).total)}</div>
             </div>
           </div>
         </section>
@@ -319,9 +359,15 @@ export default function Home() {
             <h2 className="text-heading">Start from one of ours</h2>
             <Link
               href="/presets"
-              className="shrink-0 font-mono text-micro tracking-[0.14em] text-brass uppercase underline-offset-4 hover:underline"
+              className="group shrink-0 font-mono text-micro tracking-[0.14em] text-graphite uppercase transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] hover:text-ink"
             >
-              Browse the catalogue →
+              {/* Same rule as the header's presets link at line 122: visible at
+                  rest, because this is an action. Colour is not the affordance —
+                  the rule is. No min-h-11 here: the parent is items-end, and a
+                  44px centred box would lift this off the h2's bottom edge. */}
+              <span className="border-b border-rule-strong pb-0.5 transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] group-hover:border-ink">
+                Browse the catalogue →
+              </span>
             </Link>
           </div>
 
@@ -347,7 +393,7 @@ export default function Home() {
             }
           >
             {PRESETS.map((p) => (
-              <PresetCard key={p.slug} preset={p} />
+              <PresetCard key={p.slug} preset={p} catalog={catalog} />
             ))}
           </PresetPager>
         </section>

@@ -1,11 +1,22 @@
-// Persistence only. The catalogue and the pricing engine live in lib/, not here:
-// lib/catalog.ts is what the UI renders and lib/pricing.ts is the authority on
-// money, and both are imported identically by the browser, the server and the
-// CLI. A CatalogItem table used to mirror them and was never read by a single
-// line of application code, so it was removed rather than left to drift.
+// What the database holds is what cannot be recomputed: saved designs, orders
+// with their price lines frozen at the moment they were agreed, and — since the
+// admin portal — the catalogue itself.
 //
-// What the database holds is what cannot be recomputed: saved designs, and
-// orders with their price lines frozen at the moment they were agreed.
+// That last one has been tried before and got it wrong. A CatalogItem table
+// mirrored lib/catalog.ts and lib/pricing.ts, was derived from them on every
+// seed, and was read by nothing; migration 2_drop_catalog_item removed it. The
+// lesson is not "never put the catalogue in the database" — a bakery has to be
+// able to reprice a filling without a deploy. The lesson is that a catalogue in
+// two places is worse than a catalogue in either one. So CatalogOption is now
+// the only authority on price, availability, copy and order, and the old
+// constants survive only as lib/catalogDefaults.ts: the seed's input, and the
+// fallback for a deployment with no database. Nothing reads them at runtime
+// while a database is reachable.
+//
+// The distinction that matters: these tables store what the bakery decides
+// about an option. They do not decide which options can exist — lib/schema.ts's
+// Zod enums do, because a new topping also needs a mesh, an allergen entry and
+// possibly a rule, none of which a price field can conjure.
 
 generator client {
   provider = "prisma-client-js"
@@ -58,8 +69,13 @@ model Order {
 
   status         OrderStatus   @default(draft)
 
-  /// Hook for auth later. Deliberately nullable — v1 has no login.
+  /// The customer who placed this, when there was one. Still nullable, and
+  /// still nullable on purpose: an account is optional in this product, so a
+  /// guest order is a first-class order rather than a degraded one.
   userId         String?
+  /// SetNull rather than Cascade. Deleting a person must not delete the cake
+  /// they ordered — the kitchen still baked it and the books still count it.
+  user           UserProfile?  @relation(fields: [userId], references: [id], onDelete: SetNull)
   /// Hook for Razorpay later. Deliberately defaults to none — v1 takes no money.
   paymentStatus  PaymentStatus @default(none)
   payablePaise   Int
@@ -100,4 +116,251 @@ model OrderItem {
   position  Int
 
   @@index([orderId])
+}
+
+/// The ten dimensions of a cake, mirroring the Zod enums in lib/schema.ts.
+///
+/// A closed list, not a free-form string, because every value here is already
+/// spoken by code that cannot be configured: `topping` has meshes and placement
+/// maths, `size` has diameters and serving counts. A bakery adding an eleventh
+/// dimension is a development task, and this enum failing to compile is the
+/// correct way to find that out.
+enum CatalogCategory {
+  shape
+  size
+  sponge
+  filling
+  frosting
+  coverage
+  finish
+  topping
+  placement
+  delivery
+}
+
+/// One option a customer can pick, and what the bakery has decided about it.
+///
+/// Seeded from lib/catalogDefaults.ts so that day one prices exactly what the
+/// hardcoded constants used to, and edited from /admin thereafter.
+model CatalogOption {
+  id       String          @id @default(cuid())
+  category CatalogCategory
+  /// The Zod enum literal this row describes, e.g. "red-velvet". Validated
+  /// against lib/schema.ts on write: a row naming an option the code cannot
+  /// render is a broken picker, and the database cannot check that itself.
+  value    String
+
+  name  String
+  blurb String
+  /// The same choice named for a 36px pill. Placements only — "Scattered on
+  /// top" does not fit the strip that sits over the render. `name` stays the
+  /// one that is read aloud, so nothing is hidden from a screen reader.
+  shortName String?
+  /// Swatch chip colour. Null for options that are not a colour (sizes, slots).
+  swatch String?
+  /// A 24x24 SVG path. Shapes only — the picker draws the silhouette.
+  glyph  String?
+
+  /// Paise. A base price when category is `size`, a delta everywhere else.
+  ///
+  /// One column rather than two, because Postgres cannot conditionally require
+  /// a second column based on this one's category any more than a comment can;
+  /// a nullable `basePricePaise` would buy documentation, not enforcement. The
+  /// per-category meaning is enforced where it can be — the admin write path.
+  /// Named neutrally so nothing reads as a delta when it is not one.
+  priceInputPaise Int
+
+  /// How much this size scales every other option's delta. Size rows only:
+  /// pistachio on a 2kg cake costs more pistachio than on a 1kg one. Null
+  /// everywhere else, and read only for `size`.
+  multiplier Float?
+
+  /// Delivery rows only — hours from confirmation to arrival, before a zone
+  /// adds its own rider time. "Fast delivery" means nothing; "48 hours" is a
+  /// promise somebody can be held to, and the bakery is the one holding it.
+  leadHours Int?
+  /// Delivery rows only — the window quoted to the customer, e.g.
+  /// "10:00-20:00, day after tomorrow". Free text, because a bakery's real
+  /// answer here is a sentence rather than a pair of timestamps.
+  slotWindow String?
+  /// Delivery rows only — the consequence underneath the window, e.g. "Order
+  /// by 18:00 the previous day." This is where a cutoff actually lives.
+  slotNote String?
+
+  /// Withdrawn from new orders, without erasing the past. An existing design or
+  /// order naming this option still loads, still renders and still prices —
+  /// exactly how schema.coerceLegacy treats a withdrawn shape. Deletion is the
+  /// thing that would break history, which is why the admin offers this instead.
+  isAvailable Boolean @default(true)
+
+  /// Ascending. What the customer's picker is ordered by.
+  sortOrder Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Two rows for one option would make "the price of red velvet" ambiguous,
+  /// and which one won would come down to row order.
+  @@unique([category, value])
+  /// Every read is "this category, in display order".
+  @@index([category, sortOrder])
+}
+
+/// The charges that are formulas rather than options, and the tax rate.
+///
+/// These were constants in lib/pricing.ts, and they are prices like any other —
+/// a bakery that cannot change what a second tier costs without a deploy is the
+/// problem this portal exists to solve. They are not CatalogOption rows because
+/// they attach to no pickable option: nobody selects "18% GST".
+///
+/// One row, id "singleton", upserted. A settings table that can hold two rows
+/// eventually holds two rows.
+model PricingSettings {
+  id String @id @default("singleton")
+
+  /// Per additional tier beyond the first — dowels, boards, assembly.
+  tierSurchargePaise Int
+  /// Per sponge layer beyond three.
+  layerSurchargePaise Int
+  messagePipingPaise  Int
+  dripPaise           Int
+  sugarFreePaise      Int
+
+  /// The smallest order the kitchen will take, before GST. Zero means no
+  /// minimum, which is the shipped position — a bakery that wants one can set
+  /// it, and one that does not is not made to pretend.
+  minOrderPaise Int @default(0)
+
+  /// Basis points: 1800 is 18%. An integer because this file does not put money
+  /// or the multipliers of money in floats.
+  gstBasisPoints Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Where the bakery delivers, and what the distance costs in time.
+///
+/// A table rather than columns on CatalogOption, because a zone is not an
+/// option anybody picks — it is a fact about a pincode that modifies whichever
+/// option they did pick. Ranges rather than a list of pincodes: Hyderabad's
+/// numbering is contiguous by area, the ranges are what lib/delivery has always
+/// used, and six-digit membership tests stay one comparison instead of a lookup
+/// in a table of thousands.
+model DeliveryZone {
+  id   String @id @default(cuid())
+  name String
+
+  /// Inclusive, six digits. 500001..500099 is the core.
+  pincodeFrom Int
+  pincodeTo   Int
+
+  /// Rider time this zone adds to every slot except pickup, which is collected
+  /// from the counter and so is not ridden anywhere.
+  extraHours Int
+
+  /// Delivery slot values this zone can actually take. Express is not offered
+  /// to the far edge of the map because the rider cannot make the window, and
+  /// that refusal belongs in data rather than in an if-statement.
+  slots String[]
+
+  isActive  Boolean @default(true)
+  sortOrder Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Every read is "which zone holds this pincode".
+  @@index([pincodeFrom, pincodeTo])
+}
+
+/// Who the bakery is, for the documents that have to say so.
+///
+/// Separate from PricingSettings because these are not prices and nothing here
+/// changes a total: this is the letterhead. One row, same singleton reasoning.
+///
+/// No currency field. Every price in this product is paise and every format is
+/// formatINR, so a currency setting would be a dropdown that changes a symbol
+/// and lies about the arithmetic behind it. When there is a second currency
+/// there will be a real conversion to go with it.
+model BakerySettings {
+  id String @id @default("singleton")
+
+  name    String
+  phone   String
+  email   String
+  address String
+  /// Free text — "Tue-Sun 10:00-21:00, closed Mondays" is what a bakery
+  /// actually means, and a structured week would fight the first exception.
+  hours String
+
+  /// A real FSSAI registration number, or empty.
+  ///
+  /// Empty is the default and prints no line at all. Inventing a food-safety
+  /// registration would be a straightforward lie about a registration that does
+  /// not exist — lib/docket has always taken this position, and moving the
+  /// value into the database does not soften it.
+  fssaiLicence String @default("")
+
+  /// Where a new order should be announced. Null means nowhere, which is
+  /// honest about the fact that nothing is wired up yet — see lib/notify.
+  orderNotifyEmail String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// What a signed-in person is allowed to do here.
+///
+/// Clerk answers "who is this", and only that. It has no idea what a kitchen
+/// is, and a role kept in a user's Clerk metadata sits one layer away from the
+/// person it governs — `unsafeMetadata` is writable by the holder of the
+/// session outright. So identity lives there and authority lives here, in a
+/// table only the database owner can write, read on the server on every request
+/// that matters.
+///
+/// Three, and a fourth deliberately absent. OWNER would today have exactly
+/// ADMIN's powers, and a role that grants nothing new is a row people have to
+/// reason about for no benefit. Adding it later is one enum value and one line
+/// in ROLE_RANK; see lib/roles.ts.
+enum UserRole {
+  CUSTOMER
+  KITCHEN
+  ADMIN
+}
+
+/// The application's half of a person.
+///
+/// Passwords, OAuth identities, sessions, refresh tokens and email verification
+/// are Clerk's, and none of them are mirrored here — a second copy of a
+/// credential is a second thing to leak. What is here is what the product
+/// decides rather than what the identity provider knows: the role, and a name
+/// to greet somebody by.
+model UserProfile {
+  /// The identity provider's user id, verbatim — a Clerk `user_2abc…` today,
+  /// a Supabase UUID before that. Plain TEXT and no foreign key anywhere, which
+  /// is why swapping providers cost this table nothing: it never knew which one
+  /// it was holding. The id is only ever issued by the provider and never
+  /// minted here, so the two cannot disagree about who a row is.
+  id             String   @id
+
+  /// Every new row is a customer. No code path anywhere writes this field from
+  /// a request body — see lib/auth.ts `loadProfile`, which creates with the
+  /// column default and updates nothing. A role is changed by `npm run role`,
+  /// which needs DATABASE_URL, which a browser does not have.
+  role           UserRole @default(CUSTOMER)
+
+  /// Whatever they were called at sign-up, or by Google. Nullable because an
+  /// email/password signup need not give one, and a blank greeting is better
+  /// than a fabricated one.
+  name           String?
+
+  orders         Order[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  /// "Who can get into the kitchen" is the only question ever asked of this
+  /// table other than by id, and it is asked by a person at a psql prompt.
+  @@index([role])
 }

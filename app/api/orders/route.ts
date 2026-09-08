@@ -1,7 +1,10 @@
 import { Prisma } from "@prisma/client";
+import { getViewer } from "@/lib/auth";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { deriveAllergens } from "@/lib/allergens";
+import { getCatalogSnapshot } from "@/lib/catalogData";
 import { resolveSlot } from "@/lib/delivery";
+import { notifyNewOrder } from "@/lib/notify";
 import { priceCake } from "@/lib/pricing";
 import { validateCake } from "@/lib/rules";
 import { CakeConfig } from "@/lib/schema";
@@ -64,8 +67,15 @@ export async function POST(req: Request) {
     );
   }
 
-  // Authoritative price. The client's number is advisory only.
-  const price = priceCake(parsed.data);
+  /*
+   * Authoritative price. The client's number is advisory only — and now its
+   * *catalogue* is too: the builder priced against whatever it fetched when the
+   * page loaded, which may be minutes old and may predate an admin's edit. This
+   * reads the catalogue as it is now, and what it produces is what gets frozen
+   * onto the order below.
+   */
+  const catalog = await getCatalogSnapshot();
+  const price = priceCake(parsed.data, catalog);
 
   if (body.clientTotal && body.clientTotal !== price.total) {
     // Could be a stale client, could be tampering. Either way the server wins.
@@ -74,7 +84,7 @@ export async function POST(req: Request) {
 
   const allergens = deriveAllergens(parsed.data);
   const servings = deriveServings(parsed.data);
-  const slot = resolveSlot(parsed.data.delivery, parsed.data.pincode);
+  const slot = resolveSlot(parsed.data.delivery, parsed.data.pincode, catalog);
 
   // The builder shows "we don't deliver to 560001 yet" and then lets the order
   // through anyway, which turns a clear refusal on screen into a phone call
@@ -94,6 +104,23 @@ export async function POST(req: Request) {
     ? await db.design.findUnique({ where: { slug: body.designSlug } })
     : null;
 
+  /*
+   * Who placed it, if anybody — and "nobody" is a perfectly good answer.
+   *
+   * Read from the session cookie on the server and from nowhere else. There is
+   * no `userId` in the request body and there must never be one: a body field
+   * would let anybody file an order against anybody else's account, and no
+   * amount of validating it would fix that, because the browser is not the
+   * thing that knows who is signed in.
+   *
+   * A guest gets null, exactly as every order written before this line existed
+   * did. Signing in is a convenience — it is what makes an order show up on
+   * /account later — and it has never been, and is not now, a condition of
+   * ordering a cake. Nothing below this branches on it: same validation, same
+   * catalogue, same authoritative price, same frozen lines.
+   */
+  const viewer = await getViewer();
+
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       const order = await db.order.create({
@@ -104,7 +131,7 @@ export async function POST(req: Request) {
           totalPaise: price.total,
           payablePaise: price.payable,
           status: "draft",
-          userId: null,            // hook for auth later
+          userId: viewer?.profile.id ?? null,
           paymentStatus: "none",   // hook for Razorpay later
           customerName,
           customerPhone,
@@ -124,6 +151,24 @@ export async function POST(req: Request) {
             })),
           },
         },
+      });
+
+      /*
+       * Awaited, not fired and forgotten. On a serverless runtime the function
+       * can be frozen the moment this handler returns, so a dangling promise is
+       * a notification that sometimes happens — worse than one that never does,
+       * because nobody would know to look. It cannot throw: lib/notify swallows
+       * channel failures precisely so a courtesy cannot cost the customer an
+       * order that is already written.
+       */
+      await notifyNewOrder({
+        ref: order.ref,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        totalPaise: order.totalPaise,
+        deliverySlot: order.deliverySlot,
+        leadHours: order.leadHours,
+        dueAt: new Date(order.createdAt.getTime() + order.leadHours * 3600_000),
       });
 
       return Response.json({ orderId: order.ref, price, violations }, { status: 201 });

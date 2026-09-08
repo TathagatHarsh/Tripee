@@ -21,6 +21,11 @@ async function settle(page: import("@playwright/test").Page) {
 test.describe("render baselines", () => {
   test("the extremes, whole", async ({ page }) => {
     await page.goto("/lab");
+    // The section view is the default (lib/view.ts), so the whole cake has to be
+    // asked for. Without this the baseline silently captured a cut cake and was
+    // byte-identical to lab-cut.png — two tests, one picture, no coverage.
+    await page.waitForSelector("canvas");
+    await page.getByLabel("Cut a slice").uncheck();
     await settle(page);
     await expect(page).toHaveScreenshot("lab-whole.png", {
       fullPage: true,

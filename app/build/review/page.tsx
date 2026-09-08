@@ -10,6 +10,7 @@ import { resolveSlot } from "@/lib/delivery";
 import { buildDocket, deriveLayers, renderSpecSheet } from "@/lib/docket";
 import { formatINR } from "@/lib/format";
 import { DELIVERED_PHOTOS } from "@/lib/photos";
+import { useCatalog } from "@/lib/catalogStore";
 import { priceCake } from "@/lib/pricing";
 import { canSubmit } from "@/lib/rules";
 import type { CakeConfig } from "@/lib/schema";
@@ -53,13 +54,14 @@ export default function ReviewStep() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
-  const price = priceCake(config);
-  const docket = buildDocket(config);
+  const catalog = useCatalog();
+  const price = priceCake(config, catalog);
+  const docket = buildDocket(config, catalog);
   const allergens = deriveAllergens(config);
   const servings = deriveServings(config);
   const layers = deriveLayers(config);
   const handling = deriveHandling(config);
-  const slot = resolveSlot(config.delivery, config.pincode);
+  const slot = resolveSlot(config.delivery, config.pincode, catalog);
   // The server refuses an order with no name or no reachable number, so the
   // button has to know that too — otherwise the only way to find out is to press
   // the primary action and be told no.
@@ -157,7 +159,7 @@ export default function ReviewStep() {
   }
 
   function download() {
-    const blob = new Blob([renderSpecSheet(config, { ref: stage.kind === "placed" ? stage.ref : undefined })], {
+    const blob = new Blob([renderSpecSheet(config, catalog, { ref: stage.kind === "placed" ? stage.ref : undefined })], {
       type: "text/plain;charset=utf-8",
     });
     const a = document.createElement("a");
@@ -206,6 +208,7 @@ export default function ReviewStep() {
           <span className="font-mono text-micro tracking-[0.14em] text-steel">NAME</span>
           <input
             value={name}
+            autoComplete="name"
             onChange={(e) => setName(e.target.value)}
             placeholder="Who is collecting?"
             className={field()}
@@ -215,6 +218,7 @@ export default function ReviewStep() {
           <span className="font-mono text-micro tracking-[0.14em] text-steel">PHONE</span>
           <input
             inputMode="tel"
+            autoComplete="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="10 digits"
@@ -426,7 +430,7 @@ function Placed({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border border-rule bg-paper px-5 py-4">
-      <h2 className="mb-2 font-mono text-micro tracking-[0.18em] text-brass uppercase">
+      <h2 className={`mb-2 ${eyebrow}`}>
         {title}
       </h2>
       {children}
