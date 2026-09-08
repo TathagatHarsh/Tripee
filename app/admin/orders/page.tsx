@@ -49,8 +49,15 @@ export default async function AdminOrders({
      * Computed from the request rather than stored, so "last 7 days" means
      * seven days before this page load and not seven days before the server
      * happened to start.
+     *
+     * `new Date()` rather than `Date.now()`, which react-hooks/purity refuses
+     * during render. The refusal is about a component that re-renders and must
+     * give the same answer twice; this one is `force-dynamic` and runs once per
+     * request on the server, where reading the clock is the entire point. Same
+     * arithmetic either way, and it is now what app/admin/page.tsx already does.
      */
-    where.createdAt = { gte: new Date(Date.now() - window * 24 * 60 * 60 * 1000) };
+    const now = new Date();
+    where.createdAt = { gte: new Date(now.getTime() - window * 24 * 60 * 60 * 1000) };
   }
   if (q?.trim()) {
     const term = q.trim();

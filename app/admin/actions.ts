@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { requireAdmin } from "@/lib/auth";
 import { revalidateCatalog } from "@/lib/catalogData";
 import { VALUES_BY_CATEGORY } from "@/lib/catalogSnapshot";
 import { db, hasDatabase } from "@/lib/db";
@@ -14,12 +15,27 @@ import { db, hasDatabase } from "@/lib/db";
  * an action and which is what hands the person who just saved a price the new
  * number instead of the cached old one; and proxy.ts's matcher covers
  * `/admin/:path*`, which includes the POST an action makes back to the page it
- * lives on — so the gate applies to the write, not only to the view.
+ * lives on — so a request with no session at all is turned away before it
+ * arrives here. That is a convenience, not the gate; the gate is below.
  *
  * The forms constrain what can be submitted and none of that is trusted here.
  * A price is re-parsed, the category is re-checked against the Zod enums, and
  * an option naming something the renderer has never heard of is refused: the
  * table would take that string happily and the picker would break on it.
+ *
+ * ## Every one of these starts with requireAdmin()
+ *
+ * Not because the layout forgot to — app/admin/layout.tsx guards the pages —
+ * but because a layout does not run for an action. A Server Action is a POST to
+ * an endpoint whose id is in the page's own payload, and anybody who has ever
+ * loaded /admin has that id; nothing about invoking it re-renders the tree that
+ * checked the role. So the check is here, first, on each one, and the apparent
+ * duplication is the only thing standing between a signed-in customer with the
+ * dev tools open and the price of every cake in the shop.
+ *
+ * `requireAdmin()` refuses by throwing a redirect, which is why it is always the
+ * first statement and never inside a `try` — a catch would swallow the refusal
+ * and carry on into the write.
  */
 
 /** Rupees on screen, paise in the database. */
@@ -54,6 +70,7 @@ export async function saveOption(
   _prev: ActionResult | undefined,
   form: FormData,
 ): Promise<ActionResult> {
+  await requireAdmin();
   if (!hasDatabase()) return NO_DB;
 
   const parsed = OptionEdit.safeParse({
@@ -106,6 +123,7 @@ export async function saveOption(
  * one that says "not right now" without touching the past.
  */
 export async function setAvailability(form: FormData): Promise<void> {
+  await requireAdmin();
   if (!hasDatabase()) return;
 
   const id = String(form.get("id") ?? "");
@@ -136,6 +154,7 @@ export async function saveSettings(
   _prev: ActionResult | undefined,
   form: FormData,
 ): Promise<ActionResult> {
+  await requireAdmin();
   if (!hasDatabase()) return NO_DB;
 
   const parsed = Settings.safeParse({
@@ -177,6 +196,7 @@ export async function saveDeliverySlot(
   _prev: ActionResult | undefined,
   form: FormData,
 ): Promise<ActionResult> {
+  await requireAdmin();
   if (!hasDatabase()) return NO_DB;
 
   const parsed = SlotEdit.safeParse({
@@ -244,6 +264,7 @@ export async function saveZone(
   _prev: ActionResult | undefined,
   form: FormData,
 ): Promise<ActionResult> {
+  await requireAdmin();
   if (!hasDatabase()) return NO_DB;
 
   const id = String(form.get("id") ?? "");
@@ -278,6 +299,7 @@ export async function addZone(
   _prev: ActionResult | undefined,
   form: FormData,
 ): Promise<ActionResult> {
+  await requireAdmin();
   if (!hasDatabase()) return NO_DB;
 
   const parsed = ZoneEdit.safeParse({
@@ -310,6 +332,7 @@ export async function addZone(
  * offers it first — this exists for a zone drawn by mistake.
  */
 export async function deleteZone(form: FormData): Promise<void> {
+  await requireAdmin();
   if (!hasDatabase()) return;
   const id = String(form.get("id") ?? "");
   if (!id) return;
@@ -323,6 +346,7 @@ export async function saveMinOrder(
   _prev: ActionResult | undefined,
   form: FormData,
 ): Promise<ActionResult> {
+  await requireAdmin();
   if (!hasDatabase()) return NO_DB;
 
   const parsed = RupeeAmount.safeParse(form.get("minOrder"));
@@ -369,6 +393,7 @@ export async function saveBakery(
   _prev: ActionResult | undefined,
   form: FormData,
 ): Promise<ActionResult> {
+  await requireAdmin();
   if (!hasDatabase()) return NO_DB;
 
   const parsed = Bakery.safeParse({

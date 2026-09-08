@@ -724,20 +724,30 @@ For a **design**: by possession of the slug URL. Slugs are generated with
 in practice, so this is a reasonable capability-URL model.
 
 ### How roles are determined
-They are not. There is no role field, no claim, no check.
+`UserProfile.role` — `CUSTOMER`, `KITCHEN` or `ADMIN` — read from Postgres on the server
+on every request that matters. Clerk answers *who you are* and nothing else; a role kept
+in a user's Clerk metadata sits one layer away from the person it governs. New rows
+take the column default, `CUSTOMER`, and no code path on any request writes the column —
+only `npm run role`, which needs `DATABASE_URL`. Roles are **ranked**
+(`lib/roles.ts:ROLE_RANK`), so `ADMIN` reaches the kitchen without a second check.
 
 ### How protected routes work
-Exactly one route is protected: `/kitchen/:path*`, by HTTP Basic in `proxy.ts`. The gate
-**fails closed** — with `KITCHEN_USER`/`KITCHEN_PASSWORD` unset it answers `503` rather
-than opening, verified against correct credentials on an unconfigured server. Everything
-else is unguarded: no layout-level check and no `redirect()` on an auth condition.
+Three areas: `/admin` (ADMIN), `/kitchen` (KITCHEN or above), `/account` (any account).
+`proxy.ts` runs `clerkMiddleware` — which is what makes `auth()` work downstream — and
+turns away a request with no session at all, and **that is not the gate**: a proxy is a
+gate that can be routed around (CVE-2025-29927), as Clerk's own docs also say. The gate is
+inside the thing protected: `requireAdmin()` in `app/admin/layout.tsx`, `requireKitchen()`
+in `app/kitchen/page.tsx`, and one at the top of **every** server action either portal can
+invoke, because a layout does not re-run for an action. Unset the Clerk keys and both
+portals answer `503`, not `200` — while the shopfront, the builder and guest ordering
+carry on working.
 
-Because a server action posts back to the page it lives on, the same matcher covers the
-status-transition writes — the board cannot be driven by an unauthenticated POST.
+Full setup, role granting and troubleshooting: **`docs/AUTH.md`**.
 
 ### How authorization is enforced
-It is not, because there is nothing to authorize — no resource in the system has an
-owner. `Order.userId` is declared nullable and written as a literal `null`
+Server-side, from the database row, never from anything the browser sent. `Order.userId`
+is now a real relation to `UserProfile` — populated from the session cookie in
+`app/api/orders/route.ts`, and `null` for a guest, which every order written to date is
 (`orders/route.ts:107`) with the comment "hook for auth later".
 
 ### Security concerns
@@ -802,8 +812,9 @@ project/account owns it.
 |---|---|---|---|
 | `DATABASE_URL` | **Required for orders and saved designs.** Optional for everything else | PostgreSQL connection string for the Prisma `pg` adapter. ⚠️ Against Supabase this needs a specific host, port **and** `sslmode` — see *Database configuration* below before setting it | `lib/db.ts:16,20`, `prisma/seed.ts:13`, `prisma.config.ts:13` |
 | `NEXT_PUBLIC_FSSAI_LICENCE` | Optional | The bakery's real FSSAI food-safety licence number. When set, the line appears on the docket, spec sheet and footer. Deliberately has **no default** so no invented registration is ever printed | `lib/docket.ts:15` |
-| `KITCHEN_USER` | **Required for `/kitchen`** | Username for the staff board's HTTP Basic gate | `proxy.ts`, `playwright.config.ts` |
-| `KITCHEN_PASSWORD` | **Required for `/kitchen`** | Password for the same. **Unset means the route returns 503, not open access** — the board lists customer names and phone numbers, so the gate fails closed | `proxy.ts`, `playwright.config.ts` |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | **Required for `/sign-in`, `/account`, `/kitchen`, `/admin`** | Clerk publishable key. Public by design and safe to be — it identifies the instance and nothing more. **Unset means the staff areas return 503, not open access**; they list customer names and phone numbers, so the gate fails closed | `proxy.ts`, `app/layout.tsx`, `components/AuthSheet.tsx` |
+| `CLERK_SECRET_KEY` | **Required for the same** | Clerk secret key. Needed by the running application, not only by tooling: `clerkMiddleware` verifies sessions server-side and throws without it. Can read, modify and impersonate every account in the instance — a deployment secret in the same tier as `DATABASE_URL`, never `NEXT_PUBLIC_*` | `proxy.ts` (via `clerkMiddleware`), `scripts/role.ts` |
+| ~~`KITCHEN_USER`~~ ~~`KITCHEN_PASSWORD`~~ ~~`ADMIN_USER`~~ ~~`ADMIN_PASSWORD`~~ ~~`NEXT_PUBLIC_SUPABASE_URL`~~ ~~`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`~~ | **Superseded** | HTTP Basic for the two staff areas, then Supabase Auth. Both replaced by Clerk plus `UserProfile.role`; nothing reads them any more. Clear them from `.env` and the deployment. `DATABASE_URL` is unaffected — the database is still Supabase Postgres, only the identity provider moved | — |
 | `E2E_PORT` | Optional (default `3100`) | Port for the Playwright web server | `playwright.config.ts:3` |
 | `CI` | Optional | Enables 1 retry and disables server reuse in Playwright | `playwright.config.ts:9,44` |
 | `SHOT_URL` | Optional | Base URL for `scripts/shoot.ts` (default `:3001`), `shoot-message.ts` (`:3000`), `budget.ts` (`:3100`) | those files |
@@ -1195,21 +1206,23 @@ were unreachable. This was the gap between the product being a demo and a busine
    servings and derived allergens, with the **existing** `renderSpecSheet` output in a
    `<details>`. It renders that rather than a second summary because a second summary is
    how two descriptions of the same cake drift apart.
-3. **`proxy.ts`** — HTTP Basic, credentials from `KITCHEN_USER` / `KITCHEN_PASSWORD`.
+3. **`app/kitchen/page.tsx` + `proxy.ts`** — Clerk and a `KITCHEN` role.
 
-*Why Basic rather than an auth library.* There is no `User` model, no session and no
-signup; introducing all three to put a password on one staff page is a large amount of
-machinery for a single bakery. The browser already knows how to prompt. **The ceiling is
-explicit:** one shared credential, no per-person identity, no audit of who advanced which
-docket. That is the seam to replace when staff need telling apart — nothing else changes.
+*This replaced HTTP Basic, then Supabase Auth.* The board used to sit behind one shared
+password with no way to tell one baker from another, and the original `proxy.ts` said so
+in as many words: "when staff need to be told apart, this is the seam to replace." It has
+been, twice — and the second time cost three files, because the rules live in
+`lib/roles.ts` and the enforcement lives in the pages. Identity is a Clerk account, the
+role is a `UserProfile` row, the signed-in address is on the board, and one
+person can be removed with `npm run role -- them@example.com CUSTOMER` without changing
+anybody else's password. `ADMIN` passes too — see `lib/roles.ts:ROLE_RANK`.
 
-*Three properties worth keeping when this is rewritten.*
+*Three properties kept through both rewrites.*
 
-- **The gate fails closed.** With `KITCHEN_USER`/`KITCHEN_PASSWORD` unset the route
-  answers `503`, not `200`. Verified: even *correct* credentials get `503` on an
-  unconfigured deployment, and no customer data appears in the body. "If no password is
-  set, skip the check" would have turned one forgotten variable into a public page of
-  phone numbers.
+- **The gate fails closed.** With the Clerk keys unset the route answers `503`,
+  not `200`, and no customer data appears in the body. "If no auth is configured, skip
+  the check" would have turned one forgotten variable into a public page of phone
+  numbers.
 - **The transition is re-checked server-side.** The board only renders legal buttons, but
   a form is not the only thing that can post and a page left open on a counter goes
   stale. Verified by tampering a hidden input to jump `confirmed → delivered`: the write
@@ -2360,10 +2373,14 @@ exposure while leaving Prisma (connecting as table owner) unaffected. See §10 f
 connection traps.
 
 **Authentication**
-**None for customers** — no login, no session, no roles; `Order.userId` is a hook, always
-written `null`. **Staff** reach `/kitchen` through HTTP Basic in `proxy.ts`, one shared
-credential from `KITCHEN_USER`/`KITCHEN_PASSWORD`, failing closed when unset. No
-per-person identity and no audit of who advanced which docket.
+**Clerk** (`@clerk/nextjs`), Google OAuth and email/password, with authorisation
+from `UserProfile.role` in Postgres. **Optional for customers**: `/build` never asks who
+you are and a guest order is still a first-class order with `userId: null`. **Required
+for staff**: `/kitchen` needs `KITCHEN` or above, `/admin` needs `ADMIN`, both enforced
+server-side in the layout/page *and* at the top of every server action. Per-person
+identity, revocable one account at a time. Unconfigured, the staff areas 503 while the
+shopfront, the builder and guest ordering keep working.
+See `docs/AUTH.md`.
 
 **External services**
 PostgreSQL (optional at runtime). Google Fonts via `next/font` (self-hosted at build).

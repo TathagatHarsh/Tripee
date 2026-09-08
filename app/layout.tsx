@@ -1,3 +1,4 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
 import { CatalogSync } from "@/components/CatalogSync";
@@ -91,6 +92,22 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+/**
+ * Clerk's context, but only when there is a Clerk instance to point it at.
+ *
+ * `<ClerkProvider>` throws on a missing publishable key, and it wraps the whole
+ * application — so on a deployment with no keys it would take down the
+ * shopfront and the builder along with the two staff portals. lib/db.ts has
+ * always held the opposite line, that a deployment missing a dependency should
+ * still let somebody design a cake; proxy.ts holds it for the routes and this
+ * holds it for the tree. The staff areas still fail closed, in proxy.ts, with a
+ * 503 that names the variable to set.
+ */
+function Identity({ children }: { children: React.ReactNode }) {
+  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return <>{children}</>;
+  return <ClerkProvider>{children}</ClerkProvider>;
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
@@ -100,6 +117,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       {/* bg-slab was chipboard, which is the desk. The page itself is the top
           copy — §1.2 --paper. The desk only shows where a sheet is lying on it. */}
       <body className="min-h-dvh bg-paper text-ink antialiased">
+        {/*
+         * Inside <body>, not wrapping <html>, which is what Clerk 7 requires.
+         *
+         * It renders no markup of its own and adds nothing to a guest's page —
+         * no session, no fetch, no layout shift. What it provides is the context
+         * that <SignIn>, <SignUp> and <SignOutButton> need, and those live on
+         * four screens: sign-in, sign-up, the account page and the two staff
+         * headers. The builder never reaches for any of it.
+         */}
+        <Identity>
         {/*
          * Every page puts a header and, in the builder, a nine-step chip rail
          * ahead of the content, which is a long walk on a keyboard and a longer
@@ -130,6 +157,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           */}
         <CatalogSync />
         {children}
+        </Identity>
       </body>
     </html>
   );

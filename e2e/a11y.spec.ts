@@ -16,7 +16,17 @@ const ROUTES = [
   ["/build/toppings", "toppings step"],
   ["/build/message", "message step"],
   ["/build/review", "review"],
-  ["/kitchen", "kitchen board"],
+  /*
+   * /kitchen used to be here and cannot be any more: it is behind a session
+   * now, and an anonymous browser is redirected off it before it renders —
+   * which is the point of e2e/auth.spec.ts. /sign-in takes its place and is the
+   * better subject anyway: it is the one form in the product with labels, an
+   * error region and social buttons, which is the exact shape of thing that
+   * fails a contrast or a name check. It is Clerk's markup inside our sheet, so
+   * this also checks that the `appearance` in components/AuthSheet has not
+   * styled the contrast out of somebody else's component.
+   */
+  ["/sign-in", "sign in"],
 ] as const;
 
 /** Violations as lines a person can act on, rather than an object dump. */

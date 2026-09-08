@@ -69,8 +69,13 @@ model Order {
 
   status         OrderStatus   @default(draft)
 
-  /// Hook for auth later. Deliberately nullable — v1 has no login.
+  /// The customer who placed this, when there was one. Still nullable, and
+  /// still nullable on purpose: an account is optional in this product, so a
+  /// guest order is a first-class order rather than a degraded one.
   userId         String?
+  /// SetNull rather than Cascade. Deleting a person must not delete the cake
+  /// they ordered — the kitchen still baked it and the books still count it.
+  user           UserProfile?  @relation(fields: [userId], references: [id], onDelete: SetNull)
   /// Hook for Razorpay later. Deliberately defaults to none — v1 takes no money.
   paymentStatus  PaymentStatus @default(none)
   payablePaise   Int
@@ -303,4 +308,59 @@ model BakerySettings {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// What a signed-in person is allowed to do here.
+///
+/// Clerk answers "who is this", and only that. It has no idea what a kitchen
+/// is, and a role kept in a user's Clerk metadata sits one layer away from the
+/// person it governs — `unsafeMetadata` is writable by the holder of the
+/// session outright. So identity lives there and authority lives here, in a
+/// table only the database owner can write, read on the server on every request
+/// that matters.
+///
+/// Three, and a fourth deliberately absent. OWNER would today have exactly
+/// ADMIN's powers, and a role that grants nothing new is a row people have to
+/// reason about for no benefit. Adding it later is one enum value and one line
+/// in ROLE_RANK; see lib/roles.ts.
+enum UserRole {
+  CUSTOMER
+  KITCHEN
+  ADMIN
+}
+
+/// The application's half of a person.
+///
+/// Passwords, OAuth identities, sessions, refresh tokens and email verification
+/// are Clerk's, and none of them are mirrored here — a second copy of a
+/// credential is a second thing to leak. What is here is what the product
+/// decides rather than what the identity provider knows: the role, and a name
+/// to greet somebody by.
+model UserProfile {
+  /// The identity provider's user id, verbatim — a Clerk `user_2abc…` today,
+  /// a Supabase UUID before that. Plain TEXT and no foreign key anywhere, which
+  /// is why swapping providers cost this table nothing: it never knew which one
+  /// it was holding. The id is only ever issued by the provider and never
+  /// minted here, so the two cannot disagree about who a row is.
+  id             String   @id
+
+  /// Every new row is a customer. No code path anywhere writes this field from
+  /// a request body — see lib/auth.ts `loadProfile`, which creates with the
+  /// column default and updates nothing. A role is changed by `npm run role`,
+  /// which needs DATABASE_URL, which a browser does not have.
+  role           UserRole @default(CUSTOMER)
+
+  /// Whatever they were called at sign-up, or by Google. Nullable because an
+  /// email/password signup need not give one, and a blank greeting is better
+  /// than a fabricated one.
+  name           String?
+
+  orders         Order[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  /// "Who can get into the kitchen" is the only question ever asked of this
+  /// table other than by id, and it is asked by a person at a psql prompt.
+  @@index([role])
 }

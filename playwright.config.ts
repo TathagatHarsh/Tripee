@@ -1,12 +1,16 @@
-// The kitchen board sits behind HTTP Basic, and the credentials live in .env
-// alongside DATABASE_URL. Playwright does not read .env on its own.
+// .env is still read here because DATABASE_URL decides whether the pages under
+// test have any data in them. Playwright does not read .env on its own.
+//
+// There are no `httpCredentials` any more: the staff areas were behind HTTP
+// Basic, which a browser could be handed at the config level, and they are now
+// behind a Supabase session, which cannot be. The e2e suite therefore tests
+// them the way an outsider meets them — /kitchen and /admin redirect to /login
+// — and the signed-in half is exercised by the unit tests over lib/roles plus
+// the guards those rules are wired into.
 import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
-
-const KITCHEN_USER = process.env.KITCHEN_USER;
-const KITCHEN_PASSWORD = process.env.KITCHEN_PASSWORD;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -37,12 +41,6 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     viewport: { width: 1440, height: 900 },
     trace: "retain-on-failure",
-    // Sent only when a route actually challenges, so the public pages are
-    // exercised exactly as an anonymous visitor sees them.
-    httpCredentials:
-      KITCHEN_USER && KITCHEN_PASSWORD
-        ? { username: KITCHEN_USER, password: KITCHEN_PASSWORD }
-        : undefined,
     // SwiftShader, so WebGL works on a machine with no GPU available to the
     // headless browser. The builder is unusable without it.
     launchOptions: {

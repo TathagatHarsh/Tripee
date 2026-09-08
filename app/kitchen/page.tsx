@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { OrderStatus } from "@prisma/client";
+import { SignOutButton } from "@clerk/nextjs";
+import { getViewerEmail, requireKitchen } from "@/lib/auth";
 import { getCatalogSnapshot } from "@/lib/catalogData";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { renderSpecSheet } from "@/lib/docket";
@@ -21,6 +23,20 @@ import { btn, eyebrow } from "@/lib/ui";
  * It renders the same spec sheet the customer downloads — `renderSpecSheet` is
  * already the artifact a kitchen works from, already tested, and printing a
  * second, subtly different summary beside it is how the two drift apart.
+ *
+ * ## Who gets in
+ *
+ * This page lists customer names, phone numbers and delivery addresses, so it
+ * has never been public and is not public now. What changed is what stands at
+ * the door: it used to be one shared password typed into a browser dialog, with
+ * no way to tell one baker from another. Now it is a Clerk session and a
+ * KITCHEN role in UserProfile — a real person, named in the header below,
+ * revocable one account at a time without changing anybody else's password.
+ * ADMIN passes too, because a rank rather than a set is what lib/roles keeps.
+ *
+ * There is no /kitchen layout, so the guard is here in the page, and a second
+ * one is at the top of the only action this board can invoke. A Server Action
+ * does not re-run its page.
  */
 
 export const dynamic = "force-dynamic";
@@ -39,12 +55,16 @@ export default async function KitchenBoard({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  // First statement, and never inside a try: this refuses by throwing.
+  await requireKitchen();
+  const email = await getViewerEmail();
+
   const { status } = await searchParams;
   const filter = ORDER.includes(status as OrderStatus) ? (status as OrderStatus) : null;
 
   if (!hasDatabase()) {
     return (
-      <Shell counts={{}} filter={null} total={0}>
+      <Shell counts={{}} filter={null} total={0} who={email}>
         <p className="border border-rule bg-paper px-4 py-3.5 text-body leading-snug text-steel">
           {NO_DATABASE_MESSAGE}
         </p>
@@ -70,7 +90,7 @@ export default async function KitchenBoard({
   }
 
   return (
-    <Shell counts={counts} filter={filter} total={total}>
+    <Shell counts={counts} filter={filter} total={total} who={email}>
       {orders.length === 0 ? (
         <p className="border border-rule bg-paper px-4 py-3.5 text-body text-steel">
           Nothing here{filter ? ` at "${STATUS_LABEL[filter]}"` : " yet"}.
@@ -165,12 +185,14 @@ export default async function KitchenBoard({
 }
 
 function Shell({
-  children, counts, filter, total,
+  children, counts, filter, total, who,
 }: {
   children: React.ReactNode;
   counts: Partial<Record<OrderStatus, number>>;
   filter: OrderStatus | null;
   total: number;
+  /** The signed-in address. A shared counter tablet is the reason it is shown. */
+  who: string | null;
 }) {
   const tab = (href: string, label: string, n: number | undefined, active: boolean) => (
     <Link
@@ -195,7 +217,20 @@ function Shell({
   return (
     <main id="main" className="mx-auto max-w-4xl px-4 py-10 sm:px-8">
       <header className="mb-8 flex flex-col gap-3">
-        <span className={eyebrow}>The board</span>
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+          <span className={eyebrow}>The board</span>
+          {/* Whoever is holding this shift, and how to hand it over. On a tablet
+              that lives on a counter all day, the second half is the point. */}
+          <span className="ml-auto font-mono text-micro tracking-[0.1em] text-steel">{who}</span>
+          <SignOutButton redirectUrl="/">
+            <button
+              type="button"
+              className={btn("quiet", "md", "text-micro tracking-[0.1em] uppercase")}
+            >
+              Sign out
+            </button>
+          </SignOutButton>
+        </div>
         <h1 className="text-heading">Kitchen</h1>
         <p className="text-body leading-relaxed text-steel">
           Every docket, newest first. This is the only place an order can be read.

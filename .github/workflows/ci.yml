@@ -45,10 +45,21 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      # The kitchen board fails closed without these, so the a11y sweep would
-      # get a 503 rather than a page.
-      KITCHEN_USER: ci
-      KITCHEN_PASSWORD: ci-not-a-real-secret
+      # No Clerk keys, deliberately.
+      #
+      # A fake pair does not work as a stand-in: a development instance answers
+      # the first request with a handshake redirect to its own
+      # <slug>.clerk.accounts.dev, and an invented slug resolves to nothing. So
+      # CI runs the unconfigured path instead, which is a real path worth
+      # holding: the two staff areas must fail closed with 503 rather than open,
+      # and the shopfront, the builder and guest ordering must all keep working
+      # regardless. e2e/auth.spec.ts asserts exactly that.
+      #
+      # What CI therefore does NOT cover is the signed-in redirect through a
+      # live Clerk instance. The authorisation rules behind it are covered
+      # exhaustively and without a network in tests/auth.test.ts; the wiring
+      # needs a real instance, and adding one means putting CLERK_SECRET_KEY in
+      # repository secrets, which is a decision rather than an oversight.
 
     steps:
       - uses: actions/checkout@v4

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { getViewer } from "@/lib/auth";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { deriveAllergens } from "@/lib/allergens";
 import { getCatalogSnapshot } from "@/lib/catalogData";
@@ -103,6 +104,23 @@ export async function POST(req: Request) {
     ? await db.design.findUnique({ where: { slug: body.designSlug } })
     : null;
 
+  /*
+   * Who placed it, if anybody — and "nobody" is a perfectly good answer.
+   *
+   * Read from the session cookie on the server and from nowhere else. There is
+   * no `userId` in the request body and there must never be one: a body field
+   * would let anybody file an order against anybody else's account, and no
+   * amount of validating it would fix that, because the browser is not the
+   * thing that knows who is signed in.
+   *
+   * A guest gets null, exactly as every order written before this line existed
+   * did. Signing in is a convenience — it is what makes an order show up on
+   * /account later — and it has never been, and is not now, a condition of
+   * ordering a cake. Nothing below this branches on it: same validation, same
+   * catalogue, same authoritative price, same frozen lines.
+   */
+  const viewer = await getViewer();
+
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       const order = await db.order.create({
@@ -113,7 +131,7 @@ export async function POST(req: Request) {
           totalPaise: price.total,
           payablePaise: price.payable,
           status: "draft",
-          userId: null,            // hook for auth later
+          userId: viewer?.profile.id ?? null,
           paymentStatus: "none",   // hook for Razorpay later
           customerName,
           customerPhone,

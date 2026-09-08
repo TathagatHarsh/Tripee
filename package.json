@@ -7,12 +7,13 @@
   },
   "scripts": {
     "dev": "next dev",
+    "role": "tsx scripts/role.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test e2e/happy-path.spec.ts",
+    "e2e": "playwright test e2e/happy-path.spec.ts e2e/auth.spec.ts",
     "docket": "tsx scripts/docket.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
@@ -32,6 +33,7 @@
     "shoot:presets": "tsx scripts/shoot-presets.ts"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.9.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@react-three/drei": "^10.7.7",

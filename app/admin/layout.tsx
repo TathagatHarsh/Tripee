@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { eyebrow } from "@/lib/ui";
+import { SignOutButton } from "@clerk/nextjs";
+import { getViewerEmail, requireAdmin } from "@/lib/auth";
+import { btn, eyebrow } from "@/lib/ui";
 
 /**
  * The admin shell.
@@ -11,9 +13,26 @@ import { eyebrow } from "@/lib/ui";
  * what the tool tells it. Mono, no radius, hairline rules — the rest of the
  * site's rules apply here too.
  *
- * Kitchen is linked but not nested. /kitchen is where a shift works and it has
- * its own credential; putting it inside this nav would imply one login opens
- * both, which is exactly what proxy.ts is arranged to prevent.
+ * Kitchen is linked but not nested. /kitchen is where a shift works; it is a
+ * different job on the same orders, not a section of this one. The link is
+ * always live because ADMIN outranks KITCHEN — see lib/roles' ROLE_RANK, and
+ * the reason it is a rank: the person who reprices the menu is also the person
+ * who moves a docket when the counter is busy. A baker following the same link
+ * the other way lands on /login and is told, in words, that the admin portal is
+ * the owner's.
+ *
+ * ## The gate
+ *
+ * `requireAdmin()` here rather than only in proxy.ts, and this is the gate that
+ * counts. A layout runs for this page and every page nested under it, on the
+ * server, on every request, and — unlike a proxy — there is no header anybody
+ * can send that skips it. proxy.ts turns guests away early and keeps the
+ * session cookie fresh; this decides.
+ *
+ * It does NOT cover the writes. A Server Action posts to the route it lives on
+ * but does not re-run its layout, so every action in ./actions.ts carries its
+ * own `requireAdmin()`. Two lines of apparent duplication, and removing either
+ * one opens something.
  */
 
 export const metadata: Metadata = {
@@ -36,7 +55,11 @@ const TABS = [
   { href: "/admin/settings", label: "Bakery" },
 ];
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  // First statement, and never inside a try: this refuses by throwing.
+  await requireAdmin();
+  const email = await getViewerEmail();
+
   return (
     <div className="min-h-dvh bg-paper">
       <header className="border-b border-rule-strong">
@@ -59,6 +82,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             Kitchen board →
           </Link>
+
+          {/* Who is holding this session, and how to stop. On a shared office
+              machine the first half is the half that matters. */}
+          <span className="font-mono text-micro tracking-[0.1em] text-steel">{email}</span>
+          <SignOutButton redirectUrl="/">
+            <button type="button" className={btn("quiet", "md", "text-micro tracking-[0.1em] uppercase")}>
+              Sign out
+            </button>
+          </SignOutButton>
         </div>
       </header>
 

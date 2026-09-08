@@ -1,134 +1,132 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { requirementFor } from "@/lib/roles";
 
 /**
- * Two staff areas, two gates.
+ * Two jobs, and neither of them is the authorisation.
  *
- * The kitchen board lists customer names and phone numbers. The admin portal
- * sets what the bakery charges. Both need a password, and neither should be
- * reachable with the other's.
+ * ## What this replaced, twice
  *
- * HTTP Basic rather than an auth library: there is no User model, no session
- * and no signup, and inventing all three to put a password on two staff pages
- * would be a large amount of machinery for one bakery. The browser already
- * knows how to prompt for this, so it costs no login page and no dependency.
+ * First HTTP Basic with one shared password per staff area — no way to tell one
+ * baker from another, no way to revoke a single person. Then Supabase Auth. Now
+ * Clerk. The thing worth noticing is how little moved each time: the rules live
+ * in lib/roles.ts, the enforcement lives in the pages and actions, and this file
+ * has never been more than a doorman.
  *
- * Separate realms rather than one shared credential, because the two are not
- * the same job: whoever is moving dockets on a counter tablet all day does not
- * also need the ability to reprice the menu, and one password would hand it to
- * them. Browsers cache credentials per realm, so the two stay apart on their
- * own.
+ * ## Job one: run Clerk on every request
  *
- * The obvious ceiling, unchanged: one shared credential *per area*, no
- * per-person identity, and no audit trail of who advanced which docket or who
- * changed which price. When staff need to be told apart, this is the seam to
- * replace — everything else stays as it is.
+ * `clerkMiddleware()` is what makes `auth()` work anywhere downstream — it reads
+ * and verifies the session and attaches it to the request. Without it, every
+ * `auth()` call in the app throws. That is why the matcher below is broad where
+ * the old one was narrow: this is no longer only a gate, it is the thing that
+ * makes identity available at all.
+ *
+ * It is cheap for a guest. There is no session cookie to verify, so nothing
+ * leaves the machine and the builder stays exactly as light as it was.
+ *
+ * ## Job two: turn a guest away early
+ *
+ * A request with no session cannot possibly pass a role check, so it is sent to
+ * the sign-in page here rather than after a database round-trip.
+ *
+ * ## What this file deliberately does not do
+ *
+ * It does not check roles. A role lives in Postgres, reaching Postgres from a
+ * proxy means shipping Prisma into it, and — the reason that actually matters —
+ * a gate that runs *before* a route is a gate that can be routed around: this is
+ * the shape of CVE-2025-29927, where a crafted header persuaded Next to skip
+ * middleware entirely. Clerk's own documentation says the same thing in its own
+ * words: protect access as close to the resource as possible, in the code that
+ * reads or mutates the data.
+ *
+ * So the real check runs inside the thing being protected, every time:
+ * `requireAdmin()` in app/admin/layout.tsx, `requireKitchen()` in
+ * app/kitchen/page.tsx, and one at the top of every Server Action either portal
+ * can invoke. Delete this file and the portals are still shut; they would only
+ * get uglier for the people who belong there.
+ *
+ * `createRouteMatcher` is deprecated in Clerk 7, and it would have been the
+ * wrong tool anyway: lib/roles' `requirementFor` is already the single list of
+ * which paths need what, read by this file and by every guard alike. Two lists
+ * would be one list and a bug.
  */
-
-interface Gate {
-  prefix: string;
-  realm: string;
-  user: string | undefined;
-  password: string | undefined;
+/**
+ * Whether this deployment has an identity provider at all.
+ *
+ * Read per request rather than at module load, because a module instance
+ * outlives a key rotation on a warm serverless runtime.
+ */
+function configured(): boolean {
+  // Both. `clerkMiddleware` verifies sessions server-side, so it needs the
+  // secret key as well as the publishable one — with only the first it throws
+  // `Missing secretKey` on the very first request, which is the same outage
+  // this function exists to prevent.
+  return Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY,
+  );
 }
 
 /**
- * Read per request rather than at module load: the edge runtime reuses a module
- * instance across invocations, and an env var read once at import would survive
- * a credential rotation until the next cold start.
+ * The gate when Clerk is not configured.
+ *
+ * `clerkMiddleware()` throws on a missing publishable key, and because the
+ * matcher below has to be broad — it is what makes `auth()` work anywhere — an
+ * unconfigured deployment would answer 500 for **every page on the site**,
+ * shopfront and builder included. That is a worse failure than the one it is
+ * warning about: lib/db.ts has always held that a deployment missing a
+ * dependency should still let somebody design a cake and say plainly what they
+ * cannot do, and a staff credential is no reason to take the shop down.
+ *
+ * So the split is the same as it has always been. Public paths are waved
+ * through untouched. Guarded ones get the 503 the Basic Auth gate used to give,
+ * naming the variable to set.
  */
-function gates(): Gate[] {
-  return [
-    {
-      prefix: "/admin",
-      realm: "Makemycake admin",
-      user: process.env.ADMIN_USER,
-      password: process.env.ADMIN_PASSWORD,
-    },
-    {
-      prefix: "/kitchen",
-      realm: "Makemycake kitchen",
-      user: process.env.KITCHEN_USER,
-      password: process.env.KITCHEN_PASSWORD,
-    },
-  ];
+function unconfigured(req: NextRequest) {
+  if (!requirementFor(req.nextUrl.pathname)) return NextResponse.next();
+
+  return new NextResponse(
+    "This deployment has no Clerk instance attached, so nobody can sign in.\n"
+    + "Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY.\n",
+    { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } },
+  );
 }
 
-/**
- * The edge runtime has no `crypto.timingSafeEqual`, so compare every character
- * regardless of where the first difference falls. Length still leaks, which is
- * a fair trade for four lines; the secret is a password, not a key.
- */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
+const withClerk = clerkMiddleware(async (auth, req) => {
+  const need = requirementFor(req.nextUrl.pathname);
+  if (!need) return NextResponse.next();
 
-export default function proxy(req: NextRequest) {
-  const gate = gates().find((g) => req.nextUrl.pathname.startsWith(g.prefix));
-
-  // The matcher below is what decides which paths arrive here, so a request
-  // with no gate is a matcher that has drifted from this list rather than a
-  // request to let through on trust.
-  if (!gate) {
-    return new NextResponse("Not found.\n", {
-      status: 404,
-      headers: { "content-type": "text/plain; charset=utf-8" },
-    });
-  }
-
-  const { user, password } = gate;
+  // Both come off the *awaited* auth object, not off `auth` itself.
+  const { userId, redirectToSignIn } = await auth();
+  if (userId) return NextResponse.next();
 
   /*
-   * Fail closed. An unconfigured gate must never degrade into an open door onto
-   * a page of customer phone numbers, or onto the prices — which is exactly
-   * what "if no password is set, skip the check" would do on the first
-   * deployment where someone forgot to set the variable.
+   * `redirectToSignIn` rather than a hand-built URL: Clerk owns where its
+   * sign-in page lives and how the return trip is encoded, and duplicating
+   * either here is how the two drift apart. `returnBackUrl` is a path inside
+   * this app, taken from the matcher rather than from anything a visitor typed.
    */
-  if (!user || !password) {
-    const prefix = gate.prefix.slice(1).toUpperCase();
-    return new NextResponse(
-      `The ${gate.prefix} area is not configured on this deployment.\n` +
-      `Set ${prefix}_USER and ${prefix}_PASSWORD.\n`,
-      { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } },
-    );
-  }
+  return redirectToSignIn({ returnBackUrl: req.nextUrl.pathname });
+});
 
-  const header = req.headers.get("authorization") ?? "";
-
-  if (header.startsWith("Basic ")) {
-    let decoded = "";
-    try {
-      decoded = atob(header.slice(6));
-    } catch {
-      decoded = "";
-    }
-    // Split on the FIRST colon only: a colon is legal inside a password.
-    const split = decoded.indexOf(":");
-    if (split !== -1) {
-      const okUser = safeEqual(decoded.slice(0, split), user);
-      const okPass = safeEqual(decoded.slice(split + 1), password);
-      // Both are evaluated before the branch, so a wrong username and a wrong
-      // password cost the same.
-      if (okUser && okPass) return NextResponse.next();
-    }
-  }
-
-  return new NextResponse("Authentication required.\n", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": `Basic realm="${gate.realm}", charset="UTF-8"`,
-      "content-type": "text/plain; charset=utf-8",
-    },
-  });
+export default function proxy(req: NextRequest, event: NextFetchEvent) {
+  return configured() ? withClerk(req, event) : unconfigured(req);
 }
 
 /**
- * `:path*` matches zero or more segments, so each entry covers the area's own
- * page as well as everything under it — including the POST a server action
- * makes back to the page it lives on, which is how both boards write.
+ * Broad on purpose, and broader than the gate needs.
+ *
+ * Clerk's middleware is what makes `auth()` available to Server Components and
+ * Route Handlers, so it has to run for any route that might ask who is signed
+ * in — including `/api/orders`, which attaches an order to its customer. The
+ * pattern is Clerk's documented default: everything except Next's internals and
+ * static assets.
+ *
+ * The *gate* stays narrow regardless: `requirementFor` above returns null for
+ * every public path, so a guest opening the builder is waved straight through.
  */
 export const config = {
-  matcher: ["/admin/:path*", "/kitchen/:path*"],
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
 };
