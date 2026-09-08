@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountMenu } from "@/components/AccountMenu";
 import { HeroCake } from "@/components/HeroCake";
 import { HeroReveal } from "@/components/HeroReveal";
 import { HeroSprinkles } from "@/components/HeroSprinkles";
@@ -68,7 +69,7 @@ export default async function Home() {
         78px → 68px. This is chrome, and it was taller than the 44px control it
         contains by more than that control's own height again.
       */}
-      <header className="sticky top-0 z-30 flex h-[68px] items-center gap-6 border-b border-rule bg-paper/90 px-4 backdrop-blur-md sm:px-8 lg:px-14">
+      <header className="sticky top-0 z-30 flex h-[68px] items-center gap-3 border-b border-rule bg-paper/90 px-4 backdrop-blur-md sm:gap-6 sm:px-8 lg:px-14">
         <Link
           href="/"
           className="flex min-w-0 shrink-0 items-center gap-3.5"
@@ -87,8 +88,8 @@ export default async function Home() {
               lines and the bar grew a second row of text. The locality is the
               least load-bearing thing up here, so it stands down for that band
               and comes back at xl. */}
-          <span aria-hidden className="hidden h-3.5 w-px bg-rule sm:block lg:hidden xl:block" />
-          <span className="hidden font-mono text-micro tracking-[0.14em] text-steel uppercase sm:block lg:hidden xl:block">
+          <span aria-hidden className="hidden h-3.5 w-px bg-rule md:block lg:hidden xl:block" />
+          <span className="hidden font-mono text-micro tracking-[0.14em] text-steel uppercase md:block lg:hidden xl:block">
             Jubilee Hills
           </span>
         </Link>
@@ -121,7 +122,7 @@ export default async function Home() {
 
         {/* `ml-auto` because on the breakpoints where the nav is hidden there is
             no flex-1 item left to push these to the right. */}
-        <div className="ml-auto flex shrink-0 items-center gap-6">
+        <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-6">
           {/* The old `sm:contents` wrapper is gone with the reason for it: it
               existed only because `btn()` hard-codes `inline-flex`, which beat
               `hidden` in the cascade. This is not a `btn()`, so `sm:inline-flex`
@@ -137,9 +138,40 @@ export default async function Home() {
               Explore presets
             </span>
           </Link>
-          <Link href="/build/shape" className={btn("primary", "md")}>
+          {/*
+            Hidden below sm, because below sm it does not fit.
+
+            The bar needs 384px to hold the wordmark, this button and the
+            account control; every phone narrower than that was scrolling
+            sideways, which put the account control off the right edge — the
+            reason this whole change exists. Measured, not guessed: 320px was
+            64px over, 360px 24px over, 375px 9px over.
+
+            This is the item that yields because it is the only one already on
+            screen twice. The hero's own "Start building →" is inside the first
+            viewport on a phone — directly under this bar — so nothing becomes
+            unreachable and no journey gets longer. The wordmark cannot yield
+            (56px would be left for ten characters) and the account control
+            cannot (44px is the touch target, and it is the thing being fixed).
+
+            `max-sm:hidden`, and NOT `hidden sm:inline-flex` — which is the
+            idiom four lines up and which silently does nothing here. btn()
+            hard-codes `inline-flex`, and a base `hidden` loses to it in the
+            cascade; that is the whole reason the `sm:contents` wrapper this
+            file used to carry existed. A `max-sm:` variant is emitted after the
+            base utilities, so it wins below 640px without an `!important` or a
+            wrapper element. Verified in the built stylesheet, not assumed.
+          */}
+          <Link
+            href="/build/shape"
+            className={btn("primary", "md", "max-sm:hidden")}
+          >
             Start building
           </Link>
+          {/* Last in the row on purpose, and now a fixed 44px square in every
+              state — so this end of the bar has one width, signed in or out,
+              and nothing here can push the call to action beside it. */}
+          <AccountMenu />
         </div>
       </header>
 

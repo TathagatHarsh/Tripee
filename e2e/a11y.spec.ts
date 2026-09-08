@@ -70,6 +70,105 @@ test.describe("accessibility", () => {
     expect(summary, summary.join("\n")).toEqual([]);
   });
 
+  /*
+   * Same hole as the topping bar, for the same reason: the account panel is a
+   * [popover], so while it is closed it is `display:none` and axe walks straight
+   * past it. The route pass above never clicks, so the panel has to be opened
+   * here or it is never scanned at all.
+   *
+   * CI has no Clerk publishable key, so this exercises the guest rows — which is
+   * the state every first-time visitor sees, and the one with two links in it.
+   */
+  test("the account panel has no WCAG A/AA violations", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Account" }).click();
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+
+    const summary = await violations(page);
+    expect(summary, summary.join("\n")).toEqual([]);
+  });
+
+  test("the account menu opens, closes and stays inside the viewport", async ({ page }) => {
+    await page.goto("/");
+
+    const trigger = page.getByRole("button", { name: "Account" });
+    const panel = page.getByRole("navigation", { name: "Account" });
+
+    // The icon is the whole control, in both states, and it is a real target.
+    const box = await trigger.boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+    // Shut, and saying so.
+    await expect(panel).toBeHidden();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await trigger.click();
+    await expect(panel).toBeVisible();
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    // Escape closes it, and `aria-expanded` follows — the attribute is mirrored
+    // from the popover's own toggle event, not set by the click handler, which
+    // is the only way it survives a dismissal the button never hears about.
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    // A click anywhere else closes it too.
+    await trigger.click();
+    await expect(panel).toBeVisible();
+    await page.locator("h1").first().click();
+    await expect(panel).toBeHidden();
+
+    // Tab from the trigger lands in the panel: the popover sits immediately
+    // after the button in the DOM, so the platform's own tab order is the
+    // keyboard support and there is no roving tabindex to get wrong.
+    await trigger.focus();
+    await trigger.press("Enter");
+    await expect(panel).toBeVisible();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeFocused();
+
+    // And selecting a row closes it and goes there.
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/sign-in/);
+  });
+
+  /*
+   * The reason this change exists. 320px is the narrowest phone still in the
+   * wild; the panel is `w-[min(17rem,calc(100vw-2rem))]`, so the viewport is one
+   * side of the min() and it cannot be the overflowing one.
+   */
+  for (const [width, height, name] of [
+    [1440, 900, "desktop"],
+    [1024, 768, "laptop"],
+    [768, 1024, "tablet"],
+    [390, 844, "mobile"],
+    [320, 568, "small mobile"],
+  ] as const) {
+    test(`the account panel fits a ${name} viewport`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await page.getByRole("button", { name: "Account" }).click();
+
+      const panel = page.getByRole("navigation", { name: "Account" });
+      await expect(panel).toBeVisible();
+
+      const box = await panel.boundingBox();
+      expect(box, "panel is laid out").not.toBeNull();
+      expect(box!.x, "not off the left edge").toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width, "not off the right edge").toBeLessThanOrEqual(width);
+      expect(box!.y, "not above the fold").toBeGreaterThanOrEqual(0);
+      expect(box!.y + box!.height, "not off the bottom").toBeLessThanOrEqual(height);
+
+      // And the page itself did not grow a horizontal scrollbar because of it.
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, "no horizontal scroll").toBeLessThanOrEqual(0);
+    });
+  }
+
   test("the builder can be driven with the keyboard alone", async ({ page }) => {
     await page.goto("/build/shape");
     await page.waitForSelector("canvas");
