@@ -231,11 +231,21 @@ export function buildDocket(
 /**
  * The full spec sheet — the thing a kitchen actually works from. Rendered as
  * monospace text so it is identical in the terminal, the browser and the PDF.
+ *
+ * `omitPrice` exists for one caller: the printed docket at
+ * /admin/orders/[ref]/print. Every price in here is computed from the catalogue
+ * passed in, which is the right answer for a sheet generated beside the builder
+ * and the wrong one for an order placed last month — that order's price was
+ * frozen when it was agreed, and a document put in front of a customer has to
+ * show the figure they agreed to rather than what the same cake would cost
+ * today. So the print page suppresses this section and prints the frozen
+ * OrderItem lines instead. Everything above the price describes the cake rather
+ * than charging for it, and is safe to regenerate.
  */
 export function renderSpecSheet(
   c: CakeConfig,
   catalog: CatalogSnapshot,
-  opts: { ref?: string; createdAt?: Date; width?: number } = {},
+  opts: { ref?: string; createdAt?: Date; width?: number; omitPrice?: boolean } = {},
 ): string {
   const w = opts.width ?? 62;
   const d = buildDocket(c, catalog, opts);
@@ -298,13 +308,15 @@ export function renderSpecSheet(
   out.push(kv("Pincode", d.delivery.pincode ?? "Not set"));
   out.push("");
 
-  out.push("PRICE");
-  for (const l of d.price.lines) out.push(money(l.label, l.amount));
-  out.push("  " + rule("─").slice(2));
-  out.push(money("Subtotal", d.price.subtotal));
-  out.push(money(`GST @ ${Math.round(d.price.gstRate * 100)}%`, d.price.gst));
-  out.push("  " + rule("─").slice(2));
-  out.push(money("TOTAL", d.price.total));
+  if (!opts.omitPrice) {
+    out.push("PRICE");
+    for (const l of d.price.lines) out.push(money(l.label, l.amount));
+    out.push("  " + rule("─").slice(2));
+    out.push(money("Subtotal", d.price.subtotal));
+    out.push(money(`GST @ ${Math.round(d.price.gstRate * 100)}%`, d.price.gst));
+    out.push("  " + rule("─").slice(2));
+    out.push(money("TOTAL", d.price.total));
+  }
   if (d.fssai) {
     out.push("");
     out.push(`FSSAI Lic. No. ${d.fssai}`);

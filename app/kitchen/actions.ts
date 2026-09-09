@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import type { OrderStatus } from "@prisma/client";
 import { requireKitchen } from "@/lib/auth";
-import { db, hasDatabase } from "@/lib/db";
-import { canTransition } from "@/lib/orders";
+import { hasDatabase } from "@/lib/db";
+import { applyStatusTransition } from "@/lib/orderTransition";
 
 /**
  * Move one docket along the board.
@@ -24,27 +24,26 @@ import { canTransition } from "@/lib/orders";
  * because the owner moving a docket at a busy counter is a Tuesday, not an
  * escalation. It refuses by throwing, so it is the first statement and is never
  * inside a `try`.
+ *
+ * The move itself is lib/orderTransition's, which the admin portal's order
+ * detail also calls: it re-reads the status, asks lib/orders whether the move
+ * is legal, writes conditionally on the status not having changed since, and
+ * records who moved it. Two surfaces, one implementation — a second copy of
+ * these rules is a second place for them to drift.
  */
 export async function advanceOrder(formData: FormData) {
-  await requireKitchen();
+  const viewer = await requireKitchen();
   if (!hasDatabase()) return;
 
   const ref = String(formData.get("ref") ?? "");
   const to = String(formData.get("to") ?? "") as OrderStatus;
   if (!ref || !to) return;
 
-  const order = await db.order.findUnique({
-    where: { ref },
-    select: { id: true, status: true },
-  });
-  if (!order) return;
+  // A refused move is logged where the reason is known, in lib/orderTransition,
+  // with the status it was refused from.
+  await applyStatusTransition(ref, to, viewer.profile.id);
 
-  if (!canTransition(order.status, to)) {
-    console.warn("rejected_status_transition", { ref, from: order.status, to });
-    revalidatePath("/kitchen");
-    return;
-  }
-
-  await db.order.update({ where: { id: order.id }, data: { status: to } });
+  // Refused or not, for the reason above: re-rendering the board puts the real
+  // state in front of whoever clicked rather than a dialog about a race.
   revalidatePath("/kitchen");
 }

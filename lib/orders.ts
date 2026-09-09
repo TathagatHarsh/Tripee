@@ -56,3 +56,49 @@ export const ACTION_LABEL: Record<OrderStatus, string> = {
   delivered: "Mark delivered",
   cancelled: "Cancel",
 };
+
+/** One line on an order's history, ready to render. */
+export interface TimelineEntry {
+  label: string;
+  at: Date;
+  /** The staff member who made the move, when the row still names one. */
+  actorName: string | null;
+}
+
+/**
+ * What happened to this order, oldest first.
+ *
+ * "Order placed" is derived from the order's own `createdAt` rather than stored
+ * as an event, because every order that has ever existed already carries that
+ * timestamp — recording it a second time would only create a way for the two to
+ * disagree, and would leave every order placed before OrderEvent existed with a
+ * timeline that started nowhere.
+ *
+ * Everything after it is a row somebody's click actually wrote. Nothing is
+ * inferred: an order confirmed and delivered before this table existed shows
+ * one line, not the five a plausible-looking history would have invented for
+ * it. A thin timeline is the truth about what was recorded, and a bakery
+ * reading it can tell the difference between "this did not happen" and "we did
+ * not write it down" — a fabricated one takes that away.
+ *
+ * Sorted here rather than trusted from the caller for the same reason the rest
+ * of this file is pure: the query orders these already, and a function that
+ * quietly depends on that is one refactor away from rendering history out of
+ * sequence.
+ */
+export function buildTimeline(
+  createdAt: Date,
+  events: { toStatus: OrderStatus; createdAt: Date; actorName: string | null }[],
+): TimelineEntry[] {
+  return [
+    { label: "Order placed", at: createdAt, actorName: null },
+    ...events
+      .slice()
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((e) => ({
+        label: STATUS_LABEL[e.toStatus],
+        at: e.createdAt,
+        actorName: e.actorName,
+      })),
+  ];
+}

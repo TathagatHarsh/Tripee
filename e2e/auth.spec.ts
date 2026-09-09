@@ -16,6 +16,15 @@ for (const [path, what] of [
   ["/admin", "admin portal"],
   ["/admin/catalog", "catalogue editor"],
   ["/admin/orders", "order book"],
+  /*
+   * Both nested order routes, with a reference that need not exist: the layout's
+   * requireAdmin() refuses before anything queries an order, so what is being
+   * asserted is that depth does not dilute the gate — the docket carries a
+   * customer's name, phone and pincode onto a printable page, and "it is a
+   * child route of a guarded one" is only true until somebody restructures it.
+   */
+  ["/admin/orders/MC-0000", "order detail"],
+  ["/admin/orders/MC-0000/print", "printable docket"],
   ["/kitchen", "kitchen board"],
   ["/account", "account page"],
 ] as const) {

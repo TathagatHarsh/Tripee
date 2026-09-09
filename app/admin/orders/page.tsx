@@ -14,9 +14,11 @@ import { eyebrow } from "@/lib/ui";
  * did we take this week, who was that customer on the phone, what did we quote
  * them. Same Order table, two readings of it.
  *
- * Which is why nothing here moves a docket along. Status transitions live in
- * app/kitchen/actions.ts behind lib/orders' state machine, and a second way to
- * change status is a second place for those rules to drift.
+ * Which is why nothing on this page moves a docket along: a list is for finding
+ * the order, and the order's own page is where it is acted on. Both that page
+ * and the kitchen board write through lib/orderTransition, behind lib/orders'
+ * state machine — two surfaces asking one implementation, rather than a second
+ * copy of the rules to drift.
  */
 
 export const dynamic = "force-dynamic";
@@ -160,7 +162,18 @@ export default async function AdminOrders({
             <li key={o.id} className="border border-rule bg-paper">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule px-4 py-3">
                 <div className="flex flex-wrap items-baseline gap-3">
-                  <span className="font-mono text-item font-medium tracking-wide">{o.ref}</span>
+                  {/*
+                    The reference is the handle on an order everywhere else in
+                    this business — read down a phone, written on a box — so it
+                    is the thing that opens the order rather than a "view"
+                    button sitting next to it.
+                  */}
+                  <Link
+                    href={`/admin/orders/${o.ref}`}
+                    className="font-mono text-item font-medium tracking-wide underline decoration-rule-strong decoration-1 underline-offset-4 hover:decoration-ink"
+                  >
+                    {o.ref}
+                  </Link>
                   <span
                     className={[
                       "border px-2 py-0.5 font-mono text-micro",
@@ -220,10 +233,12 @@ export default async function AdminOrders({
       )}
 
       <p className="border-t border-rule pt-4 font-sans text-meta leading-relaxed text-steel">
-        Moving an order along — confirming it, starting it, sending it out — is
-        the <Link href="/kitchen" className="underline">kitchen board</Link>, so
-        the sequence a docket follows has one set of rules and one place that
-        applies them.
+        Open a reference to read the whole order — what was agreed, how it got
+        to where it is, and the moves it can still make. For the whole day at
+        once there is the{" "}
+        <Link href="/kitchen" className="underline">kitchen board</Link>. Both
+        move a docket by the same rules, from the same state machine, through
+        the same function that records the move.
       </p>
     </div>
   );

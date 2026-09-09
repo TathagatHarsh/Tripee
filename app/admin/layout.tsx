@@ -62,7 +62,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-dvh bg-paper">
-      <header className="border-b border-rule-strong">
+      {/* `print:hidden` for /admin/orders/[ref]/print, which is a document
+          rather than a screen: nav tabs and a sign-out button on a sheet a
+          rider carries are ink spent on controls nobody can press. */}
+      <header className="border-b border-rule-strong print:hidden">
         <div className="mx-auto flex max-w-6xl flex-wrap items-baseline gap-x-6 gap-y-2 px-4 py-4 sm:px-8">
           <span className={eyebrow}>Makemycake</span>
           <nav aria-label="Admin sections" className="flex flex-wrap gap-x-5 gap-y-1">

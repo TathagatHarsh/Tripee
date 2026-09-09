@@ -1,11 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { OrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { revalidateCatalog } from "@/lib/catalogData";
 import { VALUES_BY_CATEGORY } from "@/lib/catalogSnapshot";
 import { db, hasDatabase } from "@/lib/db";
+import { applyStatusTransition } from "@/lib/orderTransition";
+import { STATUS_LABEL } from "@/lib/orders";
 
 /**
  * Every write the admin portal can make.
@@ -419,4 +422,50 @@ export async function saveBakery(
   revalidateCatalog();
   revalidatePath("/admin/settings");
   return { ok: true, message: "Saved." };
+}
+
+/**
+ * Move one order along, from the order's own page.
+ *
+ * The kitchen board has always been able to do this and still is. What was
+ * missing is that an owner looking at one order — on the phone to the customer
+ * whose cake it is — had to leave for /kitchen and find that order again in a
+ * list of two hundred to confirm it. Same rules, same recording, second place
+ * to ask for it.
+ *
+ * `requireAdmin` rather than `requireKitchen`, unlike the board's action: this
+ * is the owner's portal, and a baker who should be moving dockets has the board
+ * for exactly that. It is the first statement and never inside a `try`, for the
+ * reason at the top of this file — a layout does not run for an action.
+ *
+ * The transition itself is lib/orderTransition's, shared with the board, so
+ * lib/orders' state machine stays the only thing that decides what is legal.
+ * It returns false both for a move that was never legal and for one that lost a
+ * race to another screen; either way nothing was written, and either way the
+ * honest answer is to say so and let the re-render show the real state.
+ */
+export async function advanceOrderStatus(
+  _prev: ActionResult | undefined,
+  form: FormData,
+): Promise<ActionResult> {
+  const viewer = await requireAdmin();
+  if (!hasDatabase()) return NO_DB;
+
+  const ref = String(form.get("ref") ?? "");
+  const to = String(form.get("to") ?? "") as OrderStatus;
+  if (!ref || !to) return { ok: false, message: "That move is missing an order or a status." };
+
+  const moved = await applyStatusTransition(ref, to, viewer.profile.id);
+
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${ref}`);
+
+  return moved
+    ? { ok: true, message: `Moved to ${STATUS_LABEL[to].toLowerCase()}.` }
+    : {
+      ok: false,
+      message:
+        "That move is no longer available — this order has already changed. "
+        + "Reload to see where it is.",
+    };
 }

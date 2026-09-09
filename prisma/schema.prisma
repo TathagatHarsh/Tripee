@@ -94,6 +94,7 @@ model Order {
   design         Design?       @relation(fields: [designId], references: [id])
 
   items          OrderItem[]
+  events         OrderEvent[]
 
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -116,6 +117,46 @@ model OrderItem {
   position  Int
 
   @@index([orderId])
+}
+
+/// One status change, recorded as it happens.
+///
+/// Until now a docket's status was a single column: moving it overwrote the old
+/// value and bumped `updatedAt`, so "when was this confirmed" and "who sent it
+/// out" had no answer at all. The board could show where an order is and never
+/// how it got there.
+///
+/// Deliberately not an event-sourcing log. `Order.status` remains the truth and
+/// these rows remain a record beside it — a table that had to be replayed to
+/// know what a cake is would be a much larger promise than a bakery needs.
+/// lib/orderTransition writes one row per accepted move, inside the same
+/// transaction as the update, so a row here means the move actually landed.
+///
+/// Nothing is backfilled. Every order placed before this table existed shows
+/// only "Order placed", from its own `createdAt` — inventing the confirmations
+/// and deliveries that were never recorded would make the timeline a story
+/// rather than a record.
+model OrderEvent {
+  id         String       @id @default(cuid())
+
+  orderId    String
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Null only if a move is ever recorded for an order with no prior state.
+  /// Kept so a row is readable on its own, without the row before it.
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+
+  /// The staff member who moved it, from the server session — never from a
+  /// form field. SetNull for the same reason Order.userId is: revoking an
+  /// account must not erase the fact that the cake went out.
+  actorId    String?
+  actor      UserProfile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime     @default(now())
+
+  /// Every read is "this order's events, oldest first".
+  @@index([orderId, createdAt])
 }
 
 /// The ten dimensions of a cake, mirroring the Zod enums in lib/schema.ts.
@@ -356,6 +397,8 @@ model UserProfile {
   name           String?
 
   orders         Order[]
+  /// Dockets this person moved along, as staff rather than as a customer.
+  orderEvents    OrderEvent[]
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
