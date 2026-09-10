@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function SignInPage() {
   return (
     <AuthSheet title="Sign in" lede="For your saved cakes, and for the bakery's own two boards.">
-      <SignIn appearance={clerkAppearance} />
+      <SignIn appearance={clerkAppearance} fallbackRedirectUrl="/post-sign-in" />
     </AuthSheet>
   );
 }
