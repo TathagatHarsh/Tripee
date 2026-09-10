@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getCatalogSnapshot } from "@/lib/catalogData";
-import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
+import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { renderSpecSheet } from "@/lib/docket";
 import { formatINR, formatIST } from "@/lib/format";
-import { isClosed, STATUS_LABEL } from "@/lib/orders";
+import { buildTimeline, isClosed, NEXT_STATUS, STATUS_LABEL } from "@/lib/orders";
 import { priceCake } from "@/lib/pricing";
-import { migrateConfig } from "@/lib/schema";
 import { eyebrow } from "@/lib/ui";
+import { getOrderDetail } from "./data";
+import { StatusActions } from "./StatusActions";
 
 /**
  * One order, in full.
@@ -19,8 +19,17 @@ import { eyebrow } from "@/lib/ui";
  * to a number, and the catalogue moving afterwards does not renegotiate it on
  * their behalf.
  *
- * No status buttons here either, for the reason /admin/orders gives: the
- * sequence a docket follows belongs to app/kitchen and its state machine.
+ * ## Moving it from here
+ *
+ * This page can now advance an order, which /kitchen could always do and this
+ * one deliberately could not. The reason it could not was that a second set of
+ * transition rules is a second set to drift; the reason it can now is that
+ * there is no second set — the buttons are drawn from lib/orders' NEXT_STATUS
+ * and the write goes through lib/orderTransition, the same function the board
+ * calls. What is different is who is asking and why: a shift needs the whole
+ * board and big buttons, while an owner on the phone about one cake needs that
+ * cake, and sending them to /kitchen to find it in a list of two hundred was
+ * the wrong answer to a real question.
  */
 
 export const dynamic = "force-dynamic";
@@ -47,30 +56,42 @@ export default async function OrderDetail({
     );
   }
 
-  const [order, catalog] = await Promise.all([
-    db.order.findUnique({
-      where: { ref },
-      include: { items: { orderBy: { position: "asc" } }, design: { select: { slug: true } } },
-    }),
-    getCatalogSnapshot(),
-  ]);
+  const detail = await getOrderDetail(ref);
+  if (!detail) notFound();
 
-  if (!order) notFound();
-
-  const config = migrateConfig(order.config);
+  const { order, catalog, config } = detail;
   const recomputed = config ? priceCake(config, catalog).total : null;
   const drifted = recomputed !== null && recomputed !== order.totalPaise;
   const dueAt = new Date(order.createdAt.getTime() + order.leadHours * 3600_000);
   const overdue = dueAt < new Date() && !isClosed(order.status);
+  const timeline = buildTimeline(
+    order.createdAt,
+    order.events.map((e) => ({
+      toStatus: e.toStatus,
+      createdAt: e.createdAt,
+      actorName: e.actor?.name ?? null,
+    })),
+  );
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
+      <div className="flex flex-wrap items-baseline justify-between gap-4 print:hidden">
         <Link
           href="/admin/orders"
           className="font-mono text-micro uppercase tracking-[0.1em] text-steel hover:text-ink"
         >
           ← All orders
+        </Link>
+        {/*
+          A new tab, because the thing being printed is a document rather than a
+          screen: the kitchen keeps the order open and takes the paper away.
+        */}
+        <Link
+          href={`/admin/orders/${order.ref}/print`}
+          target="_blank"
+          className="font-mono text-micro uppercase tracking-[0.1em] text-steel hover:text-ink"
+        >
+          Print docket →
         </Link>
       </div>
 
@@ -91,6 +112,61 @@ export default async function OrderDetail({
           </span>
         </div>
       </header>
+
+      {/*
+        Status and history sit outside the `config` check below on purpose. An
+        order whose stored configuration no longer validates still has to be
+        confirmable, cancellable and readable — where it is and how it got there
+        are columns on the order, not a re-parse of the cake.
+      */}
+      <section className="border border-rule bg-paper print:hidden">
+        <h2 className="border-b border-rule px-4 py-2.5 font-mono text-micro uppercase tracking-[0.1em] text-steel">
+          What happens next
+        </h2>
+        <div className="flex flex-col gap-3 px-4 py-3">
+          {/* Where it is now is the badge in the header, and whether it is late
+              is the "Due" row below. This section is only the move. */}
+          {isClosed(order.status) ? (
+            <p className="font-sans text-meta leading-relaxed text-steel">
+              {order.status === "delivered"
+                ? "Delivered. Nothing further to do."
+                : "Cancelled. A cancelled order does not reopen — take a new one."}
+            </p>
+          ) : (
+            <StatusActions orderRef={order.ref} next={NEXT_STATUS[order.status]} />
+          )}
+        </div>
+      </section>
+
+      <section className="border border-rule bg-paper">
+        <h2 className="border-b border-rule px-4 py-2.5 font-mono text-micro uppercase tracking-[0.1em] text-steel">
+          How it got here
+        </h2>
+        <ol className="flex flex-col px-4 py-3">
+          {timeline.map((t, i) => (
+            <li
+              key={`${t.label}-${t.at.getTime()}-${i}`}
+              className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 border-b border-rule py-1.5 last:border-0"
+            >
+              <span className="w-44 shrink-0 font-mono text-micro tabular-nums text-steel">
+                {formatIST(t.at)}
+              </span>
+              <span className="text-body leading-snug">{t.label}</span>
+              {t.actorName && (
+                <span className="font-mono text-micro text-steel">{t.actorName}</span>
+              )}
+            </li>
+          ))}
+        </ol>
+        {order.events.length === 0 && (
+          <p className="border-t border-rule px-4 py-2.5 font-sans text-meta leading-relaxed text-steel">
+            Nothing after that has been recorded. Status changes have only been
+            written down since this order book started keeping them — an older
+            order that was baked and delivered shows one line here rather than a
+            history invented for it.
+          </p>
+        )}
+      </section>
 
       <section className="border border-rule bg-paper">
         <h2 className="border-b border-rule px-4 py-2.5 font-mono text-micro uppercase tracking-[0.1em] text-steel">
@@ -161,9 +237,11 @@ export default async function OrderDetail({
         )}
       </section>
 
-      <p className="border-t border-rule pt-4 font-sans text-meta leading-relaxed text-steel">
-        To move this order along, use the{" "}
-        <Link href="/kitchen" className="underline">kitchen board</Link>.
+      <p className="border-t border-rule pt-4 font-sans text-meta leading-relaxed text-steel print:hidden">
+        This is one order. For the whole day at once — every docket, in the order
+        the bench should work them — there is the{" "}
+        <Link href="/kitchen" className="underline">kitchen board</Link>, which
+        moves them along by the same rules this page does.
       </p>
     </div>
   );
