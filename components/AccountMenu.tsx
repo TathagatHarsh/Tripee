@@ -126,50 +126,108 @@ export function AccountMenu() {
   }
 
   return (
-    /* min-h-11 so the bar is its final height from the first frame. The control
-       inside is a fixed 44px square in every state, signed in or out, resolved
-       or not, so this end of the header never reflows and never pushes the call
-       to action beside it. */
-    <span className="inline-flex min-h-11 items-center">
-      <button
-        type="button"
-        popoverTarget={MENU_ID}
-        aria-controls={MENU_ID}
-        aria-expanded={open}
-        /* The icon says nothing to a screen reader, and "Account" is the word
-           both states of this menu are about. */
-        aria-label="Account"
-        className={iconBtn()}
-      >
-        <PersonGlyph />
-      </button>
+    <>
+      {/*
+        Rendered only where there is a Clerk instance to ask, for exactly the
+        reason `<Session>` is — `useUser()` throws without a provider, hooks
+        cannot be called conditionally, so the branch has to be a component
+        boundary. This is a conditional *render*, not a conditional hook.
+      */}
+      {CONFIGURED && <AccountLink />}
 
-      <nav
-        ref={panel}
-        id={MENU_ID}
-        popover="auto"
-        aria-label="Account"
-        onToggle={onToggle}
-        className={PANEL}
-      >
-        {/*
-          Always rendered, never gated on `open`.
+      {/* min-h-11 so the bar is its final height from the first frame. The
+          control inside is a fixed 44px square in every state, signed in or out,
+          resolved or not, so this end of the header never reflows and never
+          pushes the call to action beside it. */}
+      <span className="inline-flex min-h-11 items-center">
+        <button
+          type="button"
+          popoverTarget={MENU_ID}
+          aria-controls={MENU_ID}
+          aria-expanded={open}
+          /* The icon says nothing to a screen reader, and "Account" is the word
+             both states of this menu are about. */
+          aria-label="Account"
+          className={iconBtn()}
+        >
+          <PersonGlyph />
+        </button>
 
-          Gating these on the open state cost a frame: the popover is shown by
-          the platform the moment the button is pressed, but the children only
-          appear on the React re-render that the `toggle` event schedules — so
-          for one frame there was an empty panel, and Enter-then-Tab moved focus
-          straight past it into the page behind. A keyboard user pressing two
-          keys quickly is not an edge case, it is how a keyboard is used.
+        <nav
+          ref={panel}
+          id={MENU_ID}
+          popover="auto"
+          aria-label="Account"
+          onToggle={onToggle}
+          className={PANEL}
+        >
+          {/*
+            Always rendered, never gated on `open`.
 
-          The gate also bought nothing. "Fetch the role on first open" is
-          enforced by `onToggle` above, not by when this subtree mounts, so a
-          closed panel already costs no request. What it mounts is one Clerk
-          subscription on a provider that is resolving the session regardless.
-        */}
-        {CONFIGURED ? <Session role={role} close={close} /> : <Guest close={close} />}
-      </nav>
-    </span>
+            Gating these on the open state cost a frame: the popover is shown by
+            the platform the moment the button is pressed, but the children only
+            appear on the React re-render that the `toggle` event schedules — so
+            for one frame there was an empty panel, and Enter-then-Tab moved
+            focus straight past it into the page behind. A keyboard user pressing
+            two keys quickly is not an edge case, it is how a keyboard is used.
+
+            The gate also bought nothing. "Fetch the role on first open" is
+            enforced by `onToggle` above, not by when this subtree mounts, so a
+            closed panel already costs no request. What it mounts is one Clerk
+            subscription on a provider that is resolving the session regardless.
+          */}
+          {CONFIGURED ? <Session role={role} close={close} /> : <Guest close={close} />}
+        </nav>
+      </span>
+    </>
+  );
+}
+
+/**
+ * "Account & orders", promoted out of the panel and onto the bar.
+ *
+ * It was a row inside the menu, which meant the one destination a signed-in
+ * customer actually comes back for — where is my order — was two interactions
+ * deep behind an unlabelled icon. It is one now.
+ *
+ * ## Why this is signed-in only, and not a change in who sees what
+ *
+ * The row this replaces lived inside `<Session>`, never inside `<Guest>`: a
+ * signed-out visitor was offered "Sign in" and "Create account" and was never
+ * offered /account, because /account for a guest is a redirect to the sign-in
+ * page wearing an account page's name. So the gate here is the same gate that
+ * was already there, moved. What a guest sees in the bar is unchanged — one
+ * 44px square — which is also what keeps the measured widths in app/page.tsx
+ * true for the visitors who are nearly all of them.
+ *
+ * ## Why `hidden sm:inline-flex`, and what covers the gap
+ *
+ * app/page.tsx measured this bar: at 375px it was 9px over with "Start
+ * building" still in it, which is why that button is `max-sm:hidden`. Below
+ * 640px the bar is a wordmark and one 44px square, and "ACCOUNT & ORDERS" is
+ * wider than the room that leaves — it would put the account control back off
+ * the right edge, which is the bug the whole menu exists to have fixed.
+ *
+ * So below sm the destination goes back into the panel, as a `sm:hidden` row —
+ * see `<Session>`. The two are complements on the same 640px, so there is
+ * exactly one path to /account at every width and never two.
+ *
+ * `whitespace-nowrap` because "ACCOUNT &" / "ORDERS" on two lines would grow
+ * the 68px bar a second row of text, which is the exact failure the locality's
+ * `lg:hidden xl:block` in app/page.tsx exists to avoid.
+ */
+function AccountLink() {
+  const { isSignedIn } = useUser();
+  /* `isLoaded` is deliberately not consulted. Until Clerk resolves,
+     `isSignedIn` is false and this renders nothing, which is the same quiet
+     default the panel takes — and it is the state a guest stays in forever, so
+     the overwhelmingly common case never draws and never shifts. */
+  if (!isSignedIn) return null;
+
+  return (
+    <Link href="/account" className={BAR_LINK}>
+      Account &amp; orders
+    </Link>
   );
 }
 
@@ -242,11 +300,22 @@ function Session({ role, close }: { role: UserRole | null; close: () => void }) 
       </div>
 
       <div className={GROUP}>
-        {/* One row, because there is one page. The order history lives inside
-            /account rather than at a /orders of its own, and a second row
-            pointing at the same URL is a menu telling a small lie about how much
-            is behind it. */}
-        <Row href="/account" close={close}>Account &amp; orders</Row>
+        {/*
+          `sm:hidden`, because "Account & orders" is a button on the bar now —
+          `<AccountLink>` below — and that button is itself `hidden sm:inline-flex`
+          because the bar has no room for it on a phone.
+
+          So the two are exact complements rather than a duplicate: above 640px
+          the destination is on the bar and this row would be a second control
+          for the same page within 200px of itself; below 640px the bar cannot
+          hold it and this row is the only way to reach the one page a returning
+          customer actually wants. Exactly one path to /account at every width,
+          decided in CSS, with no second breakpoint to keep in step — `sm` here
+          and `sm` there is the same 640px both times.
+        */}
+        <Row href="/account" close={close} extra="sm:hidden">
+          Account &amp; orders
+        </Row>
 
         {/*
           `allows`, not `role === "…"`. ROLE_RANK puts ADMIN above KITCHEN
@@ -292,13 +361,16 @@ function Row({
   href,
   close,
   children,
+  extra = "",
 }: {
   href: string;
   close: () => void;
   children: React.ReactNode;
+  /** Appended, so a caller can add a variant — see the `sm:hidden` row above. */
+  extra?: string;
 }) {
   return (
-    <Link href={href} onClick={close} className={ROW}>
+    <Link href={href} onClick={close} className={`${ROW} ${extra}`}>
       {children}
     </Link>
   );
@@ -376,6 +448,31 @@ const PANEL =
      builder's own entrance — the panel arrives the way a step does. Reduced
      motion is already killed globally in app/globals.css. */
   + "open:animate-[step-in_var(--dur-ui)_var(--ease-out)]";
+
+/**
+ * The bar's own account button.
+ *
+ * Bordered rather than a rule-under-text like "Explore presets" beside it, and
+ * that is the point of difference: it borrows `iconBtn()`'s exact edge —
+ * `border-rule-strong bg-paper text-graphite`, hover to `border-ink text-ink` —
+ * so the label and the 44px square next to it read as one pair of account
+ * controls rather than as two unrelated things that happen to be adjacent.
+ *
+ * Not `btn("secondary", "md", …)`, which is the same border and would have been
+ * the reuse. `btn` hard-codes `text-body` in its size, and this bar is
+ * `font-mono text-micro` — two font-size utilities in one class string, where
+ * the winner is decided by Tailwind's own ordering in the built stylesheet and
+ * not by which one I wrote last. The rest of this file already carries two
+ * notes about losing that bet (`sm:contents`, `duration-[--dur-ui]`), so the
+ * classes are spelled out rather than gambled on.
+ *
+ * `min-h-11` and not `h-11`: never below 44px is the rule in lib/ui.
+ */
+const BAR_LINK =
+  "hidden min-h-11 shrink-0 items-center whitespace-nowrap border border-rule-strong "
+  + "bg-paper px-3.5 font-mono text-micro tracking-[0.14em] text-graphite uppercase "
+  + "transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] "
+  + "hover:border-ink hover:text-ink sm:inline-flex";
 
 /**
  * A row. 44px on the row itself rather than on a span inside it — these are

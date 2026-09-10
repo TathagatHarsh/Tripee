@@ -41,11 +41,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * Five sections, not the seven the brief sketched.
+ * Six sections, not the seven the brief sketched.
  *
  * Pricing and Availability are not their own screens because they are not their
  * own decisions: what a filling costs and whether it is on today are two fields
  * on the same row, and splitting them would mean finding the ganache twice.
+ *
+ * Staff is read-only — see app/admin/staff/page.tsx — so it is a tab like any
+ * other rather than something needing its own guard beyond this layout's.
  */
 const TABS = [
   { href: "/admin", label: "Today" },
@@ -53,6 +56,7 @@ const TABS = [
   { href: "/admin/catalog", label: "Catalogue" },
   { href: "/admin/delivery", label: "Delivery" },
   { href: "/admin/settings", label: "Bakery" },
+  { href: "/admin/staff", label: "Staff" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -80,8 +84,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             ))}
           </nav>
           <Link
-            href="/kitchen"
+            href="/account"
             className="ml-auto font-mono text-micro uppercase tracking-[0.1em] text-steel hover:text-ink"
+          >
+            Main dashboard →
+          </Link>
+          <Link
+            href="/kitchen"
+            className="font-mono text-micro uppercase tracking-[0.1em] text-steel hover:text-ink"
           >
             Kitchen board →
           </Link>
