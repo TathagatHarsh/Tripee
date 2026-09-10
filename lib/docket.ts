@@ -1,5 +1,5 @@
 import { deriveAllergens } from "./allergens";
-import type { CatalogSnapshot } from "./catalogSnapshot";
+import { entryFor, type CatalogSnapshot } from "./catalogSnapshot";
 import { resolveSlot } from "./delivery";
 import { docketAmount, formatIST, titleCase } from "./format";
 import { priceCake, type PriceBreakdown, type PriceLine } from "./pricing";
@@ -21,6 +21,40 @@ export const FSSAI_LICENCE = process.env.NEXT_PUBLIC_FSSAI_LICENCE ?? "";
  */
 export function previewRef(c: CakeConfig): string {
   return "MC-" + (1000 + (seedFrom(c) % 9000)).toString();
+}
+
+/**
+ * What to call this cake where a list has one line for it.
+ *
+ * A custom cake has no product name — the customer assembled it — so the two
+ * facts they will recognise their own order by are the flavour and the size,
+ * read out of the catalogue rather than title-cased off the enum: the bakery
+ * writes "Belgian Chocolate" and "1.5 kg", and a screen saying
+ * "Belgian-chocolate" is the code showing through.
+ *
+ * `entryFor` and not `offered`, deliberately. An order naming a withdrawn
+ * flavour still has to say what it was — see the note on `entryFor` itself —
+ * and the fallback exists for the deployment with no catalogue at all.
+ */
+export function cakeTitle(c: CakeConfig, catalog: CatalogSnapshot): string {
+  const sponge = entryFor(catalog, "sponge", c.sponge)?.name ?? titleCase(c.sponge);
+  const size = entryFor(catalog, "size", c.size)?.name ?? c.size;
+  return `${sponge}, ${size}`;
+}
+
+/** The line under the title: how it was finished, and how tall it stands. */
+export function cakeSubtitle(c: CakeConfig, catalog: CatalogSnapshot): string {
+  const name = (category: "frosting" | "finish" | "shape", value: string) =>
+    entryFor(catalog, category, value)?.name ?? titleCase(value);
+
+  return [
+    name("shape", c.shape),
+    name("frosting", c.frosting),
+    `${name("finish", c.finish)} finish`,
+    c.tiers > 1 ? `${c.tiers} tiers` : null,
+    c.eggless ? "eggless" : null,
+    c.sugarFree ? "sugar-free" : null,
+  ].filter(Boolean).join(" · ");
 }
 
 /** One slab of the cut cake, bottom to top. Mirrors `slabStack` in the 3D. */

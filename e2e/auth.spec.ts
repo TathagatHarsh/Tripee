@@ -27,6 +27,16 @@ for (const [path, what] of [
   ["/admin/orders/MC-0000/print", "printable docket"],
   ["/kitchen", "kitchen board"],
   ["/account", "account page"],
+  ["/account/profile", "profile and security page"],
+  /*
+   * The customer's own two order routes, with a reference that need not exist.
+   * Depth does not dilute the gate here either: a tracking page carries the
+   * customer's name, phone number and delivery area, and the page refuses before
+   * it queries anything. The detail route also proves the guard runs ahead of
+   * the `userId` filter in app/orders/data.ts rather than instead of it.
+   */
+  ["/orders", "orders page"],
+  ["/orders/MC-0000", "order tracking page"],
 ] as const) {
   test(`a stranger cannot open the ${what}`, async ({ page }) => {
     const response = await page.goto(path);

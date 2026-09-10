@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { renderSpecSheet } from "@/lib/docket";
 import { formatINR, formatIST } from "@/lib/format";
-import { buildTimeline, isClosed, NEXT_STATUS, STATUS_LABEL } from "@/lib/orders";
+import { buildTimeline, dueAt, isClosed, NEXT_STATUS, STATUS_LABEL } from "@/lib/orders";
 import { priceCake } from "@/lib/pricing";
 import { eyebrow } from "@/lib/ui";
 import { getOrderDetail } from "./data";
@@ -62,8 +62,8 @@ export default async function OrderDetail({
   const { order, catalog, config } = detail;
   const recomputed = config ? priceCake(config, catalog).total : null;
   const drifted = recomputed !== null && recomputed !== order.totalPaise;
-  const dueAt = new Date(order.createdAt.getTime() + order.leadHours * 3600_000);
-  const overdue = dueAt < new Date() && !isClosed(order.status);
+  const due = dueAt(order);
+  const overdue = due < new Date() && !isClosed(order.status);
   const timeline = buildTimeline(
     order.createdAt,
     order.events.map((e) => ({
@@ -176,7 +176,7 @@ export default async function OrderDetail({
           <Row k="Customer" v={order.customerName ?? "—"} />
           <Row k="Phone" v={order.customerPhone ?? "—"} mono />
           <Row k="Placed" v={formatIST(order.createdAt)} />
-          <Row k="Due" v={`${formatIST(dueAt)}${overdue ? " · overdue" : ""}`} />
+          <Row k="Due" v={`${formatIST(due)}${overdue ? " · overdue" : ""}`} />
           <Row k="Delivery" v={`${order.deliverySlot} · lead ${order.leadHours}h`} />
           <Row k="Pincode" v={order.pincode ?? "Not set"} mono />
           <Row k="Serves" v={`${order.servesMin}–${order.servesMax}`} />

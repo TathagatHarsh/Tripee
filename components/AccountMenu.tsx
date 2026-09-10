@@ -184,18 +184,24 @@ export function AccountMenu() {
 }
 
 /**
- * "Account & orders", promoted out of the panel and onto the bar.
+ * "My orders", promoted out of the panel and onto the bar.
  *
  * It was a row inside the menu, which meant the one destination a signed-in
  * customer actually comes back for — where is my order — was two interactions
  * deep behind an unlabelled icon. It is one now.
  *
+ * It points at /orders rather than /account, because those are two places now:
+ * the orders have their own area with search, tabs and a tracking page each, and
+ * /account is the profile and the way in to them. The bar gets the one a
+ * returning customer wants; /account stays a row in the panel, which is where
+ * somebody goes looking for a password.
+ *
  * ## Why this is signed-in only, and not a change in who sees what
  *
  * The row this replaces lived inside `<Session>`, never inside `<Guest>`: a
  * signed-out visitor was offered "Sign in" and "Create account" and was never
- * offered /account, because /account for a guest is a redirect to the sign-in
- * page wearing an account page's name. So the gate here is the same gate that
+ * offered /account or /orders, because either one for a guest is a redirect to
+ * the sign-in page wearing an account page's name. So the gate here is the same gate that
  * was already there, moved. What a guest sees in the bar is unchanged — one
  * 44px square — which is also what keeps the measured widths in app/page.tsx
  * true for the visitors who are nearly all of them.
@@ -204,7 +210,7 @@ export function AccountMenu() {
  *
  * app/page.tsx measured this bar: at 375px it was 9px over with "Start
  * building" still in it, which is why that button is `max-sm:hidden`. Below
- * 640px the bar is a wordmark and one 44px square, and "ACCOUNT & ORDERS" is
+ * 640px the bar is a wordmark and one 44px square, and even "MY ORDERS" is
  * wider than the room that leaves — it would put the account control back off
  * the right edge, which is the bug the whole menu exists to have fixed.
  *
@@ -225,8 +231,8 @@ function AccountLink() {
   if (!isSignedIn) return null;
 
   return (
-    <Link href="/account" className={BAR_LINK}>
-      Account &amp; orders
+    <Link href="/orders" className={BAR_LINK}>
+      My orders
     </Link>
   );
 }
@@ -301,20 +307,28 @@ function Session({ role, close }: { role: UserRole | null; close: () => void }) 
 
       <div className={GROUP}>
         {/*
-          `sm:hidden`, because "Account & orders" is a button on the bar now —
-          `<AccountLink>` below — and that button is itself `hidden sm:inline-flex`
-          because the bar has no room for it on a phone.
+          Two destinations, and only one of them is conditional.
 
+          /orders is `sm:hidden`, because "My orders" is a button on the bar now
+          — `<AccountLink>` above — and that button is itself
+          `hidden sm:inline-flex` because the bar has no room for it on a phone.
           So the two are exact complements rather than a duplicate: above 640px
           the destination is on the bar and this row would be a second control
           for the same page within 200px of itself; below 640px the bar cannot
           hold it and this row is the only way to reach the one page a returning
-          customer actually wants. Exactly one path to /account at every width,
+          customer actually wants. Exactly one path to /orders at every width,
           decided in CSS, with no second breakpoint to keep in step — `sm` here
           and `sm` there is the same 640px both times.
+
+          /account is unconditional, because it is never on the bar at any
+          width. It is the profile, the password and the sign-in methods, which
+          is a place people go deliberately rather than a place they check.
         */}
-        <Row href="/account" close={close} extra="sm:hidden">
-          Account &amp; orders
+        <Row href="/orders" close={close} extra="sm:hidden">
+          My orders
+        </Row>
+        <Row href="/account" close={close}>
+          Account
         </Row>
 
         {/*

@@ -57,17 +57,19 @@ describe("every destination in the menu exists", () => {
   });
 
   /*
-   * The two the brief asked for and this menu deliberately does not offer.
+   * The ones this menu deliberately does not offer.
    *
-   * `/orders` has no route — the order history is a section inside /account, so
-   * a row pointing at /orders would 404. `/my-cakes` is not a missing link but a
-   * missing feature: Design has no owner column, app/api/designs/route.ts writes
-   * three fields and reads no session, and nothing anywhere can list one
-   * person's designs. If either is ever built, delete the line here that names
-   * it — that is the reminder, and it fires as a failure rather than as a note
-   * nobody reads.
+   * `/orders` used to be on this list and has come off it, which is what that
+   * list is for: the order history is its own area now — app/orders, with a
+   * tracking page per order — so the menu offers it and the assertion above
+   * proves the page is really there. `/my-cakes` is still not a missing link but
+   * a missing feature: Design has no owner column,
+   * app/api/designs/route.ts writes three fields and reads no session, and
+   * nothing anywhere can list one person's designs. If it is ever built, delete
+   * the line here that names it — that is the reminder, and it fires as a
+   * failure rather than as a note nobody reads.
    */
-  it.each(["/orders", "/my-orders", "/my-cakes", "/cakes", "/designs"])(
+  it.each(["/my-orders", "/my-cakes", "/cakes", "/designs"])(
     "does not offer %s, which does not exist",
     (missing) => {
       expect(HREFS).not.toContain(missing);

@@ -97,6 +97,14 @@ export const GUARDED: ReadonlyArray<{ prefix: string; need: UserRole }> = [
   { prefix: "/admin", need: "ADMIN" },
   { prefix: "/kitchen", need: "KITCHEN" },
   { prefix: "/account", need: "CUSTOMER" },
+  /*
+   * Orders are their own area rather than a section of /account, because a
+   * returning customer comes back for one thing and it is not their profile.
+   * Same rank as /account: it is the customer's own history, and nothing in it
+   * is readable without a session — the pages under it query on the viewer's
+   * own id, so an order that is not yours is not found rather than refused.
+   */
+  { prefix: "/orders", need: "CUSTOMER" },
 ];
 
 /**
