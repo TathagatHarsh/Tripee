@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UserRole } from "@prisma/client";
-import { allows, GUARDED, requirementFor, ROLE_RANK, safeNext } from "@/lib/roles";
+import { allows, GUARDED, requirementFor, ROLE_RANK, safeNext, verdictFor } from "@/lib/roles";
 
 /**
  * The whole authorisation matrix, settled without a database, a session or a
@@ -162,6 +162,81 @@ describe("where sign-in sends people afterwards", () => {
   it("sends somebody with no particular destination to their own account", () => {
     expect(safeNext(undefined)).toBe("/account");
     expect(safeNext("/build/shape")).toBe("/account");
+  });
+});
+
+describe("a role that cannot be read is not a refusal", () => {
+  /*
+   * The regression this table exists for. A signed-in person whose row could
+   * not be read — no DATABASE_URL on the deployment, or a database that did not
+   * answer — used to be indistinguishable from a guest, so the guard sent them
+   * to sign in, Clerk saw a live session and sent them back, and production
+   * served a blank page at about two round trips per second until they gave up.
+   *
+   * The property being pinned is narrow and is the whole fix: of the four
+   * outcomes, only `sign-in` and `denied` may redirect, and neither of them is
+   * reachable while holding a session with an unreadable role.
+   */
+  it("tells a guest apart from a session whose role is unreadable", () => {
+    for (const need of ROLES) {
+      expect(verdictFor(false, null, need), `guest wanting ${need}`).toBe("sign-in");
+      expect(verdictFor(true, null, need), `session wanting ${need}`).toBe("unavailable");
+    }
+  });
+
+  it("never redirects a session whose role is unreadable", () => {
+    // Both of the redirecting outcomes route somewhere that re-enters this same
+    // guard, which is why neither may be the answer here.
+    for (const need of ROLES) {
+      const verdict = verdictFor(true, undefined, need);
+      expect(verdict).not.toBe("sign-in");
+      expect(verdict).not.toBe("denied");
+    }
+  });
+
+  it("treats a role this build cannot rank as unreadable, not as a refusal", () => {
+    // `denied` routes to /account, which is itself guarded — so answering
+    // `denied` here would refuse somebody from the page they were refused to,
+    // which is the same loop wearing different clothes. Every rank this build
+    // can name clears /account, so the redirect can never eat itself.
+    const unknown = "OWNER" as UserRole;
+    for (const need of ROLES) {
+      expect(verdictFor(true, unknown, need), `unknown role wanting ${need}`)
+        .toBe("unavailable");
+    }
+    expect(ROLE_RANK[unknown]).toBeUndefined();
+  });
+
+  it("still admits and still refuses the ranks it can read", () => {
+    // The existing matrix, restated through the guard's own decision so the new
+    // outcomes cannot quietly change who gets in.
+    expect(verdictFor(true, "ADMIN", "ADMIN")).toBe("allow");
+    expect(verdictFor(true, "ADMIN", "KITCHEN")).toBe("allow");
+    expect(verdictFor(true, "KITCHEN", "KITCHEN")).toBe("allow");
+    expect(verdictFor(true, "KITCHEN", "ADMIN")).toBe("denied");
+    expect(verdictFor(true, "CUSTOMER", "ADMIN")).toBe("denied");
+    expect(verdictFor(true, "CUSTOMER", "KITCHEN")).toBe("denied");
+    expect(verdictFor(true, "CUSTOMER", "CUSTOMER")).toBe("allow");
+  });
+
+  it("agrees with `allows` wherever a role is readable", () => {
+    // Two rules that disagree would be one rule and a bug, so this holds the
+    // new outcomes against the boolean the rest of the product already reads.
+    for (const role of ROLES) {
+      for (const need of ROLES) {
+        expect(verdictFor(true, role, need) === "allow", `${role} -> ${need}`)
+          .toBe(allows(role, need));
+      }
+    }
+  });
+
+  it("never answers `allow` without a session", () => {
+    for (const role of EVERYONE) {
+      for (const need of ROLES) {
+        expect(verdictFor(false, role, need), `${role ?? "guest"} wanting ${need}`)
+          .toBe("sign-in");
+      }
+    }
   });
 });
 

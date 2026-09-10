@@ -52,6 +52,44 @@ export function allows(role: UserRole | null | undefined, need: UserRole): boole
 }
 
 /**
+ * The four outcomes a guard can reach, which is not the same as a boolean.
+ *
+ * `allows` answers "does this rank clear that bar". A guard has to answer more
+ * than that, because a request can also arrive with no session at all, or with
+ * a valid session whose role could not be read — no DATABASE_URL on the
+ * deployment, a database that did not answer, or a row naming a role this build
+ * cannot rank. None of those is a refusal, and collapsing them into `false` is
+ * what put a redirect loop into production: a signed-in person was sent to
+ * sign in, came back with the same unreadable role, and went round again about
+ * twice a second.
+ *
+ * The distinction that matters is which outcomes may redirect. `sign-in` and
+ * `denied` are answers to the visitor and have somewhere useful to send them.
+ * `unavailable` is not about the visitor at all, and has nowhere to send them
+ * that does not come straight back — see lib/auth's `requireRole`.
+ *
+ * An unrecognised role is `unavailable` rather than `denied` for that same
+ * reason: `denied` routes to /account, which is itself guarded, so a role this
+ * build cannot rank would be refused from the page it was refused to. Every
+ * rank this build *can* name clears /account, so `denied` never targets the
+ * page it sends people to.
+ */
+export type Verdict = "sign-in" | "unavailable" | "denied" | "allow";
+
+export function verdictFor(
+  signedIn: boolean,
+  role: UserRole | null | undefined,
+  need: UserRole,
+): Verdict {
+  if (!signedIn) return "sign-in";
+  if (!role) return "unavailable";
+  // The same guard, for the same reason, as `allows` above: a role this build
+  // cannot rank is not evidence of anything.
+  if (ROLE_RANK[role] === undefined) return "unavailable";
+  return allows(role, need) ? "allow" : "denied";
+}
+
+/**
  * What each protected area requires — the one list proxy.ts, the layouts, the
  * pages and the server actions all read. Two lists would be one list and a bug.
  */
