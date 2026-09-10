@@ -4,7 +4,7 @@ import type { User } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { Prisma, type UserProfile, type UserRole } from "@prisma/client";
 import { db, hasDatabase } from "@/lib/db";
-import { allows as roleAllows } from "@/lib/roles";
+import { verdictFor } from "@/lib/roles";
 
 /**
  * Who is asking, and whether they may.
@@ -147,19 +147,42 @@ export async function getViewerEmail(): Promise<string | null> {
 /**
  * Let them in, or send them somewhere they can do something about it.
  *
- * Two different refusals, because they are two different problems for the
- * person in front of the screen:
+ * Three different outcomes, because they are three different problems:
  *
  *   - no session at all → Clerk's sign-in page, carrying where they were going,
  *     so signing in finishes the journey instead of dumping them on a dashboard;
  *   - a session without the rank → /account?denied=…, which is the one screen
  *     that already knows who they are signed in as and already offers the only
- *     fix there is, which is to sign out and sign in as somebody else.
+ *     fix there is, which is to sign out and sign in as somebody else;
+ *   - a session whose role cannot be read at all → no redirect anywhere. See
+ *     below, because this one is not about the person in front of the screen.
  *
  * A 404 would hide the existence of /admin from a customer who guessed the URL.
  * It would also hide it from a baker who mistyped, and this is a staff of a few
  * people who all know both portals exist. Saying so plainly is worth more here
  * than concealing a URL that is already in the source of the admin's own nav.
+ *
+ * ## Why the unreadable-role case redirects nowhere
+ *
+ * `loadProfile` returns null when there is no DATABASE_URL on the deployment,
+ * or when the database cannot be reached. That is not a fact about the visitor:
+ * their session is valid and their row may well say ADMIN. Every redirect
+ * available here makes it worse, because each one comes straight back:
+ *
+ *   - to sign-in → Clerk sees a live session and returns them here, with the
+ *     same session and the same unreadable role, about twice a second;
+ *   - to /account?denied=… → /account is itself guarded by this function, so
+ *     the refusal re-enters the guard that issued it.
+ *
+ * So it throws, and a misconfigured deployment gets a 500 it can find in its
+ * own error tracking instead of a blank page in a loop. This is also why the
+ * checks below read the session and the row separately rather than through
+ * `getViewer`: that returns null for a guest and for an unreadable row alike,
+ * and those are the two cases that must not be treated the same.
+ *
+ * `getViewer` keeps that conflation on purpose for its own callers — /api/me
+ * draws fewer rows when it cannot read a role, which is the safe direction for
+ * a menu. A gate is different: one that cannot read the rule must not guess.
  *
  * **Hazard:** this refuses by throwing, which is how `redirect` works in Next.
  * A caller that wraps it in a try/catch swallows the refusal and carries on
@@ -167,20 +190,43 @@ export async function getViewerEmail(): Promise<string | null> {
  * never inside a `try`.
  */
 export async function requireRole(need: UserRole): Promise<Viewer> {
-  const viewer = await getViewer();
+  const userId = await getUserId();
+  const profile = userId ? await loadProfile(userId) : null;
 
-  if (!viewer) {
-    // Clerk's own parameter, so its sign-in page returns them here afterwards.
-    // Derived from the requirement rather than taken from the request, which is
-    // what keeps it from becoming an open redirect: nothing a visitor types can
-    // reach it.
-    redirect(`/sign-in?redirect_url=${encodeURIComponent(areaFor(need))}`);
-  }
-  if (!roleAllows(viewer.profile.role, need)) {
-    redirect(`/account?denied=${need.toLowerCase()}`);
+  switch (verdictFor(Boolean(userId), profile?.role, need)) {
+    case "allow":
+      // Re-checked rather than asserted. An `allow` that arrived without both
+      // of these would be a bug in the rules, and the safe reading of a bug in
+      // the rules is to refuse — which is what falling through to the throw
+      // below does.
+      if (userId && profile) return { userId, profile };
+      break;
+
+    case "sign-in":
+      // Clerk's own parameter, so its sign-in page returns them here afterwards.
+      // Derived from the requirement rather than taken from the request, which
+      // is what keeps it from becoming an open redirect: nothing a visitor types
+      // can reach it.
+      redirect(`/sign-in?redirect_url=${encodeURIComponent(areaFor(need))}`);
+      break;
+
+    case "denied":
+      redirect(`/account?denied=${need.toLowerCase()}`);
+      break;
+
+    case "unavailable":
+      break;
   }
 
-  return viewer;
+  // Three causes reach here and the message names all of them, because the
+  // first is the one a deployment hits and the other two are the ones an
+  // operator would otherwise chase. `loadProfile` has already logged the Prisma
+  // error itself if there was one.
+  throw new Error(
+    "authorisation_unavailable: signed in, but this request's role could not be "
+    + "read. Either this deployment has no DATABASE_URL, or the database did not "
+    + "answer, or the row names a role this build cannot rank.",
+  );
 }
 
 /** Where to come back to after signing in. */
