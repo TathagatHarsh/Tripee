@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { btn, eyebrow } from "@/lib/ui";
+import { sBtn, sCard } from "@/lib/shopUi";
 
 /**
  * When this one order could not be read.
@@ -16,21 +16,18 @@ import { btn, eyebrow } from "@/lib/ui";
  */
 export default function OrderError({ reset }: { error: Error; reset: () => void }) {
   return (
-    <div className="paper-edge bg-paper">
-      <span className={`${eyebrow} block border-b border-rule px-5 py-3`}>Something went wrong</span>
-      <div className="flex flex-col items-start gap-4 px-5 py-8 sm:px-8 sm:py-10">
-        <h1 className="font-mono text-title text-ink">
-          We couldn&rsquo;t load this order
-        </h1>
-        <p className="max-w-[50ch] font-sans text-body leading-relaxed text-steel">
-          Your order itself is fine — this is only the page that shows it. Try
+    <div className={sCard}>
+      <div className="flex flex-col items-start gap-4 px-6 py-10 sm:px-10">
+        <h1 className="text-[1.75rem]">We couldn&rsquo;t load this order</h1>
+        <p className="max-w-[52ch] leading-relaxed text-s-bark">
+          Your order itself is fine. This is only the page that shows it. Try
           again, or open it from the list.
         </p>
         <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={reset} className={btn("primary", "md")}>
+          <button type="button" onClick={reset} className={sBtn("primary", "md")}>
             Try again
           </button>
-          <Link href="/orders" className={btn("secondary", "md")}>
+          <Link href="/orders" className={sBtn("outline", "md")}>
             All your orders
           </Link>
         </div>

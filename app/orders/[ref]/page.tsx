@@ -10,13 +10,15 @@ import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { OrderSummary } from "@/components/orders/OrderSummary";
 import { OrderTimeline } from "@/components/orders/OrderTimeline";
 import { requireRole } from "@/lib/auth";
+import { BUILDER_ENABLED } from "@/lib/flags";
 import { DEFAULT_BAKERY } from "@/lib/catalogDefaults";
 import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { renderSpecSheet } from "@/lib/docket";
 import { formatIST } from "@/lib/format";
 import { buildProgress, customerStatus, dueAt, PHASE } from "@/lib/orders";
-import { btn, eyebrow } from "@/lib/ui";
-import { getOrder } from "../data";
+import { sBtn, sCard, sEyebrow } from "@/lib/shopUi";
+import { readGuestOrderRefs } from "@/lib/guestOrders";
+import { getOrder, type OrderOwner } from "../data";
 
 /**
  * One order, tracked.
@@ -36,10 +38,19 @@ import { getOrder } from "../data";
  *
  * ## The authorisation
  *
- * `requireRole` for the session, and `getOrder(profile.id, ref)` for the row:
- * the query is filtered on the viewer's own id in Postgres, so another
- * customer's reference is *not found* rather than found-and-refused. Nothing
- * about that order is read into this process. See app/orders/data.ts.
+ * Two doors, one property. A signed-in customer comes through `requireRole` and
+ * the query is filtered on their own id; a guest comes through the signed
+ * cookie lib/guestOrders set when the order was written, and the query is
+ * filtered on the references that cookie names. Either way the filter is in
+ * Postgres, so somebody else's reference is *not found* rather than
+ * found-and-refused, and nothing about that order is read into this process.
+ * See app/orders/data.ts.
+ *
+ * What is deliberately *not* a door: knowing the reference. Six characters off
+ * a docket are an identifier, not a password, and §10 is explicit that they
+ * must not open somebody's name, phone number and delivery window. The cookie
+ * is proof of having been handed the order by this server, on this browser; it
+ * cannot be typed, guessed, or forwarded in a message.
  */
 
 export const dynamic = "force-dynamic";
@@ -51,7 +62,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { ref } = await params;
   return {
-    title: `Order ${ref} — Makemycake`,
+    title: `Order ${ref} · Makemycake`,
     robots: { index: false, follow: false },
   };
 }
@@ -61,21 +72,30 @@ export default async function TrackOrder({
 }: {
   params: Promise<{ ref: string }>;
 }) {
-  // First statement, and never inside a try: this refuses by throwing.
-  const { profile } = await requireRole("CUSTOMER");
   const { ref } = await params;
+
+  /*
+   * The cookie first, because it is the cheaper question and because a guest
+   * must not be bounced to a sign-in page for an order they placed without an
+   * account. `requireRole` refuses by throwing a redirect, so it stays out of
+   * any `try` — the ternary below is a plain expression, not a caught call.
+   */
+  const guestRefs = await readGuestOrderRefs();
+  const owner: OrderOwner = guestRefs.includes(ref)
+    ? { guestRefs }
+    : { userId: (await requireRole("CUSTOMER")).profile.id };
 
   if (!hasDatabase()) {
     return (
       <Shell>
-        <p className="paper-edge bg-paper px-5 py-4 font-sans text-body leading-relaxed text-steel">
+        <p className={`${sCard} px-5 py-4 leading-relaxed text-s-bark`}>
           {NO_DATABASE_MESSAGE}
         </p>
       </Shell>
     );
   }
 
-  const found = await getOrder(profile.id, ref);
+  const found = await getOrder(owner, ref);
   /*
    * Not theirs, or not a reference at all — the same answer to both, which is
    * the right one: whether MC-4471 exists is not a stranger's business. The
@@ -83,7 +103,7 @@ export default async function TrackOrder({
    */
   if (!found) notFound();
 
-  const { order, catalog, config } = found;
+  const { order, catalog, config, cakes } = found;
   const pickup = order.deliverySlot === "pickup";
   const phase = PHASE[order.status];
   const steps = buildProgress(order, order.events);
@@ -115,12 +135,19 @@ export default async function TrackOrder({
   return (
     <Shell>
       <div className="flex flex-col gap-2">
-        <span className={eyebrow}>Order</span>
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
-          <h1 className="font-mono text-heading tracking-[0.08em] text-ink">{order.ref}</h1>
+        <span className={sEyebrow}>Order</span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {/* Mono and tracked out, against the `.s-root` rule that sets every
+              heading in the shop in the display serif. A reference is a string
+              somebody reads back over the phone character by character — it is
+              a number, not a title, and the tabular face is what makes MC-8B3J
+              unambiguous. The same exception the price figures take. */}
+          <h1 className="font-mono text-[2rem] tracking-[0.08em] text-s-cocoa sm:text-[2.5rem]">
+            {order.ref}
+          </h1>
           <OrderStatusBadge status={order.status} pickup={pickup} />
         </div>
-        <p className="font-sans text-meta text-steel">
+        <p className="text-[0.875rem] text-s-bark">
           Placed{" "}
           <time dateTime={order.createdAt.toISOString()} className="font-mono tabular-nums">
             {formatIST(order.createdAt)}
@@ -133,38 +160,35 @@ export default async function TrackOrder({
         <div className="flex flex-col gap-6">
           <OrderProgress steps={steps} />
 
-          <div className="flex flex-col gap-1.5 border-t border-rule pt-5">
+          <div className="flex flex-col gap-1.5 border-t border-s-line pt-5">
             <h3
               className={[
-                "font-mono text-group",
-                phase === "cancelled" ? "text-seal" : phase === "active" ? "text-carbon" : "text-ink",
+                "text-[1.25rem]",
+                phase === "cancelled" ? "text-s-stop" : phase === "active" ? "text-s-live" : "text-s-done",
               ].join(" ")}
             >
               {now.label}
             </h3>
-            <p className="max-w-[52ch] font-sans text-body leading-relaxed text-steel">
-              {now.note}
-            </p>
+            <p className="max-w-[54ch] leading-relaxed text-s-bark">{now.note}</p>
 
             {phase === "active" && (
-              <p className="mt-2 font-sans text-body text-ink">
-                <span className="font-mono text-micro tracking-[0.13em] text-steel uppercase">
+              <div className="mt-3 flex flex-col gap-1 rounded-s-sm bg-s-live-wash px-4 py-3">
+                <span className="font-mono text-[0.6875rem] tracking-[0.13em] text-s-live uppercase">
                   {pickup ? "Ready by" : "Expected by"}
                 </span>
-                <br />
-                <time dateTime={dueAt(order).toISOString()} className="font-mono tabular-nums">
+                <time
+                  dateTime={dueAt(order).toISOString()}
+                  className="font-mono text-[1.0625rem] font-medium text-s-cocoa tabular-nums"
+                >
                   {formatIST(dueAt(order))}
                 </time>
-              </p>
-            )}
-
-            {/* Where the promise came from, so the time above is not a number
-                that appeared on its own. */}
-            {phase === "active" && (
-              <p className="mt-1 font-sans text-meta leading-relaxed text-steel">
-                The window you chose, plus the lead time held on this order. If it
-                needs to move, the bakery rings the number on it.
-              </p>
+                {/* Where the promise came from, so the time above is not a
+                    number that appeared on its own. */}
+                <p className="mt-0.5 text-[0.8125rem] leading-relaxed text-s-bark">
+                  The window you chose, plus the lead time held on this order. If
+                  it needs to move, the bakery rings the number on it.
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -182,7 +206,7 @@ export default async function TrackOrder({
           customer to conclude the page is broken.
         */}
         {order.events.length === 0 && order.status !== "draft" && (
-          <p className="mt-6 border-t border-rule pt-4 font-sans text-meta leading-relaxed text-steel">
+          <p className="mt-6 border-t border-s-line pt-4 text-[0.875rem] leading-relaxed text-s-bark">
             The times on the later steps were not written down — this order predates
             our keeping a record of each move. The stage above is current.
           </p>
@@ -197,17 +221,31 @@ export default async function TrackOrder({
           </Sheet>
 
           {/* --------------------------------------------------------- items */}
-          <Sheet title="Your cake">
-            <OrderItems
-              config={config}
-              catalog={catalog}
-              amountPaise={cakePaise}
-              servesMin={order.servesMin}
-              servesMax={order.servesMax}
-            />
+          <Sheet title={cakes.length > 1 ? "Your cakes" : "Your cake"}>
+            <div className="flex flex-col gap-6 divide-y divide-s-line">
+              {(cakes.length ? cakes : [{
+                id: order.id, config, totalPaise: cakePaise,
+                servesMin: order.servesMin, servesMax: order.servesMax,
+                cakeName: order.cakeName, cakeImageUrl: order.cakeImageUrl,
+                allergens: order.allergens, productionSpec: null,
+              }]).map((cake, index) => (
+                <div key={cake.id} className={index ? "pt-6" : ""}>
+                  <OrderItems
+                    config={cake.config}
+                    catalog={catalog}
+                    amountPaise={cake.totalPaise}
+                    servesMin={cake.servesMin}
+                    servesMax={cake.servesMax}
+                    cakeName={cake.cakeName}
+                    cakeImageUrl={cake.cakeImageUrl}
+                    allergens={cake.allergens}
+                  />
+                </div>
+              ))}
+            </div>
 
-            {!config && (
-              <p className="mt-4 border-t border-rule pt-4 font-sans text-meta leading-relaxed text-steel">
+            {cakes.some((cake) => !cake.config) && (
+              <p className="mt-4 border-t border-s-line pt-4 text-[0.875rem] leading-relaxed text-s-bark">
                 This order was built with an older version of the designer, so we
                 cannot redraw it here. The kitchen has the full specification and
                 the price above is what stands.
@@ -226,8 +264,8 @@ export default async function TrackOrder({
               better than a "Paid" badge that is not true or a silence that
               leaves somebody wondering whether they have been charged.
             */}
-            <p className="mt-4 border-t border-rule pt-3 font-sans text-meta leading-relaxed text-steel">
-              Settled with the bakery directly — nothing has been charged to a card
+            <p className="mt-4 border-t border-s-line pt-3 text-[0.875rem] leading-relaxed text-s-bark">
+              Settled with the bakery directly. Nothing has been charged to a card
               through this site.
             </p>
           </Sheet>
@@ -253,7 +291,7 @@ export default async function TrackOrder({
                   came from a saved one, and the builder — which is the real
                   "order this again", because it opens the same cake. */}
               {phone && (
-                <a href={`tel:${phone.replace(/\s/g, "")}`} className={btn("secondary", "md", "w-full")}>
+                <a href={`tel:${phone.replace(/\s/g, "")}`} className={sBtn("outline", "md", "w-full")}>
                   Ring the bakery
                 </a>
               )}
@@ -261,13 +299,26 @@ export default async function TrackOrder({
               {email && (
                 <a
                   href={`mailto:${email}?subject=${encodeURIComponent(`Order ${order.ref}`)}`}
-                  className={btn("quiet", "md", "w-full")}
+                  className={sBtn("ghost", "md", "w-full border border-s-line")}
                 >
                   Email about this order
                 </a>
               )}
 
-              {config && (
+              {/*
+                "Order this cake again" loads the order's own config into the
+                3D builder, which is held back for this phase — see lib/flags.
+                Offered while the door is shut it would be a button that lands
+                on a Coming Soon page, which is a worse answer than not offering
+                it. The control is not removed: it comes back with the flag.
+
+                No shop substitute is put in its place, and deliberately. This
+                order's config is a cake somebody built option by option; the
+                nearest thing the shop sells is a different cake, and quietly
+                swapping one for the other under the words "this cake again" is
+                the kind of small lie a reorder button must not tell.
+              */}
+              {BUILDER_ENABLED && config && (
                 <LoadConfig
                   config={config}
                   label="Order this cake again"
@@ -276,13 +327,16 @@ export default async function TrackOrder({
               )}
 
               {order.design && (
-                <Link href={`/d/${order.design.slug}`} className={btn("quiet", "md", "w-full")}>
+                <Link
+                  href={`/d/${order.design.slug}`}
+                  className={sBtn("ghost", "md", "w-full border border-s-line")}
+                >
                   View the saved design
                 </Link>
               )}
             </div>
 
-            <p className="mt-4 border-t border-rule pt-3 font-sans text-meta leading-relaxed text-steel">
+            <p className="mt-4 border-t border-s-line pt-3 text-[0.875rem] leading-relaxed text-s-bark">
               Quote {order.ref} and the bakery can pull this order up straight away.
             </p>
           </Sheet>
@@ -308,7 +362,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col gap-4">
       <Link
         href="/orders"
-        className="inline-flex min-h-11 items-center self-start font-mono text-micro tracking-[0.13em] text-steel uppercase hover:text-ink"
+        className="inline-flex min-h-11 items-center self-start font-mono text-[0.6875rem] tracking-[0.13em] text-s-bark uppercase transition-colors hover:text-s-cocoa"
       >
         ← All your orders
       </Link>
@@ -317,12 +371,21 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** One sheet of paper with its section name on a ruled header. */
+/**
+ * One card with its section name on it.
+ *
+ * The heading is inside the card rather than on a ruled strip above it, which is
+ * the storefront's own card shape — see `sCard` and every panel on /cart and
+ * /checkout. A tracking page made of six differently-shaped boxes is what makes
+ * an area feel bolted on.
+ */
 function Sheet({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="paper-edge bg-paper">
-      <h2 className={`${eyebrow} border-b border-rule px-5 py-3`}>{title}</h2>
-      <div className="px-5 py-5 sm:px-6 sm:py-6">{children}</div>
+    <section className={`${sCard} px-5 py-5 sm:px-6 sm:py-6`}>
+      <h2 className="mb-4 font-mono text-[0.6875rem] tracking-[0.16em] text-s-bark uppercase">
+        {title}
+      </h2>
+      {children}
     </section>
   );
 }

@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { UserProfile } from "@clerk/nextjs";
 import type { Metadata } from "next";
-import { clerkAppearance } from "@/components/AuthSheet";
+import { shopClerkAppearance } from "@/components/AuthSheet";
 import { requireRole } from "@/lib/auth";
-import { eyebrow } from "@/lib/ui";
+import { sCard, sEyebrow } from "@/lib/shopUi";
 
 /**
  * The profile, and login & security — Clerk's, on our paper.
@@ -33,14 +33,21 @@ import { eyebrow } from "@/lib/ui";
  * That is also what makes /account/profile/security a real destination for the
  * card on the account page: this segment answers it, and Clerk routes it.
  *
- * `clerkAppearance` and the `auth-sheet` class are the sign-in page's, reused
- * verbatim: the same palette, the same mono, the same zero radius, and Clerk's
- * own card chrome switched off so there is one sheet on screen rather than a
- * card inside a card.
+ * ## The dress
+ *
+ * The `auth-sheet` class is still the sign-in page's, and still does the same
+ * structural job: Clerk's own card chrome switched off, so there is one sheet on
+ * screen rather than a card inside a card.
+ *
+ * The palette is not. This page moved inside the storefront's chrome with the
+ * rest of /account, so it wears `shopClerkAppearance` — cream, cocoa and berry,
+ * with corners — while /sign-in and /sign-up keep `clerkAppearance` exactly as
+ * it was. Two objects rather than one edited object, for the reason
+ * components/AuthSheet gives beside them: only one of the pages moved.
  */
 
 export const metadata: Metadata = {
-  title: "Profile & security — Makemycake",
+  title: "Profile & security · Makemycake",
   robots: { index: false, follow: false },
 };
 
@@ -55,15 +62,13 @@ export default async function Profile() {
       <div className="flex flex-col gap-2">
         <Link
           href="/account"
-          className="inline-flex min-h-11 items-center self-start font-mono text-micro tracking-[0.13em] text-steel uppercase hover:text-ink"
+          className="inline-flex min-h-11 items-center self-start font-mono text-[0.6875rem] tracking-[0.13em] text-s-bark uppercase transition-colors hover:text-s-cocoa"
         >
           ← Your account
         </Link>
-        <span className={eyebrow}>Account</span>
-        <h1 className="font-mono text-heading text-ink">
-          Profile &amp; security
-        </h1>
-        <p className="max-w-[56ch] font-sans text-body leading-relaxed text-steel">
+        <span className={sEyebrow}>Account</span>
+        <h1 className="text-[2.25rem] sm:text-[2.75rem]">Profile &amp; security</h1>
+        <p className="max-w-[56ch] text-[1.0625rem] leading-relaxed text-s-bark">
           Your name, your email address, how you sign in, and the devices you are
           signed in on. Changing any of it here changes it everywhere you use this
           account.
@@ -79,9 +84,9 @@ export default async function Profile() {
         navigates between its own panels with real URLs, which is what lets the
         account page link straight to the security one.
       */}
-      <div className="auth-sheet paper-edge bg-paper p-4 sm:p-6">
+      <div className={`auth-sheet ${sCard} p-4 sm:p-6`}>
         <UserProfile
-          appearance={clerkAppearance}
+          appearance={shopClerkAppearance}
           routing="path"
           path="/account/profile"
         />

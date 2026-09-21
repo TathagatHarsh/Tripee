@@ -3,6 +3,7 @@ import type { OrderStatus } from "@prisma/client";
 import {
   ACTION_LABEL, buildProgress, buildTimeline, canTransition, CUSTOMER_STATUS,
   customerStatus, dueAt, HAPPY_PATH, isClosed, NEXT_STATUS, PHASE, STATUS_LABEL,
+  trackingPlan,
 } from "@/lib/orders";
 
 const ALL = Object.keys(NEXT_STATUS) as OrderStatus[];
@@ -274,5 +275,28 @@ describe("a finished order", () => {
     ]);
     expect(steps.some((s) => s.state === "current")).toBe(false);
     expect(steps.at(-1)?.state).toBe("done");
+  });
+});
+
+describe("where the confirmation sends somebody", () => {
+  it("walks a single cake to its own tracking page", () => {
+    expect(trackingPlan(["MC-8B3JQK"])).toEqual({
+      href: "/orders/MC-8B3JQK",
+      auto: true,
+    });
+  });
+
+  /* Three cakes are three orders with three references, and `/orders` is
+     behind requireRole — so a guest sent there lands on a sign-in wall for
+     orders they just placed without an account. Offer, never assume. */
+  it("offers a basket of several a link but does not choose for them", () => {
+    const plan = trackingPlan(["MC-8B3JQK", "MC-4F8A21", "MC-2XQ7WD"]);
+    expect(plan).toEqual({ href: "/orders/MC-8B3JQK", auto: false });
+  });
+
+  /* A 2xx with no orders in it is a bug in the route, not a state to render a
+     tracking link for. */
+  it("has nowhere to send a response that named no orders", () => {
+    expect(trackingPlan([])).toBeNull();
   });
 });

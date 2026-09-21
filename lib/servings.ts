@@ -28,7 +28,11 @@ export interface Servings {
 
 /** Based on standard 100g portions; the lower bound allows generous slices. */
 export function deriveServings(c: CakeConfig): Servings {
-  const grams = WEIGHT_KG[c.size] * 1000;
+  return servingsForSize(c.size);
+}
+
+export function servingsForSize(size: SizeBand): Servings {
+  const grams = WEIGHT_KG[size] * 1000;
   const max = Math.round(grams / 100);
   const min = Math.max(2, Math.round(max * 0.8));
   return {

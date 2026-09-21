@@ -16,6 +16,12 @@ import { migrateConfig } from "@/lib/schema";
  * request to anything nested beneath it; a check in a data helper would read as
  * though it were the gate when it is not. The gate is the layout, and for
  * writes it is the action.
+ *
+ * The vendor assignments are included here rather than fetched separately for
+ * the same reason everything else is: one order, one query, one include list.
+ * The print docket does not render them — see app/admin/orders/[ref]/print —
+ * which is deliberate and not an oversight: which partner bakery made a cake is
+ * the shop's business and not something to put on a sheet that travels with it.
  */
 export async function getOrderDetail(ref: string) {
   const [order, catalog] = await Promise.all([
@@ -23,6 +29,8 @@ export async function getOrderDetail(ref: string) {
       where: { ref },
       include: {
         items: { orderBy: { position: "asc" } },
+        cakes: { orderBy: { position: "asc" } },
+        notifications: { orderBy: { createdAt: "desc" } },
         design: { select: { slug: true } },
         // Oldest first, which is the order a history is read in. The actor's
         // name rather than their id: a timeline saying "Priya" is useful and one
@@ -32,6 +40,26 @@ export async function getOrderDetail(ref: string) {
           orderBy: { createdAt: "asc" },
           include: { actor: { select: { name: true } } },
         },
+        /*
+         * Every bakery this order has ever been offered to, newest first, and
+         * the vendor's name with each — an assignment history reading
+         * "cmf3x… rejected" tells nobody anything.
+         *
+         * The whole list rather than only the live one, because the live one is
+         * not the interesting part when somebody has just said no: choosing who
+         * to try next means reading why the last one refused. The order's
+         * `currentAssignment` pointer says which of these is in force, so the
+         * page never has to work that out by sorting.
+         */
+        assignments: {
+          orderBy: { assignedAt: "desc" },
+          include: {
+            vendor: { select: { id: true, name: true } },
+            assignedBy: { select: { name: true } },
+            events: { orderBy: { createdAt: "asc" } },
+          },
+        },
+        currentAssignment: { include: { vendor: { select: { id: true, name: true } } } },
       },
     }),
     getCatalogSnapshot(),
@@ -45,5 +73,10 @@ export async function getOrderDetail(ref: string) {
    * words rather than crashing. Everything that matters operationally — who
    * ordered it, what they paid, where it is — lives in columns and survives it.
    */
-  return { order, catalog, config: migrateConfig(order.config) };
+  return {
+    order,
+    catalog,
+    config: migrateConfig(order.config),
+    cakes: order.cakes.map((cake) => ({ ...cake, config: migrateConfig(cake.config) })),
+  };
 }

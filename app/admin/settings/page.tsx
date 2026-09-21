@@ -1,6 +1,6 @@
 import { DEFAULT_BAKERY } from "@/lib/catalogDefaults";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
-import { eyebrow } from "@/lib/ui";
+import { Notice, PageHeader } from "@/components/admin/ui";
 import { BakeryForm } from "./BakeryForm";
 
 /**
@@ -21,9 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function SettingsAdmin() {
   if (!hasDatabase()) {
     return (
-      <p className="border border-rule bg-paper px-4 py-3.5 text-body leading-snug text-steel">
-        {NO_DATABASE_MESSAGE}
-      </p>
+      <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>
     );
   }
 
@@ -32,14 +30,10 @@ export default async function SettingsAdmin() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-3">
-        <span className={eyebrow}>The bakery</span>
-        <h1 className="text-heading">Name, number, address</h1>
-        <p className="max-w-prose text-body leading-relaxed text-steel">
-          What goes on the documents a customer keeps and the kitchen works from.
-          None of it changes a price.
-        </p>
-      </header>
+      <PageHeader
+        title="Bakery"
+        blurb="Name, number and address — what goes on the documents a customer keeps and the kitchen works from. None of it changes a price."
+      />
 
       <BakeryForm
         bakery={{

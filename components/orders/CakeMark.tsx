@@ -2,13 +2,17 @@ import type { CakeConfig } from "@/lib/schema";
 import { shade } from "@/lib/color";
 
 /**
- * The cake, drawn from the order itself.
+ * The cake, drawn from the order itself, when nobody has photographed it.
  *
- * An order list wants a thumbnail and this product has no photograph to put in
- * one: every cake is assembled by the customer, so a stock image of somebody
- * else's cake beside "your order" would be the one thing a tracking page cannot
- * do — lib/photos.ts refuses the same trick for the same reason, and its list is
- * empty on purpose.
+ * Reached through `components/orders/CakeThumb`, which prefers the real
+ * catalogue photograph when the order's design matches a product the shop
+ * sells. What is left for this to draw is a cake assembled option by option in
+ * the 3D builder — one nobody has made before, and so one there is no picture
+ * of.
+ *
+ * A stock image of somebody else's cake beside "your order" would be the one
+ * thing a tracking page cannot do — lib/photos.ts refuses the same trick for the
+ * same reason, and its list is empty on purpose.
  *
  * What does exist is the configuration, which is what the 3D preview renders
  * from. So this is that, flattened: the real tier count, the real frosting
@@ -30,7 +34,7 @@ export function CakeMark({
 }) {
   /* A config that no longer validates still gets a card — see app/orders/data —
      so this draws the shape of a cake with no colours claimed. */
-  const body = config?.frostingColor ?? "#cfc9ba";
+  const body = config?.frostingColor ?? "#e4d6c2";
   const tiers = config?.tiers ?? 1;
   const round = (config?.shape ?? "round") !== "square";
 
@@ -51,7 +55,7 @@ export function CakeMark({
       focusable="false"
     >
       {/* The board it sits on, which is also what stops the drawing floating. */}
-      <line x1="8" y1="66" x2="72" y2="66" stroke="var(--color-rule-strong)" strokeWidth="1" />
+      <line x1="8" y1="66" x2="72" y2="66" stroke="var(--color-s-line-strong)" strokeWidth="1" />
 
       {stack.map((s, i) => (
         <g key={i}>
@@ -98,9 +102,9 @@ export function CakeMark({
         <>
           <line
             x1="40" y1={stack[tiers - 1]!.y - 9} x2="40" y2={stack[tiers - 1]!.y - 2}
-            stroke="var(--color-ink)" strokeWidth="1.25"
+            stroke="var(--color-s-cocoa)" strokeWidth="1.25"
           />
-          <circle cx="40" cy={stack[tiers - 1]!.y - 11} r="1.75" fill="var(--color-seal)" />
+          <circle cx="40" cy={stack[tiers - 1]!.y - 11} r="1.75" fill="var(--color-s-berry)" />
         </>
       )}
     </svg>

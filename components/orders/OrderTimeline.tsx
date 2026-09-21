@@ -22,7 +22,10 @@ import { StepGlyph } from "./OrderStatusBadge";
  */
 export function OrderTimeline({ steps }: { steps: ProgressStep[] }) {
   return (
-    <ol className="flex flex-col">
+    /* `s-track` staggers each row in by 60ms as the page paints; see
+       globals.css. Motivated by the content: this is a history, and a history
+       reads down. Collapses to static under prefers-reduced-motion. */
+    <ol className="s-track flex flex-col">
       {steps.map((step, i) => {
         const last = i === steps.length - 1;
         const cancelled = step.status === "cancelled";
@@ -34,13 +37,19 @@ export function OrderTimeline({ steps }: { steps: ProgressStep[] }) {
                 rather than a fixed height, so a row with a note grows and the
                 line grows with it. */}
             <span className="flex flex-col items-center gap-1.5">
-              <StepGlyph state={step.state} seal={cancelled} />
+              {/* The halo only exists on the step the order is actually on, and
+                  only when that step is not the cancelled one: a pulse on "we
+                  stopped" would read as activity. `live` comes from
+                  buildProgress, so it is the order's real state. */}
+              <span className={live && !cancelled ? "s-live-mark inline-flex" : "inline-flex"}>
+                <StepGlyph state={step.state} seal={cancelled} />
+              </span>
               {!last && (
                 <span
                   aria-hidden="true"
                   className={[
-                    "min-h-6 w-px flex-1",
-                    step.state === "done" ? "bg-ink" : "bg-rule",
+                    "min-h-6 w-0.5 flex-1 rounded-full",
+                    step.state === "done" ? "bg-s-done" : "bg-s-line",
                   ].join(" ")}
                 />
               )}
@@ -49,9 +58,9 @@ export function OrderTimeline({ steps }: { steps: ProgressStep[] }) {
             <div className={`flex min-w-0 flex-col gap-1 ${last ? "pb-0" : "pb-6"}`}>
               <h3
                 className={[
-                  "font-mono text-body tracking-[0.04em]",
-                  live ? (cancelled ? "text-seal" : "text-carbon") : "text-ink",
-                  step.state === "upcoming" || step.state === "stopped" ? "text-steel" : "",
+                  "text-[0.9375rem] font-medium",
+                  live ? (cancelled ? "text-s-stop" : "text-s-live") : "text-s-cocoa",
+                  step.state === "upcoming" || step.state === "stopped" ? "text-s-bark" : "",
                 ].join(" ")}
               >
                 {step.label}
@@ -60,13 +69,13 @@ export function OrderTimeline({ steps }: { steps: ProgressStep[] }) {
               {step.at ? (
                 <time
                   dateTime={step.at.toISOString()}
-                  className="font-mono text-micro tabular-nums text-steel"
+                  className="font-mono text-[0.6875rem] tabular-nums text-s-bark"
                 >
                   {formatIST(step.at)}
                 </time>
               ) : (
                 step.state === "done" && (
-                  <span className="font-mono text-micro text-steel">
+                  <span className="font-mono text-[0.6875rem] text-s-bark">
                     Time not recorded
                   </span>
                 )
@@ -80,7 +89,7 @@ export function OrderTimeline({ steps }: { steps: ProgressStep[] }) {
                 its name and its time.
               */}
               {live && (
-                <p className="max-w-[46ch] font-sans text-meta leading-relaxed text-ink">
+                <p className="max-w-[46ch] text-[0.875rem] leading-relaxed text-s-bark">
                   {step.note}
                 </p>
               )}

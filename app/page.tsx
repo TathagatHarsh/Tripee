@@ -1,518 +1,375 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { AccountMenu } from "@/components/AccountMenu";
-import { HeroCake } from "@/components/HeroCake";
-import { HeroReveal } from "@/components/HeroReveal";
-import { HeroSprinkles } from "@/components/HeroSprinkles";
-import { PresetCard } from "@/components/PresetCard";
-import { PresetPager } from "@/components/PresetPager";
-import { Docket } from "@/components/docket/Docket";
-import { FSSAI_LICENCE } from "@/lib/docket";
-import { FILLINGS, SHAPES, SPONGES, TOPPINGS } from "@/lib/catalog";
-import { resolveSlot } from "@/lib/delivery";
-import { HERO_CAKE, HERO_CAKE_NAME } from "@/lib/hero";
-import { PRESETS } from "@/lib/presets";
+import { BuilderComingSoon } from "@/components/shop/BuilderComingSoon";
+import { CakePhoto } from "@/components/shop/CakePhoto";
+import { ProductCard } from "@/components/shop/ProductCard";
+import { ShopFooter } from "@/components/shop/ShopFooter";
+import { ShopHeader } from "@/components/shop/ShopHeader";
+import { listCakes } from "@/lib/cakeData";
+import { CAKE_CATEGORIES, cheapestVariant } from "@/lib/cakes";
 import { getCatalogSnapshot } from "@/lib/catalogData";
-import { priceCake } from "@/lib/pricing";
+import { resolveSlot } from "@/lib/delivery";
 import { formatINR } from "@/lib/format";
-import { servingsLabel } from "@/lib/servings";
-import { btn, eyebrow } from "@/lib/ui";
+import { priceProduct } from "@/lib/pricing";
+import { sBtn, sEyebrow } from "@/lib/shopUi";
 
-const HERO = HERO_CAKE;
+export const metadata: Metadata = {
+  title: "Makemycake · cakes baked to order in Hyderabad",
+  description:
+    "Twenty-one eggless cakes, baked to order in Jubilee Hills and delivered across Hyderabad. Itemised pricing, no payment until we confirm.",
+  openGraph: {
+    title: "Makemycake",
+    description: "Cakes baked to order in Jubilee Hills, Hyderabad.",
+    type: "website",
+    images: [{ url: "/presets/berry-forest.webp" }],
+  },
+};
 
-/*
- * Lead times come from the same resolver the builder and the docket use, asked
- * with one representative pincode per zone. Typing "24 h" into the marketing
- * page is how a landing page ends up promising something the delivery module
- * disagrees with.
+/**
+ * The cake on the front page.
+ *
+ * A preference, not a requirement: if this slug has been renamed, withdrawn or
+ * deleted, the hero falls back to whatever the bakery has flagged as featured
+ * and then to the first cake on the shelf. A homepage that 500s because
+ * somebody retired a cake is a homepage held hostage by a string in the source.
+ */
+const HERO_SLUG = "berry-forest";
+
+/**
+ * The shop front.
+ *
+ * Phase 1 of the redesign: this used to lead with the 3D builder — "Custom cake,
+ * designed by you", and a live WebGL cake in the hero — because the builder was
+ * the product. It is a cake shop now. The builder is held back behind
+ * `lib/flags` and appears on this page as the upcoming feature it is, well below
+ * the cakes somebody can actually buy today.
+ *
+ * The consequence worth noting is what this page no longer loads: there is no
+ * `<Canvas>`, no `@react-three/fiber` and no Three.js on the homepage at all.
+ * Every cake here is one of the photographs `scripts/shoot-presets` already
+ * makes from the same configurations, so the page is images and HTML.
+ *
+ * ## Why every number on it is fetched rather than typed
+ *
+ * The cakes come from CakeProduct, the prices from `priceProduct` against them,
+ * and the lead time from `resolveSlot` — the same resolver the kitchen and the
+ * docket use. The previous landing page made the same call and gave the reason:
+ * typing "24 h" into a marketing page is how a shop front ends up promising
+ * something the delivery module disagrees with. The same now goes for the count
+ * of cakes and for which of them lead: both are read, not written.
+ *
+ * ## No reviews section
+ *
+ * There is no review data anywhere in this application. A testimonial strip
+ * would have to be written rather than collected, and a shop that invents its
+ * own praise has told its first lie above the fold.
  */
 export default async function Home() {
-  // The homepage quotes a real price for the hero cake and for every preset
-  // card, so it reads the catalogue the same way the builder does.
-  const catalog = await getCatalogSnapshot();
+  const [catalog, cakes] = await Promise.all([getCatalogSnapshot(), listCakes()]);
 
-  /* Derived from the delivery module rather than typed here, so the landing
-     page cannot promise a lead time the builder disagrees with — now including
-     when the bakery retimes a slot from /admin/delivery. */
-  const ZONE_LEAD = [
-    { name: "Core", hours: resolveSlot("standard", "500001", catalog).effectiveLeadHours },
-    { name: "Outer", hours: resolveSlot("standard", "500500", catalog).effectiveLeadHours },
-  ];
+  const hero =
+    cakes.find((c) => c.slug === HERO_SLUG) ?? cakes.find((c) => c.isFeatured) ?? cakes[0];
+  /* Priced without a delivery slot, so "from ₹x" is the cake and its tax and
+     nothing conditional — the same figure the cards show. */
+  /* "from ₹X" — the cheapest variant, which is what the card and the shelf both
+     show. A cake whose every size is withdrawn has no price and no hero slot. */
+  const heroCheapest = hero ? cheapestVariant(hero) : undefined;
+  const heroPrice =
+    hero && heroCheapest
+      ? priceProduct(
+          { name: hero.name, pricePaise: heroCheapest.pricePaise },
+          { delivery: "pickup" },
+          catalog,
+        )
+      : null;
+  /* One representative pincode per zone, asked of the delivery module. */
+  const lead = resolveSlot("standard", "500001", catalog).effectiveLeadHours;
+  /* The bakery's own eight: flagged first, then its own display order. */
+  const featured = [...cakes]
+    .sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured) || a.sortOrder - b.sortOrder)
+    .slice(0, 8);
 
   return (
-    <div className="home bg-paper">
-      {/*
-        ── The bar ──────────────────────────────────────────────────────────
-        Three things were wrong with it, and none of them were the colours.
+    <div className="s-root flex min-h-dvh flex-col bg-s-cream">
+      <ShopHeader current="home" />
 
-        ONE CTA, NOT TWO. "Explore presets" and "Start building" were both
-        boxed, both 44px, side by side — which is two primary actions and
-        therefore none: the eye has to choose before it has read anything. The
-        secondary is now a text link on a rule. Still findable, still a 44px tap
-        target, no longer competing. There is exactly one filled rectangle in
-        the bar and it is the thing we want pressed.
-
-        THE WORDMARK HAD NO RANK. It was set at 13px — the same size as the nav,
-        the buttons and the meta — so the bar was five things at one weight and
-        read as a toolbar. At 17px with wider tracking it is the largest thing
-        on the bar, which is what a wordmark is for. §1.1 holds: the emphasis is
-        case, size and tracking, never a heavier cut.
-
-        THE MIDDLE WAS A HOLE. Below lg the nav is hidden, so the bar was a
-        wordmark, 900px of nothing, then two boxes — which is the state in the
-        screenshot. `flex-1` hands the nav every pixel the two end zones do not
-        want and centres the links inside it, so they sit optically between the
-        zones rather than hard against the left one. Deliberately flex and not
-        `absolute left-1/2`: absolute centring measures from the viewport rather
-        than from the gap, so at 1024px the centred links land on top of the
-        actions. A flex item cannot collide with its siblings.
-
-        78px → 68px. This is chrome, and it was taller than the 44px control it
-        contains by more than that control's own height again.
-      */}
-      <header className="sticky top-0 z-30 flex h-[68px] items-center gap-3 border-b border-rule bg-paper/90 px-4 backdrop-blur-md sm:gap-6 sm:px-8 lg:px-14">
-        <Link
-          href="/"
-          className="flex min-w-0 shrink-0 items-center gap-3.5"
-          aria-label="Makemycake, home"
-        >
-          <span className="font-mono text-item font-medium tracking-[0.2em] uppercase">
-            Makemycake
-          </span>
-          {/* A rule, not a dot. Everything else on this site that divides two
-              things is a hairline; the 4px square read as a bullet.
-
-              `lg:hidden xl:block` is the one piece of real estate the nav can
-              take when it needs it. Between 1024 and 1279 the three links, the
-              wordmark, the locality and two actions do not fit on one line, and
-              the nav lost — "HOW IT WORKS" and "THE BAKERY" each broke onto two
-              lines and the bar grew a second row of text. The locality is the
-              least load-bearing thing up here, so it stands down for that band
-              and comes back at xl. */}
-          <span aria-hidden className="hidden h-3.5 w-px bg-rule md:block lg:hidden xl:block" />
-          <span className="hidden font-mono text-micro tracking-[0.14em] text-steel uppercase md:block lg:hidden xl:block">
-            Jubilee Hills
-          </span>
-        </Link>
-
-        <nav
-          aria-label="Sections"
-          className="hidden flex-1 items-center justify-center gap-6 lg:flex xl:gap-10"
-        >
-          {[
-            ["Presets", "#presets"],
-            ["How it works", "#how"],
-            ["The bakery", "#bakery"],
-          ].map(([label, href]) => (
-            <a
-              key={href}
-              href={href}
-              /* The link is the 44px target; the rule lives on the span inside
-                 it. Putting `border-b` on the target itself parks the rule at
-                 the bottom of a 44px box — a hairline floating twenty pixels
-                 under the word, attached to nothing. `whitespace-nowrap`
-                 because a nav item that wraps mid-label is not a nav item. */
-              className="group inline-flex min-h-11 items-center whitespace-nowrap font-mono text-micro tracking-[0.14em] text-steel uppercase transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] hover:text-ink"
-            >
-              <span className="border-b border-transparent pb-0.5 transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] group-hover:border-ink">
-                {label}
+      <main id="main" className="flex-1">
+        {/* ── Hero ───────────────────────────────────────────────────── */}
+        <section className="border-b border-s-line bg-gradient-to-b from-s-cream to-s-cream-deep">
+          {/*
+            `minmax(0, …)` on both tracks, which is doing real work rather than
+            being defensive noise: an `fr` track takes `auto` as its minimum, and
+            `auto` there means "at least max-content". The metadata row below the
+            copy is wider than a phone, so without the floor the track sized
+            itself to that and every child laid out against a box wider than the
+            viewport — a clipped headline and a horizontally scrolling page.
+          */}
+          <div className="mx-auto grid max-w-[84rem] grid-cols-[minmax(0,1fr)] items-center gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-14 lg:px-10 lg:py-20">
+            <div className="s-enter flex flex-col items-start gap-6 lg:order-1">
+              <span className={sEyebrow}>
+                One bakery · Jubilee Hills · Hyderabad
               </span>
-            </a>
-          ))}
-        </nav>
 
-        {/* `ml-auto` because on the breakpoints where the nav is hidden there is
-            no flex-1 item left to push these to the right. */}
-        <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-6">
-          {/* The old `sm:contents` wrapper is gone with the reason for it: it
-              existed only because `btn()` hard-codes `inline-flex`, which beat
-              `hidden` in the cascade. This is not a `btn()`, so `sm:inline-flex`
-              is enough. */}
-          <Link
-            href="/presets"
-            className="group hidden min-h-11 items-center whitespace-nowrap font-mono text-micro tracking-[0.14em] text-graphite uppercase transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] hover:text-ink sm:inline-flex"
-          >
-            {/* Same split as the nav links: 44px of target on the link, the rule
-                on the text. This one is visible at rest — it is an action, and
-                the rule is what is left of the box it used to be in. */}
-            <span className="border-b border-rule-strong pb-0.5 transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] group-hover:border-ink">
-              Explore presets
-            </span>
-          </Link>
-          {/*
-            Hidden below sm, because below sm it does not fit.
+              <h1 className="text-[2.75rem] leading-[1.03] sm:text-[3.5rem] lg:text-[4.25rem]">
+                Make every celebration
+                <span className="block text-s-berry italic">sweeter.</span>
+              </h1>
 
-            The bar needs 384px to hold the wordmark, this button and the
-            account control; every phone narrower than that was scrolling
-            sideways, which put the account control off the right edge — the
-            reason this whole change exists. Measured, not guessed: 320px was
-            64px over, 360px 24px over, 375px 9px over.
+              {/*
+                Nineteen words, and it was thirty-four.
 
-            This is the item that yields because it is the only one already on
-            screen twice. The hero's own "Start building →" is inside the first
-            viewport on a phone — directly under this bar — so nothing becomes
-            unreachable and no journey gets longer. The wordmark cannot yield
-            (56px would be left for ten characters) and the account control
-            cannot (44px is the touch target, and it is the thing being fixed).
+                At 375px the old paragraph ran to five lines and pushed the two
+                buttons most of the way down the first screen. A hero's job is
+                the claim and the way in, not the whole proposition: what it
+                dropped ("choose a size, tell us what it should say") is a
+                description of the product page, which is one tap away and does
+                it better with controls than with prose.
+              */}
+              <p className="max-w-[46ch] text-[1.125rem] leading-relaxed text-s-bark">
+                {/* The count is read rather than written: it used to say
+                    "Twenty-one" because the catalogue was twenty-one constants
+                    in the source tree, and an owner adding a cake would have
+                    made the sentence wrong with no way to fix it. */}
+                Eggless cakes, baked to order in Jubilee Hills. Nothing is paid
+                for until we confirm it with you.
+              </p>
 
-            `max-sm:hidden`, and NOT `hidden sm:inline-flex` — which is the
-            idiom four lines up and which silently does nothing here. btn()
-            hard-codes `inline-flex`, and a base `hidden` loses to it in the
-            cascade; that is the whole reason the `sm:contents` wrapper this
-            file used to carry existed. A `max-sm:` variant is emitted after the
-            base utilities, so it wins below 640px without an `!important` or a
-            wrapper element. Verified in the built stylesheet, not assumed.
-          */}
-          <Link
-            href="/build/shape"
-            className={btn("primary", "md", "max-sm:hidden")}
-          >
-            Start building
-          </Link>
-          {/* Last in the row on purpose, and now a fixed 44px square in every
-              state — so this end of the bar has one width, signed in or out,
-              and nothing here can push the call to action beside it. */}
-          <AccountMenu />
-        </div>
-      </header>
+              <div className="flex flex-wrap gap-3">
+                <Link href="/shop" className={sBtn("primary", "lg")}>
+                  Shop cakes
+                </Link>
+                {hero && (
+                  <Link href={`/cakes/${hero.slug}`} className={sBtn("outline", "lg")}>
+                    Explore cakes
+                  </Link>
+                )}
+              </div>
 
-      <main id="main">
-        {/* ── Hero ──────────────────────────────────────────────────────── */}
-        {/*
-          `minmax(0, …)` on every track, which is doing real work rather than
-          being defensive noise.
-
-          An `fr` and an implicit `auto` track both take `auto` as their minimum,
-          and `auto` there means "at least the item's max-content". The metadata
-          row at the bottom of the copy is 572px unwrapped, so below lg — where
-          this collapses to one implicit column — the track sized itself to that
-          and came out 580px wide inside a 343px phone. Every child then laid out
-          against 580px and ran off the side of the screen: clipped headline,
-          clipped paragraph, a CTA half off the edge. Flooring the minimum at 0
-          lets the track be the width it actually has and the text wrap.
-        */}
-        {/*
-          ── Closing the gap ──────────────────────────────────────────────
-          At 1440 the copy's widest line ended at x≈600 and the cake's board
-          started at x≈900: three hundred pixels of nothing down the middle of
-          the first screen. Neither column was overflowing — both were
-          UNDER-filling. The copy sat in a 699px track wearing a 46ch measure,
-          and the cake sat centred in a 685px track at 460px wide, so each
-          column contributed its own slack to the same hole.
-
-          So both sides give some back rather than one side being shoved across:
-          the tracks re-weight 1.02/1 → 0.95/1.05, the measure widens to 52ch
-          (below), and the stage grows (components/HeroCake), which grows the
-          cake with it — the hero shot is `fit: contain`, so the cake is sized
-          by its box.
-
-          What is left is a gutter of about 150px, which is a gutter and not a
-          hole, and the sprinkles fall through it.
-
-          `isolate` + `-z-10`: a negative z-index child paints above its
-          parent's background but below every in-flow sibling, so the flecks
-          pass behind the headline and the cake without needing a z-index on
-          anything else. `isolate` keeps that negative layer inside this
-          section instead of letting it search for a stacking context up the
-          tree and end up behind the page. `overflow-hidden` is what clips the
-          field — see the keyframe note in globals.css.
-        */}
-        <section className="relative isolate grid grid-cols-[minmax(0,1fr)] items-center gap-10 overflow-hidden bg-[linear-gradient(180deg,#FDFCFA_0%,#F2EEE6_62%,#EBE7DD_100%)] px-4 pt-12 pb-16 sm:px-8 lg:min-h-[780px] lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-0 lg:px-0 lg:py-0 lg:pl-14">
-          <HeroSprinkles className="-z-10" />
-
-          <HeroReveal className="flex max-w-[41.25rem] flex-col justify-center gap-7 lg:gap-8">
-            <span className={`${eyebrow} tracking-[0.24em]`}>
-              Single bakery · Jubilee Hills · Hyderabad
-            </span>
-
-            <h1 className="text-hero">
-              Custom cake.
-              <br />
-              <span className="text-graphite italic">Designed by you.</span>
-            </h1>
-
-            {/* 46ch → 52ch. Still inside §1.1's 62-character ceiling, and it is
-                the copy column's widest line, so it is the line that decides
-                where the left half of the hero visually ends. */}
-            <p className="max-w-[52ch] text-lede leading-relaxed text-steel">
-              Nine choices, one cake, rendered in front of you as you make them. The
-              price is itemised from the first tap — and nobody takes your money
-              until we have spoken.
-            </p>
-
-            <div className="flex flex-wrap gap-3">
-              <Link href="/build/shape" className={btn("primary", "lg")}>
-                Start building <span aria-hidden className="font-mono text-meta">→</span>
-              </Link>
-              <Link href="/presets" className={btn("secondary", "lg")}>
-                Explore presets
-              </Link>
+              <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1 font-mono text-[0.6875rem] tracking-[0.12em] text-s-bark uppercase">
+                <li>Freshly baked to order</li>
+                <li aria-hidden className="size-1 rounded-full bg-s-line-strong" />
+                <li>{lead}-hour lead time</li>
+                <li aria-hidden className="size-1 rounded-full bg-s-line-strong" />
+                <li>No payment up front</li>
+              </ul>
             </div>
 
-            <ul className="flex flex-wrap items-center gap-4 pt-1 font-mono text-micro tracking-[0.13em] text-steel uppercase">
-              <li>Live price from step one</li>
-              <li aria-hidden className="size-[3px] bg-rule" />
-              <li>No payment now</li>
-              <li aria-hidden className="size-[3px] bg-rule" />
-              <li>{ZONE_LEAD[0].hours}-hour lead time</li>
-            </ul>
-          </HeroReveal>
+            {/* Only when there is a cake to be the hero. A shop with an empty
+                CakeProduct table renders the claim and the two links and leaves
+                this column out, rather than a broken image over a ₹NaN. */}
+            {hero && heroPrice && (
+              <div className="relative lg:order-2">
+                <Link
+                  href={`/cakes/${hero.slug}`}
+                  className="s-enter-media s-photo-well group relative block aspect-[4/3.6] overflow-hidden rounded-s border border-s-line shadow-[var(--shadow-s-lift)] sm:aspect-[4/3]"
+                >
+                  <CakePhoto
+                    src={hero.imageUrl}
+                    alt={hero.imageAlt ?? `${hero.name}. ${hero.description}`}
+                    config={hero.config}
+                    sizes="(min-width:1024px) 46vw, 100vw"
+                    /* The LCP of the whole site. Never lazy, and it is the one
+                       image on this page that says so. */
+                    priority
+                    className="object-[50%_58%] transition-transform duration-[600ms] ease-[var(--ease-out)] motion-safe:group-hover:scale-[1.03]"
+                  />
+                </Link>
 
-          {/*
-            The one place on this page with a live WebGL context. Everything the
-            layout owns — the pool of light, the status pill, the spec block — is
-            outside the canvas, so the renderer's own framing is untouched.
-          */}
-          {/* No `min-h` of its own: the stage inside already reserves its height
-              for the lazily-loaded canvas, and a 24rem floor round a 20rem stage
-              was 64px of dead page between the copy and the cake on a phone. */}
-          {/* `flex-col`, so the badge can sit under the stage on a phone rather
-              than beside it. On desktop the badge and the spec block are both
-              absolute, which leaves the stage as the only item in flow and makes
-              the direction moot. */}
-          <div className="relative flex flex-col items-center justify-center lg:h-full">
-            {/* The pool of light behind the cake. `max-w-full`, not 130%: a
-                centred box wider than its column overhangs both sides of it, and
-                on a phone that put 38px of the glow past the viewport and gave
-                the whole page a horizontal scrollbar. At 40rem it is narrower
-                than the column on every breakpoint that has room for it, so the
-                cap only ever binds where it has to. */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-1/2 size-[40rem] max-w-full -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(50%_50%_at_50%_40%,rgba(250,245,234,.95),rgba(250,245,234,0)_72%)]"
-            />
-            <HeroCake config={HERO} />
-
-            <div className="pointer-events-none absolute top-4 right-4 hidden text-right font-mono text-micro leading-loose tracking-[0.1em] text-steel lg:top-24 lg:right-14 lg:block">
-              <div className="text-graphite uppercase">{HERO_CAKE_NAME}</div>
-              <div className="uppercase">{servingsLabel(HERO)}</div>
-              <div className="font-medium text-ink">{formatINR(priceCake(HERO, catalog).total)}</div>
-            </div>
+                {/* The price tag. Absolute on a wide screen where there is room
+                    beside the photo, and in flow below it on a phone — a floating
+                    card over a 340px image covers the cake it is advertising. */}
+                <div className="mt-4 flex items-center gap-4 rounded-s border border-s-line bg-s-shell px-4 py-3 shadow-[var(--shadow-s-card)] sm:absolute sm:right-4 sm:bottom-4 sm:mt-0 sm:w-auto">
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate text-[0.9375rem] font-medium text-s-cocoa">
+                      {hero.name}
+                    </span>
+                    <span className="font-mono text-[0.6875rem] tracking-[0.08em] text-s-bark uppercase">
+                      from {formatINR(heroPrice.total)}
+                    </span>
+                  </div>
+                  <Link href={`/cakes/${hero.slug}`} className={sBtn("primary", "sm")}>
+                    View
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
-        {/* ── The catalogue, in four numbers ────────────────────────────── */}
-        <dl className="grid grid-cols-2 border-y border-rule bg-paper lg:grid-cols-4">
-          {[
-            ["Shapes", SHAPES.length],
-            ["Sponges", SPONGES.length],
-            ["Fillings", FILLINGS.length],
-            ["Toppings", TOPPINGS.length],
-          ].map(([label, n], i) => (
-            <div
-              key={label}
-              className={[
-                "px-6 py-7 sm:px-10",
-                i < 3 ? "lg:border-r lg:border-rule" : "",
-                i % 2 === 0 ? "border-r border-rule lg:border-r" : "",
-                i < 2 ? "border-b border-rule lg:border-b-0" : "",
-              ].join(" ")}
-            >
-              <dd className="font-display text-[2.375rem] leading-none">{n}</dd>
-              <dt className="mt-2 font-mono text-micro tracking-[0.16em] text-steel uppercase">
-                {label}
-              </dt>
+        {/* ── Shop by flavour ────────────────────────────────────────── */}
+        <section aria-labelledby="categories" className="mx-auto max-w-[84rem] px-4 py-14 sm:px-6 lg:px-10 lg:py-20">
+          <div className="s-rise-in mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div className="flex flex-col gap-2">
+              <span className={sEyebrow}>Shop by flavour</span>
+              <h2 id="categories" className="text-[2rem] sm:text-[2.5rem]">
+                Find the one they&rsquo;ll ask for again
+              </h2>
             </div>
-          ))}
-        </dl>
-
-        {/* ── How it works ─────────────────────────────────────────────── */}
-        <section id="how" className="scroll-mt-24 bg-paper px-4 py-20 sm:px-8 lg:px-14 lg:py-24">
-          <div className="mb-12 flex flex-col items-start justify-between gap-5 lg:flex-row lg:items-end">
-            <h2 className="text-heading">How it works</h2>
-            <p className="max-w-[40ch] text-body leading-relaxed text-steel">
-              Nine steps, grouped into four decisions. Most people finish in under
-              six minutes.
-            </p>
-          </div>
-
-          <ol className="grid gap-px border-y border-slab-deep bg-slab-deep lg:grid-cols-3">
-            {[
-              [
-                "Design it in 3D",
-                "Shape, size, sponge, filling, frosting, finish, toppings, message. The cake redraws on every tap — and cuts open when you want to see the layers.",
-              ],
-              [
-                "Watch the price",
-                "Every option shows what it adds before you choose it. The docket beside the cake keeps a running, itemised total with GST — never a mystery number at checkout.",
-              ],
-              [
-                "Order without paying",
-                "Name and phone number, nothing more. We call to confirm the details, then bake. You keep the reference and the docket.",
-              ],
-            ].map(([title, body], i) => (
-              <li key={title} className="flex flex-col gap-4 bg-paper px-8 py-10 lg:px-10">
-                <span className="font-display text-[2.125rem] leading-none text-brass">
-                  0{i + 1}
-                </span>
-                <h3 className="font-sans text-[1.375rem] font-medium tracking-[-0.01em]">
-                  {title}
-                </h3>
-                <p className="text-body leading-relaxed text-steel">{body}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* ── Presets ──────────────────────────────────────────────────── */}
-        <section id="presets" className="scroll-mt-24 bg-paper px-4 pb-20 sm:px-8 lg:px-14 lg:pb-24">
-          <div className="mb-8 flex items-end justify-between gap-6">
-            <h2 className="text-heading">Start from one of ours</h2>
             <Link
-              href="/presets"
-              className="group shrink-0 font-mono text-micro tracking-[0.14em] text-graphite uppercase transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] hover:text-ink"
+              href="/shop"
+              className="inline-flex min-h-11 items-center text-[0.9375rem] text-s-berry underline decoration-s-berry/30 underline-offset-4 transition-colors hover:decoration-s-berry"
             >
-              {/* Same rule as the header's presets link at line 122: visible at
-                  rest, because this is an action. Colour is not the affordance —
-                  the rule is. No min-h-11 here: the parent is items-end, and a
-                  44px centred box would lift this off the h2's bottom edge. */}
-              <span className="border-b border-rule-strong pb-0.5 transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] group-hover:border-ink">
-                Browse the catalogue →
-              </span>
+              See all {cakes.length} cakes
             </Link>
           </div>
 
-          {/*
-            All of them, six at a time. This printed three hand-picked slugs and
-            linked out for the rest, which was right while the three were art
-            directed one by one — a marketing row where each cake had its own
-            camera. That went when the cards became photographs from a single
-            shoot (see components/PresetCard), and once every card is the same
-            kind of object there is no argument left for showing a customer three
-            of twenty-one and asking them to click through for the others.
-
-            Eight, on the same four-column grid the catalogue uses — two full
-            rows at every width that has more than one column, and the same page
-            of cakes in both places, which is one less thing for a customer to
-            re-read. Each card carries its own shot — see components/PresetCard.
-          */}
-          <PresetPager
-            perPage={8}
-            className={
-              "grid auto-rows-fr grid-cols-1 gap-6 " +
-              "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-            }
-          >
-            {PRESETS.map((p) => (
-              <PresetCard key={p.slug} preset={p} catalog={catalog} />
-            ))}
-          </PresetPager>
+          <ul className="s-rise-row grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+            {CAKE_CATEGORIES.map((cat) => {
+              /* The card's picture is the first cake actually in the category,
+                 so a category can never illustrate itself with a cake it does
+                 not contain — and adding a preset re-picks it automatically. */
+              const face = cakes.find((p) => p.category === cat.id);
+              return (
+                <li key={cat.slug}>
+                  <Link
+                    href={`/shop?category=${cat.slug}`}
+                    className="group relative flex h-40 items-end overflow-hidden rounded-s border border-s-line sm:h-48"
+                  >
+                    {face && (
+                      <CakePhoto
+                        src={face.imageUrl}
+                        alt=""
+                        config={face.config}
+                        sizes="(min-width:1024px) 31vw, 47vw"
+                        className="object-[50%_54%] transition-transform duration-[500ms] ease-[var(--ease-out)] motion-safe:group-hover:scale-[1.05]"
+                      />
+                    )}
+                    {/*
+                      A wash, not a blanket — the cake still has to be the thing
+                      you see. It has to go this dark at the foot, though: the
+                      six cakes behind these cards run from dark ganache to a
+                      near-white pistachio, and a gradient tuned to the chocolate
+                      one left white text on cream over Eggless and Fruit & Berry.
+                      The stop is set by the palest card, which is the only one
+                      that can fail.
+                    */}
+                    <span
+                      aria-hidden
+                      className="absolute inset-0 bg-[linear-gradient(180deg,rgba(42,24,15,0)_30%,rgba(42,24,15,0.55)_62%,rgba(42,24,15,0.95)_100%)]"
+                    />
+                    <span className="relative flex w-full flex-col gap-1 p-4">
+                      <span className="text-[1.0625rem] font-medium text-white sm:text-[1.25rem]">
+                        {cat.name}
+                      </span>
+                      {/* Sentence case at 13px, clamped to two lines. Set in
+                          uppercase mono at 10px it read as a system label and,
+                          on the two longest blurbs, took three lines and pushed
+                          the card's own title off the bottom of the tile. */}
+                      <span className="line-clamp-2 text-[0.8125rem] leading-snug text-white/80">
+                        {cat.blurb}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </section>
 
-        {/* ── The docket ───────────────────────────────────────────────── */}
-        <section className="grid border-t border-slab-deep bg-slab lg:grid-cols-2">
-          <div className="flex flex-col justify-center gap-6 px-4 py-20 sm:px-8 lg:px-14 lg:py-24">
-            <span className={`${eyebrow} tracking-[0.22em]`}>The docket</span>
-            <h2 className="max-w-[14ch] text-heading">Every rupee has a name on it.</h2>
-            <p className="max-w-[48ch] text-lede leading-relaxed text-steel">
-              This is the ticket our kitchen actually works from. It is built from
-              the same object the 3D cake is drawn from, so it cannot drift from
-              what you designed. You see it from step one, you can download it, and
-              the price on it is the price we call to confirm.
-            </p>
-            <ol className="flex flex-col gap-3 text-body text-graphite">
+        {/* ── The counter ────────────────────────────────────────────── */}
+        <section
+          aria-labelledby="featured"
+          className="border-y border-s-line bg-s-cream-deep/50"
+        >
+          <div className="mx-auto max-w-[84rem] px-4 py-14 sm:px-6 lg:px-10 lg:py-20">
+            <div className="s-rise-in mb-8 flex flex-wrap items-end justify-between gap-4">
+              <div className="flex flex-col gap-2">
+                <span className={sEyebrow}>On the counter</span>
+                <h2 id="featured" className="text-[2rem] sm:text-[2.5rem]">
+                  Baked to order, photographed as sold
+                </h2>
+              </div>
+              <Link href="/shop" className={sBtn("outline", "md")}>
+                Browse everything
+              </Link>
+            </div>
+
+            <ul className="s-rise-row grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+              {featured.map((p) => (
+                <ProductCard key={p.slug} product={p} catalog={catalog} />
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* ── The builder, held back ─────────────────────────────────── */}
+        <section className="mx-auto max-w-[84rem] px-4 py-14 sm:px-6 lg:px-10 lg:py-20">
+          <span className={`${sEyebrow} mb-3 block`}>Create something extraordinary</span>
+          <BuilderComingSoon className="s-rise-in" />
+        </section>
+
+        {/* ── Why ────────────────────────────────────────────────────── */}
+        <section
+          aria-labelledby="why"
+          className="border-t border-s-line bg-s-shell"
+        >
+          <div className="mx-auto max-w-[84rem] px-4 py-14 sm:px-6 lg:px-10 lg:py-20">
+            <h2 id="why" className="s-rise-in mb-10 text-[2rem] sm:text-[2.5rem]">
+              Why Makemycake
+            </h2>
+
+            {/*
+              Four claims, and every one of them is something this codebase can
+              actually back: the cakes are baked after the call rather than held
+              in a case, the price is itemised by the same engine the kitchen
+              docket prints, the lead time is the delivery module's own number,
+              and nothing is charged because this deployment takes no payments at
+              all. No certifications, awards or guarantees have been invented.
+            */}
+            <ul className="s-rise-row grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                "Itemised lines, never a collapsed total",
-                "Allergens derived from what you chose, not typed by hand",
-                "Servings, shelf life and lead time for your pincode",
-              ].map((t, i) => (
-                <li key={t} className="flex gap-3">
-                  <span aria-hidden className="pt-[3px] font-mono text-micro text-brass">
+                [
+                  "Freshly made",
+                  "Nothing sits in a case. We call to confirm, and the cake is baked after that call.",
+                ],
+                [
+                  "Itemised pricing",
+                  "Sponge, filling, finish, delivery and GST are each a line on your order, priced from the same list the kitchen works from.",
+                ],
+                [
+                  "Reliable delivery",
+                  `Standard orders are ready about ${lead} hours after confirmation, across the zones we actually serve.`,
+                ],
+                [
+                  "Made for your celebration",
+                  "Choose the size, say what it should say on top, and tell us when you need it.",
+                ],
+              ].map(([title, body], i) => (
+                <li key={title} className="flex flex-col gap-2.5">
+                  {/* /80 and not /45. A 45%-alpha berry on white measures about
+                      2.4:1 — these are numerals somebody reads, not a rule, so
+                      they have to clear 4.5:1. /80 composites to 4.97:1 and
+                      keeps the tint. Measured with axe, not by eye. */}
+                  <span className="font-mono text-[1.75rem] leading-none text-s-berry/80">
                     0{i + 1}
                   </span>
-                  {t}
+                  <h3 className="text-[1.25rem]">{title}</h3>
+                  <p className="text-[0.9375rem] leading-relaxed text-s-bark">{body}</p>
                 </li>
               ))}
-            </ol>
-          </div>
-
-          {/*
-            The real component, with the real hero config — not a picture of one.
-            A screenshot of the docket on the page that promises the docket is
-            exactly the drift this section claims cannot happen.
-          */}
-          <div className="flex items-center justify-center overflow-hidden bg-[linear-gradient(180deg,#E4E0D6,#D8D3C7)] px-4 py-16 sm:px-8">
-            <div className="w-[21.25rem] max-w-full rotate-[-1.6deg] ">
-              <Docket config={HERO} className="max-h-[32rem] border border-rule" />
-            </div>
+            </ul>
           </div>
         </section>
 
-        {/* ── The bakery ───────────────────────────────────────────────── */}
-        <section
-          id="bakery"
-          className="scroll-mt-24 border-t border-slab-deep bg-paper px-4 py-20 sm:px-8 lg:px-14"
-        >
-          <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
-            <div className="flex flex-col gap-3.5">
-              <h2 className="text-[2rem]">
-                One kitchen. <span className="text-steel">One city.</span>
+        {/* ── Closing band ───────────────────────────────────────────── */}
+        <section className="bg-s-cocoa">
+          <div className="s-rise-in mx-auto flex max-w-[84rem] flex-col items-start gap-5 px-4 py-14 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-10 lg:py-16">
+            <div className="flex flex-col gap-2">
+              <h2 className="text-[1.875rem] text-s-cream sm:text-[2.25rem]">
+                Something to celebrate?
               </h2>
-              <p className="max-w-[34ch] text-body leading-relaxed text-steel">
-                We bake to order in Jubilee Hills and deliver across Hyderabad.
-                Nothing is made ahead, nothing is frozen.
+              <p className="max-w-[46ch] text-s-cream/70">
+                Pick a cake, tell us the date, and we&rsquo;ll take it from there.
               </p>
             </div>
-
-            <InfoBlock label="Address">
-              Road No. 36
-              <br />
-              Jubilee Hills
-              <br />
-              Hyderabad 500033
-            </InfoBlock>
-            <InfoBlock label="Hours">
-              Tue–Sun
-              <br />
-              9:00 – 20:00
-              <br />
-              Closed Mondays
-            </InfoBlock>
-            <InfoBlock label="Delivery">
-              {ZONE_LEAD.map(z => (
-                <span key={z.name} className="block">
-                  {z.name} · {z.hours} h
-                </span>
-              ))}
-              <span className="block">Extended · standard only</span>
-            </InfoBlock>
+            <Link href="/shop" className={sBtn("primary", "lg")}>
+              Shop cakes
+            </Link>
           </div>
-        </section>
-
-        {/* ── The one thing to do ──────────────────────────────────────── */}
-        <section className="flex flex-col items-center gap-8 bg-ink px-4 py-24 text-center sm:px-8 lg:py-28">
-          <h2 className="max-w-[16ch] text-display text-paper">
-            Nine choices away from the cake you pictured.
-          </h2>
-          <Link
-            href="/build/shape"
-            className="inline-flex min-h-14 items-center gap-3 bg-paper px-8 text-item font-medium text-ink transition-colors duration-[--dur-ui] hover:bg-counter"
-          >
-            Start building <span aria-hidden className="font-mono text-meta">→</span>
-          </Link>
-          <p className="font-mono text-micro tracking-[0.14em] text-quiet uppercase">
-            No payment now · We call to confirm
-          </p>
         </section>
       </main>
 
-      <footer className="border-t border-graphite bg-ink px-4 py-7 sm:px-8 lg:px-14">
-        <div className="flex flex-wrap items-center justify-between gap-3 font-mono text-micro tracking-[0.13em] text-quiet uppercase">
-          <span>Makemycake · Jubilee Hills</span>
-          {FSSAI_LICENCE
-            ? <span>FSSAI Lic. No. {FSSAI_LICENCE}</span>
-            : <span>FSSAI licence — shown when configured</span>}
-          <span>© 2026</span>
-        </div>
-      </footer>
-    </div>
-  );
-}
-
-function InfoBlock({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2.5">
-      <span className={`${eyebrow} tracking-[0.16em]`}>{label}</span>
-      <p className="text-body leading-loose text-graphite">{children}</p>
+      <ShopFooter bakery={catalog.bakery} />
     </div>
   );
 }

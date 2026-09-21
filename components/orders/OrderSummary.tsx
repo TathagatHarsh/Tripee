@@ -31,12 +31,12 @@ export function OrderSummary({
         {items.map((item) => (
           <li
             key={item.id}
-            className="flex items-baseline justify-between gap-4 border-b border-rule py-2 first:pt-0"
+            className="flex items-baseline justify-between gap-4 border-b border-s-line py-2 first:pt-0"
           >
-            <span className="min-w-0 font-sans text-body leading-snug text-graphite">
+            <span className="min-w-0 text-[0.9375rem] leading-snug text-s-bark">
               {item.label}
             </span>
-            <span className="shrink-0 font-mono text-body tabular-nums text-ink">
+            <span className="shrink-0 font-mono text-[0.9375rem] tabular-nums text-s-cocoa">
               {formatINR(item.amountPaise)}
             </span>
           </li>
@@ -49,9 +49,20 @@ export function OrderSummary({
           component's call — it prints what the columns say. */}
       {gst !== 0 && <Line k="GST" v={gst} />}
 
-      <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-ink pt-2.5">
-        <span className="font-mono text-item tracking-[0.06em] text-ink uppercase">Total paid</span>
-        <span className="font-mono text-item font-medium tabular-nums text-ink">
+      {/*
+        "Total payable", not "Total paid".
+
+        Nothing on this deployment takes money: Order.paymentStatus defaults to
+        `none` and there is no gateway behind it, which the line directly under
+        this block says in words. "Total paid" was therefore a claim the database
+        cannot support, sitting two centimetres above a sentence contradicting
+        it. The figure is unchanged; only the promise attached to it is.
+      */}
+      <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-s-line-strong pt-2.5">
+        <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">
+          Total payable
+        </span>
+        <span className="font-mono text-[1.25rem] font-medium tabular-nums text-s-cocoa">
           {formatINR(totalPaise)}
         </span>
       </div>
@@ -62,8 +73,8 @@ export function OrderSummary({
 function Line({ k, v }: { k: string; v: number }) {
   return (
     <div className="flex items-baseline justify-between gap-4 pt-2">
-      <span className="font-mono text-micro tracking-[0.13em] text-steel uppercase">{k}</span>
-      <span className="font-mono text-body tabular-nums text-graphite">{formatINR(v)}</span>
+      <span className="font-mono text-[0.6875rem] tracking-[0.13em] text-s-bark uppercase">{k}</span>
+      <span className="font-mono text-[0.9375rem] tabular-nums text-s-bark">{formatINR(v)}</span>
     </div>
   );
 }

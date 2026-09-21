@@ -31,11 +31,18 @@ import { migrateConfig } from "@/lib/schema";
  * answers 404 — the same answer as a reference that was never minted, which is
  * also the right one: whether MC-4471 exists is not a customer's business.
  *
- * Guest orders have `userId = null` and so are invisible here by the same
- * clause, which is correct rather than incidental. Nobody is signed in as null,
- * and an order placed without an account is tracked by its reference on paper —
- * see app/api/orders/route.ts, where signing in is a convenience and never a
- * condition of buying a cake.
+ * Guest orders have `userId = null` and so are invisible to that clause, which
+ * is correct rather than incidental: nobody is signed in as null. They are
+ * reachable by one other route and only one — `getOrder` below also accepts the
+ * set of references a browser can prove this server gave it, from the signed
+ * cookie lib/guestOrders sets when the order is written. That set is still
+ * pushed into the `where`, so the property above is unchanged: a reference the
+ * viewer cannot prove is theirs is *not found*, and nothing about it is read
+ * into the process at all. A reference on its own is never enough, which is the
+ * whole of §10.
+ *
+ * The list and the counts take no such argument. They answer "every order on
+ * this account", which is a question a guest does not have.
  *
  * The role is not consulted anywhere in this file. An admin reading their own
  * orders here sees their own orders; the whole order book is /admin/orders,
@@ -60,9 +67,22 @@ const CARD_FIELDS = {
   totalPaise: true,
   leadHours: true,
   deliverySlot: true,
+  dueAt: true,
   config: true,
   servesMin: true,
   servesMax: true,
+  /* The cake as it was when this order was placed. Null on every order written
+     before the product table, and on builder orders — see prisma/schema.prisma
+     on why these are snapshots and not a join. */
+  cakeName: true,
+  cakeImageUrl: true,
+  cakes: {
+    orderBy: { position: "asc" },
+    select: {
+      id: true, config: true, cakeName: true, cakeImageUrl: true,
+      totalPaise: true, servesMin: true, servesMax: true, allergens: true,
+    },
+  },
 } satisfies Prisma.OrderSelect;
 
 export interface OrderCardData {
@@ -72,10 +92,25 @@ export interface OrderCardData {
   totalPaise: number;
   leadHours: number;
   deliverySlot: string;
+  dueAt: Date | null;
   servesMin: number;
   servesMax: number;
   /** Null when the stored configuration no longer validates. */
   config: ReturnType<typeof migrateConfig>;
+  /** The cake's name as bought. Null on builder and pre-product orders. */
+  cakeName: string | null;
+  /** Its photograph as it was then. Same nullability, same reason. */
+  cakeImageUrl: string | null;
+  cakes: Array<{
+    id: string;
+    config: ReturnType<typeof migrateConfig>;
+    cakeName: string | null;
+    cakeImageUrl: string | null;
+    totalPaise: number;
+    servesMin: number;
+    servesMax: number;
+    allergens: string[];
+  }>;
 }
 
 /**
@@ -112,7 +147,11 @@ export async function listOrders(
     select: CARD_FIELDS,
   });
 
-  return rows.map((r) => ({ ...r, config: migrateConfig(r.config) }));
+  return rows.map((r) => ({
+    ...r,
+    config: migrateConfig(r.config),
+    cakes: r.cakes.map((cake) => ({ ...cake, config: migrateConfig(cake.config) })),
+  }));
 }
 
 /** How many orders sit behind each tab, for the counts beside the labels. */
@@ -132,19 +171,41 @@ export async function countByPhase(userId: string): Promise<Record<OrderPhase | 
 }
 
 /**
- * One order of the viewer's own, with everything the tracking page shows.
+ * Who is asking, in the only two ways this page accepts an answer.
+ *
+ * A signed-in customer is their own id. A guest is the list of references the
+ * cookie on their browser proves this server handed them — never a reference
+ * they typed, and never the one in the URL on its own.
+ */
+export type OrderOwner = { userId: string } | { guestRefs: string[] };
+
+/**
+ * One order the viewer can prove is theirs, with everything the tracking page
+ * shows.
+ *
+ * Both branches put the authorisation in the `where`, which is the property the
+ * note at the top of this file exists to protect. The guest branch asks for
+ * "this reference, if it is one of the ones I was given": a reference the cookie
+ * does not name reduces the `in` list to empty and Postgres returns nothing, so
+ * a stranger's order is never read, let alone read and then hidden.
  *
  * The catalogue comes along because the page reads the delivery window and the
  * bakery's own contact details off it — the same snapshot the builder and the
  * kitchen price against, so a customer is never told a window the bakery has
  * since changed.
  */
-export async function getOrder(userId: string, ref: string) {
+export async function getOrder(owner: OrderOwner, ref: string) {
+  const where: Prisma.OrderWhereInput =
+    "userId" in owner
+      ? { ref, userId: owner.userId }
+      : { ref: { in: owner.guestRefs.filter((r) => r === ref) } };
+
   const [order, catalog] = await Promise.all([
     db.order.findFirst({
-      where: { ref, userId },
+      where,
       include: {
         items: { orderBy: { position: "asc" } },
+        cakes: { orderBy: { position: "asc" } },
         /*
          * Oldest first, which is the order a history reads in. No actor: which
          * member of staff moved a docket is the bakery's business, and the
@@ -164,5 +225,10 @@ export async function getOrder(userId: string, ref: string) {
 
   // A stored config that no longer validates is a real state, not a crash: the
   // status, the money and the delivery all live in columns and survive it.
-  return { order, catalog, config: migrateConfig(order.config) };
+  return {
+    order,
+    catalog,
+    config: migrateConfig(order.config),
+    cakes: order.cakes.map((cake) => ({ ...cake, config: migrateConfig(cake.config) })),
+  };
 }

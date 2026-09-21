@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
-import { eyebrow } from "@/lib/ui";
+import { Notice, PageHeader } from "@/components/admin/ui";
 import {
   AddZone, MinOrderForm, SlotRow, ZoneRow,
   type SlotRowData, type ZoneRowData,
@@ -25,9 +25,7 @@ export const dynamic = "force-dynamic";
 export default async function DeliveryAdmin() {
   if (!hasDatabase()) {
     return (
-      <p className="border border-rule bg-paper px-4 py-3.5 text-body leading-snug text-steel">
-        {NO_DATABASE_MESSAGE}
-      </p>
+      <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>
     );
   }
 
@@ -46,6 +44,8 @@ export default async function DeliveryAdmin() {
     name: s.name,
     priceInputPaise: s.priceInputPaise,
     leadHours: s.leadHours ?? 0,
+    dailyCapacity: s.dailyCapacity,
+    cutoffHours: s.cutoffHours,
     slotWindow: s.slotWindow ?? "",
     slotNote: s.slotNote ?? "",
     isAvailable: s.isAvailable,
@@ -67,33 +67,27 @@ export default async function DeliveryAdmin() {
 
   return (
     <div className="flex flex-col gap-10">
-      <header className="flex flex-col gap-3">
-        <span className={eyebrow}>Delivery</span>
-        <h1 className="text-heading">Windows, and how far they reach</h1>
-        <p className="max-w-prose text-body leading-relaxed text-steel">
-          A lead time here is the promise the builder quotes and the clock the
-          board measures lateness against, so shortening one shortens what the
-          kitchen has agreed to. Orders already placed keep the lead time they
-          were quoted.
-        </p>
-      </header>
+      <PageHeader
+        title="Delivery"
+        blurb="Windows, and how far they reach. A lead time here is the promise the builder quotes and the clock the board measures lateness against, so shortening one shortens what the kitchen has agreed to. Orders already placed keep the lead time they were quoted."
+      />
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-item">Minimum order</h2>
+        <h2 className="text-a-item">Minimum order</h2>
         <MinOrderForm minOrderPaise={settings?.minOrderPaise ?? 0} />
       </section>
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-          <h2 className="text-item">Slots</h2>
-          <p className="font-mono text-micro text-steel">
+          <h2 className="text-a-item">Slots</h2>
+          <p className="font-a-mono text-a-meta text-a-muted">
             Turn a slot on or off on the{" "}
             <Link href="/admin/catalog#delivery" className="underline underline-offset-2">
               catalogue page
             </Link>
           </p>
         </div>
-        <ul className="border border-rule bg-paper">
+        <ul className="rounded-a border border-a-line bg-a-surface">
           {slots.map((s) => (
             <SlotRow key={s.id} slot={s} offeredIn={offeredIn(s.value)} />
           ))}
@@ -102,26 +96,26 @@ export default async function DeliveryAdmin() {
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-          <h2 className="text-item">Zones</h2>
-          <p className="font-mono text-micro text-steel">
+          <h2 className="text-a-item">Zones</h2>
+          <p className="font-a-mono text-a-meta text-a-muted">
             {zones.filter((z) => z.isActive).length} delivering · {zones.length} total
           </p>
         </div>
 
         {zones.length === 0 ? (
-          <p className="border border-rule bg-paper px-4 py-3.5 text-body leading-snug text-steel">
+          <p className="rounded-a border border-a-line bg-a-surface px-4 py-3.5 text-a-body leading-snug text-a-muted">
             No zones. With none set up the site falls back to the map it shipped
             with rather than refusing every pincode — add one below to take over.
           </p>
         ) : (
-          <ul className="border border-rule bg-paper">
+          <ul className="rounded-a border border-a-line bg-a-surface">
             {zones.map((z) => (
               <ZoneRow key={z.id} zone={z} slots={slots} />
             ))}
           </ul>
         )}
 
-        <p className="max-w-prose font-sans text-meta leading-relaxed text-steel">
+        <p className="max-w-prose font-a-sans text-a-small leading-relaxed text-a-muted">
           A pincode in no zone is refused at the builder, before anybody spends
           ten minutes designing a cake we cannot get to them. Ranges are
           inclusive and are checked in the order shown.
@@ -129,7 +123,7 @@ export default async function DeliveryAdmin() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-item">Add a zone</h2>
+        <h2 className="text-a-item">Add a zone</h2>
         <AddZone slots={slots} />
       </section>
     </div>

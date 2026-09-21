@@ -7,6 +7,7 @@ import {
   DEFAULT_ZONES, snapshotFrom,
 } from "../lib/catalogDefaults";
 import { PRESETS } from "../lib/presets";
+import { seedCakes } from "./seedCakes";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -104,6 +105,8 @@ async function main() {
         leadHours: r.leadHours ?? null,
         slotWindow: r.slotWindow ?? null,
         slotNote: r.slotNote ?? null,
+        dailyCapacity: r.dailyCapacity ?? null,
+        cutoffHours: r.cutoffHours ?? null,
         isAvailable: r.isAvailable,
         sortOrder: r.sortOrder,
       },
@@ -125,7 +128,7 @@ async function main() {
   let filled = 0;
   for (const r of DEFAULT_ROWS) {
     if (r.category !== "delivery") continue;
-    const { count } = await db.catalogOption.updateMany({
+    const lead = await db.catalogOption.updateMany({
       where: { category: "delivery", value: r.value, leadHours: null },
       data: {
         leadHours: r.leadHours ?? null,
@@ -133,7 +136,15 @@ async function main() {
         slotNote: r.slotNote ?? null,
       },
     });
-    filled += count;
+    const capacity = await db.catalogOption.updateMany({
+      where: { category: "delivery", value: r.value, dailyCapacity: null },
+      data: { dailyCapacity: r.dailyCapacity ?? null },
+    });
+    const cutoff = await db.catalogOption.updateMany({
+      where: { category: "delivery", value: r.value, cutoffHours: null },
+      data: { cutoffHours: r.cutoffHours ?? null },
+    });
+    filled += lead.count + capacity.count + cutoff.count;
   }
 
   /*
@@ -194,12 +205,27 @@ async function main() {
     });
   }
 
+  /*
+   * The sellable cakes, from the same presets, priced against the catalogue
+   * just assembled above.
+   *
+   * After the Design rows, deliberately: it reads the catalogue snapshot this
+   * function already built, so there is one read and one set of prices behind
+   * both. Create-if-missing, so running the seed again changes nothing an owner
+   * has edited — see prisma/seedCakes.
+   */
+  const cakes = await seedCakes(db, catalog);
+
   console.log(
     `Catalogue: ${DEFAULT_ROWS.length} options checked, ${written} created, `
     + `${DEFAULT_ROWS.length - written} already present and left untouched, `
     + `${filled} delivery rows backfilled.`,
   );
   console.log(`Seeded ${PRESETS.length} presets.`);
+  console.log(
+    `Cakes: ${cakes.created.length} created, `
+    + `${cakes.skipped.length} already present and left untouched.`,
+  );
 }
 
 main()

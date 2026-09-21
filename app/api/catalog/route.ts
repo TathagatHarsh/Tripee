@@ -1,4 +1,4 @@
-import { getCatalogSnapshot } from "@/lib/catalogData";
+import { CATALOG_UNAVAILABLE_MESSAGE, tryCatalogSnapshot } from "@/lib/catalogData";
 
 /**
  * The catalogue, for the browser.
@@ -18,5 +18,12 @@ import { getCatalogSnapshot } from "@/lib/catalogData";
  * dumber cache in front of a correct one.
  */
 export async function GET() {
-  return Response.json(await getCatalogSnapshot());
+  const catalog = await tryCatalogSnapshot();
+  if (!catalog) {
+    return Response.json(
+      { error: CATALOG_UNAVAILABLE_MESSAGE, code: "catalog_unavailable" },
+      { status: 503 },
+    );
+  }
+  return Response.json(catalog);
 }

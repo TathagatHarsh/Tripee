@@ -14,7 +14,17 @@
 /coverage
 
 # next.js
-/.next/
+#
+# The glob rather than `/.next/`, because `.next` is not the only build
+# directory this project produces: a QA server runs with `distDir: .next-qa`,
+# and 305 MB of its Turbopack cache was being tracked by git. Anything a
+# `distDir` points at is output — regenerable, machine-specific, and never
+# something to commit.
+#
+# It also keeps build output away from tools that walk the project, Tailwind v4's
+# class-name scan among them: that scan skips what git ignores, so an
+# unignored build directory is one it reads.
+/.next*/
 /out/
 
 # production

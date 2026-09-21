@@ -40,7 +40,7 @@ export function OrderProgress({ steps }: { steps: ProgressStep[] }) {
     <div className="flex flex-col gap-3">
       {/* aria-hidden: the same fact is in the heading above and in the marks
           below, and a third reading of it is noise. */}
-      <p aria-hidden="true" className="font-mono text-micro tracking-[0.14em] text-steel uppercase sm:hidden">
+      <p aria-hidden="true" className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase sm:hidden">
         Step {position} of {total}
       </p>
 
@@ -60,10 +60,10 @@ export function OrderProgress({ steps }: { steps: ProgressStep[] }) {
               <span
                 className={[
                   "sr-only text-center sm:not-sr-only sm:block",
-                  "font-mono text-micro leading-[1.35] tracking-[0.06em] uppercase",
+                  "font-mono text-[0.6875rem] leading-[1.35] tracking-[0.06em] uppercase",
                   step.state === "current"
-                    ? cancelled ? "text-seal" : "text-carbon"
-                    : step.state === "done" ? "text-ink" : "text-steel",
+                    ? cancelled ? "text-s-stop" : "text-s-live"
+                    : step.state === "done" ? "text-s-cocoa" : "text-s-bark",
                 ].join(" ")}
               >
                 {step.label}
@@ -74,7 +74,7 @@ export function OrderProgress({ steps }: { steps: ProgressStep[] }) {
               {step.at && (
                 <time
                   dateTime={step.at.toISOString()}
-                  className="hidden text-center font-mono text-micro tabular-nums text-steel sm:block"
+                  className="hidden text-center font-mono text-[0.6875rem] tabular-nums text-s-bark sm:block"
                 >
                   {formatIST(step.at)}
                 </time>
@@ -87,14 +87,16 @@ export function OrderProgress({ steps }: { steps: ProgressStep[] }) {
   );
 }
 
-/** Half the road between two marks. Ink once it has been travelled. */
+/** Half the road between two marks. Green once it has been travelled. */
 function Rail({ on, hidden }: { on: boolean; hidden: boolean }) {
   return (
     <span
       aria-hidden="true"
       className={[
-        "h-px flex-1",
-        hidden ? "bg-transparent" : on ? "bg-ink" : "bg-rule",
+        /* 2px rather than a hairline: this is the one line on the page that a
+           customer reads as progress, and a 1px rule on cream disappears. */
+        "h-0.5 flex-1 rounded-full",
+        hidden ? "bg-transparent" : on ? "bg-s-done" : "bg-s-line",
       ].join(" ")}
     />
   );

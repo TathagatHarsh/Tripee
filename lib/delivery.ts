@@ -39,6 +39,7 @@ export interface ResolvedSlot extends DeliverySlotInfo {
   /** Lead time including the zone's rider surcharge. */
   effectiveLeadHours: number;
   zoneName: string | null;
+  zoneId: string | null;
   unavailableReason: string | null;
 }
 
@@ -48,17 +49,43 @@ export function resolveSlot(
   catalog: CatalogSnapshot,
 ): ResolvedSlot {
   const base = catalog.slots[slot];
-  const zone = zoneForPincode(pincode, catalog);
-
-  if (!zone) {
+  if (slot === "pickup") {
     return {
       ...base,
       available: true,
       effectiveLeadHours: base.leadHours,
       zoneName: null,
-      // No pincode yet is not a refusal — it is a question nobody has answered.
-      // A pincode we do not recognise is a refusal, and says so.
-      unavailableReason: pincode ? "We don't deliver to that pincode yet." : null,
+      zoneId: null,
+      unavailableReason: null,
+    };
+  }
+
+  const zone = zoneForPincode(pincode, catalog);
+
+  if (!zone) {
+    /*
+     * No pincode yet is not a refusal — it is a question nobody has answered,
+     * so the slot stays available and nothing is said. A pincode outside every
+     * zone *is* a refusal.
+     *
+     * `available` used to be an unconditional `true` here, sitting beside an
+     * `unavailableReason` naming the refusal: a slot reporting itself available
+     * and unavailable at once. Every caller reads the flag and prints the
+     * reason, so the shop showed "we don't deliver to that pincode yet" over an
+     * enabled Add to cart, and app/api/orders' `if (!slot.available)` guard —
+     * added expressly to stop that order being taken — could never fire. The
+     * flag now agrees with the sentence underneath it.
+     */
+    return {
+      ...base,
+      available: false,
+      effectiveLeadHours: base.leadHours,
+      zoneName: null,
+      zoneId: null,
+      unavailableReason:
+        pincode && /^\d{6}$/.test(pincode)
+          ? "We don't deliver to that pincode yet."
+          : "Enter a six-digit delivery pincode.",
     };
   }
 
@@ -68,8 +95,9 @@ export function resolveSlot(
     available,
     // Pickup is collected from the counter, so no rider crosses the city for it
     // and the zone's travel time does not apply.
-    effectiveLeadHours: base.leadHours + (slot === "pickup" ? 0 : zone.extraHours),
+    effectiveLeadHours: base.leadHours + zone.extraHours,
     zoneName: zone.name,
+    zoneId: zone.id,
     unavailableReason: available
       ? null
       : `${base.name} isn't available in ${zone.name} — the rider can't make the window.`,

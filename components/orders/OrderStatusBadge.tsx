@@ -8,19 +8,22 @@ import { customerStatus, PHASE, type OrderPhase, type ProgressStep } from "@/lib
  *
  * Each state carries a glyph as well as a tone — ✓ done, ● here now, ○ not yet,
  * × stopped — so the badge survives being printed, being read by somebody who
- * cannot separate the stamp red from the graphite, and being screenshotted into
- * a WhatsApp thread. The glyph is `aria-hidden`; the label is the text.
+ * cannot separate the berry from the caramel, and being screenshotted into a
+ * WhatsApp thread. The glyph is `aria-hidden`; the label is the text.
  *
- * The tones are the three the design system already has: carbon for the live
- * state, because it is the one colour in this product that means "attention
- * here"; steel on paper for something finished; stamp red for a cancellation,
- * which is the only place that colour is ever used.
+ * ## The three tones
+ *
+ * Caramel for work in progress, green for arrived, deep berry for stopped — see
+ * the note on `--color-s-live` in globals.css for why the storefront's own berry
+ * could not do all three jobs, and for the measured contrast of each pair. A
+ * pill on a wash rather than an outline on paper, because this now sits on white
+ * cards in a warm shop rather than on a ruled carbon copy.
  */
 
 const TONE: Record<OrderPhase, string> = {
-  active: "border-carbon text-carbon",
-  delivered: "border-rule-strong text-graphite",
-  cancelled: "border-seal text-seal",
+  active: "bg-s-live-wash text-s-live",
+  delivered: "bg-s-done-wash text-s-done",
+  cancelled: "bg-s-stop-wash text-s-stop",
 };
 
 const GLYPH: Record<OrderPhase, string> = {
@@ -43,8 +46,8 @@ export function OrderStatusBadge({
   return (
     <span
       className={[
-        "inline-flex shrink-0 items-center gap-1.5 border bg-paper px-2 py-1",
-        "font-mono text-micro tracking-[0.08em] uppercase",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1",
+        "font-mono text-[0.6875rem] tracking-[0.08em] uppercase",
         TONE[phase],
         className,
       ].join(" ")}
@@ -63,26 +66,30 @@ export function OrderStatusBadge({
  * `state` rather than `status`: a node's appearance is about how far the order
  * has got past it, not about which state it names — "delivered" is a tick on a
  * delivered order and an empty circle on one still in the kitchen.
+ *
+ * Round, where these used to be squares. The tracker is the one place on this
+ * page where the eye follows a line of marks, and a circle on a rail is the
+ * shape everybody has already learned to read as a step.
  */
 const STEP: Record<ProgressStep["state"], { glyph: string; tone: string; said: string }> = {
-  done: { glyph: "✓", tone: "border-ink bg-ink text-paper", said: "Done" },
-  current: { glyph: "●", tone: "border-carbon bg-carbon text-paper", said: "Happening now" },
-  upcoming: { glyph: "○", tone: "border-rule bg-paper text-steel", said: "Still to come" },
-  stopped: { glyph: "×", tone: "border-rule bg-slab text-steel", said: "Not reached" },
+  done: { glyph: "✓", tone: "border-s-done bg-s-done text-white", said: "Done" },
+  current: { glyph: "●", tone: "border-s-live bg-s-live text-white", said: "Happening now" },
+  upcoming: { glyph: "○", tone: "border-s-line-strong bg-s-shell text-s-bark", said: "Still to come" },
+  stopped: { glyph: "×", tone: "border-s-line bg-s-cream-deep text-s-bark", said: "Not reached" },
 };
 
 /**
  * A cancellation is not one of the four states, it is a fifth mark.
  *
  * `buildProgress` appends the cancelled step as `current`, which is true of the
- * order — it is where it stopped — and would draw it in carbon, the colour that
- * everywhere else in this product means "in progress". The stamp is the only
+ * order — it is where it stopped — and would draw it in caramel, the colour that
+ * everywhere else on this page means "being worked on". Deep berry is the only
  * honest tone for it, and the label beside it already says the word, so this
  * mark says nothing of its own to a screen reader.
  */
 export function StepGlyph({
   state,
-  size = 24,
+  size = 26,
   seal = false,
 }: {
   state: ProgressStep["state"];
@@ -90,20 +97,20 @@ export function StepGlyph({
   seal?: boolean;
 }) {
   const s = seal
-    ? { glyph: "×", tone: "border-seal bg-seal text-paper", said: "" }
+    ? { glyph: "×", tone: "border-s-stop bg-s-stop text-white", said: "" }
     : STEP[state];
 
   return (
     <span
       style={{ width: size, height: size }}
       className={[
-        "inline-flex shrink-0 items-center justify-center border font-mono",
-        size >= 24 ? "text-micro" : "text-[0.625rem]",
+        "inline-flex shrink-0 items-center justify-center rounded-full border font-mono",
+        size >= 24 ? "text-[0.75rem]" : "text-[0.625rem]",
         s.tone,
       ].join(" ")}
     >
       <span aria-hidden="true">{s.glyph}</span>
-      {/* The state in words, for a reader that cannot see a filled square. */}
+      {/* The state in words, for a reader that cannot see a filled circle. */}
       {s.said && <span className="sr-only">{s.said}</span>}
     </span>
   );

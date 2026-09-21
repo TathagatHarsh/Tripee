@@ -42,8 +42,8 @@ export function DeliveryInfo({
 
   return (
     <dl className="grid gap-x-8 gap-y-0 sm:grid-cols-2">
-      <Row k={pickup ? "Collected by" : "Delivering to"} v={order.customerName ?? "—"} />
-      <Row k="On this number" v={order.customerPhone ?? "—"} mono />
+      <Row k={pickup ? "Collected by" : "Delivering to"} v={order.customerName ?? "Not given"} />
+      <Row k="On this number" v={order.customerPhone ?? "Not given"} mono />
       <Row
         k={pickup ? "Collection" : "Area"}
         v={
@@ -88,13 +88,13 @@ function Row({
   emphasis?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 border-b border-rule py-2.5 last:border-0 sm:[&:nth-last-child(2)]:border-0">
-      <dt className="font-mono text-micro tracking-[0.13em] text-steel uppercase">{k}</dt>
+    <div className="flex flex-col gap-0.5 border-b border-s-line py-2.5 last:border-0 sm:[&:nth-last-child(2)]:border-0">
+      <dt className="font-mono text-[0.6875rem] tracking-[0.13em] text-s-bark uppercase">{k}</dt>
       <dd
         className={[
-          "leading-snug text-body",
-          mono ? "font-mono tabular-nums" : "font-sans",
-          emphasis ? "text-carbon" : "text-ink",
+          "text-[0.9375rem] leading-snug",
+          mono ? "font-mono tabular-nums" : "",
+          emphasis ? "font-medium text-s-live" : "text-s-cocoa",
         ].join(" ")}
       >
         {v}

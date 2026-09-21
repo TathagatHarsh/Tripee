@@ -39,6 +39,8 @@ export interface CatalogEntry {
   slotWindow?: string;
   /** Delivery rows only — the cutoff or caveat under the window. */
   slotNote?: string;
+  dailyCapacity?: number;
+  cutoffHours?: number;
   isAvailable: boolean;
   sortOrder: number;
 }
@@ -92,6 +94,8 @@ export interface DeliverySlotInfo {
   leadHours: number;
   window: string;
   note: string;
+  dailyCapacity: number;
+  cutoffHours: number;
 }
 
 /** A pincode range, and what the distance costs in rider time. */
@@ -198,6 +202,8 @@ export function buildSnapshot(
       leadHours: d.leadHours ?? 0,
       window: d.slotWindow ?? "",
       note: d.slotNote ?? "",
+      dailyCapacity: d.dailyCapacity ?? 0,
+      cutoffHours: d.cutoffHours ?? d.leadHours ?? 0,
     };
   }
 

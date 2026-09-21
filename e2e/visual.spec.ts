@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { BUILDER_ENABLED, BUILDER_HELD } from "./flags";
 
 /**
  * Pixel baselines for the render.
@@ -45,12 +46,14 @@ test.describe("render baselines", () => {
   });
 
   test("the builder, with the docket", async ({ page }) => {
+    test.skip(!BUILDER_ENABLED, BUILDER_HELD);
     await page.goto("/build/frosting");
     await settle(page);
     await expect(page).toHaveScreenshot("builder.png", { maxDiffPixelRatio: 0.02 });
   });
 
   test("the plaque hovers while the message is being typed", async ({ page }) => {
+    test.skip(!BUILDER_ENABLED, BUILDER_HELD);
     await page.goto("/build/message");
     await page.waitForSelector("canvas");
     await page.getByPlaceholder("Happy Birthday Amma").fill("Happy Birthday Amma");
@@ -59,6 +62,7 @@ test.describe("render baselines", () => {
   });
 
   test("the plaque settles onto the cake when it is done", async ({ page }) => {
+    test.skip(!BUILDER_ENABLED, BUILDER_HELD);
     await page.goto("/build/message");
     await page.waitForSelector("canvas");
     await page.getByPlaceholder("Happy Birthday Amma").fill("Happy Birthday Amma");
@@ -67,10 +71,20 @@ test.describe("render baselines", () => {
     await expect(page).toHaveScreenshot("message-placed.png", { maxDiffPixelRatio: 0.02 });
   });
 
-  test("the landing hero", async ({ page }) => {
+  /*
+   * The shop front. It no longer has a canvas on it — the hero is a photograph
+   * of a cake rather than a live render — so `settle()`, which waits for one,
+   * would hang here. What it waits for instead is the hero image having decoded,
+   * which is the only thing on this page that arrives late.
+   */
+  test("the shop front", async ({ page }) => {
     await page.goto("/");
-    await settle(page);
-    await expect(page).toHaveScreenshot("landing.png", { maxDiffPixelRatio: 0.02 });
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1000);
+    await expect(page).toHaveScreenshot("shopfront.png", {
+      fullPage: true,
+      maxDiffPixelRatio: 0.02,
+    });
   });
 });
 
@@ -86,6 +100,7 @@ test.describe("render baselines below lg", () => {
   test.use({ viewport: { width: 430, height: 900 } });
 
   test("the builder on a phone", async ({ page }) => {
+    test.skip(!BUILDER_ENABLED, BUILDER_HELD);
     await page.goto("/build/frosting");
     await settle(page);
     await expect(page).toHaveScreenshot("builder-phone.png", { maxDiffPixelRatio: 0.02 });

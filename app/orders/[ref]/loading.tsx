@@ -1,4 +1,5 @@
 import { OrderDetailSkeleton } from "@/components/orders/OrderSkeleton";
+import { BakingStatus } from "@/components/shop/BakingMark";
 
 /**
  * The tracking page, before it arrives.
@@ -9,9 +10,9 @@ import { OrderDetailSkeleton } from "@/components/orders/OrderSkeleton";
  */
 export default function LoadingOrder() {
   return (
-    <div aria-busy="true" aria-live="polite" className="flex flex-col gap-4">
-      <span className="sr-only">Loading this order</span>
-      <span aria-hidden="true" className="block h-11 w-40 animate-pulse bg-counter" />
+    <div aria-busy="true" aria-live="polite" className="relative flex flex-col gap-4">
+      <BakingStatus label="Finding your order…" />
+      <span aria-hidden="true" className="block h-11 w-40 animate-pulse rounded-s-sm bg-s-cream-deep" />
       <OrderDetailSkeleton />
     </div>
   );

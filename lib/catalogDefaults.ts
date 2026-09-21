@@ -169,32 +169,42 @@ export const DEFAULT_SETTINGS: PricingSettingsSnapshot = {
  */
 const DEFAULT_SLOT_INFO: Record<
   DeliverySlot,
-  { leadHours: number; window: string; note: string }
+  { leadHours: number; window: string; note: string; dailyCapacity: number; cutoffHours: number }
 > = {
   standard: {
     leadHours: 48,
     window: "10:00–20:00, day after tomorrow",
     note: "Baked fresh the morning of delivery.",
+    dailyCapacity: 20,
+    cutoffHours: 48,
   },
   "same-day": {
     leadHours: 12,
     window: "Order before 11:00, arrives 18:00–21:00",
     note: "Limited to designs we can decorate in a single shift.",
+    dailyCapacity: 6,
+    cutoffHours: 12,
   },
   "express-4hr": {
     leadHours: 4,
     window: "Within 4 hours of confirmation",
     note: "Dedicated rider. Available 09:00–19:00.",
+    dailyCapacity: 3,
+    cutoffHours: 4,
   },
   midnight: {
     leadHours: 24,
     window: "23:30–00:30",
     note: "Rider calls on arrival. Order by 18:00 the previous day.",
+    dailyCapacity: 4,
+    cutoffHours: 24,
   },
   pickup: {
     leadHours: 24,
     window: "Collect 10:00–21:00",
     note: "Jubilee Hills counter. Bring the order reference.",
+    dailyCapacity: 25,
+    cutoffHours: 24,
   },
 };
 
@@ -295,7 +305,14 @@ export const DEFAULT_ROWS: CatalogRow[] = [
   // picks and the promise attached to it are the same row, read two ways.
   ...toRows("delivery", DELIVERY_OPTIONS, (v) => DELIVERY_FEE[v]).map((r) => {
     const info = DEFAULT_SLOT_INFO[r.value as DeliverySlot];
-    return { ...r, leadHours: info.leadHours, slotWindow: info.window, slotNote: info.note };
+    return {
+      ...r,
+      leadHours: info.leadHours,
+      slotWindow: info.window,
+      slotNote: info.note,
+      dailyCapacity: info.dailyCapacity,
+      cutoffHours: info.cutoffHours,
+    };
   }),
 ];
 

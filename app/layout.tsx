@@ -1,6 +1,6 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
-import { Geist_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
+import { Geist_Mono, Instrument_Sans, Instrument_Serif, Inter } from "next/font/google";
 import { CatalogSync } from "@/components/CatalogSync";
 import "./globals.css";
 
@@ -65,20 +65,72 @@ const instrumentSerif = Instrument_Serif({
   style: ["normal", "italic"],
 });
 
+/*
+ * The back office's face, and the one exception to §1.1's "two faces, no third".
+ *
+ * §1.1 governs the product a customer sees, and its argument is about voice: a
+ * cake shop that speaks in duplicate stationery. The admin portal is not that
+ * product — it is the tool the shop is run with — and the brief for it asks for
+ * a modern operations panel, which is a different job with different failure
+ * modes. Mono at 13px across a twelve-column orders table is measurably slower
+ * to scan, and the storefront's ban on bold removes the one device a dense
+ * table has for telling a heading from a cell.
+ *
+ * So Inter, loaded once here and reachable only through `--font-a-sans` and the
+ * `font-a-sans` utility it generates. Nothing under /build, /presets or /d can
+ * pick it up by accident, because no call site there names an `a-` token.
+ *
+ * Four weights, unlike the 400/500 above: 600 is what a table header and a stat
+ * card's figure need, and 700 is the page title. Loading them is the point of
+ * choosing a face that has them.
+ */
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
+
+/*
+ * The default title and description for anything that does not set its own.
+ *
+ * Rewritten for the storefront: this used to sell the 3D builder ("build your
+ * cake and watch it appear"), which is the feature Phase 1 holds back. Leaving
+ * it would have meant every shared link and every search result describing the
+ * one thing a customer currently cannot do.
+ */
+/**
+ * The origin relative image URLs in metadata resolve against.
+ *
+ * Without it Next warns on every build and silently stamps `localhost:3000`
+ * into the Open Graph tags — so a link to a cake shared in WhatsApp comes with
+ * a preview image nobody but the developer can load. The production URL comes
+ * from the platform when it is there, and from an explicit variable when the
+ * deployment is somewhere else.
+ */
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "http://localhost:3000");
+
 export const metadata: Metadata = {
-  title: "Makemycake — build your cake and watch it appear",
+  metadataBase: new URL(SITE_URL),
+  title: "Makemycake · cakes baked to order in Hyderabad",
   description:
-    "Design a cake in 3D, see the price itemised as you build, and get an order docket a real bakery can work from. Hyderabad.",
+    "Eggless cakes baked to order in Jubilee Hills and delivered across Hyderabad. Itemised pricing, and no payment until we have confirmed your order by phone.",
   openGraph: {
     title: "Makemycake",
-    description: "Build your own cake in 3D. Itemised pricing, no surprises.",
+    description: "Cakes baked to order in Jubilee Hills, Hyderabad.",
     type: "website",
   },
 };
 
 export const viewport: Viewport = {
-  /* §1.2 --paper, the top copy. Was #E9E7E2, which was the old --color-slab. */
-  themeColor: "#E8E7E1",
+  /* The storefront's cream (--color-s-cream), which is what a phone's browser
+     chrome sits above on every customer page now. Was #E8E7E1, the builder's
+     cool paper, which is still the ground under /build and the order pages. */
+  themeColor: "#FBF6EF",
   /* This product is light-only on purpose, so it has to say so. Renders
      <meta name="color-scheme" content="only light">, which keeps the builder's
      scrollbar and Chrome's autofill highlight on paper when the OS asks for
@@ -112,7 +164,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en-IN"
-      className={`${geistMono.variable} ${instrumentSans.variable} ${instrumentSerif.variable}`}
+      className={`${geistMono.variable} ${instrumentSans.variable} ${instrumentSerif.variable} ${inter.variable}`}
     >
       {/* bg-slab was chipboard, which is the desk. The page itself is the top
           copy — §1.2 --paper. The desk only shows where a sheet is lying on it. */}

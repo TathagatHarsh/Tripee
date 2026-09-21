@@ -1,4 +1,17 @@
 import { expect, test } from "@playwright/test";
+import { BUILDER_ENABLED, BUILDER_HELD } from "./flags";
+
+/*
+ * Every test in this file drives the nine-step 3D builder, which Phase 1 of
+ * the storefront redesign holds back — see lib/flags.ts and e2e/flags.ts. The
+ * builder itself is untouched and complete, so these are skipped rather than
+ * rewritten or removed: flipping NEXT_PUBLIC_BUILDER_ENABLED back on brings
+ * the feature and its coverage back together.
+ *
+ * The journey a customer actually takes today — home, shop, cake, cart,
+ * checkout, order reference — is e2e/shop.spec.ts, which runs unconditionally.
+ */
+test.skip(!BUILDER_ENABLED, BUILDER_HELD);
 
 /**
  * One happy path, end to end: a stranger arrives, builds a cake they imagined,

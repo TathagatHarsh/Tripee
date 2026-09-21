@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { UserRole } from "@prisma/client";
-import { allows, GUARDED, requirementFor, ROLE_RANK, safeNext, verdictFor } from "@/lib/roles";
+import {
+  allows, GUARDED, homeFor, requirementFor, ROLE_RANK, safeNext, verdictFor,
+} from "@/lib/roles";
 
 /**
  * The whole authorisation matrix, settled without a database, a session or a
@@ -20,7 +22,7 @@ describe("role ranking", () => {
   it("names every role the schema has, and no others", () => {
     // Adding a role to the Prisma enum without ranking it here would make
     // `allows` refuse it silently — which fails closed, but fails.
-    expect(ROLES.sort()).toEqual(["ADMIN", "CUSTOMER", "KITCHEN"]);
+    expect(ROLES.sort()).toEqual(["ADMIN", "CUSTOMER", "KITCHEN", "VENDOR"]);
   });
 
   it("puts the owner above the baker above the customer", () => {
@@ -33,6 +35,59 @@ describe("role ranking", () => {
   });
 });
 
+/**
+ * The one role that is not a rank.
+ *
+ * lib/roles' ROLE_RANK puts VENDOR at the customer's rung, which is about which
+ * refusal page it can be sent to and nothing else; `allows` is what stops that
+ * rung meaning anything more. These are the assertions that hold that line — if
+ * somebody ever deletes the `need === "VENDOR"` clause, the rank alone would let
+ * a baker and an owner into a partner bakery's orders, and this is where that is
+ * caught.
+ */
+describe("who gets into a partner bakery's portal", () => {
+  const EXPECTED: [UserRole | null, boolean][] = [
+    [null, false],
+    ["CUSTOMER", false],
+    ["KITCHEN", false],
+    // Emphatically. An owner has no bakery — `vendorId` is null on every row
+    // that is not a vendor — so admitting them would render a screen scoped to
+    // nothing.
+    ["ADMIN", false],
+    ["VENDOR", true],
+  ];
+
+  for (const [role, expected] of EXPECTED) {
+    it(`${role ?? "a guest"} is ${expected ? "allowed" : "denied"}`, () => {
+      expect(allows(role, "VENDOR")).toBe(expected);
+    });
+  }
+
+  it("does not let a vendor into the other two portals", () => {
+    expect(allows("VENDOR", "ADMIN")).toBe(false);
+    expect(allows("VENDOR", "KITCHEN")).toBe(false);
+  });
+
+  it("does let a vendor reach their own account page", () => {
+    /*
+     * Load-bearing rather than a nicety. `requireRole` sends a denied request to
+     * /account, which is itself guarded at CUSTOMER — a VENDOR that failed this
+     * would be refused from the page it was refused to, about twice a second.
+     * The same property the `denied` note in lib/roles relies on.
+     */
+    expect(allows("VENDOR", "CUSTOMER")).toBe(true);
+  });
+
+  it("sends every rank this build can name somewhere it can actually land", () => {
+    // The general form of the case above, so a fifth role cannot reintroduce the
+    // redirect loop: /account is where `denied` goes, so every nameable role has
+    // to clear it.
+    for (const role of ROLES) {
+      expect(verdictFor(true, role, "CUSTOMER"), role).not.toBe("denied");
+    }
+  });
+});
+
 describe("who gets into the admin portal", () => {
   // §14 of the brief, as a table: guest denied, customer denied, kitchen
   // denied, admin allowed.
@@ -40,6 +95,7 @@ describe("who gets into the admin portal", () => {
     [null, false],
     ["CUSTOMER", false],
     ["KITCHEN", false],
+    ["VENDOR", false],
     ["ADMIN", true],
   ];
 
@@ -55,6 +111,9 @@ describe("who gets into the kitchen board", () => {
   const EXPECTED: [UserRole | null, boolean][] = [
     [null, false],
     ["CUSTOMER", false],
+    // A partner bakery is not a baker on this shop's payroll, and the kitchen
+    // board carries every customer's name and phone number.
+    ["VENDOR", false],
     ["KITCHEN", true],
     ["ADMIN", true],
   ];
@@ -86,9 +145,14 @@ describe("failing closed", () => {
   it("never lets a lower rank reach a higher one", () => {
     for (const held of ROLES) {
       for (const need of ROLES) {
-        expect(allows(held, need), `${held} -> ${need}`).toBe(
-          ROLE_RANK[held] >= ROLE_RANK[need],
-        );
+        /* VENDOR is off the ladder in one direction — see the suite above — so
+           the rank comparison describes every pair except the ones needing it.
+           Written as an exception rather than skipped, so that widening the
+           exception fails here. */
+        const expected = need === "VENDOR"
+          ? held === "VENDOR"
+          : ROLE_RANK[held] >= ROLE_RANK[need];
+        expect(allows(held, need), `${held} -> ${need}`).toBe(expected);
       }
     }
   });
@@ -99,12 +163,14 @@ describe("which paths are guarded", () => {
     expect(requirementFor("/admin")).toBe("ADMIN");
     expect(requirementFor("/kitchen")).toBe("KITCHEN");
     expect(requirementFor("/account")).toBe("CUSTOMER");
+    expect(requirementFor("/vendor")).toBe("VENDOR");
   });
 
   it("guards everything nested under them", () => {
     expect(requirementFor("/admin/catalog")).toBe("ADMIN");
     expect(requirementFor("/admin/orders/MC-4471")).toBe("ADMIN");
     expect(requirementFor("/kitchen/anything/at/all")).toBe("KITCHEN");
+    expect(requirementFor("/vendor/orders/MC-4471")).toBe("VENDOR");
   });
 
   it("leaves the customer's half of the product alone", () => {
@@ -252,4 +318,38 @@ describe("privilege escalation", () => {
     }
   });
 
+});
+
+describe("where a role belongs after signing in", () => {
+  it("sends each role to its own portal", () => {
+    expect(homeFor("ADMIN")).toBe("/admin");
+    expect(homeFor("KITCHEN")).toBe("/kitchen");
+    // The regression this function was written for: a partner bakery used to
+    // land on /account, the customer's order history, with none of their work
+    // on it. They can open that page — ROLE_RANK puts VENDOR on the customer's
+    // rung — which is exactly why the wrong destination was silent.
+    expect(homeFor("VENDOR")).toBe("/vendor");
+    expect(homeFor("CUSTOMER")).toBe("/account");
+  });
+
+  it("sends anything it cannot rank to the one page every rank can open", () => {
+    /*
+     * A role this build cannot name, or no row at all, must not be aimed at a
+     * door that will refuse it — that is the redirect loop `verdictFor`'s
+     * `unavailable` note describes. /account is the only one of the four that
+     * every rank clears, which is what makes it the safe fallback rather than
+     * merely the customer's.
+     */
+    expect(homeFor(null)).toBe("/account");
+    expect(homeFor(undefined)).toBe("/account");
+    expect(homeFor("SUPERUSER" as UserRole)).toBe("/account");
+  });
+
+  it("only ever names a route the guard table knows about", () => {
+    // A destination with no entry in GUARDED would be an unguarded page being
+    // treated as a portal, which is how a staff area quietly becomes public.
+    for (const role of EVERYONE) {
+      expect(requirementFor(homeFor(role)), String(role)).not.toBeNull();
+    }
+  });
 });

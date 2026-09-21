@@ -2,7 +2,7 @@ import "server-only";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import type { User } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { Prisma, type UserProfile, type UserRole } from "@prisma/client";
+import { Prisma, type UserProfile, type UserRole, type Vendor } from "@prisma/client";
 import { db, hasDatabase } from "@/lib/db";
 import { verdictFor } from "@/lib/roles";
 
@@ -231,7 +231,10 @@ export async function requireRole(need: UserRole): Promise<Viewer> {
 
 /** Where to come back to after signing in. */
 function areaFor(need: UserRole): string {
-  return need === "ADMIN" ? "/admin" : need === "KITCHEN" ? "/kitchen" : "/account";
+  return need === "ADMIN" ? "/admin"
+    : need === "KITCHEN" ? "/kitchen"
+    : need === "VENDOR" ? "/vendor"
+    : "/account";
 }
 
 /** /admin. Owner only. */
@@ -242,4 +245,58 @@ export function requireAdmin(): Promise<Viewer> {
 /** /kitchen. Bakers, and the owner — see lib/roles' ROLE_RANK. */
 export function requireKitchen(): Promise<Viewer> {
   return requireRole("KITCHEN");
+}
+
+/** A vendor user, and the bakery they are. */
+export interface VendorViewer extends Viewer {
+  vendor: Vendor;
+}
+
+/**
+ * /vendor. A partner bakery, and only their own.
+ *
+ * **Two conditions, not one, and this is the whole of Phase 2's access
+ * control.** A VENDOR role says "this person is a partner"; it does not say
+ * which partner, and every query on every vendor surface is scoped by the
+ * `vendor.id` this returns. So the guard is not finished until it has one:
+ * a request whose role is VENDOR but whose `vendorId` is null has no scope to
+ * query by, and the only safe reading of "a vendor with no bakery" is to refuse.
+ *
+ * That is also why the vendor is read **from the profile row and never from the
+ * request**. There is no argument to this function, nothing in the URL and
+ * nothing in a form body that can name a vendor — which is stronger than
+ * validating one, because there is no value to validate. Vendor A typing Vendor
+ * B's order reference into the address bar gets Vendor A's id in the WHERE
+ * clause exactly as before, and the row is not found.
+ *
+ * `requireRole("VENDOR")` does the first half and refuses by throwing a
+ * redirect, so it is the first statement and never inside a `try`. `allows`
+ * gives VENDOR to VENDOR alone — see lib/roles — so an owner or a baker is
+ * turned away there rather than here.
+ *
+ * ## The two ways a genuine vendor still gets refused
+ *
+ * Not linked to a bakery yet, and linked to one that has been deactivated. They
+ * are the same sentence to the person reading it — the office has to do
+ * something before this account works — so they share one refusal rather than
+ * splitting into two messages with one fix between them.
+ *
+ * A deactivated vendor is locked out rather than left read-only on purpose:
+ * `isActive` is how the shop stops sending a partner work, and a dashboard that
+ * still opened would keep showing orders they are no longer meant to be making.
+ */
+export async function requireVendor(): Promise<VendorViewer> {
+  const viewer = await requireRole("VENDOR");
+
+  /* Not caught. `requireRole` has already read this person's profile, so the
+     database answered a moment ago; a failure here is a real outage and a 500
+     is the honest answer to it. A guard that cannot read its rule must not
+     guess — lib/roles says the same thing about `unavailable`. */
+  const vendor = viewer.profile.vendorId
+    ? await db.vendor.findUnique({ where: { id: viewer.profile.vendorId } })
+    : null;
+
+  if (!vendor || !vendor.isActive) redirect("/account?denied=vendor");
+
+  return { ...viewer, vendor };
 }
