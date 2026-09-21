@@ -68,7 +68,7 @@ export default async function CakesPage({
   if (!hasDatabase()) {
     return (
       <div className="flex flex-col gap-5">
-        <PageHeader title="Cakes" blurb="The cakes the shop sells." />
+        <PageHeader title="The cake collection." blurb="The cakes the shop sells." />
         <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>
       </div>
     );
@@ -98,8 +98,8 @@ export default async function CakesPage({
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Cakes"
-        blurb="Everything the shop sells. Add a cake, change what it costs, swap its photograph — customers see it on the next page load."
+        title="The cake collection."
+        blurb="Your storefront starts here. Manage photographs, recipes, variants and availability."
       >
         <Link href="/admin/cakes/new" className={aBtn("primary", "md")}>
           <Icon name="plus" size={15} />

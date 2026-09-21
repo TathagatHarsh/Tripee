@@ -1,3 +1,4 @@
+import { allergensForVariant } from "@/lib/productionSpec";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -140,6 +141,7 @@ export default async function CakePage({
         ? "Contains egg"
         : null;
   if (eggLine) spec.push(["Baked as", eggLine]);
+  if (product.productionSpec) spec.push(["Ingredients", product.productionSpec.ingredients.join(", ")]);
 
   /* The servings line moved into the buy panel, where it can follow the size
      the shopper picks. A page-level "serves 12-15" would be a number for one of
@@ -170,7 +172,7 @@ export default async function CakePage({
             </ol>
           </nav>
 
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-14">
+          <div className="product-detail-grid grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-14">
             {/* ── The photograph ───────────────────────────────────────── */}
             <div className="flex flex-col gap-4">
               {/*
@@ -220,7 +222,9 @@ export default async function CakePage({
                   {/* Against the versions on sale, not against the stored
                       recipe — see `allergenLineForOffer`. A cake sold both ways
                       must not print "EGGLESS" above a picker offering egg. */}
-                  {c && (
+                  {product.productionSpec ? (
+                    <p className="mt-4 text-sm leading-relaxed text-s-bark">Allergens: {[...new Set(sellable(product).flatMap(v=>allergensForVariant(product.productionSpec!,v.eggType)))].join(", ") || "None declared"}. Prepared in a kitchen that handles allergens; contact the bakery before ordering for a food allergy.</p>
+                  ) : c && (
                     <p className="mt-4 text-[0.875rem] leading-relaxed text-s-bark">
                       {allergenLineForOffer(c, eggTypesOffered(product))}
                     </p>
@@ -231,7 +235,7 @@ export default async function CakePage({
 
             {/* ── The decision ─────────────────────────────────────────── */}
             <div className="lg:sticky lg:top-[84px] lg:self-start">
-              <h1 className="mb-2 text-[2rem] leading-[1.1] sm:text-[2.5rem]">{product.name}</h1>
+              <h1 className="mb-4 text-[2.5rem] leading-[1.08] sm:text-[3.25rem]">{product.name}</h1>
               <p className="mb-6 text-[1.0625rem] leading-relaxed text-s-bark">
                 {product.description}
               </p>

@@ -24,7 +24,7 @@ import { DEFAULT_CAKE, type CakeConfig } from "@/lib/schema";
  * each rather than a migration.
  */
 
-const cake = (patch: Partial<CakeConfig> = {}): CakeConfig => ({ ...DEFAULT_CAKE, ...patch });
+const cake = (patch: Partial<CakeConfig> = {}): CakeConfig => ({ ...DEFAULT_CAKE, pincode: "500081", ...patch });
 
 /** The shipped catalogue with some rows edited, as an admin would edit them. */
 function catalogWith(edit: (row: CatalogRow) => CatalogRow): CatalogSnapshot {
@@ -42,7 +42,7 @@ const reprice = (category: string, value: string, paise: number) =>
   );
 
 const one = (config: CakeConfig, qty = 1, quotedTotalPaise?: number) => [
-  { config, qty, ...(quotedTotalPaise === undefined ? {} : { quotedTotalPaise }) },
+  { config: { ...config, pincode: config.pincode ?? "500081" }, qty, ...(quotedTotalPaise === undefined ? {} : { quotedTotalPaise }) },
 ];
 
 /* -------------------------------------------------------- the request shape */
@@ -51,7 +51,9 @@ describe("the checkout request", () => {
   const base = {
     customerName: "Aryu",
     customerPhone: "9876543210",
-    items: [{ config: DEFAULT_CAKE, qty: 1 }],
+    items: [{ config: { ...DEFAULT_CAKE, pincode: "500081" }, qty: 1 }],
+    idempotencyKey: "00000000-0000-4000-8000-000000000001",
+    fulfillment: { method: "delivery", slot: "standard", recipientName: "Aryu", addressLine1: "12 Test Street", city: "Hyderabad", state: "Telangana", pincode: "500081", requestedDate: "2030-01-01", requestedWindow: "10:00–20:00" },
   };
 
   it("accepts a basket of one cake", () => {
@@ -136,6 +138,8 @@ describe("the checkout request", () => {
     expect(Object.keys(parsed.success ? parsed.data : {}).sort()).toEqual([
       "customerName",
       "customerPhone",
+      "fulfillment",
+      "idempotencyKey",
       "items",
     ]);
   });
@@ -143,6 +147,8 @@ describe("the checkout request", () => {
   it("reads the builder's one-cake body as a basket of one", () => {
     const parsed = CheckoutRequest.safeParse(
       asBasketBody({
+        fulfillment: base.fulfillment,
+        idempotencyKey: base.idempotencyKey,
         config: DEFAULT_CAKE,
         clientTotal: 160480,
         customerName: "Aryu",
@@ -212,7 +218,7 @@ describe("the server's price is the only price", () => {
     if (!review.ok) return;
 
     const server = priceCake(DEFAULT_CAKE, DEFAULT_SNAPSHOT);
-    expect(review.quotes[0].price.total).toBe(server.total);
+    expect(review.quotes[0].price.total).toBe(priceCake({...DEFAULT_CAKE, delivery:"pickup"}, DEFAULT_SNAPSHOT).total);
     expect(review.totalPaise).toBe(server.total);
     expect(review.subtotalPaise).toBe(server.subtotal);
     expect(review.gstPaise).toBe(server.gst);
@@ -221,12 +227,12 @@ describe("the server's price is the only price", () => {
   it("multiplies by the quantity the basket asked for", () => {
     const review = reviewBasket(one(DEFAULT_CAKE, 3), DEFAULT_SNAPSHOT);
     expect(review.ok && review.totalPaise).toBe(
-      priceCake(DEFAULT_CAKE, DEFAULT_SNAPSHOT).total * 3,
+      priceCake({...DEFAULT_CAKE,delivery:"pickup"}, DEFAULT_SNAPSHOT).total * 3 + Math.round(DEFAULT_SNAPSHOT.price.deliveryFee.standard * (1 + DEFAULT_SNAPSHOT.settings.gstRate)),
     );
   });
 
   it("ignores a quote that agrees, and refuses one that does not", () => {
-    const honest = priceCake(DEFAULT_CAKE, DEFAULT_SNAPSHOT).total;
+    const honest = priceCake({...DEFAULT_CAKE,delivery:"pickup"}, DEFAULT_SNAPSHOT).total;
 
     expect(reviewBasket(one(DEFAULT_CAKE, 1, honest), DEFAULT_SNAPSHOT).ok).toBe(true);
 
@@ -241,7 +247,7 @@ describe("the server's price is the only price", () => {
   });
 
   it("stops a basket the bakery repriced under, rather than charging the new number", () => {
-    const quoted = priceCake(DEFAULT_CAKE, DEFAULT_SNAPSHOT).total;
+    const quoted = priceCake({...DEFAULT_CAKE,delivery:"pickup"}, DEFAULT_SNAPSHOT).total;
 
     // The owner puts american buttercream up while the cart sits in a browser.
     // The customer is still looking at the old total.
@@ -388,10 +394,10 @@ describe("delivery", () => {
     expect(review.problem.code).toBe("delivery_unavailable");
   });
 
-  it("takes a cake with no pincode, because that is a question nobody answered", () => {
-    const noPincode = cake();
-    expect(noPincode.pincode).toBeUndefined();
-    expect(reviewBasket(one(noPincode, 1), DEFAULT_SNAPSHOT).ok).toBe(true);
+  it("refuses delivery without a pincode at checkout", () => {
+    const result = reviewBasket([{config: {...DEFAULT_CAKE, pincode: undefined}, qty:1}], DEFAULT_SNAPSHOT);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.problem.code).toBe("delivery_unavailable");
   });
 });
 
@@ -431,7 +437,7 @@ describe("rules and minimums", () => {
   it("names which cake in the basket was the problem", () => {
     const review = reviewBasket(
       [
-        { config: DEFAULT_CAKE, qty: 1 },
+        { config: cake(), qty: 1 },
         { config: cake({ coverage: "naked", hasDrip: true }), qty: 1 },
       ],
       DEFAULT_SNAPSHOT,

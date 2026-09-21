@@ -200,7 +200,7 @@ describe("priceProduct", () => {
     expect(after.total).toBe(before.total);
   });
 
-  it("adds the delivery fee for the slot the customer picked", () => {
+  it("leaves delivery out of per-cake pricing so it can be charged once per order", () => {
     const withFee = catalogWith((r) =>
       r.category === "delivery" && r.value === "express-4hr"
         ? { ...r, priceInputPaise: 25000 }
@@ -211,8 +211,8 @@ describe("priceProduct", () => {
       { delivery: "express-4hr" },
       withFee,
     );
-    expect(p.lines.some((l) => l.kind === "delivery" && l.amount === 25000)).toBe(true);
-    expect(p.subtotal).toBe(79900 + 25000);
+    expect(p.lines.some((l) => l.kind === "delivery")).toBe(false);
+    expect(p.subtotal).toBe(79900);
   });
 
   it("charges piping only when there is a message", () => {
@@ -387,7 +387,7 @@ describe("size", () => {
 const line = (patch: Partial<BasketItem> = {}): BasketItem => ({
   cakeSlug: "chocolate-truffle",
   variantId: "var_1",
-  choices: { delivery: "standard" },
+  choices: { delivery: "standard", pincode: "500081" },
   qty: 1,
   ...patch,
 });
@@ -589,7 +589,8 @@ describe("reviewBasket, for a cake from the shop", () => {
     const review = reviewBasket([line({ qty: 3 })], DEFAULT_SNAPSHOT, shelf(cake));
     expect(review.ok).toBe(true);
     if (!review.ok) return;
-    expect(review.totalPaise).toBe(each * 3);
+    expect(review.deliveryFeePaise).toBe(DEFAULT_SNAPSHOT.price.deliveryFee.standard);
+    expect(review.totalPaise).toBe(each * 3 + Math.round(DEFAULT_SNAPSHOT.price.deliveryFee.standard * (1 + DEFAULT_SNAPSHOT.settings.gstRate)));
   });
 
   it("prices two versions of one cake as two separate lines", () => {
@@ -614,7 +615,7 @@ describe("reviewBasket, for a cake from the shop", () => {
     /* A cake with a config and no slug is still priced from its parts, with no
        product frozen onto it. Nothing about the 3D builder changed. */
     const review = reviewBasket(
-      [{ config: DEFAULT_CAKE, qty: 1 }],
+      [{ config: {...DEFAULT_CAKE, pincode:"500081"}, qty: 1 }],
       DEFAULT_SNAPSHOT,
       shelf(product()),
     );

@@ -20,14 +20,33 @@ export const metadata: Metadata = {
  * condition of buying a cake.
  */
 export default async function CheckoutPage() {
-  const [catalog, cakes] = await Promise.all([getCatalogSnapshot(), listCakes()]);
+  const [catalog, cakes] = await Promise.all([
+    getCatalogSnapshot(),
+    listCakes(),
+  ]);
 
   return (
     <div className="s-root flex min-h-dvh flex-col bg-s-cream">
       <ShopHeader />
       <main id="main" className="flex-1">
         <div className="mx-auto max-w-[84rem] px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
-          <h1 className="mb-8 text-[2.25rem] sm:text-[2.75rem]">Checkout</h1>
+          <div className="checkout-heading">
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-[.15em] text-s-berry">
+                The finishing touches
+              </span>
+              <h1>Let’s make their day.</h1>
+            </div>
+            <ol className="checkout-steps" aria-label="Checkout progress">
+              <li>01 Basket</li>
+              <li aria-hidden>—</li>
+              <li>
+                <strong aria-current="step">02 Checkout</strong>
+              </li>
+              <li aria-hidden>—</li>
+              <li>03 Celebration</li>
+            </ol>
+          </div>
           <CheckoutForm catalog={catalog} cakes={cakes} />
         </div>
       </main>

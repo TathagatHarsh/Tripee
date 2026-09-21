@@ -57,10 +57,11 @@ export interface VariantPick {
   soldOut: boolean;
 }
 
-export function useVariantPick(product: CakeProductView): VariantPick {
+export function useVariantPick(product: CakeProductView, initialVariantId?: string): VariantPick {
+  const initial = product.variants.find(v => v.id === initialVariantId);
   const sizes = useMemo(() => sizesOffered(product), [product]);
 
-  const [wantSize, setWantSize] = useState<SizeBand | null>(null);
+  const [wantSize, setWantSize] = useState<SizeBand | null>(initial?.sizeBand ?? null);
   /* The clicked size if it is still on sale; the only size if there is one;
      otherwise undecided. Derived rather than corrected in an effect, so a cake
      whose 2 kg is withdrawn while this page is open simply stops offering it. */
@@ -72,7 +73,7 @@ export function useVariantPick(product: CakeProductView): VariantPick {
     [product, size],
   );
 
-  const [wantEgg, setWantEgg] = useState<EggType | null>(null);
+  const [wantEgg, setWantEgg] = useState<EggType | null>(initial?.eggType ?? null);
   const eggType =
     wantEgg && eggTypes.includes(wantEgg)
       ? wantEgg
@@ -163,6 +164,9 @@ export function VariantChoices({
     return { amount: variantTotal(product, cheapest, catalog), from: forSize.length > 1 };
   }
 
+  const currentSizePrice = size ? sizePrice(size)?.amount : null;
+  const currentEggPrice = size && eggType ? variantTotal(product, findVariant(product, size, eggType)!, catalog) : null;
+
   return (
     <div className="flex flex-col gap-5">
       {/* ── Size ─────────────────────────────────────────────────────── */}
@@ -175,12 +179,19 @@ export function VariantChoices({
             onSelect={setSize}
             render={(s) => {
               const price = sizePrice(s);
+              let diffStr: string | undefined;
+              if (price && currentSizePrice != null && s !== size) {
+                const diff = price.amount - currentSizePrice;
+                if (diff > 0) diffStr = `+${formatINR(diff)}`;
+                else if (diff < 0) diffStr = `-${formatINR(Math.abs(diff))}`;
+              }
               return {
                 title: sizeName(s),
                 note: sizeDiameter(s) || undefined,
                 amount: price
                   ? `${price.from ? "from " : ""}${formatINR(price.amount)}`
                   : undefined,
+                diff: diffStr,
               };
             }}
           />
@@ -209,10 +220,18 @@ export function VariantChoices({
             selected={eggType}
             onSelect={setEggType}
             render={(e) => {
-              const v = findVariant(product, size, e);
+              const v = findVariant(product, size!, e);
+              const amount = v ? variantTotal(product, v, catalog) : undefined;
+              let diffStr: string | undefined;
+              if (amount !== undefined && currentEggPrice != null && e !== eggType) {
+                const diff = amount - currentEggPrice;
+                if (diff > 0) diffStr = `+${formatINR(diff)}`;
+                else if (diff < 0) diffStr = `-${formatINR(Math.abs(diff))}`;
+              }
               return {
                 title: EGG_LABEL[e],
-                amount: v ? formatINR(variantTotal(product, v, catalog)) : undefined,
+                amount: amount !== undefined ? formatINR(amount) : undefined,
+                diff: diffStr,
               };
             }}
           />
@@ -259,6 +278,7 @@ interface OptionFace {
   title: string;
   note?: string;
   amount?: string;
+  diff?: string;
 }
 
 /**
@@ -374,9 +394,14 @@ function OptionGrid<T extends string>({
                 {face.note}
               </span>
             )}
-            {face.amount && (
-              <span className="font-mono text-[0.8125rem] tabular-nums text-s-bark">
-                {face.amount}
+            {(face.amount || face.diff) && (
+              <span className="flex items-baseline gap-2 font-mono text-[0.8125rem] tabular-nums text-s-bark">
+                {face.amount && <span>{face.amount}</span>}
+                {face.diff && (
+                  <span className={face.diff.startsWith("+") ? "text-s-cocoa" : "text-s-berry"}>
+                    {face.diff}
+                  </span>
+                )}
               </span>
             )}
           </button>

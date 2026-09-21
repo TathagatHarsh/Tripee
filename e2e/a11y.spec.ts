@@ -30,7 +30,7 @@ const ROUTES = [
   ["/shop", "collection"],
   ["/shop?category=chocolate", "a filtered collection"],
   ["/shop?q=nothingmatchesthis", "the empty collection"],
-  ["/cakes/chocolate-truffle", "a cake"],
+  ["/cakes/pineapple-delight", "a cake"],
   ["/cart", "the empty cart"],
   ["/checkout", "the empty checkout"],
   ["/build/shape", "the builder's coming-soon page"],
@@ -123,7 +123,8 @@ test.describe("accessibility", () => {
     await expect(page.getByRole("dialog")).toBeVisible();
     /* A size has to be chosen before the sponge group exists, so the scan
        covers both groups rather than one and a sentence. */
-    await page.getByRole("radio").first().click();
+    const choices = page.getByRole("dialog").getByRole("radio");
+    if (await choices.count()) await choices.first().click();
     await page.waitForTimeout(400);
 
     const summary = await violations(page);
@@ -131,24 +132,17 @@ test.describe("accessibility", () => {
   });
 
   test("the order confirmation has no WCAG A/AA violations", async ({ page }) => {
-    await page.goto("/cakes/red-velvet-classic");
+    await page.goto("/cakes/pineapple-delight");
     await page.getByRole("button", { name: "Add to cart", exact: true }).click();
     await page.goto("/checkout");
-    await expect(page.getByText("Price confirmed with the kitchen.")).toBeVisible();
-    await page.getByLabel("Name").fill("Aryu");
-    await page.getByLabel("Phone").fill("9876543210");
+    await page.getByLabel("Name", { exact: true }).fill("E2E Accessibility Guest");
+    await page.getByLabel("Phone", { exact: true }).fill("9876543210");
+    await page.getByRole("radio", { name: /^pickup$/i }).check();
+    await expect(page.getByText(/Pickup available/)).toBeVisible();
     await page.getByRole("button", { name: /^Place order/ }).click();
-
-    await expect(
-      page.getByRole("heading", { name: /officially on its way/ }),
-    ).toBeVisible();
-    await page.keyboard.press("Shift");
-
-    /* The heading takes focus when the confirmation replaces the form, so the
-       change is announced rather than dropping the customer on <body>. */
-    await expect(page.getByRole("heading", { name: /officially on its way/ }))
-      .toBeFocused();
-
+    const heading = page.getByRole("heading", { name: "Your order is with us." });
+    await expect(heading).toBeVisible();
+    await expect(heading).toBeFocused();
     const summary = await violations(page);
     expect(summary, summary.join("\n")).toEqual([]);
   });

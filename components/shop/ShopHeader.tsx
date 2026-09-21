@@ -60,12 +60,12 @@ export function ShopHeader({
 
         <Link
           href="/"
-          aria-label="Makemycake, home"
+          aria-label="MakeMyCake, home"
           className="flex shrink-0 items-center gap-2 text-s-cocoa"
         >
           <CakeWordmark />
           <span className="font-display text-[1.375rem] leading-none tracking-[-0.01em] whitespace-nowrap">
-            Makemycake
+            MakeMyCake
           </span>
         </Link>
 

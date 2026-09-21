@@ -1,113 +1,12 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
-import { Geist_Mono, Instrument_Sans, Instrument_Serif, Inter } from "next/font/google";
+import { Fraunces, Manrope } from "next/font/google";
 import { CatalogSync } from "@/components/CatalogSync";
 import "./globals.css";
 
-/*
- * §1.1: "Two faces. No third. No bold anywhere in the product."
- *
- * Geist Mono carries everything — every headline, all ticket content, every
- * label, every number. Monospace is the voice of duplicate stationery, and mono
- * is inherently tabular, which is why prices align here without
- * font-variant-numeric.
- *
- * 400 and 500 only. §1.1 calls this a hard rule and gives the reason: emphasis in
- * this system comes from case, colour, rule, box and stamp. A document does not
- * get bold; it gets underlined, boxed, or stamped.
- *
- * This replaces Martian Mono and keeps --font-mono pointing at it, so every
- * existing `font-mono` call site picks the new face up untouched. Martian shipped
- * a 700 for totals, which is precisely the weight §1.1 bans.
- */
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-  display: "swap",
-  weight: ["400", "500"],
-});
+const display = Fraunces({ subsets: ["latin"], variable: "--font-brand-display", display: "swap" });
+const body = Manrope({ subsets: ["latin"], variable: "--font-brand-body", display: "swap" });
 
-/*
- * The prose face, and a placeholder.
- *
- * §1.1 specifies Switzer (Fontshare) for "anything longer than one line" — option
- * descriptions, paragraphs, error explanations. Switzer is not on Google Fonts, so
- * it needs woff2 files in the repo and next/font/local; until those land,
- * Instrument Sans stands in. It is the same kind of face doing the same job — a
- * neo-grotesque beside the machine voice — and it is capped at the same 400/500,
- * so nothing downstream changes when Switzer replaces it.
- *
- * §1.1 makes this the *smaller* half of the system: prose under six words should
- * have been mono.
- */
-const instrumentSans = Instrument_Sans({
-  subsets: ["latin"],
-  variable: "--font-instrument-sans",
-  display: "swap",
-  weight: ["400", "500"],
-});
-
-/*
- * The landing page's display face, and only the landing page's.
- *
- * §1.1 bans a display serif inside the product, and every screen under /build,
- * /presets and /d still obeys that — their headings are mono. The shopfront is
- * the one surface that was designed around this face, and stripping it turned
- * "Custom cake. Designed by you." into an uppercase mono slab that read as a
- * system message rather than a headline. It is scoped to `.home` in globals.css
- * so it cannot leak back into the product.
- */
-const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
-  variable: "--font-instrument-serif",
-  display: "swap",
-  weight: "400",
-  style: ["normal", "italic"],
-});
-
-/*
- * The back office's face, and the one exception to §1.1's "two faces, no third".
- *
- * §1.1 governs the product a customer sees, and its argument is about voice: a
- * cake shop that speaks in duplicate stationery. The admin portal is not that
- * product — it is the tool the shop is run with — and the brief for it asks for
- * a modern operations panel, which is a different job with different failure
- * modes. Mono at 13px across a twelve-column orders table is measurably slower
- * to scan, and the storefront's ban on bold removes the one device a dense
- * table has for telling a heading from a cell.
- *
- * So Inter, loaded once here and reachable only through `--font-a-sans` and the
- * `font-a-sans` utility it generates. Nothing under /build, /presets or /d can
- * pick it up by accident, because no call site there names an `a-` token.
- *
- * Four weights, unlike the 400/500 above: 600 is what a table header and a stat
- * card's figure need, and 700 is the page title. Loading them is the point of
- * choosing a face that has them.
- */
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-  weight: ["400", "500", "600", "700"],
-});
-
-/*
- * The default title and description for anything that does not set its own.
- *
- * Rewritten for the storefront: this used to sell the 3D builder ("build your
- * cake and watch it appear"), which is the feature Phase 1 holds back. Leaving
- * it would have meant every shared link and every search result describing the
- * one thing a customer currently cannot do.
- */
-/**
- * The origin relative image URLs in metadata resolve against.
- *
- * Without it Next warns on every build and silently stamps `localhost:3000`
- * into the Open Graph tags — so a link to a cake shared in WhatsApp comes with
- * a preview image nobody but the developer can load. The production URL comes
- * from the platform when it is there, and from an explicit variable when the
- * deployment is somewhere else.
- */
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ??
   (process.env.VERCEL_PROJECT_PRODUCTION_URL
@@ -130,7 +29,7 @@ export const viewport: Viewport = {
   /* The storefront's cream (--color-s-cream), which is what a phone's browser
      chrome sits above on every customer page now. Was #E8E7E1, the builder's
      cool paper, which is still the ground under /build and the order pages. */
-  themeColor: "#FBF6EF",
+  themeColor: "#FAF7EF",
   /* This product is light-only on purpose, so it has to say so. Renders
      <meta name="color-scheme" content="only light">, which keeps the builder's
      scrollbar and Chrome's autofill highlight on paper when the OS asks for
@@ -164,7 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en-IN"
-      className={`${geistMono.variable} ${instrumentSans.variable} ${instrumentSerif.variable} ${inter.variable}`}
+      className={`${display.variable} ${body.variable}`}
     >
       {/* bg-slab was chipboard, which is the desk. The page itself is the top
           copy — §1.2 --paper. The desk only shows where a sheet is lying on it. */}

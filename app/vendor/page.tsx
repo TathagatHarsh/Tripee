@@ -1,156 +1,127 @@
+import Link from "next/link";
 import { requireVendor } from "@/lib/auth";
 import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
-import { VENDOR_COLUMNS } from "@/lib/vendors";
-import { Notice } from "@/components/admin/ui";
-import { Icon } from "@/components/admin/icons";
+import { dueAt } from "@/lib/orders";
+import { dueUrgency, VENDOR_COLUMNS } from "@/lib/vendors";
+import { Notice, StatCard } from "@/components/admin/ui";
 import { vendorBoard } from "./data";
 import { OrderTicket } from "./OrderTicket";
-
-/**
- * The kitchen board. What this bakery has to make, and what to press next.
- *
- * ## Why this is a board now and was a list before
- *
- * The list was the right shape for a screen that answered "what have you given
- * me". §7 changes the question to the one a kitchen actually asks — *what do I
- * do next* — and that question has four answers at once: something is waiting
- * for an answer, something is agreed but not started, something is in the oven,
- * something is boxed. A list sorted by due date mixes all four together and
- * makes the reader sort them again in their head every time they look.
- *
- * The objection to a board was phones, and it was a fair one: four narrow
- * columns on a 390px screen is one column you cannot read and three you cannot
- * find. So below `md` the columns stack into four labelled sections in the same
- * order, which is a board a thumb can scroll rather than a board shrunk.
- *
- * ## The columns are the state machine, not a second one
- *
- * `VENDOR_COLUMNS` is four members of `VendorOrderStatus`, and there is no
- * board-only status anywhere in this file. §25's rule, and the same one the
- * kitchen board at /kitchen follows against `OrderStatus`: two state machines in
- * this product, deliberately separate, and neither of them invents a third.
- *
- * Which is also why there is no "collected" column. `handed_over` is terminal,
- * so a card that reached it can never move again, and a column of cards nobody
- * can clear is a column that fills up until it is ignored. Finished work is on
- * /vendor/orders.
- *
- * ## Scope
- *
- * `requireVendor()` in the layout is the gate; this calls it again for the
- * bakery's *id*, which `vendorBoard` puts in its WHERE. Nothing on this page
- * filters a wider read, and nothing a request can name reaches the query. See
- * app/vendor/data.ts.
- */
-
+import { filterQueue, QueueFilters, type QueueQuery } from "./QueueFilters";
 export const dynamic = "force-dynamic";
-
-export default async function KitchenBoard() {
+export default async function KitchenBoard({
+  searchParams,
+}: {
+  searchParams: Promise<QueueQuery>;
+}) {
   const { vendor } = await requireVendor();
-
   if (!hasDatabase()) return <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>;
-
-  const board = await vendorBoard(vendor.id);
-  const waiting = board.filter((c) => c.status === "assigned").length;
-
+  const [all, query] = await Promise.all([
+    vendorBoard(vendor.id),
+    searchParams,
+  ]);
+  const now = new Date();
+  const board = filterQueue(all, query, now);
+  const waiting = all.filter((c) => c.status === "assigned").length;
+  const urgent = all.filter(
+    (c) => dueUrgency(dueAt(c.order), now) !== "later",
+  ).length;
   return (
-    <div className="flex flex-col gap-5">
-      <header>
-        <h1 className="font-a-sans text-a-title font-bold tracking-[-0.015em] text-a-ink">
-          Kitchen
-        </h1>
-        {/*
-          One sentence, and it is the answer to "is there anything for me".
-          Counting the orders waiting on an answer rather than the total, because
-          that is the only number on this page somebody else is waiting on.
-        */}
-        <p className="mt-1 text-a-body leading-relaxed text-a-muted">
-          {board.length === 0
-            ? "Nothing to make right now."
-            : waiting > 0
-              ? `${waiting} new ${waiting === 1 ? "order needs" : "orders need"} an answer.`
-              : `${board.length} ${board.length === 1 ? "cake" : "cakes"} in hand.`}
-        </p>
-      </header>
-
-      {board.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-a border border-a-line bg-a-surface px-6 py-14 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-a-good-wash text-a-good-ink">
-            <Icon name="check" size={22} />
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <span className="text-a-meta font-semibold uppercase tracking-[.14em] text-a-accent-ink">
+            MakeMyCake · Fulfilment studio
           </span>
-          <p className="font-a-sans text-a-lede font-semibold text-a-ink">
-            You&rsquo;re all caught up.
+          <h1 className="mt-2 font-a-sans text-a-title font-bold text-a-ink">
+            A good day in the kitchen.
+          </h1>
+          <p className="mt-2 text-a-body text-a-muted">
+            {waiting
+              ? `${waiting} new ${waiting === 1 ? "order needs" : "orders need"} your attention.`
+              : "Every detail ready. Every next step clear."}
           </p>
-          <p className="max-w-sm text-a-body leading-relaxed text-a-muted">
-            No cakes are waiting for you. When Makemycake gives you an order it
-            appears here. What you have finished is under Orders.
+        </div>
+        <Link
+          href="/vendor/orders"
+          className="inline-flex min-h-11 items-center text-a-body font-semibold text-a-accent-ink"
+        >
+          Order history ↗
+        </Link>
+      </header>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          label="New orders"
+          value={String(waiting)}
+          note="Waiting for your response"
+        />
+        <StatCard
+          label="In preparation"
+          value={String(
+            all.filter((c) => c.status === "in_preparation").length,
+          )}
+          note="On the baking bench"
+        />
+        <StatCard
+          label="Ready"
+          value={String(all.filter((c) => c.status === "ready").length)}
+          note="Prepared for handover"
+        />
+        <StatCard
+          label="Time sensitive"
+          value={String(urgent)}
+          note="Due soon or overdue"
+        />
+      </div>
+      <QueueFilters query={query} />
+      <p className="text-a-small text-a-muted">
+        Showing {board.length} of {all.length} active orders · sorted by due
+        time
+      </p>
+      {board.length === 0 ? (
+        <div className="rounded-a border border-dashed border-a-line-strong bg-a-surface px-6 py-14 text-center">
+          <h2 className="text-a-lede font-semibold">
+            {all.length
+              ? "No orders match these filters."
+              : "You’re all caught up."}
+          </h2>
+          <p className="mt-2 text-a-body text-a-muted">
+            {all.length
+              ? "Change a filter to see more of your queue."
+              : "New assignments will appear here with the details you need."}
           </p>
         </div>
       ) : (
-        /*
-          `items-start` so a column with one card is one card tall rather than
-          stretched to match the tallest. Four equal-height columns of mostly
-          empty box is what makes a Kanban board hard to scan.
-        */
-        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {VENDOR_COLUMNS.map((col) => {
-            const cards = board.filter((c) => c.status === col.status);
-            const answering = col.status === "assigned" && cards.length > 0;
-
+        <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {VENDOR_COLUMNS.map((column) => {
+            const cards = board.filter((c) => c.status === column.status);
             return (
-              /*
-                Named by its own heading. A <section> with no accessible name is
-                announced as a plain group, which on a four-column board means a
-                screen-reader user hears four unlabelled groups of cards and has
-                to read into each one to find out which is which.
-              */
               <section
-                key={col.status}
-                aria-labelledby={`col-${col.status}`}
-                className="flex flex-col gap-2.5"
+                key={column.status}
+                aria-labelledby={`queue-${column.status}`}
+                className="flex flex-col gap-3"
               >
                 <div
-                  className={[
-                    "flex flex-col gap-0.5 rounded-a border px-3 py-2.5",
-                    answering
-                      ? "border-a-warn-line bg-a-warn-wash"
-                      : "border-a-line bg-a-sunken",
-                  ].join(" ")}
+                  className={`border-b-2 pb-4 ${column.status === "assigned" ? "border-a-accent" : "border-a-line-strong"}`}
                 >
-                  <div className="flex items-baseline justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2">
                     <h2
-                      id={`col-${col.status}`}
-                      className={`font-a-sans text-a-item font-bold tracking-[-0.01em] ${
-                        answering ? "text-a-warn-ink" : "text-a-ink"
-                      }`}
+                      id={`queue-${column.status}`}
+                      className="text-a-lede font-bold"
                     >
-                      {col.label}
+                      {column.label}
                     </h2>
-                    <span
-                      className={`font-a-mono text-a-item font-semibold tabular-nums ${
-                        answering ? "text-a-warn-ink" : "text-a-muted"
-                      }`}
-                    >
+                    <span className="grid size-7 place-items-center rounded-full bg-a-surface text-a-small font-semibold">
                       {cards.length}
                     </span>
                   </div>
-                  <p className="text-a-meta leading-snug text-a-muted">{col.note}</p>
+                  <p className="mt-1 text-a-meta text-a-muted">{column.note}</p>
                 </div>
-
-                {cards.length === 0 ? (
-                  /* Every column says what empty means for it. "No new orders"
-                     and "Nothing on the bench" are different pieces of good
-                     news, and one shared "Nothing here" would make a board of
-                     four identical grey boxes. */
-                  <p className="rounded-a border border-dashed border-a-line px-3 py-5 text-center text-a-small text-a-faint">
-                    {col.empty}
-                  </p>
+                {cards.length ? (
+                  cards.map((card) => <OrderTicket key={card.id} card={card} />)
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {cards.map((card) => (
-                      <OrderTicket key={card.id} card={card} />
-                    ))}
-                  </div>
+                  <p className="rounded-a border border-dashed border-a-line p-6 text-center text-a-small text-a-muted">
+                    {column.empty}
+                  </p>
                 )}
               </section>
             );

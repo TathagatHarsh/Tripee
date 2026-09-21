@@ -220,7 +220,7 @@ export function priceProduct(
   choices: { message?: string; delivery: string },
   catalog: CatalogSnapshot,
 ): PriceBreakdown {
-  const { price, settings } = catalog;
+  const { settings } = catalog;
   const lines: PriceLine[] = [];
 
   /* The cake itself, named as the customer bought it. This label is what lands

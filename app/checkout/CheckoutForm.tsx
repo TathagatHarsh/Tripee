@@ -1,845 +1,945 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { BakingMark, BakingPanel } from "@/components/shop/BakingMark";
-import { OrderPlaced } from "@/components/shop/OrderPlaced";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { z } from "zod";
+import { LocationPicker } from "@/components/shop/LocationPicker";
+import { CakePhoto } from "@/components/shop/CakePhoto";
+import { PriceRoll } from "@/components/shop/PriceRoll";
+import { OrderPlaced, type Receipt } from "@/components/shop/OrderPlaced";
 import { useCart, useCartHydrated } from "@/lib/cart";
-import { variantById, variantLabel, type CakeChoices, type CakeProductView } from "@/lib/cakes";
-import { DELIVERY_OPTIONS } from "@/lib/catalog";
+import { variantById, variantLabel, type CakeProductView } from "@/lib/cakes";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
-import { nameOk, phoneOk } from "@/lib/checkout";
+import { checkoutIntent, nameOk, phoneOk } from "@/lib/checkout";
 import { resolveSlot } from "@/lib/delivery";
 import { formatINR } from "@/lib/format";
-import { priceProduct } from "@/lib/pricing";
-import type { DeliverySlot } from "@/lib/schema";
+import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
+import { DeliverySlot } from "@/lib/schema";
 import { sBtn, sCard, sField } from "@/lib/shopUi";
 
-/**
- * Checkout.
- *
- * ## One request, not one per cake
- *
- * This page used to place a basket by looping: one `POST /api/orders` per cake,
- * awaited in sequence, with a `stop()` helper for the case where the fourth
- * failed after three were written. That case was not hypothetical — it is what
- * a dropped connection halfway through a basket looks like — and it left the
- * customer with a partly-placed order and a cart that had already been emptied
- * around the cakes that never got placed.
- *
- * The whole basket now goes in one request and is written in one transaction,
- * so there is no partial state to report and no partial cart to repair. What
- * has *not* changed is the shape underneath: `Order.config` is one `CakeConfig`,
- * so three cakes are still three orders with three references and three places
- * on the kitchen board. Three cakes are three things to bake.
- *
- * ## Pressing the button twice
- *
- * The button disables itself while a request is in flight, which is manners
- * rather than protection: it does nothing about a refresh mid-request, a retry
- * after a timeout, or a phone that did not repaint before the second tap. What
- * protects the customer is the idempotency key below — one per basket, held
- * across retries — which the server turns into the order references themselves,
- * so a second send lands on the first send's rows instead of beside them. See
- * app/api/orders.
- *
- * ## The number on the button
- *
- * Confirmed with the server before the button is enabled, and sent back with
- * the order as the price the customer was *shown*. If the bakery has repriced
- * in between, the server refuses the basket and says so rather than quietly
- * charging the new number — see lib/checkout's `reviewBasket`.
- *
- * ## The rules this form checks
- *
- * `nameOk` and `phoneOk` are imported from lib/checkout, which is the module
- * app/api/orders validates with. The phone regex used to be written out here,
- * in app/build/review and in the route handler — three copies of one rule, and
- * two chances for this button to accept what the server refuses.
- */
-
-/**
- * What the button is doing, which is only ever about *submitting*.
- *
- * Whether the price has been confirmed is deliberately not in here. It is
- * derived below from whether the server's answer belongs to the basket
- * currently on screen, so there is no state to keep in step with the cart and
- * no effect that has to remember to reset it.
- */
-type Submit =
-  | { kind: "idle" }
-  | { kind: "placing" }
-  | { kind: "placed"; refs: string[]; totalPaise: number }
-  /** `review` marks a refusal the customer can fix by looking at the basket. */
-  | { kind: "error"; message: string; review: boolean };
-
-/**
- * The server's answer, tagged with the basket it was an answer *to*.
- *
- * A bare total goes stale silently: change the delivery slot and the number on
- * the button is still the one confirmed for the previous slot, with nothing to
- * say so. Comparing the tag against the current basket makes "is this
- * confirmed" a question with one correct answer at every moment.
- *
- * It carries the subtotal and the GST as well as the total now, because the
- * review panel shows all three and every one of them has to be the server's
- * arithmetic rather than the browser's.
- */
-type Confirmed = {
-  signature: string;
-  /** Per line, in basket order, quantity included. */
+const DRAFT_KEY = "makemycake.checkoutDraft.v2";
+const RECEIPT_KEY = "makemycake.checkoutReceipt.v2";
+const DraftSchema = z.object({
+  name: z.string().max(80),
+  phone: z.string().max(30),
+  email: z.string().max(254),
+  method: z.enum(["delivery", "pickup"]),
+  slot: DeliverySlot,
+  addressLine1: z.string().max(160),
+  addressLine2: z.string().max(160),
+  landmark: z.string().max(120),
+  city: z.string().max(80),
+  state: z.string().max(80),
+  pincode: z.string().max(6),
+  requestedDate: z.string(),
+  deliveryInstructions: z.string().max(500),
+  customerNotes: z.string().max(1000),
+  occasion: z.string().max(80),
+  location: z
+    .object({ lat: z.number(), lng: z.number(), placeId: z.string() })
+    .nullable(),
+});
+type Draft = z.infer<typeof DraftSchema>;
+type Quote = {
   each: number[];
-  subtotal: number;
-  gst: number;
-  total: number;
-  productSubtotal: number;
-  deliveryFee: number;
+  productSubtotalPaise: number;
+  deliveryFeePaise: number;
+  gstPaise: number;
+  totalPaise: number;
 };
-type PriceFailure = { signature: string; message: string };
-
-function futureDate(days = 7): string {
-  const date = new Date(Date.now() + days * 86_400_000);
-  return date.toISOString().slice(0, 10);
+const QuoteSchema = z.object({
+  each: z.array(z.number().int().nonnegative()),
+  productSubtotalPaise: z.number().int().nonnegative(),
+  deliveryFeePaise: z.number().int().nonnegative(),
+  gstPaise: z.number().int().nonnegative(),
+  totalPaise: z.number().int().nonnegative(),
+});
+function istDate(date = new Date()) {
+  return new Date(date.getTime() + 19800000).toISOString().slice(0, 10);
 }
-
-export function CheckoutForm({
-  catalog,
-  cakes,
-}: {
-  catalog: CatalogSnapshot;
-  /** Everything on sale, from the server. A basket line whose slug is missing
-      from this list names a cake that has been withdrawn or deleted, and the
-      page refuses to check out rather than quoting a price for it. */
-  cakes: CakeProductView[];
-}) {
+function readDraft(): Draft {
+  try {
+    const parsed = DraftSchema.safeParse(
+      JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? "null"),
+    );
+    if (parsed.success) return parsed.data;
+  } catch {}
+  return {
+    name: "",
+    phone: "",
+    email: "",
+    method: "delivery",
+    slot: "standard",
+    addressLine1: "",
+    addressLine2: "",
+    landmark: "",
+    city: "Hyderabad",
+    state: "Telangana",
+    pincode: "",
+    requestedDate: istDate(new Date(Date.now() + 7 * 86400000)),
+    deliveryInstructions: "",
+    customerNotes: "",
+    occasion: "",
+    location: null,
+  };
+}
+function readReceipt(): Receipt | null {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(RECEIPT_KEY) ?? "null");
+    if (
+      value &&
+      typeof value.ref === "string" &&
+      typeof value.totalPaise === "number" &&
+      Array.isArray(value.items)
+    )
+      return value;
+  } catch {}
+  return null;
+}
+type Props = { catalog: CatalogSnapshot; cakes: CakeProductView[] };
+export function CheckoutForm(props: Props) {
   const hydrated = useCartHydrated();
+  return hydrated ? (
+    <Checkout {...props} />
+  ) : (
+    <div
+      className="grid gap-6 lg:grid-cols-[1fr_24rem]"
+      role="status"
+      aria-label="Loading checkout"
+    >
+      {[0, 1].map((i) => (
+        <div key={i} className="h-96 animate-pulse rounded-s bg-s-cream-deep" />
+      ))}
+    </div>
+  );
+}
+function Checkout({ catalog, cakes }: Props) {
   const lines = useCart((s) => s.lines);
   const clear = useCart((s) => s.clear);
-
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [method, setMethod] = useState<"delivery" | "pickup">("delivery");
-  const [addressLine1, setAddressLine1] = useState("");
-  const [addressLine2, setAddressLine2] = useState("");
-  const [landmark, setLandmark] = useState("");
-  const [city, setCity] = useState("Hyderabad");
-  const [stateName, setStateName] = useState("Telangana");
-  const [requestedDate, setRequestedDate] = useState(() => futureDate());
-  const [deliveryInstructions, setDeliveryInstructions] = useState("");
-  const [customerNotes, setCustomerNotes] = useState("");
-  const [occasion, setOccasion] = useState("");
+  const [draft, setDraft] = useState(readDraft);
+  const [receipt, setReceipt] = useState<Receipt | null>(readReceipt);
+  const [placing, setPlacing] = useState(false);
   const [touched, setTouched] = useState(false);
-  const [submit, setSubmit] = useState<Submit>({ kind: "idle" });
-  const [confirmed, setConfirmed] = useState<Confirmed | null>(null);
-  const [priceFailure, setPriceFailure] = useState<PriceFailure | null>(null);
-  /* Bumped when the server tells us our quote is out of date, so the effect
-     below re-asks rather than sitting on the answer it already has. */
-  const [requote, setRequote] = useState(0);
-
-  /*
-   * The slot and the pincode are decided once for the whole basket and written
-   * onto every cake, because one checkout is one delivery. A cake added with a
-   * different slot on its own page is overridden here, which is what anybody
-   * who has used a shop expects.
-   *
-   * `null` means "nobody has chosen yet", and the fallback is the first cake's
-   * own answer. That is why these are not seeded by an effect: an effect would
-   * run after the first paint (so the select would visibly jump), it would fire
-   * again every time the cart changed (so it would overwrite a choice already
-   * made), and it is a `setState` in an effect body, which is a cascading
-   * render the linter is right to refuse.
-   */
-  const [chosenSlot, setChosenSlot] = useState<DeliverySlot | null>(null);
-  const [chosenPincode, setChosenPincode] = useState<string | null>(null);
-  const first = lines[0]?.choices;
-  const delivery: DeliverySlot = method === "pickup"
-    ? "pickup"
-    : ((chosenSlot === "pickup" ? null : chosenSlot) ?? (first?.delivery === "pickup" ? null : first?.delivery) ?? "standard") as DeliverySlot;
-  const pincode = method === "delivery" ? (chosenPincode ?? first?.pincode ?? "") : "";
-
-  /**
-   * Each basket line matched to the cake it names, and the choices it will be
-   * ordered with.
-   *
-   * The cake comes off the list the server sent; the basket contributes a slug,
-   * a message and a quantity and nothing else. A line whose slug is not in the
-   * list has `cake: undefined` — a cake withdrawn or deleted while the basket
-   * sat in this browser — and it blocks checkout below rather than being priced
-   * at zero or silently dropped.
-   */
-  const bySlug = useMemo(() => new Map(cakes.map((c) => [c.slug, c])), [cakes]);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [answer, setAnswer] = useState<{
+    signature: string;
+    quote?: Quote;
+    error?: string;
+    code?: string;
+  } | null>(null);
+  const [confirmedAddress, setConfirmedAddress] = useState("");
+  const attempt = useRef<{ signature: string; key: string } | null>(null);
+  const submitting = useRef(false);
+  const patch = (change: Partial<Draft>) =>
+    setDraft((d) => ({ ...d, ...change }));
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {}
+  }, [draft]);
 
   const resolved = useMemo(
     () =>
-      lines.map((l) => {
-        const cake = bySlug.get(l.slug);
-        /* The variant as the server has it now, by id. A line whose size has
-           been withdrawn since it went in the basket resolves to undefined and
-           blocks checkout below, exactly as a withdrawn cake does — the two are
-           one case from here on, and `reviewBasket` refuses both. */
-        const variant = cake ? variantById(cake, l.variantId) : undefined;
+      lines.map((line) => {
+        const cake = cakes.find((c) => c.slug === line.slug);
         return {
-          line: l,
+          line,
           cake,
-          variant: variant?.isAvailable ? variant : undefined,
-          /* The slot and the pincode are the basket's, not the line's — one
-             checkout is one delivery. The message stays the line's own. */
-          choices: {
-            ...l.choices,
-            delivery,
-            ...(/^\d{6}$/.test(pincode) ? { pincode } : { pincode: undefined }),
-          } as CakeChoices,
+          variant: cake ? variantById(cake, line.variantId) : undefined,
         };
       }),
-    [lines, bySlug, delivery, pincode],
+    [lines, cakes],
   );
-
-  const missing = resolved.filter((r) => !r.cake || !r.variant).length;
-
-  /* What "this basket, priced this way" is, as one string. Quantities are in it
-     because two of a cake is twice the money and therefore a different total. */
-  const signature = useMemo(
+  const missing = resolved.some((r) => !r.cake || !r.variant?.isAvailable);
+  const delivery = draft.method === "pickup" ? "pickup" : draft.slot;
+  const slot = resolveSlot(
+    delivery,
+    draft.method === "delivery" ? draft.pincode : undefined,
+    catalog,
+  );
+  const addressSignature = JSON.stringify([
+    draft.addressLine1,
+    draft.addressLine2,
+    draft.landmark,
+    draft.city,
+    draft.state,
+    draft.pincode,
+    draft.location,
+  ]);
+  const addressComplete =
+    draft.addressLine1.trim().length >= 3 &&
+    draft.city.trim().length >= 2 &&
+    draft.state.trim().length >= 2 &&
+    /^\d{6}$/.test(draft.pincode);
+  const addressConfirmed =
+    draft.method === "pickup" || confirmedAddress === addressSignature;
+  const items = useMemo(
     () =>
-      JSON.stringify({
-        lines: resolved.map((r) => [r.line.slug, r.line.variantId, r.choices, r.line.qty]),
-        fulfillment: {
-          method, name, phone, addressLine1, addressLine2, landmark, city, stateName,
-          pincode, requestedDate, deliveryInstructions, customerNotes, occasion,
+      lines.map((line) => ({
+        cakeSlug: line.slug,
+        variantId: line.variantId,
+        qty: line.qty,
+        choices: {
+          ...line.choices,
+          delivery,
+          pincode: draft.method === "delivery" ? draft.pincode : undefined,
         },
-      }),
-    [
-      resolved, method, name, phone, addressLine1, addressLine2, landmark, city,
-      stateName, pincode, requestedDate, deliveryInstructions, customerNotes, occasion,
-    ],
+      })),
+    [lines, delivery, draft.pincode, draft.method],
   );
-
-  /**
-   * One checkout attempt, named.
-   *
-   * Minted per basket and kept across retries, which is exactly the opposite of
-   * minting one per request: a retry carrying a new key would be a new
-   * intention as far as the server is concerned, and would write the cake
-   * again. Changing the basket changes the signature and earns a new key,
-   * because that genuinely is a different order.
-   *
-   * A ref rather than state: reading it must not schedule a render, and it has
-   * to survive the re-render `setSubmit` causes between the click and the fetch.
-   */
-  function idempotencyKey(): string {
-    const storageKey = "makemycake.checkoutAttempt";
-    try {
-      const stored = JSON.parse(localStorage.getItem(storageKey) ?? "null") as {
-        signature?: string;
-        key?: string;
-      } | null;
-      if (stored?.signature === signature && typeof stored.key === "string") return stored.key;
-      const key = crypto.randomUUID();
-      localStorage.setItem(storageKey, JSON.stringify({ signature, key }));
-      return key;
-    } catch {
-      return crypto.randomUUID();
-    }
-  }
-
-  const slot = resolveSlot(delivery, pincode || undefined, catalog);
-
-  /* The browser's own arithmetic, shown only until the server answers. A line
-     whose cake has gone contributes nothing — there is no price to estimate. */
-  const estimate = useMemo(
-    () =>
-      resolved.map((r) =>
-        r.cake && r.variant
-          ? priceProduct(
-              { name: r.cake.name, pricePaise: r.variant.pricePaise },
-              r.choices,
-              catalog,
-            ).total * r.line.qty
-          : 0,
-      ),
-    [resolved, catalog],
-  );
-
-  /*
-   * The client's number is an estimate until the server agrees with it. One
-   * request per line, in parallel, on every change to the basket or the
-   * delivery choice — and again when the server tells us the catalogue moved.
-   */
+  // Contact and address typing never trigger price requests. Only price-affecting choices do.
+  const quoteSignature = JSON.stringify({
+    items,
+    fulfillment: {
+      method: draft.method,
+      slot: delivery,
+      pincode: draft.method === "delivery" ? draft.pincode : undefined,
+      requestedDate: draft.requestedDate,
+    },
+  });
+  const canQuote =
+    lines.length > 0 &&
+    !missing &&
+    Boolean(draft.requestedDate) &&
+    (draft.method === "pickup" || /^\d{6}$/.test(draft.pincode));
   useEffect(() => {
-    if (!hydrated || resolved.length === 0 || missing > 0) return;
-    if (!requestedDate || (method === "delivery" && !/^\d{6}$/.test(pincode))) return;
-    let cancelled = false;
-    /* Nothing is set synchronously here. "Checking" is the *absence* of a
-       confirmation for this signature, so the effect has only to record an
-       answer when one arrives — and a stale answer for a previous basket stops
-       counting the instant the signature changes, with nothing to reset. */
-    const asked = signature;
-    fetch("/api/price", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        fulfillment: { method, slot: delivery, pincode: pincode || undefined, requestedDate },
-        items: resolved.map((r) => ({
-          cakeSlug: r.line.slug,
-          variantId: r.line.variantId,
-          choices: r.choices,
-          qty: r.line.qty,
-        })),
-      }),
-    })
-      .then(async (response) => response.ok ? response.json() : Promise.reject(await response.json()))
-      .then((data) => {
-        if (cancelled) return;
-        const quote = data?.quote;
-        if (!quote || typeof quote.totalPaise !== "number" || !Array.isArray(quote.each)) {
-          setPriceFailure({ signature: asked, message: "We couldn't confirm the price. Try again in a moment." });
+    if (!canQuote) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch("/api/price", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: quoteSignature,
+          signal: controller.signal,
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          setAnswer({
+            signature: quoteSignature,
+            error: data.error ?? "We couldn't verify this delivery.",
+            code: data.code,
+          });
           return;
         }
-        setConfirmed({
-          signature: asked,
-          each: quote.each,
-          productSubtotal: quote.productSubtotalPaise,
-          deliveryFee: quote.deliveryFeePaise,
-          subtotal: quote.subtotalPaise,
-          gst: quote.gstPaise,
-          total: quote.totalPaise,
-        });
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setPriceFailure({
-          signature: asked,
-          message: error?.error ?? "We couldn't reach the kitchen to confirm the price.",
-        });
-      });
-
+        const quote = QuoteSchema.parse(data.quote);
+        setAnswer({ signature: quoteSignature, quote });
+      } catch (e) {
+        if (!controller.signal.aborted)
+          setAnswer({
+            signature: quoteSignature,
+            error:
+              e instanceof z.ZodError
+                ? "The price response couldn't be verified. Please try again."
+                : "Unable to verify delivery and price. Check your connection and retry.",
+          });
+      }
+    }, 300);
     return () => {
-      cancelled = true;
+      clearTimeout(timer);
+      controller.abort();
     };
-  }, [hydrated, resolved, missing, signature, requote, method, delivery, pincode, requestedDate]);
-
-  /* Derived, never stored: an answer counts only for the basket it answered. */
-  const priceConfirmed = confirmed?.signature === signature;
-  const priceError = priceFailure?.signature === signature ? priceFailure.message : null;
-  const estimatedProductSubtotal = resolved.reduce((sum, r) => {
-    if (!r.cake || !r.variant) return sum;
-    return sum + priceProduct(
-      { name: r.cake.name, pricePaise: r.variant.pricePaise },
-      r.choices,
-      catalog,
-    ).subtotal * r.line.qty;
-  }, 0);
-  const estimatedDelivery = catalog.price.deliveryFee[delivery] ?? 0;
-  const estimatedSubtotal = estimatedProductSubtotal + estimatedDelivery;
-  const total = priceConfirmed
-    ? confirmed.total
-    : estimatedSubtotal + Math.round(estimatedSubtotal * catalog.settings.gstRate);
-
-  const contactOk = nameOk(name) && phoneOk(phone);
-  const fulfillmentOk = method === "pickup"
-    ? Boolean(requestedDate)
-    : /^\d{6}$/.test(pincode)
-      && addressLine1.trim().length >= 3
-      && city.trim().length >= 2
-      && stateName.trim().length >= 2
-      && Boolean(requestedDate);
+  }, [quoteSignature, canQuote, retry]);
+  const current = answer?.signature === quoteSignature ? answer : null;
+  const quote = current?.quote;
+  const emailOk = !draft.email || z.email().safeParse(draft.email).success;
+  const contactOk = nameOk(draft.name) && phoneOk(draft.phone) && emailOk;
   const ready =
-    contactOk && fulfillmentOk && slot.available && priceConfirmed && lines.length > 0 && missing === 0;
+    contactOk &&
+    addressConfirmed &&
+    (draft.method === "pickup" || addressComplete) &&
+    Boolean(quote) &&
+    !missing;
 
-  async function place() {
-    /* Narrowed rather than asserted: `ready` already requires it, and a second
-       reading here is what lets the body use `confirmed` without a `!`. */
-    if (!confirmed || confirmed.signature !== signature) return;
-    const quote = confirmed;
-
-    setSubmit({ kind: "placing" });
-
+  function keyFor(signature: string) {
+    if (attempt.current?.signature === signature) return attempt.current.key;
     try {
-      const res = await fetch("/api/orders", {
+      const saved = JSON.parse(
+        localStorage.getItem("makemycake.checkoutAttempt") ?? "null",
+      );
+      if (
+        saved?.signature === signature &&
+        z.uuid().safeParse(saved.key).success
+      ) {
+        attempt.current = saved;
+        return saved.key as string;
+      }
+    } catch {}
+    attempt.current = { signature, key: crypto.randomUUID() };
+    try {
+      localStorage.setItem(
+        "makemycake.checkoutAttempt",
+        JSON.stringify(attempt.current),
+      );
+    } catch {}
+    return attempt.current.key;
+  }
+  async function place() {
+    setTouched(true);
+    if (!ready || !quote || submitting.current) return;
+    submitting.current = true;
+    setPlacing(true);
+    setError("");
+    const fulfillment = {
+      method: draft.method,
+      slot: delivery,
+      recipientName: draft.name,
+      contactEmail: draft.email || undefined,
+      requestedDate: draft.requestedDate,
+      requestedWindow: slotWindow(slot),
+      customerNotes: draft.customerNotes || undefined,
+      occasion: draft.occasion || undefined,
+      ...(draft.method === "delivery"
+        ? {
+            addressLine1: draft.addressLine1,
+            addressLine2: draft.addressLine2 || undefined,
+            landmark: draft.landmark || undefined,
+            city: draft.city,
+            state: draft.state,
+            pincode: draft.pincode,
+            deliveryInstructions: draft.deliveryInstructions || undefined,
+            location: draft.location ?? undefined,
+          }
+        : {}),
+    };
+    const body = {
+      quotedOrderTotalPaise: quote.totalPaise,
+      customerName: draft.name,
+      customerPhone: draft.phone,
+      fulfillment,
+      items: items.map((item, i) => ({
+        ...item,
+        quotedTotalPaise: Math.round(quote.each[i] / item.qty),
+      })),
+    };
+    try {
+      const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          idempotencyKey: idempotencyKey(),
-          customerName: name,
-          customerPhone: phone,
-          fulfillment: {
-            method,
-            slot: delivery,
-            recipientName: name,
-            requestedDate,
-            requestedWindow: slot.window,
-            ...(method === "delivery"
-              ? {
-                  addressLine1,
-                  addressLine2: addressLine2 || undefined,
-                  landmark: landmark || undefined,
-                  city,
-                  state: stateName,
-                  pincode,
-                  deliveryInstructions: deliveryInstructions || undefined,
-                }
-              : {}),
-            customerNotes: customerNotes || undefined,
-            occasion: occasion || undefined,
-          },
-          /*
-           * A slug and three choices per line, and nothing else.
-           *
-           * A slug, a variant id and three choices per line, and nothing else.
-           *
-           * No name, no price, no size, no photograph, no recipe — the server
-           * looks the cake and the variant up and reads all of those off the
-           * rows. This body cannot express "Chocolate Truffle costs ₹1" because
-           * there is no field in it for a price at all, and it cannot borrow a
-           * cheaper cake's variant because the lookup is scoped to the cake the
-           * slug names. `quotedTotalPaise` is the customer's claim about what
-           * they were *shown*, and the only thing done with it is a comparison
-           * that can stop the order. See lib/checkout.
-           */
-          items: resolved.map((r, i) => ({
-            cakeSlug: r.line.slug,
-            variantId: r.line.variantId,
-            choices: r.choices,
-            qty: r.line.qty,
-            /* What this cake was quoted at, for one — the server multiplies by
-               the quantity itself. Divided back out of the confirmed line total
-               so the number sent is the number that was shown. */
-            quotedTotalPaise: Math.round(quote.each[i] / r.line.qty),
-          })),
+          ...body,
+          idempotencyKey: keyFor(JSON.stringify(checkoutIntent(body))),
         }),
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        /*
-         * A refusal the basket can fix — the catalogue moved, or an option was
-         * withdrawn — sends the customer back to look rather than letting them
-         * press the same button again. The quote is thrown away and re-asked,
-         * so the panel is showing today's price by the time they read the
-         * message.
-         */
-        const review =
-          data?.code === "price_changed" ||
-          data?.code === "option_unavailable" ||
-          data?.code === "cake_unavailable";
-        if (review) {
-          setConfirmed(null);
-          setRequote((n) => n + 1);
+      const data = await response.json();
+      if (!response.ok) {
+        setError(
+          data.error ??
+            "We couldn't place the order. Nothing has been charged.",
+        );
+        if (
+          [
+            "price_changed",
+            "option_unavailable",
+            "cake_unavailable",
+            "capacity_unavailable",
+          ].includes(data.code)
+        ) {
+          setAnswer(null);
+          setRetry((n) => n + 1);
         }
-        setSubmit({
-          kind: "error",
-          review,
-          message: data?.error ?? "The kitchen turned that one down.",
-        });
         return;
       }
-
-      const refs: string[] = data?.order?.ref
-        ? [data.order.ref]
-        : Array.isArray(data?.orders)
-          ? data.orders.map((o: { ref: string }) => o.ref)
-          : [];
-
-      /*
-       * Cleared here and nowhere else: after the server has said the rows are
-       * written, never before and never on a failure. A cart emptied by an
-       * error is a customer retyping a basket they had already built.
-       */
-      /*
-       * Read before `clear()`, and the SERVER's total rather than `priceCake`
-       * re-run in a browser whose cart is about to stop existing. Both would
-       * agree today; only one of them is the number the order was written at,
-       * and a confirmation that recomputes its own total is a confirmation that
-       * can disagree with the row the kitchen bakes from.
-       *
-       * One number and not a receipt: the confirmation is a moment on the way
-       * to /orders/[ref], which lists every frozen line, the delivery window
-       * and the real status. Printing the basket twice — once on a screen that
-       * navigates away in under three seconds — is the itemisation nobody
-       * reads, in front of the one they do.
-       */
-      const totalPaise = quote.total;
-
-      localStorage.removeItem("makemycake.checkoutAttempt");
+      if (
+        typeof data.order?.ref !== "string" ||
+        typeof data.order?.totalPaise !== "number"
+      )
+        throw new Error("Invalid receipt");
+      const saved: Receipt = {
+        ref: data.order.ref,
+        totalPaise: data.order.totalPaise,
+        date: draft.requestedDate,
+        window: slotWindow(slot),
+        address:
+          draft.method === "pickup"
+            ? `Pickup · ${catalog.bakery.name}`
+            : [
+                draft.addressLine1,
+                draft.addressLine2,
+                draft.city,
+                draft.state,
+                draft.pincode,
+              ]
+                .filter(Boolean)
+                .join(", "),
+        items: resolved.map((r) => ({
+          name: r.cake!.name,
+          variant: variantLabel(r.variant!),
+          qty: r.line.qty,
+        })),
+      };
+      // A storage failure after the server commits must never be presented as an order failure.
+      try {
+        sessionStorage.setItem(RECEIPT_KEY, JSON.stringify(saved));
+        sessionStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem("makemycake.checkoutAttempt");
+      } catch {}
+      setReceipt(saved);
       clear();
-      setSubmit({ kind: "placed", refs, totalPaise });
     } catch {
-      /*
-       * The request did not complete — which does not mean it did not land. The
-       * cart is deliberately left alone, and pressing the button again is safe:
-       * the same idempotency key produces the same references, so a retry after
-       * an order that actually got through returns that order rather than
-       * placing a second one.
-       */
-      setSubmit({
-        kind: "error",
-        review: false,
-        message: "That didn't send. Check your connection and try again; this won't order twice.",
-      });
+      setError(
+        "We couldn't confirm the result. Retry with the same details; your attempt is protected against duplicate orders.",
+      );
+    } finally {
+      submitting.current = false;
+      setPlacing(false);
     }
   }
-
-  if (submit.kind === "placed") {
-    return <OrderPlaced refs={submit.refs} totalPaise={submit.totalPaise} />;
-  }
-
-  if (!hydrated) {
-    /* The same `h-64` as before, so nothing below the fold moves when the cart
-       is read — only what is drawn inside it has changed. */
-    return <BakingPanel label="Getting your basket…" className={`${sCard} h-64`} />;
-  }
-
-  if (lines.length === 0) {
+  if (lines.length === 0 && receipt) return <OrderPlaced receipt={receipt} />;
+  if (lines.length === 0)
     return (
-      <div className="flex flex-col items-start gap-5 rounded-s border border-dashed border-s-line-strong bg-s-shell px-6 py-16">
-        <h2 className="text-[1.75rem]">There is nothing to check out</h2>
-        <p className="max-w-[46ch] text-s-bark">Add a cake to the cart first.</p>
+      <div className={`${sCard} p-10 text-center`}>
+        <h2 className="text-3xl">A celebration starts with a cake.</h2>
+        <p className="my-5 text-s-bark">
+          Your basket is empty. Find something lovely to put in it.
+        </p>
         <Link href="/shop" className={sBtn("primary", "lg")}>
           Shop cakes
         </Link>
       </div>
     );
-  }
-
-  const nameBad = touched && !nameOk(name);
-  const phoneBad = touched && !phoneOk(phone);
-  const placing = submit.kind === "placing";
+  const serviceText = !canQuote
+    ? "Enter your pincode and choose a date to check delivery."
+    : !current
+      ? "Checking delivery and price…"
+      : quote
+        ? `${draft.method === "pickup" ? "Pickup available" : "We deliver here"}${slot.zoneName ? ` · ${slot.zoneName}` : ""}`
+        : current.code === "delivery_unavailable" ||
+            (!slot.available && /^\d{6}$/.test(draft.pincode))
+          ? "Not serviceable · please choose another address or pickup."
+          : (current.error ?? "Unable to verify. Please retry.");
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+    <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_25rem]">
       <form
-        className="flex flex-col gap-7"
+        className="checkout-form flex min-w-0 flex-col gap-6"
         onSubmit={(e) => {
           e.preventDefault();
-          setTouched(true);
-          if (ready && !placing) void place();
+          void place();
         }}
         noValidate
       >
-        {/* ── Who we call ────────────────────────────────────────────── */}
-        <section className={`${sCard} flex flex-col gap-4 p-5 sm:p-6`}>
-          <div>
-            <h2 className="text-[1.375rem]">Who is this for?</h2>
-            <p className="mt-1 text-[0.875rem] text-s-bark">
-              We call this number to confirm the cake and the exact delivery
-              address before anything goes in the oven.
-            </p>
-          </div>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">
-              Name
-            </span>
-            <input
-              value={name}
-              autoComplete="name"
-              required
-              disabled={placing}
-              aria-invalid={nameBad}
-              aria-describedby={nameBad ? "checkout-name-error" : undefined}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Who is collecting?"
-              className={sField()}
-            />
-            {nameBad && (
-              <span id="checkout-name-error" className="text-[0.8125rem] text-s-berry">
-                We need a name for the order.
-              </span>
-            )}
-          </label>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">
-              Phone
-            </span>
-            <input
-              inputMode="tel"
-              autoComplete="tel"
-              required
-              disabled={placing}
-              value={phone}
-              aria-invalid={phoneBad}
-              aria-describedby={phoneBad ? "checkout-phone-error" : undefined}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="10 digits"
-              className={sField("font-mono tabular-nums")}
-            />
-            {phoneBad && (
-              <span id="checkout-phone-error" className="text-[0.8125rem] text-s-berry">
-                A 10-digit Indian mobile number, so we can confirm the order.
-              </span>
-            )}
-          </label>
-        </section>
-
-        {/* ── Where and when ─────────────────────────────────────────── */}
-        <section className={`${sCard} flex flex-col gap-4 p-5 sm:p-6`}>
-          <div>
-            <h2 className="text-[1.375rem]">Where and when</h2>
-            <p className="mt-1 text-[0.875rem] text-s-bark">
-              One fulfillment plan and one delivery fee for the whole order.
-            </p>
-          </div>
-
-          <fieldset className="grid grid-cols-2 gap-2 border-0 p-0">
-            <legend className="sr-only">Fulfillment method</legend>
-            {(["delivery", "pickup"] as const).map((value) => (
-              <label key={value} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-s-sm border px-4 ${method === value ? "border-s-berry bg-s-berry-wash" : "border-s-line-strong"}`}>
+        <fieldset disabled={placing} className="contents">
+          <section className={`checkout-section ${sCard} p-5 sm:p-7`}>
+            <div className="mb-6">
+              <h2 className="text-2xl">The person behind the celebration</h2>
+              <p className="mt-2 text-sm text-s-bark">
+                We’ll call to confirm your cake and delivery details.
+              </p>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field
+                label="Name"
+                error={
+                  touched && !nameOk(draft.name)
+                    ? "Enter your full name."
+                    : undefined
+                }
+              >
                 <input
-                  type="radio"
-                  name="fulfillmentMethod"
-                  value={value}
-                  checked={method === value}
+                  name="name"
+                  autoComplete="name"
+                  value={draft.name}
+                  onChange={(e) => patch({ name: e.target.value })}
+                  maxLength={80}
+                  required
+                  className={sField()}
+                  aria-invalid={touched && !nameOk(draft.name)}
+                />
+              </Field>
+              <Field
+                label="Phone"
+                error={
+                  touched && !phoneOk(draft.phone)
+                    ? "Enter a valid Indian mobile number."
+                    : undefined
+                }
+              >
+                <input
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  value={draft.phone}
+                  onChange={(e) => patch({ phone: e.target.value })}
+                  maxLength={30}
+                  required
+                  className={sField()}
+                  aria-invalid={touched && !phoneOk(draft.phone)}
+                  placeholder="10-digit mobile number"
+                />
+              </Field>
+              <Field
+                label="Email (optional)"
+                error={!emailOk ? "Enter a valid email address." : undefined}
+              >
+                <input
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  value={draft.email}
+                  onChange={(e) => patch({ email: e.target.value })}
+                  maxLength={254}
+                  className={sField()}
+                  aria-invalid={!emailOk}
+                />
+              </Field>
+            </div>
+          </section>
+          <section className={`checkout-section ${sCard} p-5 sm:p-7`}>
+            <div className="mb-6">
+              <h2 className="text-2xl">A lovely arrival</h2>
+              <p className="mt-2 text-sm text-s-bark">
+                To your doorstep, or ready for you at the bakery.
+              </p>
+            </div>
+            <fieldset className="mb-5 grid grid-cols-2 gap-3">
+              <legend className="sr-only">Fulfillment method</legend>
+              {(["delivery", "pickup"] as const).map((method) => (
+                <label
+                  key={method}
+                  className={`flex min-h-16 cursor-pointer items-center gap-3 rounded-s-sm border p-4 ${draft.method === method ? "border-s-cocoa bg-s-cream-deep" : "border-s-line"}`}
+                >
+                  <input
+                    type="radio"
+                    name="method"
+                    checked={draft.method === method}
+                    onChange={() =>
+                      patch({
+                        method,
+                        slot: method === "pickup" ? "pickup" : "standard",
+                      })
+                    }
+                  />
+                  <span className="font-semibold capitalize">{method}</span>
+                </label>
+              ))}
+            </fieldset>
+            {draft.method === "delivery" ? (
+              <div className="flex flex-col gap-5">
+                <LocationPicker
                   disabled={placing}
-                  onChange={() => {
-                    setMethod(value);
-                    if (value === "pickup") setChosenSlot("pickup");
-                    else if (chosenSlot === "pickup") setChosenSlot("standard");
+                  onConfirm={(address) => {
+                    patch({
+                      addressLine1: address.address.slice(0, 160),
+                      city: address.city,
+                      state: address.state,
+                      pincode: address.pincode,
+                      location: {
+                        lat: address.lat,
+                        lng: address.lng,
+                        placeId: address.placeId,
+                      },
+                    });
+                    setConfirmedAddress("");
                   }}
                 />
-                <span className="capitalize">{value}</span>
-              </label>
-            ))}
-          </fieldset>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">
-              Slot
-            </span>
-            <select
-              value={delivery}
-              disabled={placing}
-              onChange={(e) => setChosenSlot(e.target.value as DeliverySlot)}
-              className={sField()}
-            >
-              {DELIVERY_OPTIONS.filter((o) => method === "pickup" ? o.value === "pickup" : o.value !== "pickup").map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.name} ({o.blurb})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">
-              Requested date
-            </span>
-            <input
-              type="date"
-              value={requestedDate}
-              min={new Date().toISOString().slice(0, 10)}
-              required
-              disabled={placing}
-              onChange={(e) => setRequestedDate(e.target.value)}
-              className={sField("font-mono")}
-            />
-          </label>
-
-          {method === "delivery" && (
-            <div className="grid gap-4">
-              <label className="flex flex-col gap-1.5">
-                <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">Address line 1</span>
-                <input value={addressLine1} required autoComplete="address-line1" disabled={placing} onChange={(e) => setAddressLine1(e.target.value)} className={sField()} placeholder="Flat, building and street" />
-              </label>
-              <label className="flex flex-col gap-1.5">
-                <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">Address line 2 <span className="normal-case tracking-normal">(optional)</span></span>
-                <input value={addressLine2} autoComplete="address-line2" disabled={placing} onChange={(e) => setAddressLine2(e.target.value)} className={sField()} />
-              </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5">
-                  <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">City</span>
-                  <input value={city} required autoComplete="address-level2" disabled={placing} onChange={(e) => setCity(e.target.value)} className={sField()} />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">State</span>
-                  <input value={stateName} required autoComplete="address-level1" disabled={placing} onChange={(e) => setStateName(e.target.value)} className={sField()} />
-                </label>
+                <Field label="Address line 1">
+                  <input
+                    value={draft.addressLine1}
+                    onChange={(e) =>
+                      patch({ addressLine1: e.target.value, location: null })
+                    }
+                    autoComplete="address-line1"
+                    placeholder="Flat number, building and street"
+                    maxLength={160}
+                    required
+                    className={sField()}
+                  />
+                </Field>
+                <Field label="Address line 2 (optional)">
+                  <input
+                    value={draft.addressLine2}
+                    onChange={(e) => patch({ addressLine2: e.target.value })}
+                    autoComplete="address-line2"
+                    maxLength={160}
+                    className={sField()}
+                  />
+                </Field>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field label="City">
+                    <input
+                      value={draft.city}
+                      onChange={(e) =>
+                        patch({ city: e.target.value, location: null })
+                      }
+                      autoComplete="address-level2"
+                      maxLength={80}
+                      required
+                      className={sField()}
+                    />
+                  </Field>
+                  <Field label="State">
+                    <input
+                      value={draft.state}
+                      onChange={(e) =>
+                        patch({ state: e.target.value, location: null })
+                      }
+                      autoComplete="address-level1"
+                      maxLength={80}
+                      required
+                      className={sField()}
+                    />
+                  </Field>
+                  <Field label="Pincode">
+                    <input
+                      value={draft.pincode}
+                      onChange={(e) =>
+                        patch({
+                          pincode: e.target.value.replace(/\D/g, ""),
+                          location: null,
+                        })
+                      }
+                      autoComplete="postal-code"
+                      inputMode="numeric"
+                      maxLength={6}
+                      required
+                      className={sField()}
+                    />
+                  </Field>
+                  <Field label="Landmark (optional)">
+                    <input
+                      value={draft.landmark}
+                      onChange={(e) => patch({ landmark: e.target.value })}
+                      maxLength={120}
+                      className={sField()}
+                    />
+                  </Field>
+                </div>
+                {addressComplete && (
+                  <div className="location-result rounded-s border border-s-line bg-s-cream p-4">
+                    <p className="text-sm font-semibold">
+                      Your delivery address
+                    </p>
+                    <p className="my-2 text-sm text-s-bark">
+                      {[
+                        draft.addressLine1,
+                        draft.addressLine2,
+                        draft.landmark,
+                        draft.city,
+                        draft.state,
+                        draft.pincode,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                    <button
+                      type="button"
+                      className={sBtn(
+                        addressConfirmed ? "ghost" : "outline",
+                        "sm",
+                      )}
+                      disabled={addressConfirmed}
+                      onClick={() => setConfirmedAddress(addressSignature)}
+                    >
+                      {addressConfirmed
+                        ? "✓ Address confirmed"
+                        : "Confirm this address"}
+                    </button>
+                  </div>
+                )}
+                {touched && !addressConfirmed && (
+                  <p role="alert" className="text-sm text-s-stop">
+                    Complete the address and confirm it above.
+                  </p>
+                )}
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5">
-                  <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">Pincode</span>
-                  <input inputMode="numeric" autoComplete="postal-code" maxLength={6} required disabled={placing} value={pincode} aria-invalid={!slot.available} aria-describedby="checkout-slot-note" onChange={(e) => setChosenPincode(e.target.value.replace(/\D/g, ""))} placeholder="500081" className={sField("font-mono tabular-nums")} />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">Landmark <span className="normal-case tracking-normal">(optional)</span></span>
-                  <input value={landmark} disabled={placing} onChange={(e) => setLandmark(e.target.value)} className={sField()} />
-                </label>
+            ) : (
+              <div className="rounded-s bg-s-cream-deep p-5">
+                <p className="font-semibold">{catalog.bakery.name}</p>
+                <p className="mt-1 text-sm text-s-bark">
+                  {catalog.bakery.address}
+                </p>
               </div>
-            </div>
-          )}
-
-          <span
-            id="checkout-slot-note"
-            className={`text-[0.8125rem] ${slot.available ? "text-s-bark" : "text-s-berry"}`}
-            role={slot.available ? undefined : "alert"}
-          >
-            {slot.unavailableReason
-              ?? `${slot.name} · ready about ${slot.effectiveLeadHours} hours after we confirm${slot.zoneName ? ` · ${slot.zoneName}` : ""}.`}
-          </span>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">Occasion <span className="normal-case tracking-normal">(optional)</span></span>
-            <input value={occasion} disabled={placing} maxLength={80} onChange={(e) => setOccasion(e.target.value)} className={sField()} placeholder="Birthday, anniversary…" />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">Order notes <span className="normal-case tracking-normal">(optional)</span></span>
-            <textarea value={customerNotes} disabled={placing} maxLength={1000} rows={3} onChange={(e) => setCustomerNotes(e.target.value)} className={sField("resize-y")} />
-          </label>
-          {method === "delivery" && (
-            <label className="flex flex-col gap-1.5">
-              <span className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">Delivery instructions <span className="normal-case tracking-normal">(optional)</span></span>
-              <textarea value={deliveryInstructions} disabled={placing} maxLength={500} rows={2} onChange={(e) => setDeliveryInstructions(e.target.value)} className={sField("resize-y")} />
-            </label>
-          )}
-        </section>
-
-        {/*
-          Three failures, one place to read them: the price check could not
-          reach the kitchen, the order was turned down for something the basket
-          can fix, or it was turned down for something else. The first two carry
-          a way out rather than only an apology — and the colour is never the
-          only signal, since the text says what happened on its own.
-        */}
-        {(priceError || submit.kind === "error") && (
-          <div
-            role="alert"
-            className="flex flex-col items-start gap-3 rounded-s-sm border border-s-berry/40 bg-s-berry-wash px-4 py-3 text-[0.9375rem] text-s-berry"
-          >
-            <p>{submit.kind === "error" ? submit.message : priceError}</p>
-            {submit.kind === "error" && submit.review && (
-              <Link href="/cart" className={sBtn("outline", "sm")}>
-                Review your cart
-              </Link>
             )}
-          </div>
+          </section>
+          <section className={`checkout-section ${sCard} p-5 sm:p-7`}>
+            <div className="mb-6">
+              <h2 className="text-2xl">Make time for cake</h2>
+              <p className="mt-2 text-sm text-s-bark">
+                Choose your requested date and delivery window.
+              </p>
+            </div>
+            <Field label="Requested date">
+              <input
+                type="date"
+                value={draft.requestedDate}
+                min={istDate()}
+                onChange={(e) => patch({ requestedDate: e.target.value })}
+                required
+                className={sField()}
+              />
+            </Field>
+            <fieldset className="mt-5 grid gap-3 sm:grid-cols-2">
+              <legend className="mb-2 text-xs font-semibold">
+                Delivery window
+              </legend>
+              {Object.values(catalog.slots)
+                .filter((s) =>
+                  draft.method === "pickup"
+                    ? s.slot === "pickup"
+                    : s.slot !== "pickup",
+                )
+                .map((s) => {
+                  const schedule = scheduleVerdict(draft.requestedDate, s);
+                  const allowed =
+                    schedule.ok &&
+                    (draft.method === "pickup" ||
+                      !/^\d{6}$/.test(draft.pincode) ||
+                      resolveSlot(s.slot, draft.pincode, catalog).available);
+                  return (
+                    <label
+                      key={s.slot}
+                      className={`flex min-h-24 items-start gap-3 rounded-s-sm border p-4 ${delivery === s.slot ? "border-s-cocoa bg-s-cream-deep" : "border-s-line"} ${allowed ? "cursor-pointer" : "opacity-65"}`}
+                    >
+                      <input
+                        type="radio"
+                        name="slot"
+                        checked={delivery === s.slot}
+                        disabled={!allowed}
+                        onChange={() => patch({ slot: s.slot })}
+                        className="mt-1"
+                      />
+                      <span>
+                        <strong className="block text-sm">{s.name}</strong>
+                        <span className="mt-1 block text-xs text-s-bark">
+                          {slotWindow(s)}
+                        </span>
+                        {!allowed && (
+                          <span className="mt-1 block text-xs text-s-stop">
+                            {schedule.message ?? "Unavailable for this pincode"}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
+            </fieldset>
+            <div
+              className={`mt-5 rounded-s border p-4 text-sm ${quote ? "border-s-done/30 bg-s-done-wash text-s-done" : current?.error ? "border-s-stop/30 bg-s-stop-wash text-s-stop" : "border-s-line bg-s-cream"}`}
+              role="status"
+              aria-live="polite"
+            >
+              <strong>
+                {quote ? "✓ " : ""}
+                {serviceText}
+              </strong>
+              {current?.error && (
+                <button
+                  type="button"
+                  className="ml-3 min-h-11 underline underline-offset-4"
+                  onClick={() => {
+                    setAnswer(null);
+                    setRetry((n) => n + 1);
+                  }}
+                >
+                  Check again
+                </button>
+              )}
+            </div>
+            <div className="mt-5 grid gap-5">
+              <Field label="Delivery instructions (optional)">
+                <textarea
+                  rows={2}
+                  value={draft.deliveryInstructions}
+                  onChange={(e) =>
+                    patch({ deliveryInstructions: e.target.value })
+                  }
+                  maxLength={500}
+                  className={sField()}
+                  placeholder="Gate code, where to leave the cake, or how to find you"
+                />
+              </Field>
+              <Field label="Occasion (optional)">
+                <input
+                  value={draft.occasion}
+                  onChange={(e) => patch({ occasion: e.target.value })}
+                  maxLength={80}
+                  className={sField()}
+                  placeholder="Birthday, anniversary, just because…"
+                />
+              </Field>
+              <Field label="Order notes (optional)">
+                <textarea
+                  value={draft.customerNotes}
+                  onChange={(e) => patch({ customerNotes: e.target.value })}
+                  maxLength={1000}
+                  rows={2}
+                  className={sField()}
+                />
+              </Field>
+            </div>
+          </section>
+          <section className={`checkout-section ${sCard} p-5 sm:p-7`}>
+            <div>
+              <h2 className="text-2xl">All set for something sweet</h2>
+              <p className="mt-3 text-sm text-s-bark">
+                No online payment is taken. We’ll call to confirm your order and
+                explain payment before we start baking.
+              </p>
+            </div>
+            <p className="mt-4 text-xs text-s-bark">
+              Please review your cake specifications and requested delivery
+              details before placing the order.
+            </p>
+          </section>
+        </fieldset>
+        {missing && (
+          <p
+            role="alert"
+            className="rounded-s border border-s-stop/30 p-4 text-sm text-s-stop"
+          >
+            A cake or variant is no longer available.{" "}
+            <Link href="/cart" className="underline">
+              Review your basket.
+            </Link>
+          </p>
         )}
-
+        {error && (
+          <p
+            role="alert"
+            className="rounded-s border border-s-stop/30 p-4 text-sm text-s-stop"
+          >
+            {error}
+          </p>
+        )}
+        {touched && !ready && !error && (
+          <p role="alert" className="text-sm text-s-stop">
+            {!contactOk
+              ? "Check your contact details."
+              : !addressConfirmed
+                ? "Confirm your delivery address above."
+                : "Delivery and pricing must be verified before placing your order."}
+          </p>
+        )}
         <button
           type="submit"
-          /*
-           * Two different refusals, and only one of them is `disabled`.
-           *
-           * In flight the button is genuinely disabled: a second press must not
-           * fire, full stop. Not-yet-ready is a different thing — it usually
-           * means the name or the number is missing — and a truly disabled
-           * control cannot be focused, so the form ended in a dead button with
-           * nothing saying why, and the field errors below were unreachable.
-           * `aria-disabled` leaves it focusable and inert: pressing it marks the
-           * fields touched and the messages appear, which is the answer the
-           * customer was after. components/admin/ui.tsx makes the same call in
-           * the same words, and `sBtn`'s `OFF` already styles the aria form
-           * identically to the real one.
-           */
           disabled={placing}
           aria-disabled={!ready}
-          /* Announced as well as shown: somebody on a screen reader gets the
-             same "it is working" the changed label gives everybody else. */
           aria-busy={placing}
-          className={sBtn("primary", "lg", "w-full lg:w-fit lg:min-w-[18rem]")}
+          className={sBtn("primary", "lg", "w-full")}
         >
-          {placing && <BakingMark size="sm" />}
-          {placing ? "Placing your order…" : `Place order · ${formatINR(total)}`}
+          {placing
+            ? "Placing your order…"
+            : quote
+              ? `Place order · ${formatINR(quote.totalPaise)}`
+              : "Place order"}
         </button>
       </form>
-
-      {/* ── What is being ordered ───────────────────────────────────── */}
       <aside
         aria-label="Order summary"
-        className={`${sCard} flex flex-col gap-4 p-5 lg:sticky lg:top-[84px]`}
+        className={`checkout-summary ${sCard} p-5 sm:p-7 lg:sticky lg:top-24`}
       >
-        <h2 className="text-[1.375rem]">Your order</h2>
-
-        <ul className="flex flex-col gap-3">
-          {resolved.map(({ line, cake, variant, choices }, i) => (
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-2xl">Your celebration</h2>
+          <Link
+            href="/cart"
+            className="min-h-11 content-center text-xs underline underline-offset-4"
+          >
+            Edit basket
+          </Link>
+        </div>
+        <ul className="flex flex-col gap-5">
+          {resolved.map(({ line, cake, variant }, i) => (
             <li
               key={line.id}
-              className="flex justify-between gap-3 border-b border-s-line pb-3 last:border-0 last:pb-0"
+              className="flex gap-3 border-b border-s-line pb-5"
             >
-              <div className="min-w-0">
-                <p className="text-[0.9375rem] font-medium text-s-cocoa">
-                  {/* The cake's current name, from the row. It is frozen onto
-                      the order at the moment it is placed, not here. */}
-                  {cake?.name ?? line.slug}{" "}
-                  {line.qty > 1 && <span className="text-s-bark">× {line.qty}</span>}
-                </p>
-                {cake && variant ? (
-                  <p className="text-[0.75rem] leading-snug text-s-bark">
-                    {variantLabel(variant)}
-                  </p>
-                ) : (
-                  <p role="alert" className="text-[0.75rem] leading-snug text-s-berry">
-                    {cake
-                      ? "That size or sponge is no longer available — change it in your cart."
-                      : "No longer available — remove it from your cart."}
-                  </p>
-                )}
-                {choices.message && (
-                  <p className="text-[0.75rem] leading-snug text-s-bark">
-                    Message: “{choices.message}”
-                  </p>
+              <div className="relative size-16 shrink-0 overflow-hidden rounded-s-sm">
+                {cake && (
+                  <CakePhoto
+                    src={cake.imageUrl}
+                    alt={cake.name}
+                    config={cake.config}
+                    sizes="64px"
+                  />
                 )}
               </div>
-              <span className="shrink-0 font-mono text-[0.875rem] tabular-nums">
-                {cake && variant
-                  ? formatINR(priceConfirmed ? (confirmed.each[i] ?? estimate[i]) : estimate[i])
-                  : "—"}
-              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">
+                  {cake?.name ?? line.slug}
+                </p>
+                <p className="mt-1 text-xs text-s-bark">
+                  {variant ? variantLabel(variant) : "No longer available"} ·
+                  Qty {line.qty}
+                </p>
+                {line.choices.message && (
+                  <p className="mt-1 text-xs text-s-bark">
+                    “{line.choices.message}”
+                  </p>
+                )}
+                <p className="mt-2 text-sm font-semibold tabular-nums">
+                  {quote ? formatINR(quote.each[i]) : "Awaiting price check"}
+                </p>
+              </div>
             </li>
           ))}
         </ul>
-
-        {/*
-          Subtotal, GST and total, all three from the server's own answer rather
-          than re-derived here. §18 asks for the tax to be visible before
-          somebody commits, and a figure the browser worked out for itself is
-          exactly the figure this whole flow exists to stop trusting. An em dash
-          while the answer is in flight, because a placeholder number that later
-          changes is worse than an obvious gap.
-        */}
-        <dl className="flex flex-col gap-2 border-t border-s-line pt-3 text-[0.875rem]">
-          <div className="flex justify-between gap-4">
-            <dt className="text-s-bark">Products</dt>
-            <dd className="font-mono tabular-nums">
-              {priceConfirmed ? formatINR(confirmed.productSubtotal) : "..."}
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-s-bark">{method === "pickup" ? "Pickup" : "Delivery"}</dt>
-            <dd className="font-mono tabular-nums">
-              {priceConfirmed ? (confirmed.deliveryFee ? formatINR(confirmed.deliveryFee) : "Included") : "..."}
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-s-bark">GST ({Math.round(catalog.settings.gstRate * 100)}%)</dt>
-            <dd className="font-mono tabular-nums">
-              {priceConfirmed ? formatINR(confirmed.gst) : "..."}
-            </dd>
-          </div>
-          <div className="mt-1 flex items-baseline justify-between gap-4 border-t border-s-line pt-3">
-            <dt className="font-mono text-[0.6875rem] tracking-[0.14em] text-s-bark uppercase">
-              Total
-            </dt>
-            <dd className="font-mono text-[1.375rem] font-medium tabular-nums">
-              {formatINR(total)}
+        <dl className="mt-6 flex flex-col gap-3 text-sm">
+          {[
+            ["Cakes", quote?.productSubtotalPaise],
+            [
+              draft.method === "pickup" ? "Pickup" : "Delivery",
+              quote?.deliveryFeePaise,
+            ],
+            [
+              `GST (${Math.round(catalog.settings.gstRate * 100)}%)`,
+              quote?.gstPaise,
+            ],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="flex justify-between gap-4">
+              <dt className="text-s-bark">{label}</dt>
+              <dd className="tabular-nums">
+                {typeof value === "number"
+                  ? value === 0
+                    ? "Included"
+                    : formatINR(value)
+                  : "—"}
+              </dd>
+            </div>
+          ))}
+          <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-s-line pt-5">
+            <dt className="font-semibold">Total</dt>
+            <dd className="text-3xl font-semibold tracking-tight">
+              <PriceRoll text={quote ? formatINR(quote.totalPaise) : "—"} />
             </dd>
           </div>
         </dl>
-
-        <p className="flex items-center gap-2 text-[0.8125rem] text-s-bark" aria-live="polite">
-          <span
-            aria-hidden
-            className={`size-1.5 rounded-full ${priceConfirmed ? "bg-s-done" : "bg-s-gold"}`}
-          />
-          {priceConfirmed
-            ? "Price confirmed with the kitchen."
-            : "Confirming with the kitchen…"}
+        <p className="mt-4 text-xs leading-relaxed text-s-bark">
+          {quote
+            ? "Verified with the bakery. Nothing charged today."
+            : "The final price appears after delivery is verified."}
         </p>
-
-        <p className="text-[0.8125rem] leading-relaxed text-s-bark">
-          No payment now.{" "}
-          {lines.length > 1 && "Each cake gets its own reference so you can track it."}
-        </p>
+        <div className="mt-6 border-t border-s-line pt-5">
+          <p className="text-xs font-semibold uppercase tracking-wider">
+            Made for your moment
+          </p>
+          <p className="mt-2 text-sm text-s-bark">
+            Baked to order, with the details that make it yours.
+          </p>
+        </div>
       </aside>
     </div>
+  );
+}
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex min-w-0 flex-col gap-2">
+      <span className="text-xs font-semibold">{label}</span>
+      {children}
+      {error && (
+        <span role="alert" className="text-xs text-s-stop">
+          {error}
+        </span>
+      )}
+    </label>
   );
 }

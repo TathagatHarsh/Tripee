@@ -7,7 +7,11 @@ import { formatIST, titleCase } from "@/lib/format";
 import { dueAt } from "@/lib/orders";
 import { servingsLabel } from "@/lib/servings";
 import {
-  dueUrgency, isVendorFinished, VENDOR_NEXT, VENDOR_STATUS_LABEL, VENDOR_STATUS_TONE,
+  dueUrgency,
+  isVendorFinished,
+  VENDOR_NEXT,
+  VENDOR_STATUS_LABEL,
+  VENDOR_STATUS_TONE,
 } from "@/lib/vendors";
 import type { VendorCard } from "./data";
 import { DueBadge } from "./DueBadge";
@@ -92,7 +96,7 @@ export function OrderTicket({
   return (
     <article
       className={[
-        "flex flex-col overflow-hidden rounded-a border bg-a-surface shadow-a-card",
+        "vendor-ticket flex flex-col overflow-hidden rounded-a border bg-a-surface shadow-a-card",
         "transition-[border-color,box-shadow] duration-[var(--dur-ui)]",
         urgent ? "border-a-bad-line" : "border-a-line",
       ].join(" ")}
@@ -112,7 +116,9 @@ export function OrderTicket({
 
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h3 className="font-a-sans text-a-item leading-tight font-semibold text-balance text-a-ink">
-            {name}
+            {order.cakes.length > 1
+              ? `${order.cakes.length} cakes · ${name}`
+              : name}
           </h3>
           <p className="font-a-mono text-a-small tabular-nums text-a-muted">
             {[size, sponge, config ? servingsLabel(config) : null]
@@ -130,15 +136,37 @@ export function OrderTicket({
         </div>
       </div>
 
+      {order.cakes.length > 1 && (
+        <ul className="border-t border-a-line px-4 py-3 text-a-small">
+          {order.cakes.map((cake, i) => (
+            <li key={cake.id} className="py-1">
+              <strong>
+                {i + 1}. {cake.cakeName ?? "Custom cake"}
+              </strong>
+              <span className="block text-a-muted">{cake.variantLabel}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {order.customerNotes && (
+        <p className="border-t border-a-line px-4 py-3 text-a-small text-a-muted">
+          Note: {order.customerNotes}
+        </p>
+      )}
       {/* ── when ───────────────────────────────────────────────────────── */}
       <div
         className={[
           "flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t px-3 py-2.5",
-          urgent ? "border-a-bad-line bg-a-bad-wash" : "border-a-line bg-a-sunken",
+          urgent
+            ? "border-a-bad-line bg-a-bad-wash"
+            : "border-a-line bg-a-sunken",
         ].join(" ")}
       >
         {finished ? (
-          <StatusBadge label={VENDOR_STATUS_LABEL[status]} tone={VENDOR_STATUS_TONE[status]} />
+          <StatusBadge
+            label={VENDOR_STATUS_LABEL[status]}
+            tone={VENDOR_STATUS_TONE[status]}
+          />
         ) : (
           <DueBadge dueISO={due.toISOString()} nowISO={now.toISOString()} />
         )}
@@ -151,11 +179,15 @@ export function OrderTicket({
       <dl className="flex flex-col gap-1.5 px-3 py-2.5 text-a-small">
         <div className="flex gap-2">
           <dt className="w-16 shrink-0 text-a-muted">For</dt>
-          <dd className="min-w-0 flex-1 text-a-ink">{order.customerName ?? "No name taken"}</dd>
+          <dd className="min-w-0 flex-1 text-a-ink">
+            {order.customerName ?? "No name taken"}
+          </dd>
         </div>
         <div className="flex gap-2">
           <dt className="w-16 shrink-0 text-a-muted">Slot</dt>
-          <dd className="min-w-0 flex-1 text-a-ink">{titleCase(order.deliverySlot)}</dd>
+          <dd className="min-w-0 flex-1 text-a-ink">
+            {titleCase(order.deliverySlot)}
+          </dd>
         </div>
         {message && (
           <div className="flex gap-2">
@@ -183,7 +215,8 @@ export function OrderTicket({
       {!config && (
         <p className="flex items-start gap-1.5 border-t border-a-bad-line bg-a-bad-wash px-3 py-2 text-a-small leading-snug font-medium text-a-bad-ink">
           <Icon name="alert" size={15} className="mt-px shrink-0" />
-          This order&rsquo;s specification cannot be read. Ring Makemycake before you start.
+          This order&rsquo;s specification cannot be read. Ring Makemycake
+          before you start.
         </p>
       )}
 
@@ -195,7 +228,11 @@ export function OrderTicket({
             a box to say why, which is the detail page — see OrderActions' own
             note on the reason panel.
           */}
-          <OrderActions orderRef={order.ref} next={VENDOR_NEXT[status]} compact />
+          <OrderActions
+            orderRef={order.ref}
+            next={VENDOR_NEXT[status]}
+            compact
+          />
 
           {/*
             §11 puts Accept and Reject side by side on a new order, and the

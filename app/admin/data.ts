@@ -72,6 +72,7 @@ export interface OpsRow {
  */
 const OPS_SELECT = {
   ref: true, status: true, createdAt: true, leadHours: true, deliverySlot: true,
+  requestedFor: true, dueAt: true, confirmedAt: true,
   pincode: true, customerName: true, customerPhone: true, totalPaise: true,
   currentAssignment: {
     select: { status: true, assignedAt: true, vendorId: true, vendor: { select: { name: true } } },
@@ -305,7 +306,7 @@ export async function deliverySnapshot(
 
   /* The computed due instant, written once so the WHERE and the ORDER BY cannot
      drift into measuring two different things. */
-  const due = Prisma.sql`("createdAt" + ("leadHours" * interval '1 hour'))`;
+  const due = Prisma.sql`COALESCE("dueAt", "requestedFor", COALESCE("confirmedAt", "createdAt") + ("leadHours" * interval '1 hour'))`;
 
   const ids = await db.$queryRaw<{ id: string }[]>`
     SELECT id FROM "Order"

@@ -70,9 +70,9 @@ export default async function VendorLayout({ children }: { children: React.React
   const email = await getViewerEmail();
 
   return (
-    <div className="a-root flex min-h-dvh flex-col">
+    <div className="a-root vendor-root flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-a-line bg-a-surface/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-1 px-4 pt-3 sm:px-6">
+        <div className="mx-auto flex max-w-[90rem] flex-wrap items-center gap-x-4 gap-y-1 px-4 pt-3 sm:px-6">
           <span className="min-w-0 font-a-sans text-a-lede font-bold tracking-[-0.015em] text-a-ink">
             {vendor.name}
           </span>
@@ -103,7 +103,7 @@ export default async function VendorLayout({ children }: { children: React.React
         <VendorTabs />
       </header>
 
-      <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-4 py-5 sm:px-6 sm:py-6">
+      <main id="main" className="mx-auto w-full max-w-[90rem] flex-1 px-4 py-5 sm:px-6 sm:py-6">
         {children}
       </main>
     </div>

@@ -357,7 +357,7 @@ export function StatCard({
   );
 
   const shell =
-    `flex flex-col rounded-a border bg-a-surface p-4 shadow-a-card ${TONE.ring}`;
+    `ops-metric flex flex-col rounded-a border bg-a-surface p-5 shadow-a-card ${TONE.ring}`;
 
   return href ? (
     <Link

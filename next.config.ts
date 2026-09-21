@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // Isolate QA builds from an already-running development server.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // There are stray lockfiles above this directory; pin the workspace root.
   turbopack: {
     root: here,
@@ -57,7 +59,7 @@ const nextConfig: NextConfig = {
              Razorpay arrives this line is the one to revisit first. */
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+            value: "camera=(), microphone=(), geolocation=(self), payment=(), usb=()",
           },
 
           /* Two years, subdomains included, no `preload`. Preloading is a

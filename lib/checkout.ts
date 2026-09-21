@@ -1,8 +1,12 @@
 import { z } from "zod";
 import type { CatalogCategory } from "@prisma/client";
 import {
-  CakeChoices, configForVariant, sellable, variantLabel,
-  type CakeProductView, type CakeVariantView,
+  CakeChoices,
+  configForVariant,
+  sellable,
+  variantLabel,
+  type CakeProductView,
+  type CakeVariantView,
 } from "./cakes";
 import { entryFor, type CatalogSnapshot } from "./catalogSnapshot";
 import { resolveSlot, type ResolvedSlot } from "./delivery";
@@ -94,50 +98,51 @@ export function phoneOk(raw: string | undefined | null): boolean {
 
 /* ---------------------------------------------------------- the request */
 
-export const CheckoutItem = z.object({
-  /**
-   * The cake this line is, said one of two ways.
-   *
-   * `cakeSlug` is the shop: a name the server looks up in CakeProduct, whose
-   * price, availability and recipe are then read from the row rather than from
-   * anything the browser sent. `config` is the 3D builder, which posts an
-   * assembly nobody has a row for — the shape app/build/review has always sent
-   * and which still works unchanged.
-   *
-   * Exactly one, enforced by the refinement below. A body carrying both would
-   * have two answers to "what is being bought" and no rule about which wins.
-   */
-  cakeSlug: z.string().max(80).optional(),
-  /**
-   * Which version of that cake: a `CakeVariant` id.
-   *
-   * A reference and not a description, for the reason `cakeSlug` is one. The
-   * server looks the row up under the cake the slug names and reads the size,
-   * the sponge and the price off it — so a body claiming a variant belongs to a
-   * cheaper cake finds nothing, and a body claiming a price has nowhere to put
-   * one. An id that has been deleted or withdrawn since the basket was filled
-   * gets a refusal naming the problem; see `reviewBasket`.
-   */
-  variantId: z.string().max(60).optional(),
-  /** The shop line's own choices. Ignored on a builder line, which has a config. */
-  choices: CakeChoices.optional(),
-  config: CakeConfig.optional(),
-  /*
-   * `.int()` is doing more work than it looks. It is what refuses 2.5, and also
-   * what refuses Infinity — which is not an integer — while `z.number()` itself
-   * refuses NaN. A JSON body cannot literally carry either, but a client that
-   * computes a quantity and sends the result can, and this is the boundary.
-   */
-  qty: z.number().int().min(1).max(MAX_QTY).default(1),
-  /**
-   * What this cake was quoted at, in paise, as the customer saw it.
-   *
-   * Advisory in one direction only: it can stop an order, and it can never set
-   * a price. See `reviewBasket`, which compares it against the server's own
-   * arithmetic and refuses the basket if the catalogue has moved underneath it.
-   */
-  quotedTotalPaise: z.number().int().nonnegative().optional(),
-})
+export const CheckoutItem = z
+  .object({
+    /**
+     * The cake this line is, said one of two ways.
+     *
+     * `cakeSlug` is the shop: a name the server looks up in CakeProduct, whose
+     * price, availability and recipe are then read from the row rather than from
+     * anything the browser sent. `config` is the 3D builder, which posts an
+     * assembly nobody has a row for — the shape app/build/review has always sent
+     * and which still works unchanged.
+     *
+     * Exactly one, enforced by the refinement below. A body carrying both would
+     * have two answers to "what is being bought" and no rule about which wins.
+     */
+    cakeSlug: z.string().max(80).optional(),
+    /**
+     * Which version of that cake: a `CakeVariant` id.
+     *
+     * A reference and not a description, for the reason `cakeSlug` is one. The
+     * server looks the row up under the cake the slug names and reads the size,
+     * the sponge and the price off it — so a body claiming a variant belongs to a
+     * cheaper cake finds nothing, and a body claiming a price has nowhere to put
+     * one. An id that has been deleted or withdrawn since the basket was filled
+     * gets a refusal naming the problem; see `reviewBasket`.
+     */
+    variantId: z.string().max(60).optional(),
+    /** The shop line's own choices. Ignored on a builder line, which has a config. */
+    choices: CakeChoices.optional(),
+    config: CakeConfig.optional(),
+    /*
+     * `.int()` is doing more work than it looks. It is what refuses 2.5, and also
+     * what refuses Infinity — which is not an integer — while `z.number()` itself
+     * refuses NaN. A JSON body cannot literally carry either, but a client that
+     * computes a quantity and sends the result can, and this is the boundary.
+     */
+    qty: z.number().int().min(1).max(MAX_QTY).default(1),
+    /**
+     * What this cake was quoted at, in paise, as the customer saw it.
+     *
+     * Advisory in one direction only: it can stop an order, and it can never set
+     * a price. See `reviewBasket`, which compares it against the server's own
+     * arithmetic and refuses the basket if the catalogue has moved underneath it.
+     */
+    quotedTotalPaise: z.number().int().nonnegative().optional(),
+  })
   .refine((i) => Boolean(i.cakeSlug) !== Boolean(i.config), {
     message: "A line names a cake or carries a configuration, not both.",
   })
@@ -152,63 +157,109 @@ export const CheckoutItem = z.object({
 
 export type BasketItem = z.infer<typeof CheckoutItem>;
 
-export const FulfillmentInput = z.object({
-  method: z.enum(["delivery", "pickup"]),
-  slot: DeliverySlot,
-  recipientName: z.string().trim().min(2).max(80),
-  addressLine1: z.string().trim().max(160).optional(),
-  addressLine2: z.string().trim().max(160).optional(),
-  landmark: z.string().trim().max(120).optional(),
-  city: z.string().trim().max(80).optional(),
-  state: z.string().trim().max(80).optional(),
-  pincode: z.string().trim().optional(),
-  requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  requestedWindow: z.string().trim().min(1).max(120),
-  deliveryInstructions: z.string().trim().max(500).optional(),
-  customerNotes: z.string().trim().max(1_000).optional(),
-  occasion: z.string().trim().max(80).optional(),
-}).superRefine((f, ctx) => {
-  if (f.method === "pickup" && f.slot !== "pickup") {
-    ctx.addIssue({ code: "custom", message: "Pickup must use the pickup slot.", path: ["slot"] });
-  }
-  if (f.method === "delivery") {
-    if (f.slot === "pickup") {
-      ctx.addIssue({ code: "custom", message: "Delivery needs a delivery slot.", path: ["slot"] });
-    }
-    if (!/^\d{6}$/.test(f.pincode ?? "")) {
-      ctx.addIssue({ code: "custom", message: "Delivery needs a six-digit pincode.", path: ["pincode"] });
-    }
-    if (!f.addressLine1 || !f.city || !f.state) {
-      ctx.addIssue({ code: "custom", message: "Delivery needs a complete address.", path: ["addressLine1"] });
-    }
-  }
-});
-
-export const QuoteRequest = z.object({
-  items: z.array(CheckoutItem).min(1),
-  fulfillment: z.object({
+export const FulfillmentInput = z
+  .object({
     method: z.enum(["delivery", "pickup"]),
     slot: DeliverySlot,
+    recipientName: z.string().trim().min(2).max(80),
+    contactEmail: z.string().trim().email().max(254).optional(),
+    location: z
+      .object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        placeId: z.string().max(300),
+      })
+      .optional(),
+    addressLine1: z.string().trim().max(160).optional(),
+    addressLine2: z.string().trim().max(160).optional(),
+    landmark: z.string().trim().max(120).optional(),
+    city: z.string().trim().max(80).optional(),
+    state: z.string().trim().max(80).optional(),
     pincode: z.string().trim().optional(),
     requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  }).superRefine((f, ctx) => {
+    requestedWindow: z.string().trim().min(1).max(120),
+    deliveryInstructions: z.string().trim().max(500).optional(),
+    customerNotes: z.string().trim().max(1_000).optional(),
+    occasion: z.string().trim().max(80).optional(),
+  })
+  .superRefine((f, ctx) => {
     if (f.method === "pickup" && f.slot !== "pickup") {
-      ctx.addIssue({ code: "custom", message: "Pickup must use the pickup slot.", path: ["slot"] });
+      ctx.addIssue({
+        code: "custom",
+        message: "Pickup must use the pickup slot.",
+        path: ["slot"],
+      });
     }
-    if (f.method === "delivery" && (f.slot === "pickup" || !/^\d{6}$/.test(f.pincode ?? ""))) {
-      ctx.addIssue({ code: "custom", message: "Delivery needs a delivery slot and pincode.", path: ["pincode"] });
+    if (f.method === "delivery") {
+      if (f.slot === "pickup") {
+        ctx.addIssue({
+          code: "custom",
+          message: "Delivery needs a delivery slot.",
+          path: ["slot"],
+        });
+      }
+      if (!/^\d{6}$/.test(f.pincode ?? "")) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Delivery needs a six-digit pincode.",
+          path: ["pincode"],
+        });
+      }
+      if (
+        (f.addressLine1?.length ?? 0) < 3 ||
+        (f.city?.length ?? 0) < 2 ||
+        (f.state?.length ?? 0) < 2
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Delivery needs a complete address.",
+          path: ["addressLine1"],
+        });
+      }
     }
-  }),
-}).refine((r) => r.items.reduce((n, i) => n + i.qty, 0) <= MAX_CAKES, {
-  message: `A single order can carry at most ${MAX_CAKES} cakes.`,
-  path: ["items"],
-});
+  });
+
+export const QuoteRequest = z
+  .object({
+    items: z.array(CheckoutItem).min(1),
+    fulfillment: z
+      .object({
+        method: z.enum(["delivery", "pickup"]),
+        slot: DeliverySlot,
+        pincode: z.string().trim().optional(),
+        requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      })
+      .superRefine((f, ctx) => {
+        if (f.method === "pickup" && f.slot !== "pickup") {
+          ctx.addIssue({
+            code: "custom",
+            message: "Pickup must use the pickup slot.",
+            path: ["slot"],
+          });
+        }
+        if (
+          f.method === "delivery" &&
+          (f.slot === "pickup" || !/^\d{6}$/.test(f.pincode ?? ""))
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Delivery needs a delivery slot and pincode.",
+            path: ["pincode"],
+          });
+        }
+      }),
+  })
+  .refine((r) => r.items.reduce((n, i) => n + i.qty, 0) <= MAX_CAKES, {
+    message: `A single order can carry at most ${MAX_CAKES} cakes.`,
+    path: ["items"],
+  });
 
 export const CheckoutRequest = z
   .object({
     items: z.array(CheckoutItem).min(1),
     customerName: z.string(),
     customerPhone: z.string(),
+    quotedOrderTotalPaise: z.number().int().nonnegative().optional(),
     fulfillment: FulfillmentInput,
     /**
      * One checkout attempt, named by the browser that is attempting it.
@@ -258,7 +309,9 @@ export function asBasketBody(body: unknown): unknown {
       {
         config,
         qty: 1,
-        ...(typeof clientTotal === "number" ? { quotedTotalPaise: clientTotal } : {}),
+        ...(typeof clientTotal === "number"
+          ? { quotedTotalPaise: clientTotal }
+          : {}),
       },
     ],
   };
@@ -329,7 +382,8 @@ export function withdrawnOptions(
     seen.add(key);
 
     const entry = entryFor(catalog, category, value);
-    if (entry && !entry.isAvailable) out.push({ category, value, name: entry.name });
+    if (entry && !entry.isAvailable)
+      out.push({ category, value, name: entry.name });
   }
 
   return out;
@@ -489,8 +543,8 @@ export function reviewBasket(
             status: 409,
             index,
             message:
-              "One of the cakes in your basket is no longer available. "
-              + "Please remove it and choose another.",
+              "One of the cakes in your basket is no longer available. " +
+              "Please remove it and choose another.",
           },
         };
       }
@@ -520,8 +574,8 @@ export function reviewBasket(
             status: 409,
             index,
             message:
-              `The size or sponge you chose for ${found.name} isn't available any more. `
-              + "Open it again and pick from what's on the shelf.",
+              `The size or sponge you chose for ${found.name} isn't available any more. ` +
+              "Open it again and pick from what's on the shelf.",
           },
         };
       }
@@ -539,7 +593,11 @@ export function reviewBasket(
           },
         };
       }
-      config = configForVariant(found, picked, item.choices ?? { delivery: "standard" });
+      config = configForVariant(
+        found,
+        picked,
+        item.choices ?? { delivery: "standard" },
+      );
     } else if (item.config) {
       /* The builder's path, unchanged: an assembly with no row behind it. */
       config = item.config;
@@ -600,13 +658,24 @@ export function reviewBasket(
     if (!deliveryChoice) {
       return {
         ok: false,
-        problem: { code: "delivery_unavailable", status: 422, index, message: "Choose pickup or a delivery slot." },
+        problem: {
+          code: "delivery_unavailable",
+          status: 422,
+          index,
+          message: "Choose pickup or a delivery slot.",
+        },
       };
     }
     const withdrawn = cake
-      ? (entryFor(catalog, "delivery", deliveryChoice)?.isAvailable
-          ? []
-          : [{ category: "delivery" as const, value: deliveryChoice, name: deliveryChoice }])
+      ? entryFor(catalog, "delivery", deliveryChoice)?.isAvailable
+        ? []
+        : [
+            {
+              category: "delivery" as const,
+              value: deliveryChoice,
+              name: deliveryChoice,
+            },
+          ]
       : withdrawnOptions(config!, catalog);
     if (withdrawn.length > 0) {
       const names = withdrawn.map((o) => o.name).join(", ");
@@ -635,7 +704,8 @@ export function reviewBasket(
           status: 422,
           index,
           message:
-            slot.unavailableReason ?? "That delivery slot isn't available for this pincode.",
+            slot.unavailableReason ??
+            "That delivery slot isn't available for this pincode.",
         },
       };
     }
@@ -663,13 +733,19 @@ export function reviewBasket(
              * rather than leaving the kitchen to infer the size from a config
              * dump. `Order.cakeName` stays the plain name — see below.
              */
-            { name: `${cake.name} · ${variantLabel(variant)}`, pricePaise: variant.pricePaise },
+            {
+              name: `${cake.name} · ${variantLabel(variant)}`,
+              pricePaise: variant.pricePaise,
+            },
             item.choices ?? { delivery: deliveryChoice },
             catalog,
           )
         : withoutShipment(priceCake(config!, catalog));
 
-    if (item.quotedTotalPaise !== undefined && item.quotedTotalPaise !== price.total) {
+    if (
+      item.quotedTotalPaise !== undefined &&
+      item.quotedTotalPaise !== price.total
+    ) {
       return {
         ok: false,
         problem: {
@@ -679,8 +755,8 @@ export function reviewBasket(
           quotedPaise: item.quotedTotalPaise,
           currentPaise: price.total,
           message:
-            "Your cake options or pricing have changed since you added them. "
-            + "Please review your order before continuing.",
+            "Your cake options or pricing have changed since you added them. " +
+            "Please review your order before continuing.",
         },
       };
     }
@@ -711,13 +787,17 @@ export function reviewBasket(
       problem: {
         code: "delivery_unavailable",
         status: 422,
-        message: "Every cake in one order must use the same pickup or delivery slot.",
+        message:
+          "Every cake in one order must use the same pickup or delivery slot.",
       },
     };
   }
 
   const slotValue = quotes[0]?.slot.slot;
-  const productSubtotalPaise = quotes.reduce((n, q) => n + q.price.subtotal * q.qty, 0);
+  const productSubtotalPaise = quotes.reduce(
+    (n, q) => n + q.price.subtotal * q.qty,
+    0,
+  );
   const deliveryFeePaise = slotValue
     ? (catalog.price.deliveryFee[slotValue] ?? 0)
     : 0;
@@ -747,8 +827,8 @@ export function reviewBasket(
         code: "below_minimum",
         status: 422,
         message:
-          `The kitchen's smallest order is ₹${Math.round(minimum / 100)} before GST. `
-          + "Please add a little more to the basket.",
+          `The kitchen's smallest order is ₹${Math.round(minimum / 100)} before GST. ` +
+          "Please add a little more to the basket.",
       },
     };
   }
@@ -806,6 +886,30 @@ export async function refForAttempt(
   attempt: number,
 ): Promise<string> {
   const message = `${idempotencyKey}:${index}:${attempt}`;
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(message));
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(message),
+  );
   return "MC-" + slugFromBytes(new Uint8Array(digest)).toUpperCase();
+}
+
+/** Order identity excludes mutable quote estimates and server-owned window prose. */
+export function checkoutIntent(
+  body: Pick<
+    CheckoutRequest,
+    "items" | "customerName" | "customerPhone" | "fulfillment"
+  > & { designSlug?: string },
+) {
+  const { requestedWindow: _window, ...fulfillment } = body.fulfillment;
+  void _window;
+  return {
+    items: body.items.map(({ quotedTotalPaise: _quote, ...item }) => {
+      void _quote;
+      return item;
+    }),
+    customerName: normalizeName(body.customerName),
+    customerPhone: normalizePhone(body.customerPhone),
+    fulfillment,
+    designSlug: body.designSlug ?? null,
+  };
 }

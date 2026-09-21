@@ -20,7 +20,7 @@ ALTER TABLE "Order"
   ADD COLUMN "landmark" TEXT,
   ADD COLUMN "city" TEXT,
   ADD COLUMN "state" TEXT,
-  ADD COLUMN "pincode" TEXT,
+  -- pincode already exists in 0_init. Preserve its values.
   ADD COLUMN "requestedFor" TIMESTAMP(3),
   ADD COLUMN "requestedWindow" TEXT,
   ADD COLUMN "deliveryInstructions" TEXT,

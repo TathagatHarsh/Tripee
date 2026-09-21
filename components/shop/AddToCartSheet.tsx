@@ -1,15 +1,16 @@
 "use client";
+import { priceProduct } from "@/lib/pricing";
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CakePhoto } from "@/components/shop/CakePhoto";
 import { PriceRoll } from "@/components/shop/PriceRoll";
-import { useVariantPick, VariantChoices, variantTotal } from "@/components/shop/VariantPicker";
+import { useVariantPick, VariantChoices } from "@/components/shop/VariantPicker";
 import { DEFAULT_CHOICES, variantLabel, type CakeProductView } from "@/lib/cakes";
 import { useCart } from "@/lib/cart";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
 import { formatINR } from "@/lib/format";
-import { sBtn } from "@/lib/shopUi";
+import { sBtn, sField } from "@/lib/shopUi";
 
 /**
  * "Add to cart" on a card, and what it opens.
@@ -47,11 +48,13 @@ export function AddToCartSheet({
   /** Appended to the trigger's accessible name — "Add to cart, Pineapple Delight". */
   srSuffix,
   className = "",
+  editLine,
 }: {
   product: CakeProductView;
   catalog: CatalogSnapshot;
   srSuffix?: string;
   className?: string;
+  editLine?: import("@/lib/cart").CartLine;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -62,9 +65,9 @@ export function AddToCartSheet({
         ref={trigger}
         type="button"
         onClick={() => setOpen(true)}
-        className={sBtn("primary", "md", className)}
+        className={sBtn(editLine ? "ghost" : "primary", "md", className)}
       >
-        Add to cart
+        {editLine ? "Edit" : "Add to cart"}
         {srSuffix && <span className="sr-only">, {srSuffix}</span>}
       </button>
 
@@ -72,6 +75,7 @@ export function AddToCartSheet({
         <Sheet
           product={product}
           catalog={catalog}
+          editLine={editLine}
           onClose={() => {
             setOpen(false);
             /* Focus goes back to the button that opened it. `<dialog>` does this
@@ -97,12 +101,17 @@ function Sheet({
   product,
   catalog,
   onClose,
+  editLine,
 }: {
   product: CakeProductView;
   catalog: CatalogSnapshot;
   onClose: () => void;
+  editLine?: import("@/lib/cart").CartLine;
 }) {
-  const pick = useVariantPick(product);
+  const pick = useVariantPick(product, editLine?.variantId);
+  const replace = useCart(s=>s.replace);
+  const [qty,setQty] = useState(editLine?.qty ?? 1);
+  const [message,setMessage] = useState(editLine?.choices.message ?? "");
   const add = useCart((s) => s.add);
   const [added, setAdded] = useState(false);
   const dialog = useRef<HTMLDialogElement | null>(null);
@@ -148,7 +157,7 @@ function Sheet({
   }, [added, dismiss]);
 
   const { variant, soldOut } = pick;
-  const total = variant ? variantTotal(product, variant, catalog) : null;
+  const total = variant ? priceProduct({name:product.name,pricePaise:variant.pricePaise},{delivery:"pickup",message},catalog).total * qty : null;
 
   return (
     <dialog
@@ -222,6 +231,7 @@ function Sheet({
               idPrefix={`sheet-${product.slug}`}
             />
           )}
+          {!soldOut && <div className="mt-5 grid gap-4"><label className="flex flex-col gap-2 text-sm">Message on the cake (optional)<input value={message} onChange={e=>setMessage(e.target.value)} maxLength={60} className={sField()} placeholder="Happy Birthday Amma" /></label><div className="flex items-center justify-between gap-3"><span className="text-sm">Quantity</span><div className="inline-flex items-center rounded-s-sm border border-s-line-strong"><button type="button" aria-label="One fewer" disabled={qty<=1} onClick={()=>setQty(n=>n-1)} className="size-11">−</button><span className="w-8 text-center tabular-nums" aria-live="polite">{qty}</span><button type="button" aria-label="One more" disabled={qty>=5} onClick={()=>setQty(n=>n+1)} className="size-11">+</button></div></div></div>}
         </div>
 
         {/* ── The total and the commitment ─────────────────────────────── */}
@@ -284,19 +294,14 @@ function Sheet({
                   disabled={!variant}
                   onClick={() => {
                     if (!variant) return;
-                    add({
-                      slug: product.slug,
-                      variantId: variant.id,
-                      /* Message, slot and pincode are settled at checkout — one
-                         delivery per order — so the line goes in with the
-                         default slot, exactly as it did before variants. */
-                      choices: DEFAULT_CHOICES,
-                    });
+                    const line = {slug:product.slug,variantId:variant.id,choices:{...DEFAULT_CHOICES,message:message.trim() || undefined},qty};
+                    if (editLine) { replace(editLine.id,line); onClose(); return; }
+                    add(line,qty);
                     setAdded(true);
                   }}
                   className={sBtn("primary", "lg", "w-full")}
                 >
-                  Add to cart
+                  {editLine ? "Save changes" : "Add to cart"}
                 </button>
 
                 <p className="text-center text-[0.8125rem] text-s-bark">

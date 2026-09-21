@@ -61,6 +61,12 @@ const ORDER_FOR_VENDOR = {
   deliverySlot: true,
   leadHours: true,
   createdAt: true,
+  requestedFor: true,
+  dueAt: true,
+  confirmedAt: true,
+  requestedWindow: true,
+  customerNotes: true,
+  cakes: { orderBy: { position: "asc" }, select: { id: true, cakeName: true, variantLabel: true, allergens: true, productionSpec: true, config: true } },
   allergens: true,
   servesMin: true,
   servesMax: true,
@@ -107,6 +113,12 @@ export interface VendorCardOrder {
   deliverySlot: string;
   leadHours: number;
   createdAt: Date;
+  requestedFor: Date | null;
+  dueAt: Date | null;
+  confirmedAt: Date | null;
+  requestedWindow: string | null;
+  customerNotes: string | null;
+  cakes: { id: string; cakeName: string | null; variantLabel: string | null; allergens: string[]; productionSpec: unknown; config: unknown }[];
   allergens: string[];
   servesMin: number;
   servesMax: number;

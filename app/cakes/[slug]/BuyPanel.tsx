@@ -1,20 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AddToCart } from "@/components/shop/AddToCart";
 import { PriceRoll } from "@/components/shop/PriceRoll";
 import { useVariantPick, VariantChoices } from "@/components/shop/VariantPicker";
 import { MAX_QTY } from "@/lib/cart";
 import type { CakeChoices, CakeProductView } from "@/lib/cakes";
-import { configForVariant, variantLabel } from "@/lib/cakes";
-import { DELIVERY_OPTIONS } from "@/lib/catalog";
+import { cheapestVariant, configForVariant, variantLabel } from "@/lib/cakes";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
-import { resolveSlot } from "@/lib/delivery";
 import { formatINR } from "@/lib/format";
 import { priceProduct } from "@/lib/pricing";
-import { canSubmit, validateCake } from "@/lib/rules";
 import { deriveServings } from "@/lib/servings";
-import type { DeliverySlot } from "@/lib/schema";
 import { sBtn, sField } from "@/lib/shopUi";
 
 /**
@@ -61,42 +57,85 @@ export function BuyPanel({
   product: CakeProductView;
   catalog: CatalogSnapshot;
 }) {
-  const pick = useVariantPick(product);
+  const pick = useVariantPick(product, cheapestVariant(product)?.id);
   const { variant } = pick;
 
   const [message, setMessage] = useState("");
-  const [delivery, setDelivery] = useState<DeliverySlot>(
-    (product.config?.delivery as DeliverySlot | undefined) ?? "standard",
-  );
-  const [pincode, setPincode] = useState("");
   const [qty, setQty] = useState(1);
 
   /* One object, derived. Keeping three pieces of state and assembling the
      choices in three places is how two of them end up disagreeing. */
   const choices: CakeChoices = useMemo(
     () => ({
-      delivery,
+      delivery: "standard",
       ...(message.trim() ? { message: message.trim() } : {}),
-      ...(/^\d{6}$/.test(pincode) ? { pincode } : {}),
+
     }),
-    [delivery, message, pincode],
+    [message],
   );
 
   /* Nothing is priced and nothing is validated until there is a variant: an
      unchosen cake has no price, and quoting one would mean picking a size on the
      shopper's behalf. Both fall out of the same null. */
   const config = variant ? configForVariant(product, variant, choices) : null;
-  const price = variant
+  const initialPrice = variant
     ? priceProduct({ name: product.name, pricePaise: variant.pricePaise }, choices, catalog)
     : null;
 
-  const violations = config ? validateCake(config) : [];
-  const blockers = violations.filter((v) => v.severity === "block");
-  const warnings = violations.filter((v) => v.severity === "warn");
-  const slot = resolveSlot(delivery, pincode || undefined, catalog);
-  /* The API refuses an unavailable slot with a 422, so the button has to know
-     it too — otherwise the only way to find out is to check out and be told no. */
-  const ready = Boolean(config && canSubmit(config)) && slot.available;
+  const [price, setPrice] = useState(initialPrice);
+  const [isPricing, setIsPricing] = useState(false);
+  const [priceError, setPriceError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function updatePrice() {
+      await Promise.resolve(); // push to microtask queue to avoid synchronous setState inside effect
+      if (!active) return;
+
+      if (!variant) {
+        setPrice(null);
+        setPriceError(null);
+        return;
+      }
+
+      setIsPricing(true);
+      setPriceError(null);
+
+      try {
+        const res = await fetch("/api/price", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cakeSlug: product.slug,
+            variantId: variant.id,
+            choices,
+          }),
+        });
+        const data = await res.json();
+        if (!active) return;
+
+        if (!res.ok) {
+          setPriceError(data.error || "Failed to calculate price");
+        } else {
+          setPrice(data.price);
+          setPriceError(null);
+        }
+      } catch {
+        if (active) setPriceError("Network error calculating price");
+      } finally {
+        if (active) setIsPricing(false);
+      }
+    }
+
+    void updatePrice();
+
+    return () => {
+      active = false;
+    };
+  }, [product.slug, variant, choices]);
+
+  const ready = Boolean(variant?.isAvailable && product.isAvailable && product.productionSpec);
 
   /* Servings move with the chosen size, at the 100g portions lib/servings
      states out loud. `deriveServings` takes a whole config, which is exactly
@@ -117,10 +156,12 @@ export function BuyPanel({
           itself replaced on every change never announces anything.
         */}
         {price ? (
-          <PriceRoll
-            text={formatINR(price.total)}
-            className="font-mono text-[2rem] font-medium text-s-cocoa tabular-nums"
-          />
+          <div className={`transition-opacity duration-[var(--dur-ui)] ${isPricing ? "opacity-50" : "opacity-100"}`}>
+            <PriceRoll
+              text={formatINR(price.total * qty)}
+              className="font-mono text-[2rem] font-medium text-s-cocoa tabular-nums"
+            />
+          </div>
         ) : (
           <span
             aria-hidden
@@ -129,11 +170,18 @@ export function BuyPanel({
             &mdash;
           </span>
         )}
-        <span className="font-mono text-[0.75rem] tracking-[0.1em] text-s-bark uppercase">
-          {price
-            ? `incl. GST${servings ? ` · serves ${servings.min}-${servings.max}` : ""}`
-            : "Choose a size to see the price"}
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono text-[0.75rem] tracking-[0.1em] text-s-bark uppercase">
+            {price
+              ? `incl. GST${servings ? ` · serves ${servings.min}-${servings.max}` : ""}`
+              : "Choose a size to see the price"}
+          </span>
+          {priceError && (
+            <span role="alert" className="text-[0.8125rem] font-medium text-s-berry">
+              {priceError}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── Which cake ────────────────────────────────────────────────── */}
@@ -167,51 +215,7 @@ export function BuyPanel({
         />
       </Group>
 
-      {/* ── Delivery ──────────────────────────────────────────────────── */}
-      <Group label="Delivery" hint="We confirm the exact time by phone before baking.">
-        <div className="flex flex-col gap-2">
-          <label className="sr-only" htmlFor="slot">Delivery slot</label>
-          <select
-            id="slot"
-            value={delivery}
-            onChange={(e) => setDelivery(e.target.value as DeliverySlot)}
-            className={sField("appearance-none bg-[position:right_0.9rem_center] pr-10")}
-          >
-            {DELIVERY_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.name} ({o.blurb})
-              </option>
-            ))}
-          </select>
-
-          <label className="sr-only" htmlFor="pincode">Delivery pincode</label>
-          <input
-            id="pincode"
-            inputMode="numeric"
-            autoComplete="postal-code"
-            maxLength={6}
-            value={pincode}
-            onChange={(e) => setPincode(e.target.value.replace(/\D/g, ""))}
-            placeholder="Pincode, e.g. 500081"
-            className={sField("font-mono tabular-nums")}
-          />
-
-          {/*
-            The lead time comes from lib/delivery — the same resolver the
-            kitchen and the docket use — rather than being typed here. There is
-            no delivery *date* field on this product's schema and none has been
-            invented: what the bakery commits to is a slot and a lead time, and
-            the exact hour is settled on the confirmation call.
-          */}
-          <p
-            className={`text-[0.875rem] ${slot.available ? "text-s-bark" : "text-s-berry"}`}
-            role={slot.available ? undefined : "alert"}
-          >
-            {slot.unavailableReason ??
-              `Ready about ${slot.effectiveLeadHours} hours after we confirm${slot.zoneName ? ` · ${slot.zoneName}` : ""}.`}
-          </p>
-        </div>
-      </Group>
+      <div className="rounded-s bg-s-cream-deep p-4 text-sm text-s-bark">Choose delivery or bakery pickup at checkout. We verify your pincode, requested date and delivery price there.</div>
 
       {/* ── Quantity + the two actions ────────────────────────────────── */}
       <div className="flex flex-col gap-3 border-t border-s-line pt-6">
@@ -244,16 +248,6 @@ export function BuyPanel({
           </div>
         </div>
 
-        {blockers.length > 0 && (
-          <ul role="alert" className="flex flex-col gap-2 rounded-s-sm border border-s-berry/40 bg-s-berry-wash px-4 py-3">
-            {blockers.map((v) => (
-              <li key={v.id} className="text-[0.875rem] leading-snug text-s-berry">
-                {v.message}
-              </li>
-            ))}
-          </ul>
-        )}
-
         <div className="grid gap-2 sm:grid-cols-2">
           {/*
             A direct add, not the sheet. This panel *is* the sheet's contents,
@@ -268,7 +262,7 @@ export function BuyPanel({
             variantId={variant?.id}
             choices={choices}
             qty={qty}
-            disabled={!ready || !variant}
+            disabled={!ready || !variant || isPricing || Boolean(priceError)}
             variant="primary"
             size="lg"
             className="w-full"
@@ -279,7 +273,7 @@ export function BuyPanel({
             choices={choices}
             qty={qty}
             after="checkout"
-            disabled={!ready || !variant}
+            disabled={!ready || !variant || isPricing || Boolean(priceError)}
             label="Buy now"
             variant="dark"
             size="lg"
@@ -294,10 +288,9 @@ export function BuyPanel({
               : "Choose how it should be baked to carry on."}
           </p>
         ) : (
-          !ready &&
-          blockers.length === 0 && (
+          !ready && (
             <p className="text-[0.875rem] text-s-berry">
-              Pick a delivery slot we can reach that pincode with.
+              This cake is temporarily unavailable while its kitchen specification is reviewed.
             </p>
           )
         )}
@@ -311,16 +304,6 @@ export function BuyPanel({
         <p className="text-[0.875rem] text-s-bark">
           No payment now. We call to confirm every order before it goes in the oven.
         </p>
-
-        {warnings.length > 0 && (
-          <ul className="flex flex-col gap-1.5 pt-1">
-            {warnings.map((v) => (
-              <li key={v.id} className="text-[0.8125rem] leading-snug text-s-bark">
-                {v.message}
-              </li>
-            ))}
-          </ul>
-        )}
 
         {/*
           The 3D builder's door, and it is shut. Kept visible here because this

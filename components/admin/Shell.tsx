@@ -114,7 +114,7 @@ export function AdminShell({ children, email, bakeryName, alerts, search }: Shel
      * is a document a rider carries, and a sidebar printed down the left of it is
      * ink spent on links nobody can click.
      */
-    <div className="a-root min-h-dvh lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <div className="a-root min-h-dvh lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
       {/* ── the desktop sidebar ─────────────────────────────────────────── */}
       <div data-admin-chrome className="hidden lg:sticky lg:top-0 lg:block lg:h-dvh">
         <Sidebar pathname={pathname} bakeryName={bakeryName} />
@@ -209,12 +209,13 @@ function Sidebar({
       aria-label="Admin sections"
       className="flex h-full flex-col overflow-y-auto border-r border-a-nav-active bg-a-nav"
     >
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-a-nav-hover px-4">
+      <div className="flex h-20 shrink-0 items-center gap-2 border-b border-a-nav-hover px-5">
         <Link
           href="/admin"
           className="min-w-0 flex-1 truncate font-a-sans text-a-item font-bold tracking-[-0.01em] text-a-nav-ink"
         >
-          {bakeryName}
+          <span className="block font-display text-xl font-normal">{bakeryName}</span>
+          <span className="mt-1 block text-[10px] font-medium uppercase tracking-[.18em] text-a-nav-muted">Bakery operations</span>
         </Link>
         {onClose && (
           <button

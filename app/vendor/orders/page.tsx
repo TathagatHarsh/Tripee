@@ -1,3 +1,4 @@
+import { QueueFilters, filterQueue, type QueueQuery } from "../QueueFilters";
 import type { Metadata } from "next";
 import { requireVendor } from "@/lib/auth";
 import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
@@ -34,12 +35,17 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function VendorOrders() {
+export default async function VendorOrders({
+  searchParams,
+}: {
+  searchParams: Promise<QueueQuery>;
+}) {
   const { vendor } = await requireVendor();
 
   if (!hasDatabase()) return <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>;
 
-  const all = await vendorHistory(vendor.id);
+  const query = await searchParams;
+  const all = filterQueue(await vendorHistory(vendor.id), query, new Date());
   const open = all.filter((c) => !isVendorFinished(c.status));
   const done = all.filter((c) => isVendorFinished(c.status));
 
@@ -54,15 +60,18 @@ export default async function VendorOrders() {
         </p>
       </header>
 
+      <QueueFilters query={query} action="/vendor/orders" />
       {all.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-a border border-a-line bg-a-surface px-6 py-14 text-center">
           <span className="flex size-12 items-center justify-center rounded-full bg-a-idle-wash text-a-faint">
             <Icon name="cake" size={22} />
           </span>
-          <p className="font-a-sans text-a-lede font-semibold text-a-ink">No orders yet</p>
+          <p className="font-a-sans text-a-lede font-semibold text-a-ink">
+            No orders yet
+          </p>
           <p className="max-w-sm text-a-body leading-relaxed text-a-muted">
-            Nothing has been given to you so far. The first one shows up here and
-            on the kitchen board at the same time.
+            Nothing has been given to you so far. The first one shows up here
+            and on the kitchen board at the same time.
           </p>
         </div>
       ) : (

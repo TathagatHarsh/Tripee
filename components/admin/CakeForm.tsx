@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, startTransition } from "react";
 import { createCake, saveCake, type CreateResult } from "@/app/admin/cakes/actions";
 import type { EggType } from "@prisma/client";
 import {
@@ -397,7 +397,11 @@ export function CakeForm({ cake }: { cake?: CakeProductView }) {
         onConfirm={() => {
           const form = confirming;
           setConfirming(null);
-          if (form) save(form);
+          if (form) {
+            startTransition(() => {
+              save(form);
+            });
+          }
         }}
       />
     </>

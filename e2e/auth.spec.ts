@@ -208,6 +208,7 @@ for (const [path, field, expected] of [
   ["/sign-up", "password", "new-password"],
 ] as const) {
   test(`${path} declares autocomplete="${expected}" on ${field}`, async ({ page }) => {
+    test.skip(!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || !process.env.CLERK_SECRET_KEY, "Clerk credentials are not configured for this test environment");
     await page.goto(path);
     // Clerk mounts after hydration and AuthAutofill runs after Clerk.
     const input = page.locator(`.s-auth input[name="${field}"]`);

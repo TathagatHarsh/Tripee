@@ -37,9 +37,7 @@ export async function applyStatusTransition(
   const now = new Date();
   const minimumDue = new Date(now.getTime() + order.leadHours * 3_600_000);
   const dueAt =
-    order.requestedFor && order.requestedFor.getTime() > minimumDue.getTime()
-      ? order.requestedFor
-      : minimumDue;
+    order.requestedFor ?? minimumDue;
 
   return db.$transaction(async (tx) => {
     const data = {

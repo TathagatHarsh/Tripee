@@ -57,6 +57,7 @@ export interface Viewer {
  * why it is only called below where a name or an address is actually printed.
  */
 export async function getUserId(): Promise<string | null> {
+  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || !process.env.CLERK_SECRET_KEY) return null;
   try {
     const { userId } = await auth();
     return userId ?? null;

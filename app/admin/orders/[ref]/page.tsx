@@ -366,8 +366,18 @@ export default async function OrderDetail({
             <p className="mt-2.5 text-a-meta leading-relaxed text-a-muted">
               {order.userId
                 ? "Placed from a signed-in account, so they can follow it themselves."
-                : "Placed as a guest. The phone number is the only way to reach them."}
+                : "Placed as a guest. Contact details are recorded above."}
             </p>
+          </Card>
+
+          <Card>
+            <h2 className={aEyebrow}>Delivery &amp; requested arrival</h2>
+            <p className="mt-3 text-a-body font-semibold">{order.fulfillmentMethod === "pickup" ? "Bakery pickup" : [order.addressLine1,order.addressLine2,order.landmark,order.city,order.state,order.pincode].filter(Boolean).join(", ") || "Address not recorded"}</p>
+            {order.requestedFor && <p className="mt-3 text-a-body">{formatIST(order.requestedFor)}</p>}
+            <p className="mt-1 text-a-small text-a-muted">{order.requestedWindow ?? order.deliverySlot}</p>
+            {order.deliveryInstructions && <p className="mt-3 text-a-small">Delivery instructions: {order.deliveryInstructions}</p>}
+            {order.customerNotes && <p className="mt-3 text-a-small">Customer notes: {order.customerNotes}</p>}
+            {order.customerEmail && <a href={`mailto:${order.customerEmail}`} className="mt-3 inline-flex min-h-11 items-center text-a-small text-a-accent-ink underline">{order.customerEmail}</a>}
           </Card>
 
           {/* ── §8: admin actions ──────────────────────────────────────── */}

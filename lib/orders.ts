@@ -324,8 +324,10 @@ export function dueAt(order: {
   leadHours: number;
   confirmedAt?: Date | null;
   dueAt?: Date | null;
+  requestedFor?: Date | null;
 }): Date {
   if (order.dueAt) return order.dueAt;
+  if (order.requestedFor) return order.requestedFor;
   const start = order.confirmedAt ?? order.createdAt;
   return new Date(start.getTime() + order.leadHours * 3600_000);
 }

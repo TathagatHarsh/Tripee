@@ -141,6 +141,8 @@ model Order {
 
   customerName             String?
   customerPhone            String?
+  customerEmail            String?
+  deliveryLocation         Json?
   recipientName            String?
   fulfillmentMethod        FulfillmentMethod @default(delivery)
   addressLine1             String?

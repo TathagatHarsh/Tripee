@@ -67,7 +67,7 @@ const CARD_FIELDS = {
   totalPaise: true,
   leadHours: true,
   deliverySlot: true,
-  dueAt: true,
+  requestedFor: true, dueAt: true, confirmedAt: true,
   config: true,
   servesMin: true,
   servesMax: true,
@@ -92,7 +92,9 @@ export interface OrderCardData {
   totalPaise: number;
   leadHours: number;
   deliverySlot: string;
+  requestedFor: Date | null;
   dueAt: Date | null;
+  confirmedAt: Date | null;
   servesMin: number;
   servesMax: number;
   /** Null when the stored configuration no longer validates. */

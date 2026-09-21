@@ -105,6 +105,7 @@ interface CartState {
   setQty: (id: string, qty: number) => void;
   remove: (id: string) => void;
   clear: () => void;
+  replace: (id: string, line: Omit<CartLine, "id">) => void;
 }
 
 export const useCart = create<CartState>()(
@@ -135,6 +136,11 @@ export const useCart = create<CartState>()(
       remove: (id) => set((s) => ({ lines: s.lines.filter((l) => l.id !== id) })),
 
       clear: () => set({ lines: [] }),
+      replace: (oldId, line) => set(s => {
+        const id = lineId(line.slug, line.variantId, line.choices);
+        const other = s.lines.find(l => l.id === id && l.id !== oldId);
+        return { lines: [...s.lines.filter(l => l.id !== oldId && l.id !== id), { ...line, id, qty: clamp(line.qty + (other?.qty ?? 0)) }] };
+      }),
     }),
     {
       name: "makemycake.cart",

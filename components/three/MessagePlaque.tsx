@@ -311,6 +311,8 @@ export function MessagePlaque({ config, tiers, castShadow, composing = false }: 
   const map = useDisposed(useMemo(
     () => (text ? messageTexture(text, ink, width, height) : new THREE.Texture()),
     // fontReady is a redraw trigger, not a value the texture reads.
+    // Font loading is an external drawing dependency, not a texture argument.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [text, ink, width, height, fontReady],
   ));
 

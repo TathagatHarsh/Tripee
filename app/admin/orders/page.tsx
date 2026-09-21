@@ -131,7 +131,7 @@ export default async function AdminOrders({
     const rows = await db.$queryRaw<{ id: string }[]>`
       SELECT id FROM "Order"
       WHERE status IN ('draft', 'confirmed', 'in_kitchen', 'out_for_delivery')
-        AND "createdAt" + ("leadHours" * interval '1 hour') < ${now}
+        AND COALESCE("dueAt", "requestedFor", COALESCE("confirmedAt", "createdAt") + ("leadHours" * interval '1 hour')) < ${now}
       LIMIT ${LIMIT}`;
     where.id = { in: rows.map((r) => r.id) };
   }

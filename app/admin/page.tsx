@@ -4,14 +4,28 @@ import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { formatINR, formatIST, titleCase } from "@/lib/format";
 import { customerStatus, STATUS_LABEL } from "@/lib/orders";
 import {
-  ATTENTION_LABEL, ATTENTION_NOTE, ATTENTION_TONE, IST_OFFSET_MS, openTotal,
-  startOfISTDay, worstAttention,
+  ATTENTION_LABEL,
+  ATTENTION_NOTE,
+  ATTENTION_TONE,
+  IST_OFFSET_MS,
+  openTotal,
+  startOfISTDay,
+  worstAttention,
 } from "@/lib/ops";
 import { VENDOR_STATUS_LABEL, VENDOR_STATUS_TONE } from "@/lib/vendors";
 import { DueLabel } from "@/components/admin/OrderTimeline";
 import {
-  aBtn, aEyebrow, Card, CardHead, EmptyState, Notice, OrderStatusBadge, PageHeader,
-  Ref, StatCard, StatusBadge,
+  aBtn,
+  aEyebrow,
+  Card,
+  CardHead,
+  EmptyState,
+  Notice,
+  OrderStatusBadge,
+  PageHeader,
+  Ref,
+  StatCard,
+  StatusBadge,
 } from "@/components/admin/ui";
 import { Icon } from "@/components/admin/icons";
 import { deliverySnapshot, opsSnapshot } from "./data";
@@ -65,7 +79,7 @@ export default async function Dashboard() {
   if (!hasDatabase()) {
     return (
       <div className="flex flex-col gap-5">
-        <PageHeader title="Dashboard" />
+        <PageHeader title="The bakery, at a glance." />
         <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>
       </div>
     );
@@ -78,7 +92,19 @@ export default async function Dashboard() {
 
   const notCancelled = { status: { not: "cancelled" as const } };
 
-  const [today, week, byStatus, ops, delivery, recent, events, sponges, sizes] = await Promise.all([
+  const [
+    today,
+    week,
+    byStatus,
+    ops,
+    delivery,
+    recent,
+    events,
+    sponges,
+    sizes,
+    productCount,
+    vendorCount,
+  ] = await Promise.all([
     db.order.aggregate({
       where: { ...notCancelled, createdAt: { gte: dayStart } },
       _count: { _all: true },
@@ -109,11 +135,22 @@ export default async function Dashboard() {
      * Narrowed by date in Postgres, so this is a day rather than the order book
      * filtered in the page — §12 and §29. See app/admin/data.ts.
      */
-    deliverySnapshot(now, { day: "today", state: "all", vendor: null, slot: null }),
+    deliverySnapshot(now, {
+      day: "today",
+      state: "all",
+      vendor: null,
+      slot: null,
+    }),
     db.order.findMany({
       orderBy: { createdAt: "desc" },
       take: 6,
-      select: { ref: true, status: true, createdAt: true, totalPaise: true, customerName: true },
+      select: {
+        ref: true,
+        status: true,
+        createdAt: true,
+        totalPaise: true,
+        customerName: true,
+      },
     }),
     /*
      * §6's "Recent activity", and the only source of it that is real:
@@ -129,7 +166,9 @@ export default async function Dashboard() {
       orderBy: { createdAt: "desc" },
       take: 8,
       select: {
-        id: true, toStatus: true, createdAt: true,
+        id: true,
+        toStatus: true,
+        createdAt: true,
         order: { select: { ref: true } },
         actor: { select: { name: true } },
       },
@@ -150,6 +189,8 @@ export default async function Dashboard() {
       FROM "Order"
       WHERE status <> 'cancelled' AND "createdAt" >= ${quarterStart}
       GROUP BY 1 ORDER BY n DESC, value ASC LIMIT 5`,
+    db.cakeProduct.count({ where: { isAvailable: true } }),
+    db.vendor.count(),
   ]);
 
   const counts: Partial<Record<OrderStatus, number>> = {};
@@ -164,7 +205,7 @@ export default async function Dashboard() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Dashboard"
+        title="The bakery, at a glance."
         blurb={`${greeting(now)}. Here's what's happening with the bakery today.`}
       >
         <Link href="/admin/orders/today" className={aBtn("secondary", "md")}>
@@ -186,6 +227,33 @@ export default async function Dashboard() {
         </Link>
       </PageHeader>
 
+      <section className="ops-overview-band" aria-label="Business overview">
+        <div>
+          <span className="text-xs uppercase tracking-widest">
+            The business behind the celebrations
+          </span>
+          <h2>Keep every promise.</h2>
+          <p>
+            Orders, the cake counter and your bakery partners — all in one
+            place.
+          </p>
+        </div>
+        <div className="ops-overview-figures">
+          <Link href="/admin/cakes">
+            <strong>{productCount}</strong>
+            <span>Cakes on sale ↗</span>
+          </Link>
+          <Link href="/admin/vendors">
+            <strong>{vendorCount}</strong>
+            <span>Bakery partners ↗</span>
+          </Link>
+          <Link href="/admin/orders?status=delivered">
+            <strong>{counts.delivered ?? 0}</strong>
+            <span>Completed orders ↗</span>
+          </Link>
+        </div>
+      </section>
+
       {/* ── what needs somebody, before anything else on the page ───────── */}
       {overdue.length > 0 && (
         <Notice tone="bad" icon="clock">
@@ -195,9 +263,12 @@ export default async function Dashboard() {
               : `${overdue.length} orders are past the window they were quoted.`}
           </p>
           <p className="mt-0.5">
-            That is a phone call, not a status change — the customer was promised a
-            time and it has gone.{" "}
-            <Link href="/admin/orders?due=late" className="font-medium underline">
+            That is a phone call, not a status change — the customer was
+            promised a time and it has gone.{" "}
+            <Link
+              href="/admin/orders?due=late"
+              className="font-medium underline"
+            >
               See which ones
             </Link>
             .
@@ -212,7 +283,7 @@ export default async function Dashboard() {
           <StatCard
             label="Orders today"
             value={String(today._count._all)}
-            note={`Since midnight IST · ${formatINR(today._sum.totalPaise ?? 0)} taken`}
+            note={`Since midnight IST · ${formatINR(today._sum.totalPaise ?? 0)} in order value`}
             icon="orders"
           />
           {BOARD.map((b) => (
@@ -223,9 +294,11 @@ export default async function Dashboard() {
               /* Coloured only when there is something in it. A dashboard where
                  every card is amber has said nothing about which one to open. */
               tone={
-                (counts[b.status] ?? 0) === 0 ? "plain"
-                : b.status === "draft" ? "warn"
-                : "accent"
+                (counts[b.status] ?? 0) === 0
+                  ? "plain"
+                  : b.status === "draft"
+                    ? "warn"
+                    : "accent"
               }
               href={`/admin/orders?status=${b.status}`}
               icon={b.icon}
@@ -250,21 +323,31 @@ export default async function Dashboard() {
           />
           <StatCard
             label="Average order, this week"
-            value={week._avg.totalPaise ? formatINR(Math.round(week._avg.totalPaise)) : "—"}
+            value={
+              week._avg.totalPaise
+                ? formatINR(Math.round(week._avg.totalPaise))
+                : "—"
+            }
             note="Cancellations excluded"
           />
           <StatCard
             label="Past its window"
             value={String(overdue.length)}
             tone={overdue.length > 0 ? "bad" : "good"}
-            note={overdue.length === 0 ? "Everything is inside its promise" : undefined}
+            note={
+              overdue.length === 0
+                ? "Everything is inside its promise"
+                : undefined
+            }
             href={overdue.length > 0 ? "/admin/orders?due=late" : undefined}
             icon="clock"
           />
         </div>
 
         <p className="text-a-meta leading-relaxed text-a-muted">
-          <strong className="font-semibold text-a-ink">Order value, not revenue.</strong>{" "}
+          <strong className="font-semibold text-a-ink">
+            Order value, not revenue.
+          </strong>{" "}
           Nothing is paid on the site, so these totals are the value of orders
           accepted — the kitchen still rings to confirm, and takes payment on
           delivery.
@@ -278,8 +361,8 @@ export default async function Dashboard() {
           note={
             delivery.counts.total === 0
               ? "Nothing is due today. Days are Hyderabad days, not the server's."
-              : `${delivery.counts.total} due today, by the window each customer was `
-                + "quoted. Hyderabad days, not the server's."
+              : `${delivery.counts.total} due today, by the window each customer was ` +
+                "quoted. Hyderabad days, not the server's."
           }
         >
           <Link href="/admin/orders/today" className={aBtn("ghost", "sm")}>
@@ -298,7 +381,11 @@ export default async function Dashboard() {
           Every figure carries its word. §10: not colour alone.
         */}
         <div className="grid grid-cols-2 gap-px border-t border-a-line bg-a-line sm:grid-cols-3 xl:grid-cols-6">
-          <DayFigure k="Due today" v={delivery.counts.total} href="/admin/orders/today" />
+          <DayFigure
+            k="Due today"
+            v={delivery.counts.total}
+            href="/admin/orders/today"
+          />
           <DayFigure
             k="Ready"
             v={delivery.counts.ready}
@@ -381,8 +468,8 @@ export default async function Dashboard() {
           note={
             needing.length === 0
               ? "Nothing is stuck, late, or waiting on a bakery."
-              : `${needing.length} ${needing.length === 1 ? "order wants" : "orders want"} `
-                + "somebody. Worst first."
+              : `${needing.length} ${needing.length === 1 ? "order wants" : "orders want"} ` +
+                "somebody. Worst first."
           }
         >
           <Link href="/admin/vendors" className={aBtn("ghost", "sm")}>
@@ -396,8 +483,8 @@ export default async function Dashboard() {
             icon="check"
             title="Nothing needs chasing."
             blurb={
-              "Every open order is inside its window, has a bakery on it, and "
-              + "nobody is waiting on an answer."
+              "Every open order is inside its window, has a bakery on it, and " +
+              "nobody is waiting on an answer."
             }
           />
         ) : (
@@ -405,7 +492,10 @@ export default async function Dashboard() {
             {needing.slice(0, 8).map((d) => {
               const worst = worstAttention(d.attention)!;
               return (
-                <li key={d.ref} className="border-b border-a-line last:border-0">
+                <li
+                  key={d.ref}
+                  className="border-b border-a-line last:border-0"
+                >
                   <Link
                     href={`/admin/orders/${d.ref}`}
                     className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-a-sunken sm:px-5"
@@ -437,7 +527,11 @@ export default async function Dashboard() {
 
                     <span className="flex items-center gap-4">
                       <DueLabel dueAt={d.due} now={now} status={d.status} />
-                      <Icon name="chevronRight" size={15} className="shrink-0 text-a-ghost" />
+                      <Icon
+                        name="chevronRight"
+                        size={15}
+                        className="shrink-0 text-a-ghost"
+                      />
                     </span>
                   </Link>
                 </li>
@@ -452,9 +546,9 @@ export default async function Dashboard() {
         <CardHead
           title="Vendor workload"
           note={
-            "What each bakery is holding right now, busiest first. Counts of open "
-            + "assignments — there is no capacity figure on a vendor, and one would "
-            + "be invented."
+            "What each bakery is holding right now, busiest first. Counts of open " +
+            "assignments — there is no capacity figure on a vendor, and one would " +
+            "be invented."
           }
         >
           <Link href="/admin/vendors" className={aBtn("ghost", "sm")}>
@@ -468,8 +562,8 @@ export default async function Dashboard() {
             icon="vendor"
             title="No bakeries yet"
             blurb={
-              "Until there is at least one active vendor, orders cannot be assigned "
-              + "and stay in the shop's own hands."
+              "Until there is at least one active vendor, orders cannot be assigned " +
+              "and stay in the shop's own hands."
             }
           />
         ) : (
@@ -485,9 +579,14 @@ export default async function Dashboard() {
                       <span className="font-a-sans text-a-small font-semibold text-a-ink">
                         {v.name}
                       </span>
-                      {!v.isActive && <StatusBadge label="Inactive" tone="plain" />}
+                      {!v.isActive && (
+                        <StatusBadge label="Inactive" tone="plain" />
+                      )}
                       {v.assigned > 0 && (
-                        <StatusBadge label={`${v.assigned} to answer`} tone="warn" />
+                        <StatusBadge
+                          label={`${v.assigned} to answer`}
+                          tone="warn"
+                        />
                       )}
                     </span>
                     {/*
@@ -510,7 +609,11 @@ export default async function Dashboard() {
                       </span>
                       <span className={aEyebrow}>Open</span>
                     </span>
-                    <Icon name="chevronRight" size={15} className="shrink-0 text-a-ghost" />
+                    <Icon
+                      name="chevronRight"
+                      size={15}
+                      className="shrink-0 text-a-ghost"
+                    />
                   </span>
                 </Link>
               </li>
@@ -555,7 +658,10 @@ export default async function Dashboard() {
                         exactly this distinction and prisma/schema.prisma is
                         emphatic that folding them into one enum is the mistake.
                       */}
-                      <OrderStatusBadge status={d.status} label={STATUS_LABEL[d.status]} />
+                      <OrderStatusBadge
+                        status={d.status}
+                        label={STATUS_LABEL[d.status]}
+                      />
                       {d.vendorStatus ? (
                         <StatusBadge
                           label={VENDOR_STATUS_LABEL[d.vendorStatus]}
@@ -575,7 +681,10 @@ export default async function Dashboard() {
                         the one mapping — see lib/orders' `customerStatus`. */}
                     <span className="text-a-meta text-a-faint">
                       Customer sees:{" "}
-                      {customerStatus(d.status, d.deliverySlot === "pickup").label}
+                      {
+                        customerStatus(d.status, d.deliverySlot === "pickup")
+                          .label
+                      }
                     </span>
                   </span>
 
@@ -586,7 +695,11 @@ export default async function Dashboard() {
                           reprices a cake — see §19. */}
                       {formatINR(d.totalPaise)}
                     </span>
-                    <Icon name="chevronRight" size={15} className="shrink-0 text-a-ghost" />
+                    <Icon
+                      name="chevronRight"
+                      size={15}
+                      className="shrink-0 text-a-ghost"
+                    />
                   </span>
                 </Link>
               </li>
@@ -598,14 +711,17 @@ export default async function Dashboard() {
       <div className="grid gap-4 xl:grid-cols-2">
         {/* ── §6: recent activity ───────────────────────────────────────── */}
         <Card flush>
-          <CardHead title="Recent activity" note="Every docket move, as it was recorded." />
+          <CardHead
+            title="Recent activity"
+            note="Every docket move, as it was recorded."
+          />
           {events.length === 0 ? (
             <EmptyState
               icon="clock"
               title="No moves recorded yet."
               blurb={
-                "This fills in as dockets are confirmed and sent out. Orders placed "
-                + "before the portal started recording moves show only that they were placed."
+                "This fills in as dockets are confirmed and sent out. Orders placed " +
+                "before the portal started recording moves show only that they were placed."
               }
             />
           ) : (
@@ -622,7 +738,9 @@ export default async function Dashboard() {
                         {" → "}
                         {STATUS_LABEL[e.toStatus].toLowerCase()}
                       </span>
-                      {e.actor?.name && <span className="text-a-muted"> · {e.actor.name}</span>}
+                      {e.actor?.name && (
+                        <span className="text-a-muted"> · {e.actor.name}</span>
+                      )}
                     </span>
                     <span className="font-a-mono text-a-meta text-a-muted">
                       {formatIST(e.createdAt)}
@@ -651,15 +769,23 @@ export default async function Dashboard() {
           ) : (
             <ul className="flex flex-col">
               {recent.map((o) => (
-                <li key={o.ref} className="border-b border-a-line last:border-0">
+                <li
+                  key={o.ref}
+                  className="border-b border-a-line last:border-0"
+                >
                   <Link
                     href={`/admin/orders/${o.ref}`}
                     className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5 transition-colors hover:bg-a-sunken sm:px-5"
                   >
                     <span className="flex min-w-0 flex-wrap items-center gap-2">
                       <Ref className="font-medium text-a-ink">{o.ref}</Ref>
-                      <span className="text-a-meta text-a-muted">{o.customerName ?? "—"}</span>
-                      <OrderStatusBadge status={o.status} label={STATUS_LABEL[o.status]} />
+                      <span className="text-a-meta text-a-muted">
+                        {o.customerName ?? "—"}
+                      </span>
+                      <OrderStatusBadge
+                        status={o.status}
+                        label={STATUS_LABEL[o.status]}
+                      />
                     </span>
                     <span className="font-a-mono text-a-small font-medium tabular-nums">
                       {formatINR(o.totalPaise)}
@@ -702,10 +828,13 @@ function DayFigure({
   tone?: "good" | "bad";
 }) {
   const colour =
-    v === 0 ? "text-a-faint"
-    : tone === "bad" ? "text-a-bad-ink"
-    : tone === "good" ? "text-a-good-ink"
-    : "text-a-ink";
+    v === 0
+      ? "text-a-faint"
+      : tone === "bad"
+        ? "text-a-bad-ink"
+        : tone === "good"
+          ? "text-a-good-ink"
+          : "text-a-ink";
 
   /* Spans inside the link rather than the `<dt>`/`<dd>` this reads like, and the
      grid above is a plain div rather than a `<dl>` for the same reason `Load`
@@ -718,7 +847,11 @@ function DayFigure({
       className="flex flex-col gap-0.5 bg-a-surface px-4 py-3 transition-colors hover:bg-a-sunken"
     >
       <span className={aEyebrow}>{k}</span>
-      <span className={`font-a-sans text-a-item font-semibold tabular-nums ${colour}`}>{v}</span>
+      <span
+        className={`font-a-sans text-a-item font-semibold tabular-nums ${colour}`}
+      >
+        {v}
+      </span>
     </Link>
   );
 }
@@ -739,7 +872,9 @@ function Load({ k, v }: { k: string; v: number }) {
   return (
     <span className="flex gap-1.5">
       <span>{k}</span>
-      <span className={`font-a-mono tabular-nums ${v > 0 ? "text-a-ink" : "text-a-faint"}`}>
+      <span
+        className={`font-a-mono tabular-nums ${v > 0 ? "text-a-ink" : "text-a-faint"}`}
+      >
         {v}
       </span>
     </span>
@@ -751,7 +886,13 @@ function Load({ k, v }: { k: string; v: number }) {
  * it is a claim about all of history that quietly becomes a claim about
  * whenever the table was last emptied.
  */
-function Popular({ title, rows }: { title: string; rows: { value: string; n: bigint }[] }) {
+function Popular({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: { value: string; n: bigint }[];
+}) {
   const top = rows.filter((r) => r.value);
   const most = Number(top[0]?.n ?? 0);
 
@@ -776,7 +917,10 @@ function Popular({ title, rows }: { title: string; rows: { value: string; n: big
                 without asking anybody to read an axis, which is the only kind of
                 chart §6 allows on this page.
               */}
-              <span aria-hidden="true" className="h-2 min-w-0 flex-1 rounded-full bg-a-idle-wash">
+              <span
+                aria-hidden="true"
+                className="h-2 min-w-0 flex-1 rounded-full bg-a-idle-wash"
+              >
                 <span
                   className="block h-2 rounded-full bg-a-accent"
                   style={{ width: `${most ? (Number(r.n) / most) * 100 : 0}%` }}

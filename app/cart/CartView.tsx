@@ -1,5 +1,7 @@
 "use client";
 
+import { AddToCartSheet } from "@/components/shop/AddToCartSheet";
+import { PriceRoll } from "@/components/shop/PriceRoll";
 import Link from "next/link";
 import { BakingPanel } from "@/components/shop/BakingMark";
 import { CakePhoto } from "@/components/shop/CakePhoto";
@@ -215,7 +217,8 @@ export function CartView({
                   <span />
                 )}
 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  {cake && <AddToCartSheet product={cake} catalog={catalog} editLine={line} />}
                   {sellableNow && (
                     <span className="font-mono text-[0.75rem] text-s-bark tabular-nums">
                       {formatINR(each)} each
@@ -236,7 +239,7 @@ export function CartView({
       </ul>
 
       {/* ── Summary ────────────────────────────────────────────────────── */}
-      <aside aria-label="Order summary" className={`${sCard} flex flex-col gap-4 p-5 lg:sticky lg:top-[84px]`}>
+      <aside aria-label="Order summary" className={`checkout-summary ${sCard} flex flex-col gap-4 p-6 lg:sticky lg:top-[84px]`}>
         <h2 className="text-[1.375rem]">Summary</h2>
 
         <dl className="flex flex-col gap-2.5 text-[0.9375rem]">
@@ -253,7 +256,7 @@ export function CartView({
               Total
             </dt>
             <dd className="font-mono text-[1.375rem] font-medium tabular-nums">
-              {formatINR(total)}
+              <PriceRoll text={formatINR(total)} />
             </dd>
           </div>
         </dl>

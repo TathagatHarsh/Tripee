@@ -149,7 +149,9 @@ describe("seedCakes", () => {
         DEFAULT_SNAPSHOT,
       );
 
-      expect(after.total).toBe(before.total);
+      const shipping = before.lines.filter(l => l.kind === "delivery").reduce((n,l)=>n+l.amount,0);
+      expect(after.subtotal).toBe(before.subtotal-shipping);
+      expect(after.total).toBe(after.subtotal+Math.round(after.subtotal*DEFAULT_SNAPSHOT.settings.gstRate));
     }
   });
 

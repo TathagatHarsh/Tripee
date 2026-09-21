@@ -83,6 +83,11 @@ function configured(): boolean {
  */
 function unconfigured(req: NextRequest) {
   if (!requirementFor(req.nextUrl.pathname)) return NextResponse.next();
+  // Guest tracking has its own signed-cookie authorization at the page/query.
+  // It must work without Clerk just as it does for signed-out Clerk requests.
+  if (GUEST_TRACKABLE.test(req.nextUrl.pathname) && req.cookies.has(GUEST_ORDER_COOKIE)) {
+    return NextResponse.next();
+  }
 
   return new NextResponse(
     "This deployment has no Clerk instance attached, so nobody can sign in.\n"
