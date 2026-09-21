@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,7 +23,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
   "include": [
@@ -28,11 +34,21 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    ".next-verify/types/**/*.ts",
+    ".next-verify/dev/types/**/*.ts",
+    ".next-qa/types/**/*.ts",
+    ".next-qa/dev/types/**/*.ts",
+    ".next-redesign/types/**/*.ts",
+    ".next-redesign/dev/types/**/*.ts"
   ],
   // "node_modules" on its own only ever excluded the top-level one, and `include`
   // above is a bare `**/*.ts`. A git worktree under .claude carries its own
   // node_modules — 8,000 more .d.ts files for tsc to walk — which was enough to
   // hang `tsc` and `next build` outright.
-  "exclude": ["node_modules", "**/node_modules", ".claude"]
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    ".claude"
+  ]
 }

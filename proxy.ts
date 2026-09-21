@@ -1,6 +1,6 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
-import { requirementFor } from "@/lib/roles";
+import { GUEST_ORDER_COOKIE, requirementFor } from "@/lib/roles";
 
 /**
  * Two jobs, and neither of them is the authorisation.
@@ -83,6 +83,11 @@ function configured(): boolean {
  */
 function unconfigured(req: NextRequest) {
   if (!requirementFor(req.nextUrl.pathname)) return NextResponse.next();
+  // Guest tracking has its own signed-cookie authorization at the page/query.
+  // It must work without Clerk just as it does for signed-out Clerk requests.
+  if (GUEST_TRACKABLE.test(req.nextUrl.pathname) && req.cookies.has(GUEST_ORDER_COOKIE)) {
+    return NextResponse.next();
+  }
 
   return new NextResponse(
     "This deployment has no Clerk instance attached, so nobody can sign in.\n"
@@ -91,13 +96,46 @@ function unconfigured(req: NextRequest) {
   );
 }
 
+/**
+ * One order's own tracking page, which a guest may legitimately reach.
+ *
+ * `/orders` is guarded at CUSTOMER and stays that way — it answers "every order
+ * on this account", which is a question only a session can ask. But a single
+ * order beneath it has a second legitimate viewer: somebody who checked out
+ * without an account and holds the signed cookie /api/orders gave them. Turning
+ * them away here would send them to a sign-in page for an order they placed
+ * precisely because they did not want an account.
+ *
+ * **This exempts them from the doorman, not from the door.** No signature is
+ * checked here and nothing is decided here — this file is not where
+ * authorisation lives, for the reason set out at length above. All it asks is
+ * whether the request carries a tracking cookie at all, which is the cheapest
+ * possible "might this be a guest". The page does the real work:
+ * app/orders/[ref] verifies the HMAC and pushes the references it names into
+ * the `where` clause, or calls `requireRole` and redirects exactly as this
+ * middleware used to. Forging the cookie's presence buys a page render and a
+ * refusal, and no row is read on the way.
+ *
+ * Asking for the cookie rather than letting every `/orders/<ref>` through keeps
+ * a stranger's refusal where it was: a 307 from the edge, before React renders
+ * anything. Without that check the refusal still happened, but as a streamed
+ * client-side redirect behind a 200 — a weaker answer and a page render for
+ * anybody who types an order URL.
+ */
+const GUEST_TRACKABLE = /^\/orders\/[^/]+\/?$/;
+
 const withClerk = clerkMiddleware(async (auth, req) => {
-  const need = requirementFor(req.nextUrl.pathname);
+  const { pathname } = req.nextUrl;
+  const need = requirementFor(pathname);
   if (!need) return NextResponse.next();
 
   // Both come off the *awaited* auth object, not off `auth` itself.
   const { userId, redirectToSignIn } = await auth();
   if (userId) return NextResponse.next();
+
+  if (GUEST_TRACKABLE.test(pathname) && req.cookies.has(GUEST_ORDER_COOKIE)) {
+    return NextResponse.next();
+  }
 
   /*
    * `redirectToSignIn` rather than a hand-built URL: Clerk owns where its

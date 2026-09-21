@@ -3,20 +3,7 @@ import { zoneForPincode } from "@/lib/delivery";
 import { formatIST } from "@/lib/format";
 import { dueAt, PHASE } from "@/lib/orders";
 
-/**
- * Where it is going, who it is going to, and when.
- *
- * ## Why there is no street address here
- *
- * Because there is none on the order. The Order model carries a name, a phone
- * number, a pincode and a slot, and the address is taken on the phone call the
- * bakery makes to confirm — see the `draft` state, which is literally called
- * "awaiting our call". Printing an "Address" row with a dash in it, or an
- * "Addresses" section in the account that saves nothing, would be an interface
- * describing a feature the product does not have. What is shown is what was
- * actually recorded, and the phone number is shown because that is the thing the
- * bakery will ring and the customer may need to correct.
- */
+/** Delivery details are frozen on the order; the live catalogue is only a legacy fallback. */
 export function DeliveryInfo({
   order,
   catalog,
@@ -25,6 +12,16 @@ export function DeliveryInfo({
   order: {
     customerName: string | null;
     customerPhone: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    landmark?: string | null;
+    city?: string | null;
+    state?: string | null;
+    requestedFor?: Date | null;
+    requestedWindow?: string | null;
+    dueAt?: Date | null;
+    confirmedAt?: Date | null;
+    deliveryInstructions?: string | null;
     pincode: string | null;
     deliverySlot: string;
     createdAt: Date;
@@ -42,8 +39,11 @@ export function DeliveryInfo({
 
   return (
     <dl className="grid gap-x-8 gap-y-0 sm:grid-cols-2">
-      <Row k={pickup ? "Collected by" : "Delivering to"} v={order.customerName ?? "—"} />
-      <Row k="On this number" v={order.customerPhone ?? "—"} mono />
+      <Row k={pickup ? "Collected by" : "Delivering to"} v={order.customerName ?? "Not given"} />
+      {!pickup && order.addressLine1 && <Row k="Delivery address" v={[order.addressLine1,order.addressLine2,order.landmark,order.city,order.state,order.pincode].filter(Boolean).join(", ")} />}
+      {order.requestedFor && <Row k="Requested date" v={formatIST(order.requestedFor)} />}
+      {order.deliveryInstructions && <Row k="Delivery instructions" v={order.deliveryInstructions} />}
+      <Row k="On this number" v={order.customerPhone ?? "Not given"} mono />
       <Row
         k={pickup ? "Collection" : "Area"}
         v={
@@ -54,7 +54,7 @@ export function DeliveryInfo({
               : "Taken on the confirmation call"
         }
       />
-      <Row k={pickup ? "Counter hours" : "Window"} v={pickup ? catalog.bakery.hours : slot?.slotWindow ?? slot?.name ?? order.deliverySlot} />
+      <Row k={pickup ? "Counter hours" : "Window"} v={order.requestedWindow ?? (pickup ? catalog.bakery.hours : slot?.slotWindow ?? slot?.name ?? order.deliverySlot)} />
 
       {deliveredAt ? (
         <Row
@@ -88,13 +88,13 @@ function Row({
   emphasis?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 border-b border-rule py-2.5 last:border-0 sm:[&:nth-last-child(2)]:border-0">
-      <dt className="font-mono text-micro tracking-[0.13em] text-steel uppercase">{k}</dt>
+    <div className="flex flex-col gap-0.5 border-b border-s-line py-2.5 last:border-0 sm:[&:nth-last-child(2)]:border-0">
+      <dt className="font-mono text-[0.6875rem] tracking-[0.13em] text-s-bark uppercase">{k}</dt>
       <dd
         className={[
-          "leading-snug text-body",
-          mono ? "font-mono tabular-nums" : "font-sans",
-          emphasis ? "text-carbon" : "text-ink",
+          "text-[0.9375rem] leading-snug",
+          mono ? "font-mono tabular-nums" : "",
+          emphasis ? "font-medium text-s-live" : "text-s-cocoa",
         ].join(" ")}
       >
         {v}

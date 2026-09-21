@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { btn, eyebrow } from "@/lib/ui";
+import { sBtn, sCard } from "@/lib/shopUi";
 
 /**
  * When the account could not be read.
@@ -12,27 +12,34 @@ import { btn, eyebrow } from "@/lib/ui";
  * `requireRole` also logs the "role could not be read" case that lands here on a
  * deployment with no DATABASE_URL.
  *
- * Sign out is offered beside "try again" because this is the one screen where
- * the fault may genuinely be the session: it is also where a refused staff
- * request is sent, and the fix for the wrong account is a different one.
+ * ## Where "sign out" went
+ *
+ * It used to be offered beside "try again", because this is the one screen where
+ * the fault may genuinely be the session — it is also where a refused staff
+ * request is sent, and the fix for the wrong account is a different one. It is
+ * still offered, and now in exactly one place: the account menu in the shop's
+ * header, which this boundary renders inside. A second sign-out control 200px
+ * below the first is two answers to one question.
  */
 export default function AccountError({ reset }: { error: Error; reset: () => void }) {
   return (
-    <div className="paper-edge bg-paper">
-      <span className={`${eyebrow} block border-b border-rule px-5 py-3`}>Something went wrong</span>
-      <div className="flex flex-col items-start gap-4 px-5 py-8 sm:px-8 sm:py-10">
-        <h1 className="font-mono text-title text-ink">
-          We couldn&rsquo;t load your account
-        </h1>
-        <p className="max-w-[50ch] font-sans text-body leading-relaxed text-steel">
+    <div className={sCard}>
+      <div className="flex flex-col items-start gap-4 px-6 py-10 sm:px-10">
+        <h1 className="text-[1.75rem]">We couldn&rsquo;t load your account</h1>
+        <p className="max-w-[52ch] leading-relaxed text-s-bark">
           That is our end rather than yours, and nothing about your account or your
           orders has changed. Try again, or come back in a minute.
         </p>
+        <p className="max-w-[52ch] text-[0.875rem] leading-relaxed text-s-bark">
+          If you meant to open a staff board and were sent here instead, the
+          account you are signed in as does not open it. Sign out from the
+          account menu at the top of this page and use the one that does.
+        </p>
         <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={reset} className={btn("primary", "md")}>
+          <button type="button" onClick={reset} className={sBtn("primary", "md")}>
             Try again
           </button>
-          <Link href="/orders" className={btn("secondary", "md")}>
+          <Link href="/orders" className={sBtn("outline", "md")}>
             Your orders
           </Link>
         </div>

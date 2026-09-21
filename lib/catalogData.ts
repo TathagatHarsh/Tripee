@@ -1,6 +1,8 @@
 import { unstable_cache, updateTag } from "next/cache";
-import { DEFAULT_SETTINGS, DEFAULT_SNAPSHOT, snapshotFrom } from "./catalogDefaults";
-import type { CatalogRow, CatalogSnapshot } from "./catalogSnapshot";
+import {
+  DEFAULT_BAKERY, DEFAULT_SETTINGS, DEFAULT_SNAPSHOT, snapshotFrom,
+} from "./catalogDefaults";
+import type { BakeryInfo, CatalogRow, CatalogSnapshot } from "./catalogSnapshot";
 import { db, hasDatabase } from "./db";
 import type { DeliverySlot } from "./schema";
 
@@ -25,13 +27,16 @@ import type { DeliverySlot } from "./schema";
  * rather than up to N seconds later. So there is no TTL here at all: the
  * catalogue is cached until somebody changes it.
  *
- * ## Why the fallbacks
+ * ## Why the fallbacks, and where they stop
  *
  * lib/db.ts has always held that a deployment without a database should still
- * let somebody design a cake and see a price. That has to keep being true now
- * that the price comes from a table, so both the "no DATABASE_URL" case and a
- * failed query fall back to what the product shipped with, rather than to a
- * blank menu or a NaN total.
+ * let somebody design a cake and see a price. That is a statement about
+ * *development*: `npm run dev` with an empty .env falls back to what the
+ * product shipped with, rather than to a blank menu or a NaN total.
+ *
+ * In production the same fallback is a silent mis-sale, so it is refused — see
+ * `CatalogUnavailable` below for the whole of the reasoning. The one exception
+ * is `getBakeryInfo`, which carries no price and no availability flag.
  */
 
 export const CATALOG_TAG = "catalog";
@@ -50,6 +55,8 @@ function toRow(r: {
   leadHours: number | null;
   slotWindow: string | null;
   slotNote: string | null;
+  dailyCapacity: number | null;
+  cutoffHours: number | null;
   isAvailable: boolean;
   sortOrder: number;
 }): CatalogRow {
@@ -66,6 +73,8 @@ function toRow(r: {
     ...(r.leadHours === null ? {} : { leadHours: r.leadHours }),
     ...(r.slotWindow === null ? {} : { slotWindow: r.slotWindow }),
     ...(r.slotNote === null ? {} : { slotNote: r.slotNote }),
+    ...(r.dailyCapacity === null ? {} : { dailyCapacity: r.dailyCapacity }),
+    ...(r.cutoffHours === null ? {} : { cutoffHours: r.cutoffHours }),
     isAvailable: r.isAvailable,
     sortOrder: r.sortOrder,
   };
@@ -118,16 +127,57 @@ const load = unstable_cache(
   { tags: [CATALOG_TAG] },
 );
 
+/**
+ * Thrown instead of quietly serving `DEFAULT_SNAPSHOT` when the deployment is
+ * supposed to have a catalogue and does not.
+ *
+ * The shipped defaults are a development floor, not a second catalogue, and the
+ * difference only becomes visible in production: every price the customer sees,
+ * *and every price an order is written at*, comes out of this snapshot. Falling
+ * back in silence therefore does not degrade — it sells. It sells at the prices
+ * this repository shipped with rather than the ones the bakery set; it re-opens
+ * every option an owner has withdrawn, because the defaults are all available;
+ * it drops the delivery zones, so every pincode looks serviceable and every
+ * slot looks bookable; and it swaps the configured GST rate and minimum order
+ * for the ones in the source tree.
+ *
+ * None of that surfaces as an error. It surfaces as a month of underpriced
+ * cakes. So in production the fallback is refused and the request fails —
+ * loudly, where the customer sees a safe error page and the platform log sees
+ * the cause. It is the posture lib/auth already takes when it cannot read a
+ * role: a guard that cannot read its own rule must not guess.
+ */
+export class CatalogUnavailable extends Error {}
+
 export async function getCatalogSnapshot(): Promise<CatalogSnapshot> {
-  if (!hasDatabase()) return DEFAULT_SNAPSHOT;
+  const production = process.env.NODE_ENV === "production";
+
+  if (!hasDatabase()) {
+    /* Locally this is the whole point of the defaults: `npm run dev` against no
+       DATABASE_URL still designs a cake and shows a price. A production build
+       with no DATABASE_URL is a deployment nobody finished configuring, and
+       pretending otherwise is precisely how the hardcoded catalogue once
+       reached customers. */
+    if (production) {
+      throw new CatalogUnavailable(
+        "catalog_unconfigured: DATABASE_URL is not set on this deployment, so "
+        + "there is no catalogue to price from. Refusing to serve the built-in "
+        + "development defaults in production.",
+      );
+    }
+    return DEFAULT_SNAPSHOT;
+  }
 
   try {
     return await load();
   } catch (e) {
-    // A catalogue that cannot be read is not a reason to stop quoting prices,
-    // but it is a reason to say so out loud rather than serve defaults in
-    // silence — the numbers on screen may not be the ones the bakery set.
     console.error("catalog_read_failed", e);
+    if (production) {
+      throw new CatalogUnavailable(
+        "catalog_read_failed: the catalogue could not be read from the "
+        + "database. Refusing to price from the built-in development defaults.",
+      );
+    }
     return DEFAULT_SNAPSHOT;
   }
 }
@@ -151,4 +201,55 @@ export async function getCatalogSnapshot(): Promise<CatalogSnapshot> {
  */
 export function revalidateCatalog(): void {
   updateTag(CATALOG_TAG);
+}
+
+/**
+ * The snapshot if it can be trusted, `null` if it cannot.
+ *
+ * For the callers that have something honest to say about a missing catalogue —
+ * a route handler with a 503 to return, a page with a section it can simply
+ * leave out. Everything that would otherwise render a price it cannot stand
+ * behind should use `getCatalogSnapshot` and let the throw reach the error
+ * boundary instead.
+ */
+export async function tryCatalogSnapshot(): Promise<CatalogSnapshot | null> {
+  try {
+    return await getCatalogSnapshot();
+  } catch (e) {
+    if (e instanceof CatalogUnavailable) return null;
+    throw e;
+  }
+}
+
+/**
+ * What a customer is told when the catalogue cannot be read. Deliberately says
+ * nothing about databases, environments or which of the two went wrong — the
+ * detail is on the platform log, where it belongs, under `catalog_read_failed`.
+ */
+export const CATALOG_UNAVAILABLE_MESSAGE =
+  "The kitchen's price list isn't reachable at the moment, so we can't quote "
+  + "this accurately. Nothing has been ordered — please try again shortly.";
+
+/**
+ * The bakery's own name, phone and address — for page furniture only.
+ *
+ * Every other reader of the snapshot is deciding what a cake costs or whether
+ * an option can be bought, and `getCatalogSnapshot` fails closed for exactly
+ * that reason. The footer is not one of those readers, and neither is the 404
+ * page: a database outage that turns "page not found" into "application error"
+ * has made a bad minute worse and protected nothing, because a stale shop
+ * telephone number cannot mis-sell a cake.
+ *
+ * So this is the one deliberate soft edge, and it is narrow by construction —
+ * it hands back `BakeryInfo` and nothing else, so no price and no availability
+ * flag can leave through it. The failure is already on the log by the time this
+ * swallows it; see `getCatalogSnapshot`.
+ */
+export async function getBakeryInfo(): Promise<BakeryInfo> {
+  try {
+    return (await getCatalogSnapshot()).bakery;
+  } catch (e) {
+    if (e instanceof CatalogUnavailable) return DEFAULT_BAKERY;
+    throw e;
+  }
 }

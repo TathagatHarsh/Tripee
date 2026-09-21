@@ -176,3 +176,71 @@ export function deltaFor(
 export function label(s: string) {
   return s.replace(/-/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 }
+
+/**
+ * What a cake from the shop costs.
+ *
+ * ## Why this is not `priceCake`
+ *
+ * They price two different things, and collapsing them would break one of the
+ * two. `priceCake` above builds a total out of a cake's *parts* — the base for
+ * its size, a delta per sponge and filling and frosting, labour for the finish,
+ * so much per topping — because that is what the 3D builder produces: an
+ * assembly nobody has costed before, which has to be costed from its
+ * components. A shop cake is the opposite. It has a price because the bakery
+ * decided it has one, typed into /admin/cakes, and running the component
+ * arithmetic over it would mean an owner who sets Chocolate Truffle to ₹849
+ * watching the shop charge ₹1,012 because ganache went up on Tuesday.
+ *
+ * So the product's price is the product's price, and this function's whole job
+ * is the three things that sit *on top* of a cake regardless of which one it is.
+ * Those genuinely still come from the catalogue, because they are still the
+ * bakery's decisions and still editable at /admin:
+ *
+ *   · the delivery fee for the slot the customer picked (CatalogOption);
+ *   · piping, if they asked for a message on it (PricingSettings);
+ *   · GST, at the rate in PricingSettings.
+ *
+ * That is the entire calculation. Nothing is duplicated between here and
+ * `priceCake` — no line below appears in both — and there is exactly one of
+ * these functions, run by the card, the product page, the basket, /api/price
+ * and /api/orders alike. Only the last of those decides money; the rest are
+ * showing the customer what the server is going to say.
+ *
+ * ## Why it returns a PriceBreakdown
+ *
+ * Because the docket, the OrderItem rows, the admin's order detail, the
+ * customer's summary and `Order.priceBreakdown` all read that shape already. A
+ * shop order and a builder order therefore freeze into the same columns and
+ * print on the same docket, and nothing downstream of an order had to learn a
+ * second kind of price.
+ */
+export function priceProduct(
+  product: { name: string; pricePaise: number },
+  choices: { message?: string; delivery: string },
+  catalog: CatalogSnapshot,
+): PriceBreakdown {
+  const { settings } = catalog;
+  const lines: PriceLine[] = [];
+
+  /* The cake itself, named as the customer bought it. This label is what lands
+     on the OrderItem row and on the docket, so it says "Chocolate Truffle"
+     rather than "1.5kg round base" — see the note in lib/shop on why a shopper
+     should not have to work out that the sponge inside it is Belgian chocolate. */
+  lines.push({ label: product.name, amount: product.pricePaise, kind: "base" });
+
+  if (choices.message?.trim()) {
+    lines.push({
+      label: "Message piping",
+      amount: settings.messagePipingPaise,
+      kind: "labour",
+    });
+  }
+
+  const subtotal = lines.reduce((s, l) => s + l.amount, 0);
+  const gstRate = settings.gstRate;
+  const gst = Math.round(subtotal * gstRate);
+  const total = subtotal + gst;
+
+  return { lines, subtotal, gstRate, gst, total, payable: total, currency: "INR" };
+}

@@ -4,6 +4,20 @@ import { SignOutButton } from "@clerk/nextjs";
 /**
  * The bar over the two customer areas: the account, and the orders.
  *
+ * ## Nothing renders this today
+ *
+ * Phase 1's storefront redesign moved /orders and /account inside the shop's
+ * own chrome, so both layouts now use `<ShopHeader>` and this has no call
+ * sites. It is kept rather than deleted, deliberately and for one reason: the
+ * argument below is still the right argument, and if the account area ever
+ * needs a bar of its own again — a signed-in surface that is not part of the
+ * shop — this is that bar, already built and already reasoned about.
+ *
+ * If you are reading this because you want a customer header, use
+ * `components/shop/ShopHeader` instead. Two navigation systems for one
+ * signed-in customer is the thing both files exist to avoid, and the shop's is
+ * the one that can reach the whole shop.
+ *
  * ## Why this is not the shopfront header, and not the account menu either
  *
  * The shopfront's bar (app/page.tsx) sells cakes — a wordmark, four sections,

@@ -43,78 +43,378 @@ enum PaymentStatus {
   failed
 }
 
+enum FulfillmentMethod {
+  delivery
+  pickup
+}
+
+enum CheckoutAttemptStatus {
+  processing
+  completed
+  failed
+}
+
+enum NotificationStatus {
+  pending
+  sending
+  sent
+  failed
+}
+
+enum NotificationKind {
+  new_order
+  order_cancelled
+  vendor_assigned
+  status_changed
+}
+
+/// How far a vendor has got with an order that was handed to them.
+///
+/// A **second, separate** state machine, and the separation is the point.
+/// `OrderStatus` above is what the customer is told and what the kitchen board
+/// is drawn from; this is what one bakery on the other end of a phone has
+/// actually done with a docket. Folding the two together — a `vendor_accepted`
+/// on OrderStatus — would put an internal fulfilment detail on a customer's
+/// tracking page and give the existing board a column nobody working it can act
+/// on. They move independently and both are authoritative about their own
+/// question.
+///
+/// There is no `unassigned`. An order with no vendor has no VendorOrder row,
+/// and a status value meaning "this row does not exist" is a value that has to
+/// be excluded from every query by hand. `Order.currentAssignmentId` being null
+/// is what unassigned means.
+///
+/// `withdrawn` is not in the original sketch and earns its place: the admin has
+/// to be able to move an order off a vendor who did not reject it — the oven
+/// broke, they rang — and the only alternatives are overwriting the previous
+/// assignment, which destroys the history this table exists for, or recording
+/// it as a rejection, which puts words in the vendor's mouth.
+enum VendorOrderStatus {
+  assigned
+  accepted
+  rejected
+  in_preparation
+  ready
+  handed_over
+  withdrawn
+}
+
 model Design {
-  id        String   @id @default(cuid())
+  id         String   @id @default(cuid())
   /// Short, unambiguous slug used by /d/[slug].
-  slug      String   @unique
-  config    Json
+  slug       String   @unique
+  config     Json
   /// Cached so the gallery does not have to reprice on every render.
   totalPaise Int
-  views     Int      @default(0)
-  createdAt DateTime @default(now())
+  views      Int      @default(0)
+  createdAt  DateTime @default(now())
 
-  orders    Order[]
+  orders Order[]
 
   @@index([createdAt])
 }
 
 model Order {
-  id             String        @id @default(cuid())
+  id  String @id @default(cuid())
   /// Human-facing reference, e.g. MC-4471.
-  ref            String        @unique
+  ref String @unique
 
-  config         Json
-  priceBreakdown Json
-  totalPaise     Int
+  /// Legacy single-cake snapshots. New orders store cakes in OrderCake.
+  config               Json?
+  priceBreakdown       Json
+  totalPaise           Int
+  productSubtotalPaise Int   @default(0)
+  deliveryFeePaise     Int   @default(0)
 
-  status         OrderStatus   @default(draft)
+  status OrderStatus @default(draft)
 
   /// The customer who placed this, when there was one. Still nullable, and
   /// still nullable on purpose: an account is optional in this product, so a
   /// guest order is a first-class order rather than a degraded one.
-  userId         String?
+  userId        String?
   /// SetNull rather than Cascade. Deleting a person must not delete the cake
   /// they ordered — the kitchen still baked it and the books still count it.
-  user           UserProfile?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user          UserProfile?  @relation(fields: [userId], references: [id], onDelete: SetNull)
   /// Hook for Razorpay later. Deliberately defaults to none — v1 takes no money.
-  paymentStatus  PaymentStatus @default(none)
-  payablePaise   Int
+  paymentStatus PaymentStatus @default(none)
+  payablePaise  Int
 
-  customerName   String?
-  customerPhone  String?
-  pincode        String?
-  deliverySlot   String
-  leadHours      Int
+  customerName             String?
+  customerPhone            String?
+  customerEmail            String?
+  deliveryLocation         Json?
+  recipientName            String?
+  fulfillmentMethod        FulfillmentMethod @default(delivery)
+  addressLine1             String?
+  addressLine2             String?
+  landmark                 String?
+  city                     String?
+  state                    String?
+  pincode                  String?
+  deliverySlot             String
+  leadHours                Int
+  requestedFor             DateTime?
+  requestedWindow          String?
+  deliveryInstructions     String?
+  customerNotes            String?
+  occasion                 String?
+  deliveryZoneIdSnapshot   String?
+  deliveryZoneNameSnapshot String?
+  confirmedAt              DateTime?
+  dueAt                    DateTime?
+  cancellationReason       String?
+
+  allergens String[] @default([])
+  servesMin Int      @default(0)
+  servesMax Int      @default(0)
+
+  designId String?
+  design   Design? @relation(fields: [designId], references: [id])
+
+  /// Which shop cake this was bought from, and what it was called at the time.
+  ///
+  /// ## Why all three, and why two of them are copies
+  ///
+  /// The id is the link: it is what lets /admin follow an order back to the
+  /// product and what tells a shop order from one somebody built in the 3D
+  /// builder (null, as it is on every order placed before this column existed).
+  /// `SetNull`, so deleting a cake can never delete or orphan an order.
+  ///
+  /// The name and the photograph are deliberate **snapshots**, and the
+  /// duplication is the feature. An order has to keep saying what it said when
+  /// it was placed: renaming "Chocolate Truffle" to "Death by Chocolate" must
+  /// not rewrite last month's confirmation, and deleting the cake entirely must
+  /// not leave a customer's order page with no title and a broken image.
+  /// Reading them through the relation would do exactly that in both cases —
+  /// the same reasoning that freezes price lines onto OrderItem rather than
+  /// recomputing them from today's catalogue.
+  ///
+  /// The price is not here because it is already frozen twice over, in
+  /// `totalPaise` and in the OrderItem rows. Nothing in this trio is ever read
+  /// to decide money.
+  cakeProductId String?
+  cakeProduct   CakeProduct? @relation("LegacyOrderCake", fields: [cakeProductId], references: [id], onDelete: SetNull)
+  /// The cake's name as the customer bought it. Null on builder orders.
+  cakeName      String?
+  /// The photograph as it was then. Null on builder orders, and on a shop cake
+  /// that had none — components/orders/CakeThumb draws the cake instead.
+  cakeImageUrl  String?
+
+  cakes           OrderCake[]
+  items           OrderItem[]
+  events          OrderEvent[]
+  notifications   NotificationOutbox[]
+  checkoutAttempt CheckoutAttempt?
+
+  /// Every vendor this order has ever been handed to, rejections included.
+  assignments VendorOrder[] @relation("OrderAssignments")
+
+  /// The assignment that is live right now, or null for an order no vendor
+  /// holds — which is every order placed before this column existed, and the
+  /// honest state for them.
+  ///
+  /// A pointer rather than "the newest row in `assignments` that isn't
+  /// rejected", and the difference is a race rather than a style. Two owners
+  /// assigning the same order a second apart would both insert a row and both
+  /// be current, and two bakeries would bake one cake. A single column can be
+  /// compare-and-swapped — see lib/vendorTransition — so the second write finds
+  /// the value it read already changed and does nothing at all.
+  ///
+  /// Cleared when an assignment is rejected or withdrawn, and *kept* when one is
+  /// handed over: a finished order still has a vendor, and showing "Unassigned"
+  /// the moment the cake is collected would lose the only record of who made it.
+  currentAssignmentId String?      @unique
+  currentAssignment   VendorOrder? @relation("CurrentAssignment", fields: [currentAssignmentId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@index([requestedFor, deliverySlot, status])
+}
+
+/// One physical cake inside a customer-facing order. Quantity is expanded at
+/// checkout so every row is one docketable object while the parent owns the
+/// customer, delivery, money and lifecycle.
+model OrderCake {
+  id       String @id @default(cuid())
+  orderId  String
+  order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  position Int
+
+  config         Json?
+  priceBreakdown Json
+  totalPaise     Int
+
+  cakeProductId String?
+  cakeProduct   CakeProduct? @relation(fields: [cakeProductId], references: [id], onDelete: SetNull)
+  cakeName      String?
+  cakeImageUrl  String?
+  variantLabel  String?
 
   allergens      String[]
   servesMin      Int
   servesMax      Int
+  productionSpec Json
 
-  designId       String?
-  design         Design?       @relation(fields: [designId], references: [id])
+  createdAt DateTime @default(now())
 
-  items          OrderItem[]
-  events         OrderEvent[]
+  @@unique([orderId, position])
+  @@index([cakeProductId])
+}
 
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+/// Durable identity for one checkout intention. The payload hash prevents a
+/// reused browser key from being accepted for a different basket.
+model CheckoutAttempt {
+  id          String                @id
+  payloadHash String
+  status      CheckoutAttemptStatus @default(processing)
+  orderId     String?               @unique
+  order       Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  response    Json?
+  lastError   String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  expiresAt   DateTime
 
-  @@index([status, createdAt])
-  @@index([userId])
+  @@index([status, updatedAt])
+  @@index([expiresAt])
+}
+
+/// A bakery that fulfils orders on Makemycake's behalf.
+///
+/// The business changed shape: the shop takes the order and the cake is made by
+/// one of a handful of partner bakeries. This is that list, and it is short —
+/// two or three rows — which is why there is no slug, no logo, no opening hours
+/// and no geography on it. Everything here is what somebody in the office needs
+/// in order to ring the right bakery about the right cake.
+///
+/// `isActive` rather than deletion, for CatalogOption's reason: a vendor that
+/// has ever been assigned an order is part of that order's history, and removing
+/// the row would leave the history pointing at nothing. Deactivating takes them
+/// out of the picker and leaves every past assignment readable.
+model Vendor {
+  id String @id @default(cuid())
+
+  name    String
+  /// The three ways to reach them. Nullable because a partner may genuinely
+  /// only have given a phone number, and a required field invites a made-up one.
+  phone   String?
+  email   String?
+  address String?
+
+  isActive Boolean @default(true)
+
+  /// The people who sign in as this vendor. Usually one.
+  users       UserProfile[]
+  assignments VendorOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Every read is "the vendors somebody can be given an order, by name".
+  @@index([isActive, name])
+}
+
+/// One order, handed to one vendor, once.
+///
+/// A row per *assignment* rather than a `vendorId` on Order, because an order
+/// can be offered to Vendor A, refused, and then given to Vendor B — and the
+/// refusal is the thing the office most needs to see when deciding who to try
+/// next. A column would hold only the last answer and would overwrite the
+/// reason for it.
+///
+/// This table is also its own history. The alternative considered and declined
+/// was extending `OrderEvent`: its `toStatus` is an `OrderStatus` and NOT NULL,
+/// so vendor events would mean widening an existing table into a generic event
+/// log, which is a much larger promise than "when did Cake House accept this".
+/// Every transition here stamps its own timestamp column below, so the sequence
+/// is recoverable from the row itself without a join — see lib/vendors'
+/// `assignmentHistory`, which reads exactly these columns.
+///
+/// Nothing is backfilled. Orders placed before vendors existed have no rows
+/// here and show "Unassigned", rather than an assignment invented for them.
+model VendorOrder {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation("OrderAssignments", fields: [orderId], references: [id], onDelete: Cascade)
+
+  vendorId String
+  /// Restrict, unlike the order's cascade. A vendor with assignments cannot be
+  /// deleted at all — they are deactivated instead — because deleting them
+  /// would either destroy the record of who made a cake or leave it pointing
+  /// nowhere. The constraint is what makes `isActive` the only route.
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  status VendorOrderStatus @default(assigned)
+
+  /// One timestamp per state this row can reach, all nullable except the first.
+  ///
+  /// Seven columns rather than a child event table, and they cost two lines of
+  /// code rather than seven: lib/vendors' `STAMP` maps a status to its column
+  /// and the transition writes `{ status, [STAMP[to]]: now }`. What they buy is
+  /// that "assigned 12:10, accepted 13:00, ready 15:40" is one row — no join, no
+  /// second table to keep in step, and no way for a status and its history to
+  /// disagree.
+  assignedAt   DateTime  @default(now())
+  acceptedAt   DateTime?
+  rejectedAt   DateTime?
+  startedAt    DateTime?
+  readyAt      DateTime?
+  handedOverAt DateTime?
+  withdrawnAt  DateTime?
+
+  /// Why the vendor said no, in their own words. Null on every other status.
+  /// Optional to give, and asked for every time — it is what the office reads
+  /// before choosing who to try next.
+  rejectionReason String?
+
+  /// The owner who assigned or withdrew this, from the server session and never
+  /// from a form field. SetNull for OrderEvent's reason: revoking an account
+  /// must not erase the fact that a cake was handed to somebody.
+  assignedById String?
+  assignedBy   UserProfile? @relation("VendorOrderAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  /// The order this is the live assignment for, if it is. The other half of
+  /// `Order.currentAssignment`.
+  currentFor Order?             @relation("CurrentAssignment")
+  events     VendorOrderEvent[]
+
+  updatedAt DateTime @updatedAt
+
+  /// The vendor dashboard's only query: "my assignments, in this state".
+  @@index([vendorId, status])
+  /// The admin order page's: "everything this order has ever been offered to".
+  @@index([orderId, assignedAt])
+}
+
+model VendorOrderEvent {
+  id            String             @id @default(cuid())
+  vendorOrderId String
+  vendorOrder   VendorOrder        @relation(fields: [vendorOrderId], references: [id], onDelete: Cascade)
+  fromStatus    VendorOrderStatus?
+  toStatus      VendorOrderStatus
+  actorId       String?
+  reason        String?
+  createdAt     DateTime           @default(now())
+
+  @@index([vendorOrderId, createdAt])
 }
 
 /// One priced line on the docket, frozen at order time so a later catalog edit
 /// cannot rewrite history.
 model OrderItem {
-  id        String  @id @default(cuid())
+  id String @id @default(cuid())
 
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  label     String
-  kind      String
+  label       String
+  kind        String
   amountPaise Int
-  position  Int
+  position    Int
 
   @@index([orderId])
 }
@@ -137,10 +437,10 @@ model OrderItem {
 /// and deliveries that were never recorded would make the timeline a story
 /// rather than a record.
 model OrderEvent {
-  id         String       @id @default(cuid())
+  id String @id @default(cuid())
 
-  orderId    String
-  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   /// Null only if a move is ever recorded for an order with no prior state.
   /// Kept so a row is readable on its own, without the row before it.
@@ -150,10 +450,10 @@ model OrderEvent {
   /// The staff member who moved it, from the server session — never from a
   /// form field. SetNull for the same reason Order.userId is: revoking an
   /// account must not erase the fact that the cake went out.
-  actorId    String?
-  actor      UserProfile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorId String?
+  actor   UserProfile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
-  createdAt  DateTime     @default(now())
+  createdAt DateTime @default(now())
 
   /// Every read is "this order's events, oldest first".
   @@index([orderId, createdAt])
@@ -191,16 +491,40 @@ model CatalogOption {
   /// render is a broken picker, and the database cannot check that itself.
   value    String
 
-  name  String
-  blurb String
+  name      String
+  blurb     String
   /// The same choice named for a 36px pill. Placements only — "Scattered on
   /// top" does not fit the strip that sits over the render. `name` stays the
   /// one that is read aloud, so nothing is hidden from a screen reader.
   shortName String?
   /// Swatch chip colour. Null for options that are not a colour (sizes, slots).
-  swatch String?
+  swatch    String?
   /// A 24x24 SVG path. Shapes only — the picker draws the silhouette.
-  glyph  String?
+  glyph     String?
+
+  /// A photograph of this option, uploaded from /admin. Null means there isn't
+  /// one, which is the shipped state for all 96 rows and is not a defect.
+  ///
+  /// A URL rather than bytes, and a Vercel Blob URL specifically. Storing the
+  /// image in Postgres would put megabytes on the row that `getCatalogSnapshot`
+  /// reads on every price quote, and serving it would mean a route handler
+  /// streaming out of the database on every card in a picker.
+  ///
+  /// The admin never sees this string — see components/admin/ImageUploader,
+  /// which shows a picture and a "Change photo" button. It is a storage detail,
+  /// and §23 of the brief is right that an owner should not be handling one.
+  ///
+  /// Nullable, never empty-string. "" and null would both mean "no photo" and
+  /// the difference between them would be a bug waiting for whoever writes the
+  /// next `if (imageUrl)`.
+  imageUrl String?
+  /// What the photograph shows, for a screen reader and for a broken image.
+  ///
+  /// Defaults to the option's `name` at render time rather than being
+  /// backfilled here, because a null alt and an alt that happens to equal the
+  /// name are different facts: the first says nobody has written one and the
+  /// second says somebody chose it.
+  imageAlt String?
 
   /// Paise. A base price when category is `size`, a delta everywhere else.
   ///
@@ -219,14 +543,18 @@ model CatalogOption {
   /// Delivery rows only — hours from confirmation to arrival, before a zone
   /// adds its own rider time. "Fast delivery" means nothing; "48 hours" is a
   /// promise somebody can be held to, and the bakery is the one holding it.
-  leadHours Int?
+  leadHours     Int?
   /// Delivery rows only — the window quoted to the customer, e.g.
   /// "10:00-20:00, day after tomorrow". Free text, because a bakery's real
   /// answer here is a sentence rather than a pair of timestamps.
-  slotWindow String?
+  slotWindow    String?
   /// Delivery rows only — the consequence underneath the window, e.g. "Order
   /// by 18:00 the previous day." This is where a cutoff actually lives.
-  slotNote String?
+  slotNote      String?
+  /// Maximum active orders accepted for this slot on one requested date.
+  dailyCapacity Int?
+  /// Minimum hours between placement and the requested fulfillment time.
+  cutoffHours   Int?
 
   /// Withdrawn from new orders, without erasing the past. An existing design or
   /// order naming this option still loads, still renders and still prices —
@@ -237,6 +565,10 @@ model CatalogOption {
   /// Ascending. What the customer's picker is ordered by.
   sortOrder Int
 
+  /// Newest first when read. See CatalogPriceChange — a record beside the
+  /// price, never a substitute for it.
+  priceChanges CatalogPriceChange[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -245,6 +577,55 @@ model CatalogOption {
   @@unique([category, value])
   /// Every read is "this category, in display order".
   @@index([category, sortOrder])
+}
+
+/// One price change, recorded as it happens.
+///
+/// The same shape and the same reasoning as OrderEvent above, for the same
+/// reason: `CatalogOption.priceInputPaise` is a single column, so until now
+/// repricing a filling overwrote the only record that it had ever cost anything
+/// else. A bakery could see what ganache costs and never that it went up twice
+/// in March, which is the question an owner actually asks.
+///
+/// Deliberately not event-sourcing. The option row stays the truth about the
+/// current price and these rows stay a record beside it — a catalogue that had
+/// to be replayed to know what a cake costs would be a far larger promise than
+/// a price list needs, and `getCatalogSnapshot` would have to do it on every
+/// quote.
+///
+/// **This table has nothing to do with what an order was charged.** That
+/// distinction is the whole safety property of the pricing system and it is
+/// worth being explicit about, because a table named like this one invites the
+/// assumption that orders are recomputed from it. They are not: OrderItem rows
+/// froze their amounts when the order was placed and no read anywhere joins an
+/// order to this table. Changing a price here changes what the *next* customer
+/// is quoted and nothing about any order that already exists.
+///
+/// Nothing is backfilled. Every option shipped with a price and no history, and
+/// inventing the increases that were never recorded would make this a story
+/// rather than a record — exactly what the note on OrderEvent refuses to do.
+model CatalogPriceChange {
+  id String @id @default(cuid())
+
+  optionId String
+  option   CatalogOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  /// Paise, both of them, and both stored rather than one derived from the row
+  /// before it: a gap in this table (a row deleted, a change made at a psql
+  /// prompt) must not silently rewrite the delta of the change after it.
+  fromPaise Int
+  toPaise   Int
+
+  /// The staff member who changed it, from the server session — never from a
+  /// form field. SetNull for OrderEvent's reason: revoking somebody's account
+  /// must not erase the fact that they moved a price.
+  actorId String?
+  actor   UserProfile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  /// Every read is "this option's changes, newest first".
+  @@index([optionId, createdAt])
 }
 
 /// The charges that are formulas rather than options, and the tax rate.
@@ -260,7 +641,7 @@ model PricingSettings {
   id String @id @default("singleton")
 
   /// Per additional tier beyond the first — dowels, boards, assembly.
-  tierSurchargePaise Int
+  tierSurchargePaise  Int
   /// Per sponge layer beyond three.
   layerSurchargePaise Int
   messagePipingPaise  Int
@@ -315,6 +696,19 @@ model DeliveryZone {
   @@index([pincodeFrom, pincodeTo])
 }
 
+/// A date on which a fulfillment method is unavailable. Date values are stored
+/// at UTC midnight and interpreted in the bakery timezone.
+model FulfillmentBlackout {
+  id        String            @id @default(cuid())
+  date      DateTime          @db.Date
+  method    FulfillmentMethod
+  reason    String
+  createdAt DateTime          @default(now())
+
+  @@unique([date, method])
+  @@index([date])
+}
+
 /// Who the bakery is, for the documents that have to say so.
 ///
 /// Separate from PricingSettings because these are not prices and nothing here
@@ -333,7 +727,7 @@ model BakerySettings {
   address String
   /// Free text — "Tue-Sun 10:00-21:00, closed Mondays" is what a bakery
   /// actually means, and a structured week would fight the first exception.
-  hours String
+  hours   String
 
   /// A real FSSAI registration number, or empty.
   ///
@@ -364,10 +758,19 @@ model BakerySettings {
 /// ADMIN's powers, and a role that grants nothing new is a row people have to
 /// reason about for no benefit. Adding it later is one enum value and one line
 /// in ROLE_RANK; see lib/roles.ts.
+/// VENDOR is the fourth, and it is the first one that is not a rank.
+///
+/// CUSTOMER < KITCHEN < ADMIN is a ladder and lib/roles says so: the owner
+/// moving a docket at a busy counter is a Tuesday. A vendor is sideways. They
+/// are a different company, they see the orders given to them and nothing else,
+/// and the owner is emphatically *not* a vendor — there is no bakery for an
+/// ADMIN row to be. So `allows` treats VENDOR as an exact match in both
+/// directions; see lib/roles.ts, which is where that rule and its tests live.
 enum UserRole {
   CUSTOMER
   KITCHEN
   ADMIN
+  VENDOR
 }
 
 /// The application's half of a person.
@@ -383,27 +786,365 @@ model UserProfile {
   /// is why swapping providers cost this table nothing: it never knew which one
   /// it was holding. The id is only ever issued by the provider and never
   /// minted here, so the two cannot disagree about who a row is.
-  id             String   @id
+  id String @id
 
   /// Every new row is a customer. No code path anywhere writes this field from
   /// a request body — see lib/auth.ts `loadProfile`, which creates with the
   /// column default and updates nothing. A role is changed by `npm run role`,
   /// which needs DATABASE_URL, which a browser does not have.
-  role           UserRole @default(CUSTOMER)
+  role UserRole @default(CUSTOMER)
 
   /// Whatever they were called at sign-up, or by Google. Nullable because an
   /// email/password signup need not give one, and a blank greeting is better
   /// than a fabricated one.
-  name           String?
+  name String?
 
-  orders         Order[]
+  /// Which vendor this person signs in as, when they are one.
+  ///
+  /// Null for every other role and for a VENDOR row that nobody has finished
+  /// linking yet — see lib/auth's `requireVendor`, which refuses that case
+  /// rather than guessing. Nullable rather than a separate VendorUser table
+  /// because a person belongs to at most one bakery, and a join table for a
+  /// to-one relation is a second row to keep in step.
+  ///
+  /// **This is not the authorisation.** The role is. A vendorId on a CUSTOMER
+  /// row grants nothing, and the guard reads both.
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  orders       Order[]
   /// Dockets this person moved along, as staff rather than as a customer.
-  orderEvents    OrderEvent[]
+  orderEvents  OrderEvent[]
+  /// Prices this person changed, as the owner.
+  priceChanges CatalogPriceChange[]
+  /// Orders this person handed to a vendor, as the owner.
+  assignments  VendorOrder[]        @relation("VendorOrderAssignedBy")
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   /// "Who can get into the kitchen" is the only question ever asked of this
   /// table other than by id, and it is asked by a person at a psql prompt.
   @@index([role])
+}
+
+/// The flavour families a sellable cake is filed under.
+///
+/// A closed list rather than a Category table, and §15 of the brief asks for
+/// exactly that judgement: these five are the ones lib/shop already derived
+/// from every preset's config, the storefront's chips are built from them, and
+/// a bakery adding a sixth is a decision about the shop's navigation rather
+/// than a row somebody types on a Tuesday. A category CMS would be a table, an
+/// admin screen, an ordering column and a delete-with-children problem, bought
+/// to rename "Fruit & Berry" — which is a one-line edit in lib/cakes.
+///
+/// `nut_caramel` rather than `nut-caramel` because a Postgres enum label with a
+/// hyphen has to be quoted everywhere it appears. The customer-facing slug is
+/// still "nut-caramel"; lib/cakes owns that translation in one place.
+///
+/// There is no `eggless` member, and there was one in the derived list it
+/// replaces. Eggless is not a flavour family — it is a property of the sponge,
+/// it is true of every cake this bakery bakes, and `CakeProduct.isEggless` is
+/// where it belongs. The shop still offers the chip; it filters on the column.
+enum CakeCategory {
+  chocolate
+  fruit
+  cheesecake
+  nut_caramel
+  classic
+}
+
+/// A cake the shop actually sells.
+///
+/// ## Why this exists when CatalogOption already does
+///
+/// They answer different questions and the storefront needed the second one.
+/// CatalogOption is "what a filling costs" — the parts list the 3D builder
+/// assembles a cake from, and the pricing engine that turns one of those
+/// assemblies into money. A sellable product is "Chocolate Truffle, ₹799, this
+/// photograph" — a thing with a name somebody asks for at a counter.
+///
+/// Until now the second list was `lib/presets.ts`: twenty-one hardcoded
+/// `CakeConfig` objects whose prices were *computed* from the options above and
+/// whose photographs were committed files. That worked while the builder was
+/// the product. With the builder switched off (see lib/flags) the shop is the
+/// product, and it left the bakery unable to change a cake's name, price or
+/// photograph without a developer and a deploy — which is the whole reason for
+/// this table.
+///
+/// The presets did not go anywhere: they are this table's seed input and the
+/// fallback that keeps historical orders rendering, exactly the relationship
+/// lib/catalogDefaults.ts has with CatalogOption. Nothing reads them as a
+/// catalogue while the database is reachable.
+///
+/// ## What it has since gained, and what it still does not have
+///
+/// **Variants.** This note used to argue that a 1 kg and a 2 kg Chocolate
+/// Truffle should be two rows. They are one row and two `CakeVariant` children
+/// now, and that model's own note explains why the earlier reading did not
+/// survive contact with a shop: two rows meant two slugs, two photographs and
+/// two descriptions for one cake, and a shelf that showed it twice.
+///
+/// **A gallery.** `CakeImage` holds the extra photographs; the primary one
+/// stays in the column below. See that model on why the primary is not a row.
+///
+/// **No stock, no ratings, no reviews.** Nothing in this product counts cakes
+/// in a fridge or collects an opinion, and a column for either would be a place
+/// for a number nobody measured to be printed as if somebody had.
+model CakeProduct {
+  id   String @id @default(cuid())
+  /// The customer-facing URL: /cakes/chocolate-truffle. Unique, because two
+  /// rows on one address is a page whose content depends on row order.
+  slug String @unique
+
+  name        String
+  /// The paragraph under the name. One field rather than a short/long pair,
+  /// because the storefront prints the same sentences on the card and the page.
+  description String
+  category    CakeCategory
+
+  /// ## The three columns below are a summary, not an authority
+  ///
+  /// They were the authority, right up until `CakeVariant` arrived: one price,
+  /// one size, one sponge per cake. What a customer buys is now a variant, and
+  /// every price path in the application reads `CakeVariant.pricePaise`.
+  ///
+  /// They are still here, still NOT NULL and still written, for two reasons and
+  /// neither is "in case something needs them". Dropping a NOT NULL column from
+  /// a live table is a destructive migration, and §33 of the brief asks this
+  /// phase not to run one. And while they exist they may as well be true: every
+  /// write recomputes them from the variant set — the cheapest available
+  /// variant's price and size, and whether any eggless variant is on sale — in
+  /// one function, `summarise` in app/admin/cakes/actions, so there is a single
+  /// place they can be wrong rather than three.
+  ///
+  /// Nothing reads them. `CakeProductView` deliberately does not carry them, so
+  /// a component cannot reach for `product.pricePaise` and quietly reintroduce
+  /// a second price — that is a compile error rather than a code review.
+
+  /// Paise. The cheapest available variant's price, recomputed on every write.
+  pricePaise Int
+
+  /// The cheapest available variant's weight band, e.g. "1.5kg".
+  sizeBand  String
+  /// Whether any eggless variant of this cake is currently on sale.
+  isEggless Boolean @default(true)
+
+  /// The photograph, and what it shows.
+  ///
+  /// A URL rather than bytes, for the reasons CatalogOption.imageUrl gives at
+  /// length. Two kinds of value live here and both are legitimate: a Vercel
+  /// Blob URL for anything uploaded from /admin/cakes, and a root-relative
+  /// `/presets/<slug>.webp` for the twenty-one cakes seeded from the presets,
+  /// whose photographs are committed renders of their own configuration.
+  /// next/image serves both.
+  ///
+  /// Nullable, never empty-string — the storefront draws a cake mark instead,
+  /// and "" and null both meaning "no photo" is a bug waiting for whoever
+  /// writes the next `if (imageUrl)`.
+  primaryImageUrl String?
+  primaryImageAlt String?
+
+  /// The recipe, when there is one: sponge, filling, frosting, toppings.
+  ///
+  /// A `CakeConfig` — the object this entire backend already speaks — carried
+  /// so that an order placed from the shop still hands the kitchen a docket it
+  /// can bake from, and so allergens and handling stay *derived* rather than
+  /// typed into a form. The twenty-one seeded cakes have theirs from
+  /// lib/presets.
+  ///
+  /// Null for a cake an owner adds from /admin/cakes, and that is honest rather
+  /// than a gap: nobody is going to fill in a frosting hex code to put a cake on
+  /// the shelf. Those orders get a plain config derived from `sizeBand` and
+  /// `isEggless` (see lib/cakes' `configForProduct`) and carry the cake's name
+  /// frozen onto the order, which is what the kitchen and the customer read.
+  ///
+  /// **Not the price.** Changing a filling's price in /admin/catalog does not
+  /// move this cake's `pricePaise`; a shop cake costs what the bakery says it
+  /// costs.
+  config Json?
+
+  /// Validated by lib/productionSpec. Publishing is refused unless this is a
+  /// complete, explicit description of how the kitchen makes the cake.
+  productionSpec Json?
+
+  /// Withdrawn from the shop without erasing it, CatalogOption's distinction
+  /// for CatalogOption's reason: orders that name this cake still render.
+  isAvailable Boolean @default(true)
+  /// Shown first on the homepage. Not a discount, not a badge on the card —
+  /// the one editorial lever the shop has.
+  isFeatured  Boolean @default(false)
+  /// Ascending. The order the shop lists them in.
+  sortOrder   Int     @default(0)
+
+  /// What can actually be bought: a size, a sponge type and a price each.
+  variants CakeVariant[]
+  /// Extra photographs. The primary one is `primaryImageUrl` above.
+  images   CakeImage[]
+
+  /// Orders placed from this cake. `SetNull` on the far side — see Order.
+  orderCakes   OrderCake[]
+  legacyOrders Order[]     @relation("LegacyOrderCake")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The storefront's only query: "what is on sale, in display order".
+  @@index([isAvailable, sortOrder])
+  /// And the same within one category.
+  @@index([category, sortOrder])
+}
+
+/// Transactional notification queue. Business writes enqueue a unique event;
+/// a provider worker claims and delivers it with retries.
+model NotificationOutbox {
+  id          String             @id @default(cuid())
+  orderId     String
+  order       Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vendorId    String?
+  kind        NotificationKind
+  channel     String
+  destination String?
+  payload     Json
+  dedupeKey   String             @unique
+  status      NotificationStatus @default(pending)
+  attempts    Int                @default(0)
+  availableAt DateTime           @default(now())
+  sentAt      DateTime?
+  lastError   String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([status, availableAt])
+  @@index([orderId, createdAt])
+}
+
+/// Shared fixed-window counters for serverless rate limiting.
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+}
+
+/// Whether a cake is baked with egg in the sponge or without.
+///
+/// A closed two-member enum rather than the `CakeProduct.isEggless` boolean it
+/// replaces, and the difference is not cosmetic. A boolean on the *product*
+/// says "this cake is eggless", which was a claim about the cake; the storefront
+/// printed it as a badge and the shop sold exactly one version. A bakery that
+/// bakes both has two things to sell, at two prices, and a boolean cannot carry
+/// the second price. So the fact moves onto the variant, where it is one half of
+/// what the customer is choosing.
+///
+/// Lowercase members for `CakeCategory`'s reason: a Postgres enum label is
+/// quoted forever if it is not plain.
+enum EggType {
+  egg
+  eggless
+}
+
+/// One purchasable version of a cake: a size, a sponge type, and a price.
+///
+/// ## Why this exists when CakeProduct already has a price
+///
+/// Because a cake shop sells "Pineapple Delight, 1.5 kg, eggless" and not
+/// "Pineapple Delight". CakeProduct's own note argued the other way — "a 1 kg
+/// and a 2 kg Chocolate Truffle are two rows if the bakery wants both" — and
+/// that was a defensible reading while the storefront was one step away from
+/// the 3D builder. It does not survive contact with the shop: two rows means two
+/// slugs, two photographs, two descriptions and two things to edit when the
+/// copy changes, and a customer browsing a shelf sees the same cake twice with
+/// no way to tell that one is simply larger.
+///
+/// So the product is the cake — its name, its sentence, its photograph, its
+/// shelf — and this is what somebody actually buys. The customer picks one of
+/// these; `priceProduct` is handed its `pricePaise`; the order freezes the
+/// result. There is still exactly one price for one purchase, which is the
+/// property §19 of the brief is protecting.
+///
+/// ## The unique key is the identity
+///
+/// `(cakeId, sizeBand, eggType)`, because a cake cannot have two prices for
+/// 1.5 kg eggless and a row that let it would make "what does this cost" depend
+/// on row order. It is also what makes the admin's editor a grid rather than a
+/// list: every cell is one variant or none.
+///
+/// ## Withdrawn rather than deleted, where it matters
+///
+/// `isAvailable` is the same distinction CatalogOption and CakeProduct already
+/// draw. Taking 2 kg off sale has to stop new orders without erasing the price
+/// the bakery agreed on, and a basket holding that variant gets a refusal that
+/// names the problem — see `reviewBasket` — instead of the line silently
+/// vanishing. Deleting a variant outright is still allowed from the editor,
+/// because a size typed by mistake should not need a tombstone: no order points
+/// at a variant row (an order freezes its config and its price lines), so
+/// nothing downstream breaks.
+model CakeVariant {
+  id String @id @default(cuid())
+
+  cakeId String
+  cake   CakeProduct @relation(fields: [cakeId], references: [id], onDelete: Cascade)
+
+  /// The enum literal from lib/schema's `SizeBand`, e.g. "1.5kg". Validated on
+  /// write, and structural: it becomes `CakeConfig.size` on the order, which is
+  /// what `deriveServings` reads and what the kitchen's docket prints.
+  sizeBand String
+  eggType  EggType
+
+  /// Paise, integer, and the whole price of the cake itself before GST and
+  /// delivery — exactly what `CakeProduct.pricePaise` used to mean, moved to
+  /// where the choice is. `priceProduct` adds the rest.
+  pricePaise Int
+
+  isAvailable Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cakeId, sizeBand, eggType])
+  /// Every read is "this cake's variants", cheapest first.
+  @@index([cakeId, pricePaise])
+}
+
+/// An extra photograph of a cake, beyond the one on the card.
+///
+/// ## Why the primary photo is NOT one of these
+///
+/// It stays on `CakeProduct.primaryImageUrl`, and the split is deliberate. The
+/// alternative — every photo a row, one of them flagged `isPrimary` — needs a
+/// backfill of every existing cake, a rewrite of every read that says
+/// `product.imageUrl`, and a rule enforced in application code that exactly one
+/// row per cake carries the flag, which Postgres cannot express. What it buys is
+/// uniformity nobody looks at.
+///
+/// This way there is one rule instead: **the primary photograph lives on the
+/// cake, the gallery lives here.** "Make this the primary" swaps the two URLs,
+/// which is one update and no flag to get wrong. Cards and order thumbnails read
+/// the column they always read; the product page reads the column and then these.
+///
+/// No crop box and no dimensions stored, because there is nothing to store —
+/// lib/storage re-encodes every upload to the same 1024x768 WebP before it
+/// reaches the blob store, so every URL here is already the same shape.
+model CakeImage {
+  id String @id @default(cuid())
+
+  cakeId String
+  cake   CakeProduct @relation(fields: [cakeId], references: [id], onDelete: Cascade)
+
+  /// A Vercel Blob URL. `CakeProduct.primaryImageUrl`'s note covers why a URL
+  /// and not bytes, and why a root-relative path is also legitimate here — a
+  /// seeded cake's committed render can be demoted into the gallery.
+  url       String
+  /// What the photograph shows. Null means nobody wrote one, and the render
+  /// falls back to the cake's name rather than shipping an empty alt.
+  alt       String?
+  /// Ascending, and dense only by convention — reordering rewrites the numbers.
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([cakeId, sortOrder])
 }

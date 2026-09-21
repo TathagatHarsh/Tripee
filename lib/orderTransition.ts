@@ -1,81 +1,60 @@
 import type { OrderStatus } from "@prisma/client";
 import { db } from "./db";
+import { outboxCreate } from "./notifications";
 import { canTransition } from "./orders";
 
 /**
- * Move one order along, and record that it moved.
- *
- * Both staff surfaces come through here — app/kitchen's board and the admin
- * portal's order detail. Two call sites rather than two implementations: the
- * sequence a docket follows is lib/orders' `canTransition` and nothing else
- * validates it, so there is no second state machine to drift out of step with
- * the first.
- *
- * ## Why the write is conditional
- *
- * Reading the status, deciding the move is legal, and then writing it
- * unconditionally is a race with a real cost. Two people at two screens — the
- * counter tablet and the office — can both read `draft`, both be told
- * "confirming a draft is legal", and both write. The second write would
- * silently overwrite the first and, worse, both would record an event, leaving
- * a history claiming the same order was confirmed twice from the same state.
- *
- * So the update is a compare-and-swap: it matches on the id *and* on the status
- * that was just read, which `db.order.update` cannot express (it takes only a
- * unique selector) and `updateMany` can. If anybody moved this order in
- * between, the WHERE matches nothing, `count` is 0, and this returns false
- * having written nothing at all — no status change and no event. Postgres
- * serialises the row-level UPDATE itself, so exactly one of two concurrent
- * callers can win, and the loser is told it lost rather than reporting success.
- *
- * The event is created inside the same transaction as the update, after the
- * count is known, so a row in OrderEvent always means the move landed.
- *
- * `actorId` comes from the caller's authenticated session, never from a form
- * field — see the `requireKitchen()` / `requireAdmin()` calls at the top of the
- * two actions. A null actor is allowed for a move made by no signed-in person,
- * which is not something either surface can currently produce.
- *
- * @returns true if this call is the one that moved the order.
+ * The authoritative aggregate transition. Customer status, due-time freezing,
+ * vendor withdrawal, histories, and notifications commit together.
  */
 export async function applyStatusTransition(
   ref: string,
   to: OrderStatus,
   actorId: string | null,
+  reason?: string | null,
 ): Promise<boolean> {
   const order = await db.order.findUnique({
     where: { ref },
-    select: { id: true, status: true },
+    select: {
+      id: true,
+      status: true,
+      leadHours: true,
+      requestedFor: true,
+      currentAssignmentId: true,
+      currentAssignment: {
+        select: {
+          id: true,
+          status: true,
+          vendorId: true,
+          vendor: { select: { email: true, phone: true } },
+        },
+      },
+    },
   });
-  if (!order) {
-    console.warn("rejected_status_transition", { ref, to, why: "no_such_order" });
-    return false;
-  }
+  if (!order) return false;
+  if (!canTransition(order.status, to)) return false;
 
-  // The only business rule, asked once, of the same map the buttons were drawn
-  // from. An illegal move stops here without opening a transaction.
-  if (!canTransition(order.status, to)) {
-    console.warn("rejected_status_transition", { ref, from: order.status, to, why: "illegal" });
-    return false;
-  }
+  const now = new Date();
+  const minimumDue = new Date(now.getTime() + order.leadHours * 3_600_000);
+  const dueAt =
+    order.requestedFor ?? minimumDue;
 
   return db.$transaction(async (tx) => {
-    const { count } = await tx.order.updateMany({
+    const data = {
+      status: to,
+      ...(to === "confirmed" ? { confirmedAt: now, dueAt } : {}),
+      ...(to === "cancelled"
+        ? {
+            cancellationReason: reason?.trim().slice(0, 500) || "Cancelled by staff",
+            currentAssignmentId: null,
+          }
+        : {}),
+    };
+    const changed = await tx.order.updateMany({
       where: { id: order.id, status: order.status },
-      data: { status: to },
+      data,
     });
-
-    // Somebody else got there first. Nothing written, nothing recorded.
-    if (count === 0) {
-      /*
-       * Logged apart from an illegal move, because they are different events
-       * with the same outcome: one is a button that should not have existed,
-       * the other is two people working the same order a second apart. Reading
-       * a run of these is how you find out the second is happening.
-       */
-      console.warn("rejected_status_transition", { ref, from: order.status, to, why: "raced" });
-      return false;
-    }
+    if (changed.count !== 1) return false;
 
     await tx.orderEvent.create({
       data: {
@@ -84,6 +63,47 @@ export async function applyStatusTransition(
         toStatus: to,
         actorId,
       },
+    });
+
+    if (to === "cancelled" && order.currentAssignment) {
+      const assignment = order.currentAssignment;
+      await tx.vendorOrder.update({
+        where: { id: assignment.id },
+        data: { status: "withdrawn", withdrawnAt: now },
+      });
+      await tx.vendorOrderEvent.create({
+        data: {
+          vendorOrderId: assignment.id,
+          fromStatus: assignment.status,
+          toStatus: "withdrawn",
+          actorId,
+          reason: reason?.trim().slice(0, 500) || "Customer order cancelled",
+        },
+      });
+      await tx.notificationOutbox.create({
+        data: outboxCreate({
+          orderId: order.id,
+          vendorId: assignment.vendorId,
+          kind: "order_cancelled",
+          destination: assignment.vendor.email ?? assignment.vendor.phone,
+          dedupeKey: `order:${order.id}:cancelled:vendor:${assignment.vendorId}`,
+          payload: { ref, reason: reason?.trim() || "Cancelled by staff" },
+        }),
+      });
+    }
+
+    await tx.notificationOutbox.create({
+      data: outboxCreate({
+        orderId: order.id,
+        kind: to === "cancelled" ? "order_cancelled" : "status_changed",
+        dedupeKey: `order:${order.id}:status:${to}`,
+        payload: {
+          ref,
+          from: order.status,
+          to,
+          dueAt: to === "confirmed" ? dueAt.toISOString() : null,
+        },
+      }),
     });
 
     return true;

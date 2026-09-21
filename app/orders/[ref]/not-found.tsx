@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { btn, eyebrow } from "@/lib/ui";
+import { sBtn, sCard } from "@/lib/shopUi";
 
 /**
  * No such order — or none of yours.
@@ -16,24 +16,23 @@ import { btn, eyebrow } from "@/lib/ui";
  */
 export default function OrderNotFound() {
   return (
-    <div className="paper-edge bg-paper">
-      <span className={`${eyebrow} block border-b border-rule px-5 py-3`}>Order not found</span>
-      <div className="flex flex-col items-start gap-4 px-5 py-8 sm:px-8 sm:py-10">
-        <h1 className="font-mono text-title text-ink">
-          We can&rsquo;t find that order on this account
-        </h1>
-        <p className="max-w-[52ch] font-sans text-body leading-relaxed text-steel">
-          Check the reference against your confirmation — they look like
-          <span className="font-mono text-meta text-ink"> MC-4471</span>. If the
-          order was placed without signing in, it is tracked by that reference
-          rather than by this account: ring the bakery and they will find it.
+    <div className={sCard}>
+      <div className="flex flex-col items-start gap-4 px-6 py-10 sm:px-10">
+        <h1 className="text-[1.75rem]">We can&rsquo;t find that order on this account</h1>
+        <p className="max-w-[52ch] leading-relaxed text-s-bark">
+          Check the reference against your confirmation. They look like
+          <span className="font-mono text-s-cocoa"> MC-4471</span>. If the order
+          was placed without signing in, it is tracked by that reference rather
+          than by this account: ring the bakery and they will find it.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Link href="/orders" className={btn("primary", "md")}>
+          <Link href="/orders" className={sBtn("primary", "md")}>
             All your orders
           </Link>
-          <Link href="/build/shape" className={btn("secondary", "md")}>
-            Build a cake
+          {/* The shop, not the builder: /build is a Coming Soon page for this
+              phase — see lib/flags. */}
+          <Link href="/shop" className={sBtn("outline", "md")}>
+            Shop cakes
           </Link>
         </div>
       </div>

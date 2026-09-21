@@ -153,3 +153,50 @@ export function allergenLine(c: CakeConfig): string {
   if (allergens.length === 0) return diet;
   return `${diet} · CONTAINS: ${allergens.join(", ")}`;
 }
+
+/**
+ * The allergen line for a cake the shopper has not chosen a version of yet.
+ *
+ * ## Why `allergenLine` alone stopped being enough
+ *
+ * It reads `config.eggless`, and a shop cake's stored recipe is now only one of
+ * the ways that cake can be baked. A cake sold both with egg and without has a
+ * `config` that says eggless, so the product page printed "EGGLESS" over a
+ * picker offering "With egg" — a contradiction on the one line of the page that
+ * exists for people who have to be careful about what they eat.
+ *
+ * The docket, the order and the kitchen are unaffected and always were: those
+ * read the config the order froze, which carries the variant the customer
+ * actually bought. This is only about the page that shows a cake before anyone
+ * has decided.
+ *
+ * ## What it says, and why it errs the way it does
+ *
+ * One offered sponge is the old behaviour exactly. Two is the new case, and it
+ * lists the union of both versions' allergens with egg called out as
+ * conditional rather than dropped — an allergen statement that omits something
+ * present in half the cakes sold under that name is the one failure mode worth
+ * designing against, and "Egg only in the with-egg version" is both safe and
+ * true.
+ */
+export function allergenLineForOffer(
+  c: CakeConfig,
+  /** Which sponges the bakery actually sells this cake as. */
+  eggTypes: readonly ("egg" | "eggless")[],
+): string {
+  const hasEgg = eggTypes.includes("egg");
+  const hasEggless = eggTypes.includes("eggless");
+
+  /* One sponge, or none configured at all — the old line, against the version
+     that is genuinely on sale rather than against whatever the recipe says. */
+  if (!hasEgg || !hasEggless) {
+    return allergenLine({ ...c, eggless: !hasEgg });
+  }
+
+  /* Both. The union, which is the with-egg version's list — `eggUnlessEggless`
+     only ever adds "Egg" — with the conditional said out loud. */
+  const { allergens } = deriveAllergens({ ...c, eggless: false });
+  const rest = allergens.filter((a) => a !== "Egg");
+  const contains = rest.length > 0 ? `CONTAINS: ${rest.join(", ")} · ` : "";
+  return `${contains}Egg only in the with-egg version.`;
+}

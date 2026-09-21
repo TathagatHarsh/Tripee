@@ -41,6 +41,24 @@ export interface NotificationChannel {
 }
 
 /**
+ * The last four digits, and a shape that cannot be mistaken for a number to
+ * ring. `+919876543210` becomes `\u20263210`.
+ *
+ * A full mobile number is the single most re-identifying thing this product
+ * holds about a guest, and a log drain is not the database: it is retained on
+ * somebody else's schedule, searchable by anybody with dashboard access, and
+ * frequently shipped onward to a third party. Four digits is enough to match a
+ * log line against the order row it names, which is the only thing this line is
+ * for — the number itself is one click away in /admin for anyone who needs to
+ * actually ring the customer.
+ */
+export function maskedPhone(raw: string | null): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  return digits.length < 4 ? "\u2026" : `\u2026${digits.slice(-4)}`;
+}
+
+/**
  * One structured line, not a sentence.
  *
  * Log drains index JSON far better than prose, and these are the fields
@@ -55,11 +73,10 @@ const serverLog: NotificationChannel = {
       slot: n.deliverySlot,
       leadHours: n.leadHours,
       dueAt: n.dueAt.toISOString(),
-      // The name and number are what make this actionable to a human reading
-      // the log at 8am, and they are already in the same database this line is
-      // about — no new exposure, just a pointer to the row.
+      /* Enough to recognise the order at 8am and no more. The ref is the key
+         to everything else; the board has the rest. */
       customer: n.customerName,
-      phone: n.customerPhone,
+      phone: maskedPhone(n.customerPhone),
     });
   },
 };

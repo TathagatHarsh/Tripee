@@ -1,6 +1,6 @@
 "use client";
 
-import { btn } from "@/lib/ui";
+import { sBtn } from "@/lib/shopUi";
 
 /**
  * The order, as a file the customer keeps.
@@ -42,7 +42,7 @@ export function OrderSheetButton({
   }
 
   return (
-    <button type="button" onClick={download} className={btn("secondary", "md", "w-full")}>
+    <button type="button" onClick={download} className={sBtn("outline", "md", "w-full")}>
       Download the order sheet
     </button>
   );

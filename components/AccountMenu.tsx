@@ -6,6 +6,7 @@ import { useCallback, useRef, useState } from "react";
 import type { UserRole } from "@prisma/client";
 import { allows } from "@/lib/roles";
 import { eyebrow, iconBtn } from "@/lib/ui";
+import { sIconBtn } from "@/lib/shopUi";
 
 /**
  * The one account control on the shopfront, top right.
@@ -82,7 +83,19 @@ const MENU_ID = "account-menu";
  */
 const CONFIGURED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
-export function AccountMenu() {
+/**
+ * `tone` is the storefront's one concession, and it changes nothing but two
+ * class strings.
+ *
+ * Phase 1's shop runs on the warm `s-` palette (see globals.css) while this
+ * control's default dress is the product's cool paper — `bg-paper` is #E8E7E1
+ * against the shop's #FBF6EF, which reads as a grey box somebody forgot to
+ * restyle. The alternative to a prop was a second account menu for the shop,
+ * and a second account menu is a second place for the Clerk branch, the role
+ * fetch and the popover semantics to be got subtly wrong. None of that logic is
+ * duplicated or touched here.
+ */
+export function AccountMenu({ tone = "paper" }: { tone?: "paper" | "shop" } = {}) {
   const panel = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<UserRole | null>(null);
@@ -133,7 +146,7 @@ export function AccountMenu() {
         cannot be called conditionally, so the branch has to be a component
         boundary. This is a conditional *render*, not a conditional hook.
       */}
-      {CONFIGURED && <AccountLink />}
+      {CONFIGURED && <AccountLink tone={tone} />}
 
       {/* min-h-11 so the bar is its final height from the first frame. The
           control inside is a fixed 44px square in every state, signed in or out,
@@ -148,7 +161,11 @@ export function AccountMenu() {
           /* The icon says nothing to a screen reader, and "Account" is the word
              both states of this menu are about. */
           aria-label="Account"
-          className={iconBtn()}
+          className={
+            tone === "shop"
+              ? sIconBtn("border border-s-line-strong bg-s-shell text-s-cocoa hover:border-s-cocoa")
+              : iconBtn()
+          }
         >
           <PersonGlyph />
         </button>
@@ -222,7 +239,7 @@ export function AccountMenu() {
  * the 68px bar a second row of text, which is the exact failure the locality's
  * `lg:hidden xl:block` in app/page.tsx exists to avoid.
  */
-function AccountLink() {
+function AccountLink({ tone }: { tone: "paper" | "shop" }) {
   const { isSignedIn } = useUser();
   /* `isLoaded` is deliberately not consulted. Until Clerk resolves,
      `isSignedIn` is false and this renders nothing, which is the same quiet
@@ -231,7 +248,7 @@ function AccountLink() {
   if (!isSignedIn) return null;
 
   return (
-    <Link href="/orders" className={BAR_LINK}>
+    <Link href="/orders" className={tone === "shop" ? SHOP_BAR_LINK : BAR_LINK}>
       My orders
     </Link>
   );
@@ -345,6 +362,14 @@ function Session({ role, close }: { role: UserRole | null; close: () => void }) 
         */}
         {allows(role, "ADMIN") && <Row href="/admin" close={close}>Admin portal</Row>}
         {allows(role, "KITCHEN") && <Row href="/kitchen" close={close}>Kitchen board</Row>}
+        {/*
+          The same `allows`, and the one place it is not a rank: `allows(role,
+          "VENDOR")` is true for a vendor and for nobody else, so this row never
+          appears for the owner — who has no bakery — or for a baker. See
+          lib/roles. Still drawing rather than deciding: /vendor is shut by
+          `requireVendor()` in its own layout regardless of what this renders.
+        */}
+        {allows(role, "VENDOR") && <Row href="/vendor" close={close}>Kitchen board</Row>}
       </div>
 
       <div className={GROUP}>
@@ -431,6 +456,11 @@ const RANK_LABEL: Record<UserRole, string> = {
   CUSTOMER: "",
   KITCHEN: "Kitchen",
   ADMIN: "Administrator",
+  /* Not the bakery's own name. This component knows a role and never a
+     `vendorId` — /api/me returns one field on purpose — and inventing a lookup
+     so a menu could print "Sweet Crust" would put a partner's name in the
+     client bundle of every page on the site. */
+  VENDOR: "Partner bakery",
 };
 
 /**
@@ -487,6 +517,14 @@ const BAR_LINK =
   + "bg-paper px-3.5 font-mono text-micro tracking-[0.14em] text-graphite uppercase "
   + "transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] "
   + "hover:border-ink hover:text-ink sm:inline-flex";
+
+/** The same control in the storefront's palette. See `tone` on AccountMenu. */
+const SHOP_BAR_LINK =
+  "hidden min-h-11 shrink-0 items-center whitespace-nowrap rounded-s-sm border "
+  + "border-s-line-strong bg-s-shell px-3.5 font-mono text-[0.6875rem] "
+  + "tracking-[0.12em] text-s-bark uppercase transition-colors "
+  + "duration-[var(--dur-ui)] ease-[var(--ease-out)] "
+  + "hover:border-s-cocoa hover:text-s-cocoa sm:inline-flex";
 
 /**
  * A row. 44px on the row itself rather than on a span inside it — these are

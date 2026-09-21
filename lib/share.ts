@@ -23,11 +23,24 @@ export function decodeConfig(s: string): CakeConfig | null {
 
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 
+/**
+ * The alphabet, applied to bytes somebody else chose.
+ *
+ * Split out from `makeSlug` for lib/checkout's `refForAttempt`, which needs the
+ * same thirty-one characters over the bytes of a digest rather than over random
+ * ones. Sharing the mapping is what keeps every reference in the product — drawn
+ * or derived — matching the one pattern the e2e suite and the bakery's own eyes
+ * expect.
+ */
+export function slugFromBytes(bytes: Uint8Array, len = 6): string {
+  return Array.from(bytes.slice(0, len), (b) => ALPHABET[b % ALPHABET.length]).join("");
+}
+
 /** Short, unambiguous slug for `/d/[slug]`. No 0/O/1/l/i confusion. */
 export function makeSlug(len = 7): string {
   const bytes = new Uint8Array(len);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join("");
+  return slugFromBytes(bytes, len);
 }
 
 /**

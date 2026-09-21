@@ -33,9 +33,9 @@
    * is rebuilt it should move onto the §1.2 names and the alias should go.
    *
    * ── Papers ──────────────────────────────────────────────────────────── */
-  --color-paper: #e8e7e1;    /* TOP COPY. Cool grey-white bond. Not cream. */
-  --color-paper-2: #dfd3b8;  /* MANILA. Kitchen stock, carbon copies, second sheets. */
-  --color-paper-3: #cfc9ba;  /* CHIPBOARD. The desk, behind sheets, the specimen's ground. */
+  --color-paper: #faf7ef;    /* TOP COPY. Cool grey-white bond. Not cream. */
+  --color-paper-2: #efe8d9;  /* MANILA. Kitchen stock, carbon copies, second sheets. */
+  --color-paper-3: #ddd5c5;  /* CHIPBOARD. The desk, behind sheets, the specimen's ground. */
 
   /*
    * The deliberate move, and the one thing not to undo: the top copy is COOL and
@@ -45,21 +45,21 @@
    */
 
   /* ── Inks ───────────────────────────────────────────────────────────── */
-  --color-ink: #22211e;      /* Graphite. Never #000. All primary text. 12.4:1 on paper. */
+  --color-ink: #263b2d;      /* Graphite. Never #000. All primary text. 12.4:1 on paper. */
   /* Secondary text, prose. Measured: 6.4:1 on paper, 5.4:1 on manila, 4.8:1 on
      CHIPBOARD. That third pairing is why this is #535148 and not the #5c594f it
      was — slab/slab-deep surfaces are chipboard, and ink-60 on chipboard measured
      4.24:1, under the 4.5:1 floor, on the builder's undo/redo labels and the
      "drag to turn" hint. Darkening the token fixes every chipboard call site at
      once. Check all three papers before touching this value. */
-  --color-ink-60: #535148;
+  --color-ink-60: #625d50;
   --color-ink-35: #918c7e;   /* Tertiary: dot leaders, carets, disabled. 2.4:1 — never text. */
   --color-ink-15: #c2bcac;   /* Hairline rules, sheet edges, input baselines. */
 
   /* THE signature colour. Means "the kitchen's version of this", and nothing
      else: the carbon sheet, callout leaders, the confirmed-by-phone stamp, live
      status lines, ticket↔specimen linkage. 7.1:1 on paper. */
-  --color-carbon: #3b3e93;
+  --color-carbon: #42644d;
   --color-carbon-ghost: oklch(from #3b3e93 l c h / 0.62);
 
   /* Means stop, or sealed. Four uses in the entire journey. 5.5:1 on paper. */
@@ -116,9 +116,9 @@
    * `font-display` call sites become mono immediately instead of silently falling
    * back to a browser serif the moment the serif is removed.
    */
-  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
-  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+  --font-display: var(--font-brand-display), ui-serif, Georgia, serif;
+  --font-sans: var(--font-brand-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-brand-body), ui-monospace, "SFMono-Regular", monospace;
 
   /*
    * 11px is the floor on every product surface. The old scale was rigorous
@@ -257,6 +257,185 @@
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='512' height='512' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
+/*
+ * ══ THE ADMIN PORTAL PALETTE ══════════════════════════════════════════════
+ *
+ * A second design system in one stylesheet, and the `a-` prefix is the whole
+ * reason it can be. Everything above this block is the carbon-copy world the
+ * customer sees — cool bond paper, graphite ink, no green and no blue-info,
+ * every headline in mono. That is right for a shop and wrong for a back office:
+ * an owner reconciling a week of orders is reading a table, not a document, and
+ * needs the three colours a table needs — this went well, this needs attention,
+ * this is about to go wrong — which the customer palette deliberately refuses to
+ * have.
+ *
+ * So rather than re-point the shared tokens (which would drag the whole
+ * storefront with them) or hand-write hexes at three hundred call sites, the
+ * admin gets its own namespaced set. `bg-a-surface` and `text-a-ink` are real
+ * Tailwind utilities generated from these, they cannot collide with `bg-paper`
+ * or `text-ink`, and the two systems can sit in one bundle without either one
+ * being a special case. A component under app/admin uses only `a-` tokens; a
+ * component outside it uses only the ones above. That rule is mechanical enough
+ * to check by grepping for the prefix.
+ *
+ * The kitchen board is a third case and takes `k-` tokens further down: a
+ * production surface read across a metre of bench in flour-dusted light has
+ * different requirements again from either.
+ *
+ * ── Surfaces ──────────────────────────────────────────────────────────── */
+@theme {
+  --color-a-canvas: #f4f1e8;   /* the page behind the cards. Neutral, barely there. */
+  --color-a-surface: #fffdf8;  /* a card, a table, a form. Where content lives. */
+  --color-a-sunken: #eeeadd;   /* table headers, read-only wells, striped rows. */
+  --color-a-nav: #22392b;      /* the sidebar. Deep navy, so the shell reads as chrome. */
+  --color-a-nav-hover: #304c38;
+  --color-a-nav-active: #3e5c43;
+
+  /* ── Ink ────────────────────────────────────────────────────────────── */
+  /* Measured on --color-a-surface (#fff), which is where all four are used:
+     ink 15.6:1, muted 5.4:1, faint 3.4:1, ghost 2.3:1. The last two are the
+     non-text tier — icons, hairlines, disabled glyphs — and the comment is
+     here because "faint" reads like a text colour and is not one. */
+  --color-a-ink: #283b2d;
+  --color-a-muted: #615f53;
+  --color-a-faint: #706d60;
+  --color-a-ghost: #a8b0bc;
+
+  /* Ink for the navy sidebar. 12.1:1 and 5.1:1 on --color-a-nav. */
+  --color-a-nav-ink: #fff9e9;
+  --color-a-nav-muted: #d0d8c3;
+
+  /* ── Lines ──────────────────────────────────────────────────────────── */
+  --color-a-line: #ded9cc;        /* the default hairline: card edge, row rule. */
+  --color-a-line-strong: #a5a08f;  /* an input's edge, a control's edge. */
+
+  /*
+   * ── Accent ─────────────────────────────────────────────────────────────
+   *
+   * Muted terracotta: a bakery colour that is not pink and not a cupcake. It
+   * marks the one primary action on a screen and the active item in the nav,
+   * and nothing else — an accent spent on decoration cannot also mean "press
+   * this".
+   *
+   * Two values, because one cannot do both jobs honestly. --a-accent is 3.6:1
+   * on white, which is a fill and a border and not a word; --a-accent-ink is
+   * 5.3:1 and is the one that goes on text. Using the first for a label is the
+   * mistake this pair exists to make impossible to make by accident.
+   */
+  --color-a-accent: #94472c;
+  --color-a-accent-ink: #874027;
+  --color-a-accent-wash: #f6e9db;
+  --color-a-accent-line: #d9b79d;
+
+  /*
+   * ── Status ─────────────────────────────────────────────────────────────
+   *
+   * Three states a table needs, each as a fill, a text tone and a wash. The
+   * `-ink` value is the one that passes 4.5:1 on white and the bare one is the
+   * dot, the bar and the border. Same discipline as the accent above.
+   *
+   * There is no "info" blue. Every attempt to add one produced badges that
+   * meant "this is a fact", which is what all of the other rows already are.
+   */
+  --color-a-good: #17795a;
+  --color-a-good-ink: #14684e;
+  --color-a-good-wash: #eef7f3;
+  --color-a-good-line: #bfe0d3;
+
+  --color-a-warn: #b4690e;
+  --color-a-warn-ink: #8c5209;
+  --color-a-warn-wash: #fdf5e8;
+  --color-a-warn-line: #ecd7ad;
+
+  --color-a-bad: #c0392b;
+  --color-a-bad-ink: #a62f23;
+  --color-a-bad-wash: #fdf0ee;
+  --color-a-bad-line: #edc4bd;
+
+  /* A state that is real but not yet anything: a draft, an upcoming step. */
+  --color-a-idle-wash: #f1f3f6;
+  --color-a-idle-line: #d8dde4;
+
+  /*
+   * ── Type ───────────────────────────────────────────────────────────────
+   *
+   * Inter, for the reason the brief gives and one it does not. The given one:
+   * a back office is read for eight hours and mono at 13px across a
+   * twelve-column table is genuinely slower to scan. The other: Inter ships
+   * tabular figures and a real medium weight, and this interface is mostly
+   * numbers in columns that have to line up.
+   *
+   * --font-a-mono stays, and is not laziness — an order reference, a pincode
+   * and a timestamp are strings read character by character and often aloud
+   * down a phone, and mono is what stops MC-GMT4X7 from being misread. The rule
+   * is mono for identifiers, Inter for everything a person reads as language.
+   */
+  --font-a-sans: var(--font-brand-body), ui-sans-serif, system-ui, sans-serif;
+  --font-a-mono: var(--font-brand-body), ui-monospace, "SFMono-Regular", monospace;
+
+  /* A tighter scale than the storefront's: denser, and it starts at 12 rather
+     than reaching for 96. No display tier at all — an admin page has a title,
+     not a hero. */
+  --text-a-micro: 0.6875rem;  /* 11px — uppercase table headers and eyebrows only. */
+  --text-a-meta: 0.75rem;     /* 12px — timestamps, helper text, badge labels. */
+  --text-a-small: 0.8125rem;  /* 13px — table cells, secondary lines. */
+  --text-a-body: 0.875rem;    /* 14px — the default. Labels, prose, inputs. */
+  --text-a-item: 0.9375rem;   /* 15px — a row's primary name, a card title. */
+  --text-a-lede: 1.0625rem;   /* 17px — a section heading. */
+  --text-a-title: clamp(1.75rem, 2.4vw, 2.5rem);   /* 22px — the page's own h1. */
+  --text-a-figure: 2.25rem;   /* 28px — a stat card's number. */
+
+  --radius-a: 0.5rem;         /* cards, inputs, buttons. */
+  --radius-a-sm: 0.3125rem;   /* badges, chips, thumbnails. */
+
+  /*
+   * Shadows exist here, unlike the storefront, which forbids them because a
+   * sheet of paper does not float. A SaaS card is not paper — it is a panel,
+   * and one hairline is not enough separation on a grey canvas at a glance.
+   * Kept to two, both barely there.
+   */
+  --shadow-a-card: 0 1px 2px 0 rgb(21 26 34 / 0.04), 0 1px 3px -1px rgb(21 26 34 / 0.06);
+  --shadow-a-pop: 0 4px 6px -2px rgb(21 26 34 / 0.06), 0 12px 24px -8px rgb(21 26 34 / 0.14);
+
+  /*
+   * ══ THE KITCHEN BOARD ═════════════════════════════════════════════════
+   *
+   * A third palette, and the justification is a metre of distance. The board is
+   * read standing up, across a bench, by somebody whose hands are covered in
+   * frosting and who is looking for one thing: which cake is next and when it
+   * is due. Nothing on it is read for pleasure and nothing on it is small.
+   *
+   * Near-black rather than the admin's navy, because the board is usually the
+   * only thing on that screen and a dark ground at high brightness is what
+   * survives a room with a window in it. The status colours are the admin's,
+   * lifted for contrast on dark: same meanings, so somebody who works both
+   * screens learns one language.
+   */
+  --color-k-ground: #0e1116;
+  --color-k-panel: #171b22;
+  --color-k-panel-2: #1f242d;
+  --color-k-line: #2c333e;
+  --color-k-line-strong: #414a58;
+  --color-k-ink: #f4f6f8;      /* 15.9:1 on ground. */
+  --color-k-muted: #a7b1c0;    /* 7.6:1 on ground. Still comfortably readable. */
+  --color-k-faint: #6d788a;    /* 3.5:1 — non-text only. */
+
+  --color-k-now: #f0a24b;      /* being worked on. 8.9:1 on ground. */
+  --color-k-next: #5eb9e8;     /* queued and confirmed. 8.3:1. */
+  --color-k-done: #4bc48f;     /* finished this step. 9.4:1. */
+  --color-k-late: #f2685c;     /* past the window it was quoted. 6.2:1. */
+
+  /* Deliberately larger than either scale above. The smallest thing on the
+     board is 13px and it is a caption; a deadline is 22px and a reference is
+     26px, because those are the two things read from furthest away. */
+  --text-k-meta: 0.8125rem;
+  --text-k-body: 0.9375rem;
+  --text-k-item: 1.125rem;
+  --text-k-due: 1.375rem;
+  --text-k-ref: 1.625rem;
+  --text-k-col: 1.0625rem;
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
@@ -379,6 +558,69 @@
     font-family: var(--font-display);
     text-transform: none;
     letter-spacing: -0.02em;
+  }
+
+  /*
+   * ── The back office opts out of the brand's typography, not just its colour ──
+   *
+   * The `a-` and `k-` token prefixes keep the three palettes from leaking into
+   * one another, and they do nothing at all about the rules above, because
+   * those are element selectors: `h1` sets mono, weight 400 and UPPERCASE, and
+   * `p` sets Instrument Sans with a 62ch measure. A prefix cannot save you from
+   * a selector that names the tag.
+   *
+   * That was not theoretical. The admin dashboard shipped its `<h1>` as
+   * "DASHBOARD" in monospace at weight 400 — the utility classes on it set the
+   * size and the weight, and the base rule's `font-family` and
+   * `text-transform` won because nothing on the element contradicted them.
+   * Caught in the browser, not by the build.
+   *
+   * So this is the same escape hatch `.home` above already needed, for the same
+   * reason stated there: §1.1's "every headline is mono and uppercase" governs
+   * the *product* — the nine builder steps, the docket — where a headline is a
+   * label on a working document. A back office is not that product, and §3 of
+   * the redesign brief asks for the opposite in as many words: "Do NOT use the
+   * current monospaced typography as the primary UI font."
+   *
+   * `font-weight: inherit` rather than a number, so the `font-bold` and
+   * `font-semibold` utilities on these headings decide the weight. Setting 700
+   * here would make every h2 in the portal bold whether it asked to be or not.
+   */
+  .a-root :is(h1, h2, h3, h4),
+  .k-root :is(h1, h2, h3, h4) {
+    font-family: var(--font-a-sans);
+    font-weight: inherit;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    text-transform: none;
+  }
+
+  /*
+   * And prose. The `p` rule above is deliberately blunt about the storefront —
+   * "a few short <p> labels will be caught here wrongly" — but in the portal
+   * almost every paragraph is a helper line under a field or a note in a card,
+   * and all of them were coming out in the wrong face at the wrong size with a
+   * 62ch cap they never asked for.
+   *
+   * `max-width: none` is the important one: a 62ch measure inside a 320px table
+   * cell does nothing, and inside a full-width notice it silently stops the
+   * text short of the box it is in.
+   */
+  .a-root p,
+  .k-root p {
+    font-family: var(--font-a-sans);
+    font-size: inherit;
+    line-height: inherit;
+    letter-spacing: normal;
+    max-width: none;
+  }
+
+  /* Same story for the controls: `font-family` on an input is not inherited by
+     default in any browser, so a field in the portal was mono too. */
+  .a-root :is(input, select, textarea, button),
+  .k-root :is(input, select, textarea, button) {
+    font-family: inherit;
+    letter-spacing: normal;
   }
 
   :focus-visible {
@@ -748,3 +990,1440 @@
 .auth-sheet .cl-footerActionLink {
   background: transparent;
 }
+
+/*
+ * ══ OPTING THE BACK OFFICE OUT OF THE PAPER WORLD ═════════════════════════
+ *
+ * `body` above sets the storefront's ground: bond paper, graphite, mono at
+ * 13px, and a 4% multiply grain fixed over everything at z-index 9999. All four
+ * are right for a shop and all four are wrong for a tool. The grain in
+ * particular is not a nicety to leave on — it is a multiply layer over every
+ * table cell in the portal, and multiply over #ffffff is visible.
+ *
+ * Scoped by `:has()` on the shell class rather than by a `<body>` class,
+ * because the shell is a layout component and app/layout.tsx — which owns the
+ * `<body>` tag — does not know which section is about to render inside it. The
+ * alternative is threading a class up through a route group, which is more
+ * moving parts to keep in sync than one selector.
+ */
+body:has(.a-root)::after,
+body:has(.k-root)::after {
+  display: none;
+}
+
+/* The admin shell's own ground. Set here rather than as utilities on the
+   element so the page behind a short page is the right colour too. */
+.a-root {
+  background: var(--color-a-canvas);
+  color: var(--color-a-ink);
+  font-family: var(--font-a-sans);
+  font-size: var(--text-a-body);
+  /* The storefront tracks its mono out; Inter at 14px wants none of that. */
+  letter-spacing: normal;
+  /* Every number in this portal is in a column that has to line up. */
+  font-variant-numeric: tabular-nums;
+}
+
+.k-root {
+  background: var(--color-k-ground);
+  color: var(--color-k-ink);
+  font-family: var(--font-a-sans);
+  font-size: var(--text-k-body);
+  letter-spacing: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The focus ring for both. The storefront's is a hairline shift on a border,
+ * which works on paper and disappears on a grey card; these are keyboard
+ * targets in a dense grid and need a ring that reads without hunting.
+ *
+ * `:focus-visible`, so a mouse click on a button does not leave a ring behind.
+ */
+.a-root :focus-visible {
+  outline: 2px solid var(--color-a-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-a-sm);
+}
+
+.k-root :focus-visible {
+  outline: 3px solid var(--color-k-next);
+  outline-offset: 2px;
+}
+
+/*
+ * A table that is wider than its column scrolls inside its own box.
+ *
+ * The brief's rule is "do not allow horizontal page overflow", and the way a
+ * data table breaks that is not by being styled wrong — it is by being a table.
+ * Twelve columns of order data cannot fit 375px and should not try; the fix is
+ * that the overflow belongs to the table's wrapper and never to the document.
+ * Paired with `min-w-` on the table itself in components/admin/DataTable.
+ */
+.a-scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  /*
+   * A positioning context, and it is not decorative.
+   *
+   * `sr-only` is `position: absolute`, so it resolves against its nearest
+   * positioned ancestor — and with none, against its *static* position. The
+   * orders table's last column header is `<span class="sr-only">Actions</span>`,
+   * which sits near the right edge of a 992px table inside a 744px scroll box:
+   * absolutely positioned, its box landed at x≈1248 in document coordinates,
+   * escaped this container's clipping, and stretched `documentElement.scrollWidth`
+   * 207px past the viewport. The page scrolled sideways — the exact thing §33
+   * forbids — and nothing looked wrong; the whole symptom was a scrollbar along
+   * the bottom of the window.
+   *
+   * Making this the positioning context confines every absolutely-positioned
+   * descendant to the box that is meant to be scrolling, which is the general
+   * fix rather than moving one screen-reader label.
+   */
+  position: relative;
+  /* Momentum scrolling on a touch device, and a scrollbar that does not
+     reserve a gutter on a desktop that has no need for one. */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* The toast's entrance. Small and upward — a card that slides a long way reads
+   as an interruption, which is the thing §24 asks toasts not to be. */
+@keyframes a-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The mobile drawer, and the sheet behind it. */
+@keyframes a-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes a-drawer-in {
+  from { transform: translateX(-100%); }
+  to   { transform: none; }
+}
+
+/*
+ * The portal's chrome does not print.
+ *
+ * /admin/orders/[ref]/print is a document a rider carries, and it renders
+ * inside app/admin/layout.tsx like every other admin page — so without this it
+ * would come out of the printer with a navy sidebar down the left and a search
+ * box across the top. Ink spent on controls nobody can press.
+ *
+ * A rule with `!important` rather than a `print:hidden` utility on the
+ * elements, because the sidebar also carries `lg:block` and which of the two
+ * wins would come down to Tailwind's variant ordering. This cannot lose.
+ */
+@media print {
+  [data-admin-chrome] {
+    display: none !important;
+  }
+
+  /* The grid collapses to one column, so the document is not indented by the
+     width of a sidebar that is no longer there. */
+  .a-root {
+    display: block !important;
+    background: #fff !important;
+  }
+
+  /* Cards print as plain sheets: a drop shadow costs toner and says nothing on
+     paper, and a grey fill behind a spec sheet makes it harder to read. */
+  .a-root [class*="shadow-a"] {
+    box-shadow: none !important;
+  }
+}
+
+/* Celebration palette: storefront aliases keep all existing consumers consistent. */
+@theme {
+  --color-s-cream: #faf7ef;
+  --color-s-cream-deep: #efe8d9;  /* section bands, image wells, inputs at rest */
+  --color-s-shell: #fffdf7;       /* a product card. White, so the cake is the colour. */
+
+  /* Ink. Chocolate rather than black — this brand has no black in it. */
+  --color-s-cocoa: #263b2d;       /* headings, prices, the dark surface */
+  --color-s-cocoa-deep: #192a20;  /* the footer and the hover state of a dark fill */
+  --color-s-bark: #625d50;        /* secondary copy, descriptions, meta */
+
+  /* Accent. One berry, used for the call to action and for nothing decorative. */
+  --color-s-berry: #9a472b;
+  --color-s-berry-deep: #79341e;  /* hover */
+  --color-s-berry-wash: #f7e9da;  /* the tint behind a berry badge */
+
+  /* A second accent, for the "Coming soon" badge and nothing else.
+     #7a5410 on this gold measured 4.15:1 — under the floor, caught by axe and
+     not by eye. #6b4708 is 5.1:1 on the same fill. */
+  --color-s-gold: #e8c879;
+  --color-s-gold-ink: #58410c;
+
+  /*
+   * Order status, as three tones rather than one accent reused three ways.
+   *
+   * The editorial palette these replace used carbon-indigo for "in progress",
+   * graphite for "done" and stamp-red for "cancelled". Berry cannot take the
+   * first job here — it is the fill on every call to action, so a berry status
+   * line would read as something to press — and it cannot take all three, since
+   * "your cake is on its way" and "this was cancelled" must not look alike.
+   *
+   * Caramel for work in progress (it is a bakery: the warm one is the oven),
+   * green for arrived, deep berry for stopped. Each is a text colour over its
+   * own wash, and every pair was measured rather than eyeballed:
+   * live 5.2:1, done 5.7:1, stopped 8.3:1.
+   *
+   * Colour is never the only signal — OrderStatusBadge carries a glyph too.
+   */
+  --color-s-live: #8a5a12;
+  --color-s-live-wash: #fbf0dc;
+  --color-s-done: #1f6b45;
+  --color-s-done-wash: #e8f3ec;
+  --color-s-stop: #8e0e32;
+  --color-s-stop-wash: #fdeef2;
+
+  --color-s-line: #ddd5c5;        /* card edges, dividers */
+  --color-s-line-strong: #9d9585; /* an input's edge, a control's edge */
+
+  --radius-s: 0.75rem;      /* cards, images, dark panels */
+  --radius-s-sm: 0.375rem; /* buttons, inputs, chips */
+
+  /* Soft and warm-tinted, not grey. A grey shadow on cream reads as dirt. */
+  --shadow-s-card: 0 1px 2px rgb(58 35 23 / 0.04), 0 8px 24px -12px rgb(58 35 23 / 0.14);
+  --shadow-s-lift: 0 2px 4px rgb(58 35 23 / 0.05), 0 18px 40px -18px rgb(58 35 23 / 0.26);
+}
+
+@layer base {
+  /*
+   * The storefront opts out of the product's typography, for the reason the
+   * `.home` and `.a-root` escape hatches above already establish: the base
+   * `h1,h2,h3` rule sets mono/UPPERCASE and the base `p` rule sets a 62ch cap,
+   * and both are element selectors that a token prefix cannot save you from.
+   *
+   * A shop's headline is a headline, not a label on a working document, so the
+   * display serif the landing page was already designed around carries them.
+   */
+  .s-root {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    letter-spacing: normal;
+    color: var(--color-s-cocoa);
+  }
+
+  .s-root :is(h1, h2, h3) {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.08;
+    text-transform: none;
+    text-wrap: balance;
+  }
+
+  /* h4 and below are labels — a card's option name, a summary row — so they
+     stay in the prose face at 500 rather than becoming small serif headings. */
+  .s-root :is(h4, h5, h6) {
+    font-family: var(--font-sans);
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    line-height: 1.35;
+    text-transform: none;
+  }
+
+  /* `max-width: none` is the load-bearing half: a 62ch measure inside a 260px
+     product card silently stops the description short of the box it is in. */
+  .s-root p {
+    font-family: var(--font-sans);
+    font-size: inherit;
+    line-height: 1.6;
+    letter-spacing: normal;
+    max-width: none;
+    text-transform: none;
+  }
+
+  /* font-family is not inherited by form controls in any browser. */
+  .s-root :is(input, select, textarea, button) {
+    font-family: inherit;
+    letter-spacing: normal;
+  }
+
+  /* An ink-coloured focus ring is invisible on the cocoa panels. */
+  .s-root :focus-visible {
+    outline: 2px solid var(--color-s-berry);
+    outline-offset: 2px;
+  }
+  .s-root .bg-s-cocoa :focus-visible,
+  .s-root .bg-s-cocoa-deep :focus-visible {
+    outline-color: var(--color-s-cream);
+  }
+
+  .s-root ::selection {
+    background: var(--color-s-berry-wash);
+    color: var(--color-s-cocoa);
+  }
+}
+
+/* A product card's photograph well, in the tone the preset shots were lit
+   against — so the box matches the picture about to land in it rather than
+   flashing a different colour first. */
+@utility s-photo-well {
+  background: linear-gradient(160deg, var(--color-s-cream-deep) 0%, #ece0cf 100%);
+}
+
+/* Sections arriving as you scroll past them. Deliberately one keyframe and one
+   utility: §ANIMATION asks for subtle reveals, not a library. */
+@keyframes s-rise {
+  from { opacity: 1; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@utility s-rise {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: s-rise 520ms var(--ease-out) both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 22%;
+  }
+}
+
+/*
+ * ── Clerk, inside the shop ────────────────────────────────────────────────
+ *
+ * `/account/profile` renders Clerk's <UserProfile> and now does it inside the
+ * storefront's chrome. It keeps the `.auth-sheet` class, because everything
+ * structural in that block — card chrome off, left alignment, the field — is
+ * still what this panel wants. What it does not want is the two things that
+ * block states in the editorial palette: `border-radius: 0` and a grey border.
+ *
+ * Scoped under `.s-root`, the storefront wrapper. /sign-in and /sign-up are not
+ * inside one, so their panel is untouched by every rule here — that scope is the
+ * whole reason this is an override rather than an edit to the block above.
+ *
+ * The doubled class on the input matches the escalation that block already
+ * documents: Clerk's emotion-generated classes outrank a two-class descendant
+ * selector, and repeating the class settles it without `!important`.
+ */
+.s-root .auth-sheet .cl-formButtonPrimary,
+.s-root .auth-sheet .cl-socialButtonsBlockButton,
+.s-root .auth-sheet .cl-formFieldInput,
+.s-root .auth-sheet .cl-otpCodeFieldInput,
+.s-root .auth-sheet .cl-selectButton,
+.s-root .auth-sheet .cl-formFieldInputGroup {
+  border-radius: var(--radius-s-sm);
+}
+
+.s-root .auth-sheet .cl-formFieldInput.cl-formFieldInput {
+  /* 48px, the height lib/shopUi's `sField()` uses on every other input in the
+     shop — where the editorial sheet wants the 52px of lib/ui's `field()`. */
+  min-height: 3rem;
+  border: 1px solid var(--color-s-line-strong);
+}
+
+.s-root .auth-sheet .cl-formFieldInput.cl-formFieldInput:focus {
+  border-color: var(--color-s-berry);
+}
+
+/*
+ * The colours the block above left behind.
+ *
+ * Everything from `.auth-sheet` down to here is one stylesheet written for the
+ * *editorial* palette — ink borders, paper fills, mono uppercase labels, a
+ * primary button filled with `--color-ink`. Under `.s-root` that is not a style
+ * choice, it is a leak: a cool grey-black call-to-action on cream, next to the
+ * berry one every other control in the shop uses. It was already visible on
+ * /account/profile before the sign-in pages moved here, which is why the fix
+ * belongs in this shared scope and not in `.s-auth` below — one correction for
+ * both surfaces rather than the same correction twice.
+ *
+ * Four classes on the primary because the editorial rule it overrides is
+ * already doubled; the rest need three, which is the escalation the block above
+ * documents. No `!important` anywhere.
+ */
+.s-root .auth-sheet .cl-formButtonPrimary.cl-formButtonPrimary {
+  background: var(--color-s-berry);
+  border-color: var(--color-s-berry);
+  color: #fff;
+}
+.s-root .auth-sheet .cl-formButtonPrimary.cl-formButtonPrimary:hover {
+  background: var(--color-s-berry-deep);
+  border-color: var(--color-s-berry-deep);
+}
+
+.s-root .auth-sheet .cl-socialButtonsBlockButton {
+  border-color: var(--color-s-line-strong);
+  background: var(--color-s-shell);
+}
+.s-root .auth-sheet .cl-socialButtonsBlockButton:hover {
+  border-color: var(--color-s-cocoa);
+  background: var(--color-s-cream-deep);
+}
+.s-root .auth-sheet .cl-socialButtonsBlockButtonText.cl-socialButtonsBlockButtonText {
+  color: var(--color-s-cocoa);
+}
+
+/* A field name in a shop is a field name, not a filing label. The editorial
+   rule sets mono/uppercase/0.14em, which on cream beside a serif headline reads
+   as a different product's form. */
+.s-root .auth-sheet .cl-formFieldLabel {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  text-transform: none;
+  color: var(--color-s-cocoa);
+}
+
+.s-root .auth-sheet .cl-dividerLine {
+  background: var(--color-s-line);
+}
+.s-root .auth-sheet .cl-dividerText {
+  color: var(--color-s-bark);
+}
+
+.s-root .auth-sheet .cl-footer {
+  border-top-color: var(--color-s-line);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE SIGN-IN AND SIGN-UP PAGES — Clerk, given room
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Scoped to `.s-auth`, which only components/AuthSheet applies, so none of it
+   reaches the <UserProfile> panel at /account/profile. That panel is a form
+   inside a page that already has a heading, a nav and a footer; these two pages
+   are a whole screen whose entire content is the form. They want different
+   sizes, and a shared class would have to pick one.
+
+   The brief for this surface: generous heights, one obvious primary, a Google
+   button that is a real alternative rather than a caption, and validation that
+   is legible without being loud. Everything below is in service of one of
+   those.
+   ── */
+
+/* 52px on everything pressable or typeable, up from the shop's usual 48. This
+   is a page with six controls on it, not a checkout row with fourteen — the
+   extra 4px is the difference between a form that fills its screen and one that
+   was squeezed into a card.
+
+   `min-height` rather than `height` for the input, for the reason the block
+   above gives: Clerk sets a height from a rule that survives even a three-class
+   selector, and min-height wins the used-value calculation whatever the
+   specificity. */
+.s-root .s-auth .cl-formFieldInput.cl-formFieldInput,
+.s-root .s-auth .cl-selectButton,
+.s-root .s-auth .cl-formFieldInputGroup {
+  min-height: 3.25rem;
+}
+.s-root .s-auth .cl-formButtonPrimary,
+.s-root .s-auth .cl-socialButtonsBlockButton {
+  min-height: 3.25rem;
+  width: 100%;
+}
+
+/* Horizontal padding to match the height. Clerk ships 0.75rem, which at 52px
+   tall leaves the caret almost touching the edge. */
+.s-root .s-auth .cl-formFieldInput.cl-formFieldInput {
+  padding-inline: 1rem;
+}
+
+/*
+ * Focus, said twice.
+ *
+ * The border going berry is the whole of Clerk's focus treatment, and a 1px
+ * colour change is not a focus indicator — WCAG 2.4.11 wants an area, and on a
+ * cream page a hairline is the first thing a tired eye loses. A 3px berry wash
+ * around the control gives it one without moving anything: `box-shadow` does
+ * not affect layout, so nothing reflows on focus.
+ *
+ * `:focus-visible` on the inputs would be wrong here — a text field earns its
+ * ring from a pointer click too, because the click is what put the caret there.
+ */
+.s-root .s-auth .cl-formFieldInput.cl-formFieldInput:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-s-berry) 18%, transparent);
+}
+.s-root .s-auth .cl-otpCodeFieldInput:focus {
+  border-color: var(--color-s-berry);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-s-berry) 18%, transparent);
+}
+
+/*
+ * The two buttons, with weight.
+ *
+ * The primary carries the same 1px soft shadow `sBtn("primary")` gives every
+ * other berry fill in the shop, and the same 0.98 press. The press is inside
+ * the reduced-motion block at the top of this file, which collapses every
+ * transition in the document — so a reader who asked for less motion gets the
+ * colour change and not the squash.
+ */
+.s-root .s-auth .cl-formButtonPrimary,
+.s-root .s-auth .cl-socialButtonsBlockButton {
+  font-weight: 500;
+  letter-spacing: normal;
+  transition:
+    background-color var(--dur-ui) var(--ease-out),
+    border-color var(--dur-ui) var(--ease-out),
+    box-shadow var(--dur-ui) var(--ease-out),
+    transform var(--dur-ui) var(--ease-out);
+}
+.s-root .s-auth .cl-formButtonPrimary.cl-formButtonPrimary {
+  box-shadow: 0 1px 2px rgb(58 35 23 / 0.12);
+}
+.s-root .s-auth .cl-formButtonPrimary:active:not([disabled]),
+.s-root .s-auth .cl-socialButtonsBlockButton:active:not([disabled]) {
+  transform: scale(0.985);
+}
+
+/*
+ * Focus rings for the two buttons, put back.
+ *
+ * Clerk draws its own focus indicator on these with a `box-shadow` ring and no
+ * outline at all — which means the editorial block above deletes it, because
+ * the `box-shadow: none` written to remove a *drop* shadow from a social button
+ * cannot tell the two apart. Tabbing to "Continue with Google" or "Continue"
+ * landed on a control with no visible focus whatsoever: measured, not assumed —
+ * a keyboard walk reported `outline: 0px none` on both.
+ *
+ * An `outline` rather than restoring the shadow, because the primary needs a
+ * shadow of its own for elevation and the two would fight over one property.
+ * Outline is also what `.s-root :focus-visible` already uses everywhere else in
+ * the shop, so these match the rest of the storefront rather than inventing a
+ * third focus style.
+ *
+ * Cocoa on the primary, for the reason this file already gives for cream on the
+ * cocoa panels: a berry ring around a berry fill is not a ring. Cocoa measures
+ * 13.7:1 on cream and reads clearly against the berry it surrounds. The social
+ * button is white, so it keeps the shop's standard berry.
+ */
+.s-root .s-auth .cl-socialButtonsBlockButton:focus-visible {
+  outline: 2px solid var(--color-s-berry);
+  outline-offset: 2px;
+}
+.s-root .s-auth .cl-formButtonPrimary:focus-visible {
+  outline: 2px solid var(--color-s-cocoa);
+  outline-offset: 2px;
+}
+
+/* Google's mark, at the size the label is set in. Clerk renders the official
+   multi-colour SVG here and it is left exactly as it is — this only stops it
+   arriving at 14px beside 15px text. */
+.s-root .s-auth .cl-socialButtonsProviderIcon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* The divider, as a hairline with a word sitting in it rather than a caption
+   between two lines. Small, tracked and quiet: it is punctuation, and the
+   reader's eye should cross it without stopping. */
+.s-root .s-auth .cl-dividerRow {
+  margin-block: 0.25rem;
+}
+.s-root .s-auth .cl-dividerText {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/*
+ * Validation, calm.
+ *
+ * Berry is the call-to-action on this page, so an error cannot also be berry —
+ * `--color-s-stop` is the deeper one the order tracker uses for a cancelled
+ * order, and it is 8.3:1 on cream. A tinted well rather than red text alone,
+ * because colour is never the only signal in this product and a bare red
+ * sentence under a field is easy to miss on a phone in sunlight.
+ */
+.s-root .s-auth .cl-formFieldErrorText,
+.s-root .s-auth .cl-formFieldWarningText {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-s-stop);
+}
+.s-root .s-auth .cl-formFieldInput[data-invalid="true"],
+.s-root .s-auth .cl-formFieldInput[aria-invalid="true"] {
+  border-color: var(--color-s-stop);
+}
+.s-root .s-auth .cl-alertText {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.s-root .s-auth .cl-alert {
+  border-radius: var(--radius-s-sm);
+  border: 1px solid color-mix(in srgb, var(--color-s-stop) 30%, transparent);
+  background: var(--color-s-stop-wash);
+  color: var(--color-s-stop);
+  padding: 0.75rem 0.875rem;
+}
+
+/*
+ * The switch between the two pages, as a sentence.
+ *
+ * Clerk's footer is load-bearing — it is the only route from sign-in to sign-up
+ * and back — so it stays, and it is styled to read as prose with a link in it
+ * rather than as a third button competing with the two above. The rule over it
+ * is dropped because components/AuthSheet already draws one under the whole
+ * form, above the line about not needing an account; two hairlines 40px apart
+ * is a form cut into strips.
+ */
+.s-root .s-auth .cl-footer {
+  border-top: 0;
+  padding-top: 0.25rem;
+}
+.s-root .s-auth .cl-footerAction {
+  justify-content: flex-start;
+  gap: 0.375rem;
+}
+.s-root .s-auth .cl-footerActionText {
+  font-size: 0.875rem;
+  color: var(--color-s-bark);
+}
+.s-root .s-auth .cl-footerActionLink {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-s-berry);
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-s-berry) 30%, transparent);
+  text-underline-offset: 4px;
+}
+.s-root .s-auth .cl-footerActionLink:hover {
+  text-decoration-color: var(--color-s-berry);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE STOREFRONT'S MOTION — scroll-driven, zero JavaScript
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Phase 7 asks the shop to move. Everything below is native CSS scroll-driven
+   animation (`animation-timeline: view()` / `scroll()`) rather than a library,
+   for three reasons that all point the same way:
+
+     - The alternative is an IntersectionObserver per section or GSAP
+       ScrollTrigger, which means client components, a hydration boundary and a
+       bundle, on pages that are currently pure server-rendered HTML. The
+       homepage ships no JavaScript for its motion and that is worth keeping.
+     - A view() timeline runs on the compositor. A scroll listener does not.
+     - The `prefers-reduced-motion: reduce` block above already collapses every
+       animation in this document to 0.01ms with `!important`, so each keyframe
+       here inherits its own accessibility fallback and cannot forget it.
+
+   `@supports` around each rule, so a browser without scroll-driven timelines
+   gets a still page rather than one where everything animates at once on load
+   and finishes before it is scrolled to. Content is never hidden by default:
+   the `from` state only exists inside the supports block.
+
+   All of it is scoped under `.s-root` — the storefront wrapper — which is the
+   same fence the `s-` tokens sit behind. /build, /admin and /kitchen cannot
+   pick any of this up.
+
+   Every animation below answers "what does this communicate?":
+     s-rise / s-rise-row   storytelling: content arrives as you reach it
+     s-enter               hierarchy: the hero reads headline → copy → CTA
+     s-parallax            depth: the hero photo is the subject, not the ground
+     s-bar                 state: you have left the top of the page
+     s-pop                 feedback: the number you just changed
+   ── */
+
+/* ── On load: the hero, in reading order ─────────────────────────────────── */
+@keyframes s-enter {
+  from { opacity: 1; transform: translateY(18px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Direct children only. The eyebrow, the headline, the paragraph, the two
+     buttons and the fact row, in the order they are read. Six steps at 70ms is
+     420ms of choreography, which is under the 500ms where a staged entrance
+     stops reading as polish and starts reading as a slow page. */
+  .s-root .s-enter > * {
+    animation: s-enter 620ms var(--ease-out) both;
+  }
+  .s-root .s-enter > *:nth-child(1) { animation-delay: 40ms; }
+  .s-root .s-enter > *:nth-child(2) { animation-delay: 110ms; }
+  .s-root .s-enter > *:nth-child(3) { animation-delay: 180ms; }
+  .s-root .s-enter > *:nth-child(4) { animation-delay: 250ms; }
+  .s-root .s-enter > *:nth-child(5) { animation-delay: 320ms; }
+  .s-root .s-enter > *:nth-child(6) { animation-delay: 390ms; }
+
+  /*
+     The hero photograph settles rather than fades.
+
+     Scale ONLY, and no opacity and no delay, which is not a style preference:
+     this image is the LCP of the whole site. An element animating up from
+     `opacity: 0` is not painted until it is non-zero, so a 120ms delay on a
+     fade is 120ms added to Largest Contentful Paint on every first visit. A
+     transform-only keyframe paints on frame one at full opacity and costs LCP
+     nothing, because a scaled element is still a painted element.
+  */
+  .s-root .s-enter-media {
+    animation: s-media-in 1100ms var(--ease-out) both;
+  }
+}
+
+@keyframes s-media-in {
+  from { transform: scale(1.05); }
+  to   { transform: none; }
+}
+
+/* ── On scroll: sections, and the rows inside them ───────────────────────── */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /*
+      One reveal for a whole section. `entry 0% cover 20%` is deliberately
+      early-and-short: the block is fully opaque by the time it is a fifth of
+      the way up the viewport, so nobody ever reads a paragraph that is still
+      fading. A range that finishes at `cover 50%` is the version that feels
+      like the page is fighting you.
+    */
+    .s-root .s-rise-in {
+      animation: s-rise 620ms var(--ease-out) both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 20%;
+    }
+
+    /*
+      A grid of cards, arriving a row at a time.
+
+      Each card gets its OWN view() timeline, which is what produces the stagger
+      for free: the four cards of a row share a scroll position so they lift
+      together, and the row below them is 500px further down so it lifts later.
+      No index variable, no --i custom property, no nth-child arithmetic that
+      breaks the moment the grid changes from four columns to two.
+
+      The card is the animated element rather than the list, because animating
+      the <ul> means one 1200px block fading as a sheet, and a sheet fading is
+      not the same gesture as cakes arriving on a counter.
+    */
+    .s-root .s-rise-row > * {
+      animation: s-rise 560ms var(--ease-out) both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 16%;
+    }
+
+    /*
+      The hero photograph, drifting.
+
+      8% of travel over the whole scroll of its own container, on transform
+      only, so it costs one compositor property and cannot shift layout. The
+      image is already `object-cover` inside `overflow-hidden`, so the scale is
+      what keeps the frame filled at both ends of the travel.
+    */
+    .s-root .s-parallax {
+      animation: s-parallax linear both;
+      animation-timeline: view();
+      animation-range: entry 0% exit 100%;
+    }
+
+    /*
+      The bar, once you have left the top.
+
+      A shadow and a firmer ground appear over the first 120px of the document,
+      which is the one piece of information the header can give that the page
+      cannot: you are no longer at the beginning. `scroll()` and not `view()` —
+      the timeline is the document's, not the element's.
+    */
+    .s-root .s-bar {
+      animation: s-bar linear both;
+      animation-timeline: scroll();
+      animation-range: 0 120px;
+    }
+  }
+}
+
+@keyframes s-parallax {
+  from { transform: scale(1.06) translateY(-2.2%); }
+  to   { transform: scale(1.06) translateY(2.2%); }
+}
+
+@keyframes s-bar {
+  from {
+    box-shadow: 0 0 0 0 rgb(58 35 23 / 0);
+    background-color: rgb(251 246 239 / 0.90);
+  }
+  /* Shadow only, no second hairline: the bar already carries `border-b
+     border-s-line` in the markup, and a `0 1px 0` in here would draw a second
+     one under it the moment the page moved. */
+  to {
+    box-shadow: 0 10px 30px -18px rgb(58 35 23 / 0.35);
+    background-color: rgb(251 246 239 / 0.97);
+  }
+}
+
+/* ── Feedback: a figure that just changed ────────────────────────────────── */
+/*
+   Used on the cart count and on the live price in the buy panel. Scale only,
+   from the element's own centre, so a badge sitting on the corner of the bag
+   glyph does not move the glyph. 260ms is long enough to notice and short
+   enough that a shopper stepping the quantity up four times sees four pops
+   rather than one smear.
+*/
+@keyframes s-pop {
+  0%   { transform: scale(1); }
+  38%  { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .s-root .s-pop { animation: s-pop 260ms var(--ease-spring); }
+}
+
+/* ── A total that counts, like the machine at the counter ──────────────── */
+/*
+   `s-pop` above is the right feedback for a figure that ticked — the cart badge
+   going from 2 to 3. It is the wrong one for the sheet's total, because §2,705
+   becoming ₹3,737 is not a tick, and scaling it says only "this changed" when
+   §7 wants it to say "this is being counted".
+
+   So: one column per character, each digit column a strip of ten glyphs behind
+   a one-glyph window, and the digit selected by how far the strip is pushed up.
+   The browser interpolates the translate, and that interpolation is the roll —
+   4 → 7 travels over 5 and 6 because those glyphs lie between them on the strip.
+   No keyframes, no script, no library; it is composited, and it costs the same
+   whether the total moves by ten rupees or ten thousand.
+
+   The stagger is what makes it mechanical rather than a number sliding: `--place`
+   is the distance from the ones column, so the paise leave first and the rupees
+   arrive last, the way a counter's wheels land.
+
+   Reduced motion is not handled here and does not need to be. The global
+   `prefers-reduced-motion: reduce` block earlier in this file already forces
+   every `transition-duration` to 0.01ms, so the strips are placed at their new
+   digits rather than travelling — the total changes instantly, which is what
+   §7 asks for. Nothing has to know about the preference twice.
+*/
+.s-roll {
+  /* `rollCells` emits the right-hand end first so the ones column can keep its
+     identity across a change of length; the row is reversed to print those
+     cells back in reading order. */
+  display: inline-flex;
+  flex-direction: row-reverse;
+
+  /* The window each strip turns inside. A little over 1em so that the overflow
+     clip falls outside a digit's own ascender instead of shaving it. */
+  --roll-h: 1.15em;
+}
+
+.s-roll-fixed,
+.s-roll-d {
+  display: block;
+  height: var(--roll-h);
+  line-height: var(--roll-h);
+}
+
+.s-roll-col {
+  display: block;
+  height: var(--roll-h);
+  overflow: hidden;
+}
+
+.s-roll-strip {
+  display: block;
+  translate: 0 calc(-1 * var(--d) * var(--roll-h));
+  transition: translate 420ms var(--ease-out);
+  transition-delay: calc(var(--place) * 45ms);
+}
+
+/* ── The card everything sits in, on hover ───────────────────────────────── */
+/*
+   The lift already lived on ProductCard as Tailwind utilities. What was missing
+   is the photograph's own easing: `transition-transform` on the <img> and the
+   lift on the <li> ran at different durations, so the box arrived before the
+   picture inside it did. One duration, one curve, declared once.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  .s-root .s-card-lift { transition-duration: 260ms; }
+  .s-root .s-card-lift img { transition-duration: 620ms; }
+}
+
+/* ── The confirmation's tick ──────────────────────────────────────────────
+   The one animation in this shop that is the subject rather than a transition.
+   Placing an order is the single moment in the journey where somebody is
+   waiting to be told that something worked, and a tick that draws itself is the
+   difference between "it happened" and "it happened just now, because of you".
+
+   `stroke-dashoffset` on a path is the cheap way to draw a line: the dash array
+   is set to the path's length so the whole stroke is one gap, and the offset
+   walks it back to zero. 34 is measured from this specific `d` attribute — a
+   different tick needs a different number, which is why this pairs with a class
+   on that one path rather than being a general utility.
+
+   No `both` fill on the ring: it must be visible if the animation never runs.
+   The tick keeps `both` because a half-drawn tick is worse than a drawn one,
+   and the reduced-motion block collapses it to its end state anyway. */
+@keyframes s-seal {
+  from { transform: scale(0.72); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+@keyframes s-check {
+  from { stroke-dashoffset: 34; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .s-root .s-seal { animation: s-seal 420ms var(--ease-spring); }
+  .s-root .s-check {
+    stroke-dasharray: 34;
+    animation: s-check 460ms var(--ease-out) 180ms both;
+  }
+}
+
+/* ── Order tracking: the history, told in order ───────────────────────────
+   A load-time stagger rather than a scroll timeline, because the timeline sits
+   above the fold on a phone and a view() range would be satisfied for every row
+   before the first paint. 60ms a step reads as a list being written down;
+   anything slower reads as a page that has not finished loading.
+
+   Capped at six explicit steps because `buildProgress` produces six. A seventh
+   would simply arrive with the sixth's delay, which is a better failure than an
+   `nth-child(n)` formula nobody can read. */
+@media (prefers-reduced-motion: no-preference) {
+  .s-root .s-track > li {
+    animation: s-enter 520ms var(--ease-out) both;
+  }
+  .s-root .s-track > li:nth-child(1) { animation-delay: 40ms; }
+  .s-root .s-track > li:nth-child(2) { animation-delay: 100ms; }
+  .s-root .s-track > li:nth-child(3) { animation-delay: 160ms; }
+  .s-root .s-track > li:nth-child(4) { animation-delay: 220ms; }
+  .s-root .s-track > li:nth-child(5) { animation-delay: 280ms; }
+  .s-root .s-track > li:nth-child(n+6) { animation-delay: 340ms; }
+}
+
+/*
+   The step the order is actually on, breathing.
+
+   This is the one perpetual animation in the shop, and it is the one the taste
+   rules allow: a halo that means "right now", on an element whose state is read
+   from real OrderEvent rows rather than decoration. It is a separate
+   `box-shadow` ring on a pseudo-element sibling rather than on the glyph, so it
+   cannot alter the glyph's own border or its 26px box.
+
+   Colour is never the only signal here: StepGlyph already carries a distinct
+   character and an `sr-only` word for each state.
+*/
+@keyframes s-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-s-live); opacity: 0.55; }
+  50%      { box-shadow: 0 0 0 5px var(--color-s-live); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .s-root .s-live-mark {
+    position: relative;
+  }
+  .s-root .s-live-mark::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    animation: s-breathe 2.4s var(--ease-out) infinite;
+    pointer-events: none;
+  }
+}
+
+/* ── The order is placed ─────────────────────────────────────────────────
+   The one screen in the shop where an animation is the *subject* rather than a
+   transition, and the only one that earns a scene: it is the single moment in
+   the journey where somebody has handed over money's worth of intent and is
+   waiting to be told it worked.
+
+   Everything below animates `transform` and `opacity` and nothing else — no
+   layout property, no filter, no box-shadow on a moving element — so the whole
+   sequence is compositor work on a phone that has just finished a network
+   round-trip.
+
+   ## The rule that makes reduced motion free
+
+   Every element's *base* CSS is its FINISHED state: the lid is `opacity: 0`,
+   the sparkles are spent, the cake is up, the tick is drawn. The keyframes run
+   only inside `prefers-reduced-motion: no-preference` and walk each element
+   backwards to its start with `both`. So a reader who asked for no motion is
+   not shown a closed box that never opens — they are shown the open box, the
+   cake, the tick and the reference, immediately, and the redirect still runs.
+
+   ## The beats, in milliseconds
+
+     0     warm glow blooms behind the box
+     200   the box arrives
+     550   the lid lifts, tips and fades
+     800   the cake rises out of it
+     1050  four sparkles drift up and are gone
+     1150  the tick, drawn on
+     1350  the headline
+     1600  the order reference
+     1850  Track your order
+     2100  the redirect line, and a bar that runs the 800ms to the navigation
+
+   `AUTO_TRACK_MS` in lib/orders.ts is 2900 and has to stay the last number in
+   that list: the bar is the customer's only warning that the page is about to
+   move, and a bar that finishes early or late is worse than no bar. */
+
+@keyframes s-box-glow {
+  from { opacity: 0; transform: scale(0.72); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes s-box-in {
+  from { opacity: 0; transform: translateY(26px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Up, tipped, gone — rather than hinged. A lid on a hinge has to swing
+   somewhere, and everywhere it can swing to in this viewBox is on top of the
+   cake it just uncovered. */
+@keyframes s-box-open {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(-36px) rotate(-9deg); }
+}
+
+/* 48 is the height of the box's front panel plus the rim: enough that the
+   whole cake starts behind it, and the clip path in the illustration is what
+   keeps it from hanging out of the floor on the way. */
+@keyframes s-box-cake {
+  from { transform: translateY(48px); }
+  to   { transform: none; }
+}
+
+@keyframes s-box-spark {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.3); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-24px) scale(1); }
+}
+
+@keyframes s-box-candle {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* scaleX from a left origin, so the bar is one composited transform rather
+   than a width the browser re-lays-out 48 times on the way to the redirect. */
+@keyframes s-redirect-bar {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* Finished states. Read when the animations do not run, and overwritten by the
+   `both` fill when they do. */
+.s-root .s-box-lid,
+.s-root .s-box-spark { opacity: 0; }
+
+/* `fill-box` so the tip is about the lid's own middle and not the corner of a
+   240×176 viewBox two-thirds of a screen away. */
+.s-root .s-box-lid {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .s-root .s-box-glow   { animation: s-box-glow 900ms var(--ease-out) both; }
+  .s-root .s-box        { animation: s-box-in 620ms var(--ease-spring) 200ms both; }
+  .s-root .s-box-lid    { animation: s-box-open 460ms var(--ease-out) 550ms both; }
+  .s-root .s-box-cake   { animation: s-box-cake 620ms var(--ease-spring) 800ms both; }
+  .s-root .s-box-candle { animation: s-box-candle 340ms var(--ease-out) 1320ms both; }
+
+  .s-root .s-box-spark { animation: s-box-spark 1000ms var(--ease-out) both; }
+  .s-root .s-box-sparks > g:nth-child(1) .s-box-spark { animation-delay: 1050ms; }
+  .s-root .s-box-sparks > g:nth-child(2) .s-box-spark { animation-delay: 1140ms; }
+  .s-root .s-box-sparks > g:nth-child(3) .s-box-spark { animation-delay: 1230ms; }
+  .s-root .s-box-sparks > g:nth-child(4) .s-box-spark { animation-delay: 1320ms; }
+
+  /* The five beats of copy, in reading order. Same keyframe as the hero's
+     staged entrance — this is the same gesture, just cued later. */
+  .s-root .s-placed > * {
+    animation: s-enter 520ms var(--ease-out) both;
+  }
+  .s-root .s-placed > *:nth-child(1) { animation-delay: 1150ms; }
+  .s-root .s-placed > *:nth-child(2) { animation-delay: 1350ms; }
+  .s-root .s-placed > *:nth-child(3) { animation-delay: 1600ms; }
+  .s-root .s-placed > *:nth-child(4) { animation-delay: 1850ms; }
+  .s-root .s-placed > *:nth-child(5) { animation-delay: 2100ms; }
+
+  /* The tick is inside the first beat, so it cannot use `.s-check`'s own
+     undelayed timing — it would draw itself while its own wrapper is still
+     invisible and be a settled tick by the time anybody saw it. */
+  .s-root .s-placed .s-check { animation-delay: 1330ms; }
+
+  .s-root .s-redirect-bar {
+    animation: s-redirect-bar 800ms linear 2100ms both;
+  }
+}
+
+/* ── The cake box, waiting ───────────────────────────────────────────────
+   The loading half of the order-placed scene above: the same box, shut, before
+   the moment it opens. See components/shop/BakingMark.
+
+   This is the second perpetual animation in the shop, after the live-step halo
+   on the tracker, and it earns the exception the same way that one does: it
+   runs only while something genuinely is happening, and it stops existing the
+   moment it stops being true. A loading mark that is still on screen is a wait
+   that is still going on.
+
+   Transform and opacity only, and 1.9s a cycle — slow enough to read as
+   breathing rather than as a spinner being impatient on the customer's behalf.
+
+   Under `prefers-reduced-motion` none of this runs and the base state is a
+   closed cake box with its glow at rest, which is a perfectly good picture of
+   waiting. The word beside it is doing the work in both cases. */
+
+@keyframes s-bake-lid {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-2.2px) rotate(-3deg); }
+}
+
+@keyframes s-bake-glow {
+  0%, 100% { opacity: 0.45; transform: scale(0.9); }
+  50%      { opacity: 0.85; transform: scale(1); }
+}
+
+/* Each wisp runs the whole cycle and is invisible for most of it, which is what
+   the staggered delays below turn into a rising trickle rather than three dots
+   blinking together. */
+@keyframes s-bake-steam {
+  0%   { opacity: 0; transform: translateY(3px) scale(0.4); }
+  30%  { opacity: 0.85; }
+  70%  { opacity: 0; transform: translateY(-5px) scale(1); }
+  100% { opacity: 0; transform: translateY(-5px) scale(1); }
+}
+
+/* Resting state: a shut box, no heat. Read whenever the animations do not run,
+   and overwritten by the `both` fill when they do. */
+.s-bake-steam > * { opacity: 0; }
+
+.s-bake-lid,
+.s-bake-steam > *,
+.s-bake-glow {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .s-bake-glow { animation: s-bake-glow 1.9s var(--ease-out) infinite; }
+  .s-bake-lid  { animation: s-bake-lid 1.9s var(--ease-out) infinite; }
+
+  .s-bake-steam > * {
+    animation: s-bake-steam 1.9s var(--ease-out) infinite both;
+  }
+  .s-bake-steam > *:nth-child(1) { animation-delay: 0ms; }
+  .s-bake-steam > *:nth-child(2) { animation-delay: 160ms; }
+  .s-bake-steam > *:nth-child(3) { animation-delay: 320ms; }
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE VARIANT SHEET
+   ═══════════════════════════════════════════════════════════════════════════
+
+   One <dialog>, two shapes: a centred card on a desktop, a sheet rising from
+   the bottom edge on a phone. Decided here rather than in JavaScript, because a
+   media query is right on the first frame and `useState(window.innerWidth)` is
+   not — and because a dialog that reflows when a phone is turned sideways
+   should not need a re-render to do it.
+
+   ## Why the transitions need three unfamiliar properties
+
+   A <dialog> opened with showModal() goes from `display: none` to `display:
+   block` in the same frame it becomes visible, and a discrete property change
+   normally cancels a transition outright. Three things together make it work:
+
+     transition-behavior: allow-discrete   lets `display` and `overlay` be
+                                           transitioned at all, which keeps the
+                                           element painted while it animates out;
+     @starting-style                       gives the browser a value to animate
+                                           *from* on the frame the element first
+                                           appears — without it the open state is
+                                           simply the first rendered state and
+                                           nothing moves;
+     `overlay`                             the top-layer membership itself, which
+                                           has to be in the transition list or the
+                                           element leaves the top layer instantly
+                                           and the exit animation plays behind
+                                           the page.
+
+   A browser that understands none of this shows the sheet with no animation,
+   which is a correct sheet. Nothing about the interaction depends on motion.
+
+   ## Reduced motion
+
+   The global `prefers-reduced-motion: reduce` block earlier in this file
+   collapses animations, not transitions, so the durations are zeroed explicitly
+   at the bottom of this section. The sheet still appears and still dismisses;
+   it simply stops travelling to get there. */
+
+.s-sheet {
+  /* `<dialog>` ships with a UA border, padding and `margin: auto`. All three go;
+     the body inside does the spacing. */
+  border: 0;
+  padding: 0;
+  background: transparent;
+  max-width: none;
+  max-height: none;
+  color: var(--color-s-cocoa);
+}
+
+.s-sheet::backdrop {
+  /* Cocoa rather than black, for the reason the shadows are warm-tinted: a
+     neutral scrim over cream reads as grey film. */
+  background: rgb(42 24 15 / 0.42);
+  backdrop-filter: blur(2px);
+}
+
+.s-sheet-body {
+  background: var(--color-s-shell);
+  box-shadow: var(--shadow-s-lift);
+}
+
+/* The scrollable middle of the sheet. Its own scroll container, so a long list
+   of sizes scrolls under a header and a footer that stay put — and
+   `overscroll-behavior` so reaching the end of it does not start scrolling the
+   page behind the backdrop, which on iOS is the difference between a sheet and
+   a trapdoor. */
+.s-scroll-y {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── The phone: a sheet on the bottom edge ──────────────────────────────── */
+@media (width < 40rem) {
+  .s-sheet {
+    /* Pinned to the bottom, full width. `margin: auto` is what centres a
+       dialog, so it is overridden rather than fought with `position`. */
+    margin: auto auto 0;
+    width: 100%;
+  }
+
+  .s-sheet-body {
+    border-radius: var(--radius-s) var(--radius-s) 0 0;
+    /* The home indicator. Without this the Add to cart button sits under it. */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* The grab handle. Affordance only — this sheet is not draggable, and a
+     handle that implied it would be a promise the sheet does not keep. It is
+     there because a rounded panel on the bottom edge with no handle reads as a
+     page that has failed to scroll. */
+  .s-sheet-grip {
+    display: block;
+    width: 2.25rem;
+    height: 0.25rem;
+    margin: 0.625rem auto 0;
+    border-radius: 999px;
+    background: var(--color-s-line-strong);
+  }
+
+  @starting-style {
+    .s-sheet[open] { translate: 0 100%; }
+  }
+  .s-sheet {
+    translate: 0 100%;
+    transition:
+      translate 320ms var(--ease-out),
+      display 320ms allow-discrete,
+      overlay 320ms allow-discrete;
+  }
+  .s-sheet[open] { translate: 0 0; }
+}
+
+/* ── Above that: a centred dialog ───────────────────────────────────────── */
+@media (width >= 40rem) {
+  .s-sheet {
+    margin: auto;
+    width: min(34rem, calc(100vw - 3rem));
+  }
+
+  .s-sheet-body { border-radius: var(--radius-s); }
+
+  /* No handle on a desktop: there is nothing to grab and nothing to imply. */
+  .s-sheet-grip { display: none; }
+
+  @starting-style {
+    .s-sheet[open] { opacity: 0; scale: 0.97; }
+  }
+  .s-sheet {
+    opacity: 0;
+    scale: 0.97;
+    transition:
+      opacity 200ms var(--ease-out),
+      scale 200ms var(--ease-out),
+      display 200ms allow-discrete,
+      overlay 200ms allow-discrete;
+  }
+  .s-sheet[open] { opacity: 1; scale: 1; }
+}
+
+/* The backdrop fades on its own timeline — it is a separate box and inherits
+   none of the above. */
+@starting-style {
+  .s-sheet[open]::backdrop { opacity: 0; }
+}
+.s-sheet::backdrop {
+  opacity: 0;
+  transition:
+    opacity 240ms var(--ease-out),
+    display 240ms allow-discrete,
+    overlay 240ms allow-discrete;
+}
+.s-sheet[open]::backdrop { opacity: 1; }
+
+/* The tick inside a chosen option, popping as it lands. Scale from the mark's
+   own centre, so the row it sits in does not move — the same restraint `s-pop`
+   applies to the cart badge. */
+@keyframes s-opt-in {
+  from { transform: scale(0.4); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .s-root .s-opt-mark { animation: s-opt-in 220ms var(--ease-spring); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Transitions, which the global reduce block does not cover — it zeroes
+     `animation-duration` only. The sheet appears and dismisses instantly. */
+  .s-sheet,
+  .s-sheet::backdrop {
+    transition-duration: 1ms !important;
+  }
+}
+
+/* MakeMyCake / Celebration. Shared brand and interaction primitives. */
+:root {
+  --brand-primary: #9a472b;
+  --brand-secondary: #263b2d;
+  --brand-accent: #e8c879;
+  --brand-background: #faf7ef;
+  --brand-surface: #fffdf7;
+  --brand-elevated: #ffffff;
+  --brand-text: #263b2d;
+  --brand-muted: #625d50;
+  --brand-border: #ddd5c5;
+  --brand-success: #286243;
+  --brand-warning: #805716;
+  --brand-error: #a12e32;
+  --brand-info: #315c76;
+  --brand-sale: #914521;
+  --brand-container: 84rem;
+  --motion-fast: 160ms;
+  --motion-enter: 480ms;
+}
+.brand-section { max-width: var(--brand-container); margin-inline: auto; padding: 5.5rem 2.5rem; }
+.brand-section-head { display:flex; align-items:end; justify-content:space-between; gap:1.5rem; margin-bottom:2.5rem; }
+.brand-section-head h2 { font-size:clamp(2rem,3.3vw,3.1rem); margin-top:.75rem; }
+.brand-text-link { display:inline-flex; gap:2rem; align-items:center; min-height:44px; font-weight:600; border-bottom:1px solid; }
+.brand-hero { overflow:hidden; background:#f0e8d6; }
+.brand-hero-inner { max-width:var(--brand-container); margin:auto; padding:4.5rem 2.5rem 3.5rem; display:grid; grid-template-columns:1fr 1fr; gap:3rem; align-items:center; }
+.brand-hero-copy { display:flex; flex-direction:column; align-items:flex-start; gap:1.75rem; }
+.s-root .brand-hero h1 { font-size:clamp(3.5rem,6.3vw,6.3rem); line-height:1.02; letter-spacing:-.065em; font-weight:450; }
+.brand-hero h1 em { color:var(--brand-primary); font-weight:400; }
+.s-root .brand-hero-copy>p { max-width:38ch; font-size:1.05rem; line-height:1.8; color:var(--brand-muted); }
+.brand-hero-note { display:flex; gap:.85rem; align-items:center; font-size:.75rem; line-height:1.7; margin-top:.5rem; }
+.brand-hero-note>span:first-child { font-size:2.25rem; color:var(--brand-primary); }
+.brand-hero-note strong { font-weight:500; color:var(--brand-muted); }
+.brand-hero-art { position:relative; padding:1rem 1.25rem 0; }
+.brand-hero-photo { position:relative; display:block; aspect-ratio:1/1; overflow:hidden; border-radius:48% 48% 2rem 2rem; background:#e2d6ba; }
+.brand-seal { position:absolute; top:2rem; right:-.5rem; z-index:2; width:6.5rem; height:6.5rem; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:50%; background:var(--brand-secondary); color:var(--brand-background); font-size:.75rem; line-height:1.35; transform:rotate(12deg); box-shadow:0 0 0 5px #f0e8d6; }
+.brand-seal em { font-family:var(--font-display); font-size:1.5rem; }
+.brand-hero-caption { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:1.25rem .25rem; font-size:.85rem; }
+.brand-hero-caption small { display:block; margin-bottom:.4rem; color:var(--brand-muted); font-size:.7rem; }
+.brand-hero-caption strong { font-weight:600; }
+.brand-hero-empty { padding:5rem 1rem; text-align:center; }
+.brand-hero-empty>span { font-size:7rem; }
+.brand-ribbon { background:var(--brand-secondary); color:#f8efd9; display:flex; justify-content:center; align-items:center; gap:4rem; padding:1rem 1.5rem; font-size:.75rem; letter-spacing:.045em; }
+.brand-ribbon>span:nth-child(even) { color:var(--brand-accent); font-size:1.3rem; }
+.brand-categories { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:1.2rem; }
+.brand-category-photo { position:relative; aspect-ratio:1; overflow:hidden; border-radius:50% 50% .5rem .5rem; background:var(--color-s-cream-deep); }
+.brand-category>span { display:flex; align-items:center; gap:.5rem; padding:1rem 0; font-size:.85rem; font-weight:600; }
+.brand-category small { color:var(--brand-muted); font-size:.65rem; font-weight:400; }
+.brand-category>span>span { margin-left:auto; }
+.s-root .s-card-lift { background:transparent; border:0; border-radius:0; box-shadow:none; }
+.s-root .s-card-lift>a { border-radius:.65rem; background:var(--color-s-cream-deep); }
+.s-root .s-card-lift>div { padding:1.1rem .1rem 0; }
+.s-root .s-card-lift :is(h2,h3) { font-family:var(--font-sans); font-weight:650; font-size:1rem; line-height:1.4; letter-spacing:-.025em; }
+.brand-story { background:var(--brand-secondary); color:var(--brand-background); }
+.brand-story-grid { display:grid; grid-template-columns:1fr 1fr; gap:6rem; }
+.brand-story-kicker { color:#e8c879; text-transform:uppercase; font-size:.75rem; letter-spacing:.15em; }
+.s-root .brand-story h2 { font-size:clamp(2.75rem,4.5vw,4.5rem); color:inherit; margin:1.25rem 0; }
+.s-root .brand-story p { color:#d6dbc9; font-size:.95rem; max-width:42ch; margin-bottom:1.75rem; }
+.brand-promises { display:flex; flex-direction:column; justify-content:center; }
+.brand-promises li { display:flex; gap:1.5rem; border-bottom:1px solid #57705c; padding:1.5rem 0; }
+.brand-promises li>span { color:#e8c879; font-size:.8rem; padding-top:.25rem; }
+.s-root .brand-promises h3 { color:inherit; font-size:1.5rem; margin-bottom:.6rem; }
+.s-root .brand-promises p { margin-bottom:0; font-size:.85rem; }
+.s-root textarea { min-height:6rem; padding-block:.85rem; }
+.s-root .font-mono { font-family:var(--font-sans); font-variant-numeric:tabular-nums; }
+.s-root label>span { font-size:.75rem; letter-spacing:.04em; }
+.checkout-heading { display:flex; justify-content:space-between; align-items:end; gap:2rem; margin-bottom:2.5rem; }
+.checkout-heading h1 { font-size:clamp(2.4rem,4vw,3.5rem); margin-top:.5rem; }
+.checkout-steps { display:flex; gap:1rem; align-items:center; color:var(--brand-muted); font-size:.75rem; }
+.checkout-steps strong { color:var(--brand-primary); font-weight:600; }
+.checkout-section { counter-increment:checkout; position:relative; }
+.checkout-section>div:first-child h2::before { content:counter(checkout, decimal-leading-zero) / ""; display:inline-flex; align-items:center; justify-content:center; width:2rem; height:2rem; border-radius:50%; margin-right:.7rem; color:var(--brand-primary); background:var(--color-s-berry-wash); font:600 .7rem var(--font-sans); vertical-align:middle; }
+.checkout-form { counter-reset:checkout; }
+.checkout-summary { border-top:4px solid var(--brand-secondary); background:#f0ebdd; }
+.a-root { --font-a-mono:var(--font-brand-body),sans-serif; }
+.a-root h1 { letter-spacing:-.045em; }
+.a-root main { max-width:100rem; width:100%; margin-inline:auto; }
+.ops-metric { border-top:3px solid var(--color-a-accent); }
+.vendor-root { background:#efeee2; }
+.vendor-root>header { border-top:5px solid var(--brand-secondary); }
+.vendor-root main { max-width:90rem; }
+.vendor-ticket { border-top:3px solid var(--color-a-accent-line); }
+@media(prefers-reduced-motion:no-preference) {
+  .a-root main>div>header,.ops-metric,.vendor-ticket { animation:s-rise 400ms var(--ease-out) both; }
+  .checkout-section,.location-result { animation:s-rise 300ms var(--ease-out) both; }
+  .s-root button { transition:background-color 180ms,box-shadow 180ms,transform 180ms; }
+}
+@media(max-width:1023px) {
+  .brand-hero-inner { gap:1.5rem; padding:3rem 1.5rem; }
+  .brand-hero h1 { font-size:3.6rem; }
+  .brand-categories { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .brand-ribbon { gap:1.5rem; }
+  .brand-section { padding:4rem 1.5rem; }
+  .brand-story-grid { gap:3rem; }
+}
+@media(max-width:639px) {
+  .brand-hero-inner { grid-template-columns:1fr; padding:2.5rem 1.25rem 1rem; gap:1rem; }
+  .s-root .brand-hero h1 { font-size:3.7rem; }
+  .brand-hero-copy { gap:1.2rem; }
+  .brand-hero-note { display:none; }
+  .brand-hero-art { padding:.5rem .5rem 0; }
+  .brand-hero-photo { aspect-ratio:1.2; }
+  .brand-seal { width:5rem; height:5rem; font-size:.6rem; top:1rem; right:0; }
+  .brand-ribbon { justify-content:space-between; gap:.65rem; font-size:.6rem; }
+  .brand-ribbon>span:nth-child(4),.brand-ribbon>span:nth-child(5) { display:none; }
+  .brand-section { padding:3rem 1.25rem; }
+  .brand-section-head { align-items:start; flex-direction:column; margin-bottom:1.75rem; gap:1rem; }
+  .brand-categories { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.7rem 1rem; }
+  .brand-story-grid { grid-template-columns:1fr; gap:1.5rem; }
+  .brand-promises li { padding:1.2rem 0; }
+  .checkout-heading { flex-direction:column; align-items:start; gap:1rem; }
+  .s-root .s-card-lift :is(h2,h3) { font-size:.9rem; }
+  .s-root .s-card-lift p { font-size:.78rem; }
+}
+@media(prefers-reduced-motion:reduce) {
+  *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; scroll-behavior:auto!important; }
+}
+
+.a-root pre { font-family:ui-monospace, SFMono-Regular, monospace; }
+.s-root footer h2 { font-family:var(--font-sans); font-size:.75rem; font-weight:650; letter-spacing:.1em; }
+
+.ops-overview-band { background:#263b2d; color:#faf7ef; display:flex; align-items:center; justify-content:space-between; gap:2rem; padding:2rem; border-radius:.75rem; }
+.ops-overview-band h2 { font-family:var(--font-display); color:inherit; font-weight:450; font-size:2rem; margin:.7rem 0; }
+.ops-overview-band p { color:#d0d8c3; font-size:.8rem; }
+.ops-overview-band>div>span { color:#e8c879; }
+.ops-overview-figures { display:flex; gap:2rem; }
+.ops-overview-figures a { display:flex; flex-direction:column; gap:.75rem; min-width:5rem; border-left:1px solid #59715d; padding-left:1.5rem; }
+.ops-overview-figures strong { font-size:2.2rem; font-weight:500; font-variant-numeric:tabular-nums; }
+.ops-overview-figures span { font-size:.7rem; color:#e8ecd9; }
+@media(max-width:1100px) { .ops-overview-band { align-items:start; flex-direction:column; } .ops-overview-figures { width:100%; justify-content:space-between; gap:1rem; } }
+@media(max-width:639px) { .ops-overview-band { padding:1.5rem; } .ops-overview-figures a { padding-left:.65rem; min-width:0; } .ops-overview-figures strong { font-size:1.8rem; } }
+
+/* Keep the navigation usable on 320px screens without shrinking touch targets. */
+@media (max-width: 359px) {
+  .s-bar a[aria-label="MakeMyCake, home"] { gap: .3rem; }
+  .s-bar a[aria-label="MakeMyCake, home"] .font-display { font-size: 1.125rem; }
+}
+
+/* Changing readiness must not tween through low-contrast color combinations. */
+.checkout-form > button { transition-property: transform, box-shadow; }

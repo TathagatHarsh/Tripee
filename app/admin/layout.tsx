@@ -1,25 +1,38 @@
-import Link from "next/link";
 import type { Metadata } from "next";
-import { SignOutButton } from "@clerk/nextjs";
 import { getViewerEmail, requireAdmin } from "@/lib/auth";
-import { btn, eyebrow } from "@/lib/ui";
+import { getCatalogSnapshot } from "@/lib/catalogData";
+import { db, hasDatabase } from "@/lib/db";
+import { AdminShell } from "@/components/admin/Shell";
+import { GlobalSearch } from "@/components/admin/Filters";
+import { ToastProvider } from "@/components/admin/Toast";
 
 /**
  * The admin shell.
  *
- * Deliberately the same paper the customer sees rather than a dark "dashboard"
- * skin: this is the same document from the other side of the counter, and a
- * bakery that recognises its own product in the tool is a bakery that trusts
- * what the tool tells it. Mono, no radius, hairline rules — the rest of the
- * site's rules apply here too.
+ * Deliberately **not** the same paper the customer sees, which is a reversal of
+ * what this file used to say and worth recording rather than quietly editing
+ * out. The old note argued that "this is the same document from the other side
+ * of the counter, and a bakery that recognises its own product in the tool is a
+ * bakery that trusts what the tool tells it" — cream paper, mono everywhere,
+ * hairline rules, no radius, six text links in a header row.
  *
- * Kitchen is linked but not nested. /kitchen is where a shift works; it is a
- * different job on the same orders, not a section of this one. The link is
- * always live because ADMIN outranks KITCHEN — see lib/roles' ROLE_RANK, and
- * the reason it is a rank: the person who reprices the menu is also the person
- * who moves a docket when the counter is busy. A baker following the same link
- * the other way lands on /login and is told, in words, that the admin portal is
- * the owner's.
+ * It was a good argument about brand and the wrong one about work. The portal
+ * is not a document; it is where somebody reconciles a week of orders, finds a
+ * customer by half a phone number and decides what a filling costs. Three
+ * things the carbon-copy palette refuses to have are three things a back office
+ * needs: a colour that means "this went wrong", a bold weight to separate a
+ * table header from a cell, and a nav with room to show that Orders and Kitchen
+ * are one job while Cakes and Ingredients are another. So the shop keeps its
+ * stationery and the tool gets Inter, a grey canvas, a navy sidebar and one
+ * terracotta accent — three products, one brand, which is what §1 and §46 ask
+ * for. The palette is in app/globals.css under `a-`; every class in this
+ * subtree is namespaced so the two cannot leak into each other.
+ *
+ * The kitchen board is the third of the three and is a peer rather than a child:
+ * /kitchen is where a shift works, and it is linked from the sidebar but not
+ * nested under it. ADMIN outranks KITCHEN — see lib/roles' ROLE_RANK — so the
+ * link is always live, because the person who reprices the menu is also the
+ * person who moves a docket when the counter is busy.
  *
  * ## The gate
  *
@@ -41,73 +54,83 @@ export const metadata: Metadata = {
 };
 
 /**
- * Six sections, not the seven the brief sketched.
+ * `force-dynamic`, on the layout rather than on each page.
  *
- * Pricing and Availability are not their own screens because they are not their
- * own decisions: what a filling costs and whether it is on today are two fields
- * on the same row, and splitting them would mean finding the ganache twice.
- *
- * Staff is read-only — see app/admin/staff/page.tsx — so it is a tab like any
- * other rather than something needing its own guard beyond this layout's.
+ * The header shows live counts of orders that need somebody, so a cached shell
+ * is a shell with yesterday's numbers on the bell. Every page under here was
+ * already dynamic for its own reasons; declaring it once at the top means a new
+ * page cannot forget to.
  */
-const TABS = [
-  { href: "/admin", label: "Today" },
-  { href: "/admin/orders", label: "Orders" },
-  { href: "/admin/catalog", label: "Catalogue" },
-  { href: "/admin/delivery", label: "Delivery" },
-  { href: "/admin/settings", label: "Bakery" },
-  { href: "/admin/staff", label: "Staff" },
-];
+export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // First statement, and never inside a try: this refuses by throwing.
   await requireAdmin();
+
   const email = await getViewerEmail();
 
+  /*
+   * The two real numbers behind the bell, and the bakery's own name for the
+   * wordmark. Read here so every page in the portal shares one query rather
+   * than each one counting for itself.
+   *
+   * §28 asks that notifications be real backend events and not invented ones.
+   * These are counts of rows: orders still at `draft` — which lib/orders calls
+   * "Awaiting our call", meaning nobody has rung the customer — and open orders
+   * past the window they were quoted, where the window is the order's own
+   * frozen `leadHours` and not a guess.
+   *
+   * The overdue count cannot be a `count()` with a WHERE clause, because the
+   * comparison is against `createdAt + leadHours * interval`, which is
+   * per-row arithmetic Prisma's query builder cannot express. Raw SQL rather
+   * than pulling every open order into memory to filter it — and nothing a
+   * customer typed is interpolated; the only parameter is a timestamp this file
+   * computed.
+   */
+  const [bakery, alerts] = await Promise.all([
+    getCatalogSnapshot().then((c) => c.bakery.name),
+    loadAlerts(),
+  ]);
+
   return (
-    <div className="min-h-dvh bg-paper">
-      {/* `print:hidden` for /admin/orders/[ref]/print, which is a document
-          rather than a screen: nav tabs and a sign-out button on a sheet a
-          rider carries are ink spent on controls nobody can press. */}
-      <header className="border-b border-rule-strong print:hidden">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-baseline gap-x-6 gap-y-2 px-4 py-4 sm:px-8">
-          <span className={eyebrow}>Makemycake</span>
-          <nav aria-label="Admin sections" className="flex flex-wrap gap-x-5 gap-y-1">
-            {TABS.map((t) => (
-              <Link
-                key={t.href}
-                href={t.href}
-                className="font-mono text-meta uppercase tracking-[0.1em] text-graphite hover:text-ink"
-              >
-                {t.label}
-              </Link>
-            ))}
-          </nav>
-          <Link
-            href="/account"
-            className="ml-auto font-mono text-micro uppercase tracking-[0.1em] text-steel hover:text-ink"
-          >
-            Main dashboard →
-          </Link>
-          <Link
-            href="/kitchen"
-            className="font-mono text-micro uppercase tracking-[0.1em] text-steel hover:text-ink"
-          >
-            Kitchen board →
-          </Link>
-
-          {/* Who is holding this session, and how to stop. On a shared office
-              machine the first half is the half that matters. */}
-          <span className="font-mono text-micro tracking-[0.1em] text-steel">{email}</span>
-          <SignOutButton redirectUrl="/">
-            <button type="button" className={btn("quiet", "md", "text-micro tracking-[0.1em] uppercase")}>
-              Sign out
-            </button>
-          </SignOutButton>
-        </div>
-      </header>
-
-      <main id="main" className="mx-auto max-w-6xl px-4 py-8 sm:px-8">{children}</main>
-    </div>
+    /*
+     * ToastProvider wraps the whole subtree, so any client component under any
+     * page can announce a save without threading a prop down to it. Its live
+     * region renders empty from first paint, which is what makes announcements
+     * actually work — see components/admin/Toast.
+     */
+    <ToastProvider>
+      <AdminShell
+        email={email}
+        bakeryName={bakery}
+        alerts={alerts}
+        search={<GlobalSearch />}
+      >
+        {children}
+      </AdminShell>
+    </ToastProvider>
   );
+}
+
+async function loadAlerts(): Promise<{ awaiting: number; overdue: number }> {
+  /* A deployment with no database still renders the portal — lib/db has always
+     held that line — so the bell reports nothing rather than throwing. */
+  if (!hasDatabase()) return { awaiting: 0, overdue: 0 };
+
+  try {
+    const [awaiting, overdue] = await Promise.all([
+      db.order.count({ where: { status: "draft" } }),
+      db.$queryRaw<{ n: bigint }[]>`
+        SELECT count(*) AS n FROM "Order"
+        WHERE status IN ('draft', 'confirmed', 'in_kitchen', 'out_for_delivery')
+          AND "createdAt" + ("leadHours" * interval '1 hour') < ${new Date()}`,
+    ]);
+
+    return { awaiting, overdue: Number(overdue[0]?.n ?? 0) };
+  } catch (e) {
+    /* A bell that cannot be counted is not a reason to fail the page it sits
+       on, but it is a reason to say so somewhere an operator will find it. */
+    console.error("admin_alerts_failed", e);
+    return { awaiting: 0, overdue: 0 };
+  }
 }

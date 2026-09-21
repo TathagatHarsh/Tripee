@@ -1,145 +1,218 @@
-import type { CatalogCategory } from "@prisma/client";
-import { DEFAULT_GST_BASIS_POINTS, DEFAULT_SETTINGS } from "@/lib/catalogDefaults";
-import { CATEGORIES } from "@/lib/catalogSnapshot";
+import Link from "next/link";
+import type { Metadata } from "next";
+import { CATALOG_GROUPS, CATEGORY_META } from "@/lib/adminNav";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
-import { eyebrow } from "@/lib/ui";
-import { ChargesForm } from "./ChargesForm";
-import { OptionRow, type Row } from "./OptionRow";
+import { hasImageStore, NO_IMAGE_STORE_MESSAGE } from "@/lib/storage";
+import { aBtn, aEyebrow, Card, CardHead, Notice, PageHeader, StatCard } from "@/components/admin/ui";
+import { Icon } from "@/components/admin/icons";
+import { countCategory } from "./data";
 
 /**
- * The catalogue, as one page.
+ * The catalogue, as a way in rather than as one long document.
  *
- * Every option at once, grouped and jump-linked, rather than a tab per
- * category. A bakery owner opens this to find "the ganache" — one page means
- * one search box, the browser's own, and no wondering which of ten tabs a
- * filling lives under. It is a long document, which is the correct shape for a
- * document.
+ * This page used to *be* the catalogue: all ninety-six options on a single
+ * scrolling page, grouped and jump-linked, on the argument that "a bakery owner
+ * opens this to find 'the ganache' — one page means one search box, the
+ * browser's own, and no wondering which of ten tabs a filling lives under."
  *
- * force-dynamic for the same reason /kitchen is: this is a staff screen behind
- * a password, and a cached copy would show somebody yesterday's prices while
- * they are trying to change today's.
+ * That argument was right about search and wrong about everything else, and the
+ * thing that changed it is photographs. Ninety-six rows was a long document;
+ * ninety-six rows each with an image, an upload control and a price editor is a
+ * page that neither renders nor scrolls well. The four-group split (§5) also
+ * puts sponges, fillings and frostings on one screen, which is the set an owner
+ * actually reprices together after a supplier's increase.
+ *
+ * The search did not get worse, because it stopped being the browser's. There
+ * is a real one on each group page and a global one in the header that reaches
+ * every category at once — better than find-in-page ever was: it matches the
+ * description as well as the name, and every result links to that option's
+ * editor.
+ *
+ * So this is now the map. Four cards, each saying how much is in it and how
+ * much of it is on today.
  */
 
 export const dynamic = "force-dynamic";
 
-/** What the number in each row means, which is not the same for every category. */
-const PRICE_LABEL: Record<CatalogCategory, string> = {
-  shape: "No charge — shape does not change the price",
-  size: "Base price of the cake",
-  sponge: "Added to the base, scaled by size",
-  filling: "Added to the base, scaled by size",
-  frosting: "Added to the base, scaled by size",
-  coverage: "No charge — coverage does not change the price",
-  finish: "Labour, scaled by size",
-  topping: "Per topping, scaled by size and density",
-  placement: "No charge — placement does not change the price",
-  delivery: "Flat fee, not scaled by size",
+export const metadata: Metadata = {
+  title: "Catalogue — Admin",
+  robots: { index: false, follow: false },
 };
 
-const HEADING: Record<CatalogCategory, string> = {
-  shape: "Shapes",
-  size: "Sizes",
-  sponge: "Sponges",
-  filling: "Fillings",
-  frosting: "Frostings",
-  coverage: "Coverage",
-  finish: "Finishes",
-  topping: "Toppings",
-  placement: "Topping placement",
-  delivery: "Delivery",
+/** Which icon fronts each group card. */
+const GROUP_ICON: Record<string, string> = {
+  cakes: "cake",
+  ingredients: "ingredients",
+  addons: "addons",
+  pricing: "pricing",
 };
 
 export default async function CatalogAdmin() {
+  const head = (
+    <PageHeader
+      title="Catalogue"
+      blurb="Everything the shop sells, and what the bakery has decided about it — the price, whether it is on today, how it is described and what it looks like."
+    />
+  );
+
   if (!hasDatabase()) {
     return (
-      <p className="border border-rule bg-paper px-4 py-3.5 text-body leading-snug text-steel">
-        {NO_DATABASE_MESSAGE}
-      </p>
+      <div className="flex flex-col gap-5">
+        {head}
+        <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>
+      </div>
     );
   }
 
-  const [options, settings] = await Promise.all([
-    db.catalogOption.findMany({ orderBy: [{ category: "asc" }, { sortOrder: "asc" }] }),
-    db.pricingSettings.findUnique({ where: { id: "singleton" } }),
+  /*
+   * Counted per category rather than per group, so a group card can total its
+   * own categories and each category can still show its own number. Ten cheap
+   * counts in parallel; the alternative is one groupBy that then has to be
+   * reshaped in three places.
+   */
+  const entries = await Promise.all(
+    (Object.keys(CATEGORY_META) as (keyof typeof CATEGORY_META)[]).map(
+      async (key) => [key, await countCategory(key)] as const,
+    ),
+  );
+  const counts = Object.fromEntries(entries) as Record<
+    keyof typeof CATEGORY_META,
+    { total: number; available: number; withPhoto: number }
+  >;
+
+  const [changes, withdrawn] = await Promise.all([
+    db.catalogPriceChange.count(),
+    db.catalogOption.count({ where: { isAvailable: false } }),
   ]);
 
-  const byCategory = new Map<CatalogCategory, Row[]>();
-  for (const c of CATEGORIES) byCategory.set(c, []);
-  for (const o of options) {
-    byCategory.get(o.category)?.push({
-      id: o.id,
-      category: o.category,
-      value: o.value,
-      name: o.name,
-      blurb: o.blurb,
-      priceInputPaise: o.priceInputPaise,
-      isAvailable: o.isAvailable,
-    });
-  }
-
-  const withdrawn = options.filter((o) => !o.isAvailable).length;
+  /* Only the categories a photograph suits are counted in the coverage figure.
+     Including coverage, size and placement would make "13 of 96" the permanent
+     answer and read as work outstanding — see CATEGORY_META's `photo`. */
+  const photographable = Object.values(CATEGORY_META).filter((m) => m.photo);
+  const photoTotal = photographable.reduce((n, m) => n + counts[m.category].total, 0);
+  const photoDone = photographable.reduce((n, m) => n + counts[m.category].withPhoto, 0);
+  const allOptions = Object.values(counts).reduce((n, c) => n + c.total, 0);
 
   return (
-    <div className="flex flex-col gap-10">
-      <header className="flex flex-col gap-3">
-        <span className={eyebrow}>The catalogue</span>
-        <h1 className="text-heading">Prices and availability</h1>
-        <p className="max-w-prose text-body leading-relaxed text-steel">
-          Every option a customer can choose, what it costs, and whether it is
-          being offered today. A saved price is live on the next quote — there is
-          no deploy and nothing to publish. Orders already placed keep the price
-          they were quoted.
-        </p>
-        <p className="font-mono text-micro text-ink-35">
-          {options.length} options · {withdrawn} withdrawn
-        </p>
-      </header>
+    <div className="flex flex-col gap-5">
+      {head}
 
-      <nav aria-label="Jump to a category" className="flex flex-wrap gap-x-4 gap-y-1">
-        {CATEGORIES.map((c) => (
-          <a
-            key={c}
-            href={`#${c}`}
-            className="font-mono text-micro uppercase tracking-[0.1em] text-graphite hover:text-ink"
-          >
-            {HEADING[c]}
-          </a>
-        ))}
-      </nav>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-item">Charges that are not options</h2>
-        <ChargesForm
-          charges={settings ?? { ...DEFAULT_SETTINGS, gstBasisPoints: DEFAULT_GST_BASIS_POINTS }}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Options in the catalogue" value={String(allOptions)} icon="cake" />
+        <StatCard
+          label="Withdrawn today"
+          value={String(withdrawn)}
+          tone={withdrawn > 0 ? "warn" : "good"}
+          note={withdrawn === 0 ? "Everything is on offer" : "Not choosable by new customers"}
         />
-      </section>
+        <StatCard
+          label="Photographed"
+          value={`${photoDone} of ${photoTotal}`}
+          tone={photoDone === 0 ? "plain" : photoDone === photoTotal ? "good" : "accent"}
+          note="Across the categories a photo suits"
+          icon="image"
+        />
+        <StatCard
+          label="Price changes recorded"
+          value={String(changes)}
+          note={
+            changes === 0
+              ? "Nothing has been repriced yet"
+              : "Since the portal started keeping track"
+          }
+          icon="pricing"
+        />
+      </div>
 
-      {CATEGORIES.map((c) => {
-        const rows = byCategory.get(c) ?? [];
-        if (rows.length === 0) return null;
+      {!hasImageStore() && <Notice tone="warn">{NO_IMAGE_STORE_MESSAGE}</Notice>}
 
-        return (
-          <section key={c} id={c} className="flex scroll-mt-6 flex-col gap-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-              <h2 className="text-item">{HEADING[c]}</h2>
-              <p className="font-mono text-micro text-steel">{PRICE_LABEL[c]}</p>
-            </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {CATALOG_GROUPS.map((g) => {
+          const cats = g.categories.map((c) => ({ meta: CATEGORY_META[c], n: counts[c] }));
+          const total = cats.reduce((n, c) => n + c.n.total, 0);
 
-            <ul className="border border-rule bg-paper">
-              {rows.map((row) => (
-                <OptionRow key={row.id} row={row} priceLabel={PRICE_LABEL[c]} />
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+          return (
+            <Card key={g.slug} flush className="flex flex-col">
+              <CardHead title={g.title} note={g.blurb}>
+                <Icon name={GROUP_ICON[g.slug] ?? "cake"} size={19} className="text-a-ghost" />
+              </CardHead>
 
-      <p className="max-w-prose border-t border-rule pt-4 font-sans text-meta leading-relaxed text-steel">
-        Adding a new flavour or shape is not something this page can do. An
-        option needs a 3D model, an allergen entry and its own rules before it
-        can be sold, so it arrives with a release — this page decides what the
-        options already built are worth, and whether they are on today.
-      </p>
+              <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
+                {cats.length > 0 ? (
+                  <ul className="flex flex-col gap-2">
+                    {cats.map((c) => (
+                      <li
+                        key={c.meta.category}
+                        className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5"
+                      >
+                        <span className="text-a-small font-medium text-a-ink">{c.meta.plural}</span>
+                        <span className="text-a-meta text-a-muted">
+                          <span className="font-a-mono tabular-nums">{c.n.total}</span> options
+                          {c.n.available < c.n.total && (
+                            <span className="font-medium text-a-warn-ink">
+                              {" · "}
+                              {c.n.total - c.n.available} withdrawn
+                            </span>
+                          )}
+                          {c.meta.photo && (
+                            <>
+                              {" · "}
+                              <span className="font-a-mono tabular-nums">{c.n.withPhoto}</span>
+                              {" with photos"}
+                            </>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  /* Pricing has no categories — it is a settings row rather than
+                     a list of options, which is what this says instead of
+                     rendering an empty list. */
+                  <p className="text-a-small leading-relaxed text-a-muted">
+                    Five charges and a tax rate, rather than a list of options.
+                    Nobody picks &ldquo;18% GST&rdquo; off a shelf.
+                  </p>
+                )}
+
+                <div className="mt-auto flex flex-wrap items-center gap-3 pt-1">
+                  <Link href={`/admin/catalog/${g.slug}`} className={aBtn("primary", "md")}>
+                    {cats.length > 0 ? `Manage ${g.title.toLowerCase()}` : "Open pricing"}
+                    <Icon name="arrowRight" size={15} />
+                  </Link>
+                  {cats.length > 0 && (
+                    <span className="text-a-meta text-a-muted">{total} in total</span>
+                  )}
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Delivery is a catalogue category and is not on this page, which is
+          worth saying rather than leaving somebody to hunt for it. */}
+      <Card>
+        <h2 className={aEyebrow}>Also part of the catalogue</h2>
+        <p className="mt-2 max-w-2xl text-a-small leading-relaxed text-a-muted">
+          Delivery slots are options like any other — each has a price, a
+          description and an availability switch — but each also promises a lead
+          time and a window, and those only make sense next to the pincode zones
+          that add rider time to them. So they live on their own page.
+        </p>
+        <Link href="/admin/delivery" className={aBtn("secondary", "md", "mt-3")}>
+          <Icon name="delivery" size={16} />
+          Delivery slots and zones
+        </Link>
+      </Card>
+
+      <Notice tone="accent" icon="info">
+        The named cakes on the shop&rsquo;s catalogue page are built from these
+        options rather than stored separately, so their prices come from here:
+        repricing a sponge changes what every cake using it costs. Adding a
+        genuinely new option needs a recipe, an allergen entry and — for a
+        topping — a 3D model, so that stays a development job rather than a form.
+      </Notice>
     </div>
   );
 }

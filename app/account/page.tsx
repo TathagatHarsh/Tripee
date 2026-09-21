@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { CustomerAccountCard } from "@/components/CustomerAccountCard";
 import { getViewerEmail, requireRole } from "@/lib/auth";
 import { hasDatabase } from "@/lib/db";
-import { eyebrow } from "@/lib/ui";
+import { sCard, sEyebrow } from "@/lib/shopUi";
 import { countByPhase } from "@/app/orders/data";
 
 /**
@@ -34,25 +34,48 @@ import { countByPhase } from "@/app/orders/data";
  * anybody holding a session without the rank to `?denied=…`, and this is the one
  * screen that already knows who they are signed in as and already offers the
  * only fix, which is to sign out and sign in as somebody else.
+ *
+ * ## The dress, and only the dress
+ *
+ * Phase 1's storefront redesign reaches this page last. Nothing about who is
+ * admitted, what is counted or which portal is offered moved: `requireRole`,
+ * `countByPhase`, `PORTAL` and `REFUSED` are exactly as they were, vendor
+ * entries included. What changed is the palette, the type and the card, so that
+ * stepping from the shop's header into the account does not step into a
+ * different product.
  */
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Your account — Makemycake",
+  title: "Your account · Makemycake",
   robots: { index: false, follow: false },
 };
 
-/** The two portals, for the two roles that have one. */
+/** The three portals, for the three roles that have one. */
 const PORTAL = {
   KITCHEN: { href: "/kitchen", label: "Kitchen board" },
   ADMIN: { href: "/admin", label: "Admin portal" },
+  /* "Kitchen board", not "Your orders". /vendor lands on the bakery's kitchen
+     board now, and a link promising an order list that opens a board is a link
+     written before the page it points at. */
+  VENDOR: { href: "/vendor", label: "Kitchen board" },
 } as const;
 
 /** What each shut door is, in a sentence somebody can act on. */
 const REFUSED: Record<string, string> = {
   admin: "doesn't open the admin portal. Prices and the catalogue are the owner's account.",
   kitchen: "doesn't open the kitchen board. That one is for the bakers' accounts.",
+  /*
+   * Three different refusals, one sentence, because they have one fix. Reached
+   * by a role that is not VENDOR, by a vendor account nobody has linked to a
+   * bakery yet, and by one whose bakery has been deactivated — and in all three
+   * the person reading it has to ring the shop, not change anything themselves.
+   * Splitting them would be three messages and still one phone call.
+   */
+  vendor:
+    "doesn't open the bakery portal. That one is for partner bakeries, and the "
+    + "shop has to link the account to yours before it works.",
 };
 
 export default async function Account({
@@ -96,16 +119,16 @@ export default async function Account({
           — a third use of the same word directly above them was chrome
           repeating itself. */}
       <div className="flex flex-col gap-2">
-        <h1 className="font-mono text-heading text-ink">
+        <h1 className="text-[2.25rem] sm:text-[2.75rem]">
           {/* Their own name, from a field they set themselves — and no
               fabricated greeting when there is none. */}
           {profile.name ? `Hello, ${profile.name}` : "Your account"}
         </h1>
-        <p className="max-w-[56ch] font-sans text-lede leading-relaxed text-steel">
+        <p className="max-w-[56ch] text-[1.0625rem] leading-relaxed text-s-bark">
           Your details, how you sign in, and every cake you have ordered while
           signed in.
         </p>
-        {email && <p className="font-mono text-meta text-steel">{email}</p>}
+        {email && <p className="font-mono text-[0.875rem] text-s-bark">{email}</p>}
       </div>
 
       {/* Why they are looking at this page rather than the one they asked for.
@@ -113,17 +136,18 @@ export default async function Account({
       {refusal && (
         <p
           role="alert"
-          className="border-l-2 border-seal bg-counter px-4 py-3.5 font-sans text-body leading-relaxed text-ink"
+          className="rounded-s-sm border border-s-stop/30 bg-s-stop-wash px-4 py-3.5 leading-relaxed text-s-cocoa"
         >
           {email ? (
             <>
-              You&apos;re signed in as <span className="font-mono text-meta">{email}</span>, and
+              You&apos;re signed in as <span className="font-mono text-[0.875rem]">{email}</span>, and
               that account {refusal}
             </>
           ) : (
             <>That account {refusal}</>
           )}{" "}
-          Sign out at the top of this page to use a different one.
+          Sign out from the account menu at the top of this page to use a
+          different one.
         </p>
       )}
 
@@ -166,14 +190,14 @@ export default async function Account({
       */}
       {portal && (
         <Group title="Staff access">
-          <div className="paper-edge flex flex-col gap-2 bg-paper px-5 py-5">
+          <div className={`${sCard} flex flex-col gap-2 px-5 py-5`}>
             <Link
               href={portal.href}
-              className="font-mono text-item tracking-[0.06em] text-ink hover:underline"
+              className="text-[1.0625rem] font-medium text-s-cocoa underline decoration-s-line-strong underline-offset-4 transition-colors duration-[var(--dur-ui)] hover:text-s-berry hover:decoration-s-berry"
             >
               {portal.label} →
             </Link>
-            <p className="font-sans text-meta leading-relaxed text-steel">
+            <p className="text-[0.875rem] leading-relaxed text-s-bark">
               This account also opens the bakery&apos;s own board. Your orders above
               are yours as a customer, not the shop&apos;s.
             </p>
@@ -181,12 +205,17 @@ export default async function Account({
         </Group>
       )}
 
-      <p className="border-t border-rule pt-5 font-sans text-meta leading-relaxed text-steel">
+      <p className="border-t border-s-line pt-5 text-[0.875rem] leading-relaxed text-s-bark">
         You don&apos;t need an account to order a cake. One placed as a guest is
         tracked by the reference on its confirmation rather than by this page —
         ring the bakery with it and they will pull it up.{" "}
-        <Link href="/build/shape" className="border-b border-rule-strong text-ink hover:border-ink">
-          Build another
+        {/* The shop, not the builder: /build is a Coming Soon page for this
+            phase — see lib/flags. */}
+        <Link
+          href="/shop"
+          className="text-s-berry underline decoration-s-berry/40 underline-offset-4 transition-colors hover:decoration-s-berry"
+        >
+          Order another
         </Link>
         .
       </p>
@@ -198,7 +227,7 @@ export default async function Account({
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className={eyebrow}>{title}</h2>
+      <h2 className={sEyebrow}>{title}</h2>
       <div className="grid gap-3 sm:grid-cols-2">{children}</div>
     </section>
   );
@@ -222,7 +251,11 @@ function PersonGlyph() {
 function LockGlyph() {
   return (
     <Glyph>
-      <rect x="4.5" y="10.5" width="15" height="9" />
+      {/* A radius here, where the editorial version had none: §1.4's "radius 0
+          on everything" governs the product's own chrome, and this glyph now
+          sits on a card with a 10px corner. A square padlock beside it read as
+          a different icon set. */}
+      <rect x="4.5" y="10.5" width="15" height="9" rx="1.5" />
       <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
     </Glyph>
   );
@@ -247,6 +280,7 @@ function Glyph({ children }: { children: React.ReactNode }) {
       stroke="currentColor"
       strokeWidth="1.25"
       strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
     >
       {children}

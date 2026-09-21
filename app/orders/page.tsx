@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { getCatalogSnapshot } from "@/lib/catalogData";
 import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import type { OrderPhase } from "@/lib/orders";
-import { eyebrow, field } from "@/lib/ui";
+import { sBtn, sCard, sEyebrow, sField } from "@/lib/shopUi";
 import { countByPhase, listOrders } from "./data";
 
 /**
@@ -38,7 +38,7 @@ import { countByPhase, listOrders } from "./data";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Your orders — Makemycake",
+  title: "Your orders · Makemycake",
   /* Somebody's order history is not for a search index, and neither is the
      shape of this page. Same stance as /account. */
   robots: { index: false, follow: false },
@@ -79,15 +79,15 @@ export default async function Orders({
   return (
     <>
       <div className="flex flex-col gap-2">
-        <span className={eyebrow}>Orders</span>
-        <h1 className="font-mono text-heading text-ink">Your orders</h1>
+        <span className={sEyebrow}>Orders</span>
+        <h1 className="text-[2.25rem] sm:text-[2.75rem]">Your orders</h1>
       </div>
 
       {!hasDatabase() ? (
         /* The documented state of a preview deployment. Said plainly rather than
            shown as an empty list, which would read as "you have never ordered
            anything" and be false. */
-        <p className="paper-edge bg-paper px-5 py-4 font-sans text-body leading-relaxed text-steel">
+        <p className={`${sCard} px-5 py-4 leading-relaxed text-s-bark`}>
           {NO_DATABASE_MESSAGE}
         </p>
       ) : (
@@ -148,19 +148,16 @@ async function OrderList({
             defaultValue={query}
             placeholder="Search by reference or flavour"
             enterKeyHint="search"
-            className={field("min-w-0 flex-1 sm:max-w-[24rem]")}
+            className={sField("min-w-0 flex-1 sm:max-w-[24rem]")}
           />
-          <button
-            type="submit"
-            className="inline-flex min-h-13 shrink-0 items-center gap-2 border border-ink bg-ink px-5 font-mono text-micro tracking-[0.14em] text-paper uppercase transition-colors duration-[var(--dur-ui)] hover:bg-graphite"
-          >
+          <button type="submit" className={sBtn("dark", "md", "gap-2")}>
             <SearchGlyph />
             Search
           </button>
           {query && (
             <Link
               href={show ? `/orders?show=${show}` : "/orders"}
-              className="inline-flex min-h-13 shrink-0 items-center px-3 font-mono text-micro tracking-[0.14em] text-steel uppercase hover:text-ink"
+              className="inline-flex min-h-11 shrink-0 items-center px-3 text-[0.875rem] text-s-bark transition-colors hover:text-s-cocoa"
             >
               Clear
             </Link>
@@ -173,7 +170,7 @@ async function OrderList({
           one is a filter for nothing. "All orders" is always there, so there is
           never a page with no way back to everything.
         */}
-        <nav aria-label="Filter orders" className="flex flex-wrap items-center gap-x-1 border-b border-rule">
+        <nav aria-label="Filter orders" className="flex flex-wrap items-center gap-x-1 border-b border-s-line">
           {TABS.filter((t) => t.key === "all" || counts[t.key] > 0).map((t) => {
             const active = t.key === "all" ? !phase : phase === t.key;
             const href = [
@@ -191,13 +188,23 @@ async function OrderList({
                 aria-current={active ? "page" : undefined}
                 className={[
                   "-mb-px inline-flex min-h-11 items-center gap-2 border-b-2 px-3",
-                  "font-mono text-micro tracking-[0.13em] uppercase",
+                  "font-mono text-[0.6875rem] tracking-[0.13em] uppercase",
                   "transition-colors duration-[var(--dur-ui)]",
-                  active ? "border-ink text-ink" : "border-transparent text-steel hover:text-ink",
+                  active
+                    ? "border-s-berry text-s-berry"
+                    : "border-transparent text-s-bark hover:text-s-cocoa",
                 ].join(" ")}
               >
                 {t.label}
-                <span className="tabular-nums text-steel">{counts[t.key]}</span>
+                <span
+                  className={[
+                    "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5",
+                    "text-[0.625rem] leading-none tabular-nums",
+                    active ? "bg-s-berry-wash text-s-berry" : "bg-s-cream-deep text-s-bark",
+                  ].join(" ")}
+                >
+                  {counts[t.key]}
+                </span>
               </Link>
             );
           })}
@@ -210,7 +217,9 @@ async function OrderList({
           query={query}
         />
       ) : (
-        <ul className="flex flex-col gap-4">
+        /* Each card on its own view() timeline, so a long history arrives as
+           you scroll it rather than as one wall. See globals.css. */
+        <ul className="s-rise-row flex flex-col gap-4">
           {orders.map((order) => (
             <OrderCard key={order.ref} order={order} catalog={catalog} />
           ))}

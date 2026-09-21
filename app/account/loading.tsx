@@ -1,4 +1,5 @@
 import { AccountSkeleton } from "@/components/orders/OrderSkeleton";
+import { BakingStatus } from "@/components/shop/BakingMark";
 
 /**
  * The account centre, before the greeting and the order count land.
@@ -9,8 +10,8 @@ import { AccountSkeleton } from "@/components/orders/OrderSkeleton";
  */
 export default function LoadingAccount() {
   return (
-    <div aria-busy="true" aria-live="polite">
-      <span className="sr-only">Loading your account</span>
+    <div aria-busy="true" aria-live="polite" className="relative">
+      <BakingStatus label="Getting your account…" />
       <AccountSkeleton />
     </div>
   );

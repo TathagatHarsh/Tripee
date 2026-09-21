@@ -319,6 +319,54 @@ export function buildProgress(
  * quietly sliding the estimate forward is how a tracking page stops being worth
  * looking at.
  */
-export function dueAt(order: { createdAt: Date; leadHours: number }): Date {
-  return new Date(order.createdAt.getTime() + order.leadHours * 3600_000);
+export function dueAt(order: {
+  createdAt: Date;
+  leadHours: number;
+  confirmedAt?: Date | null;
+  dueAt?: Date | null;
+  requestedFor?: Date | null;
+}): Date {
+  if (order.dueAt) return order.dueAt;
+  if (order.requestedFor) return order.requestedFor;
+  const start = order.confirmedAt ?? order.createdAt;
+  return new Date(start.getTime() + order.leadHours * 3600_000);
+}
+
+/* ------------------------------------------------------- after it is placed */
+
+/**
+ * How long the confirmation is held before it takes the customer to tracking.
+ *
+ * The celebration runs about 2.1s of choreography — box, cake, tick, headline,
+ * reference, button — and this is the last beat plus enough of a pause to read
+ * the reference off the screen. Longer stops being a moment and starts being a
+ * page that will not let you leave.
+ */
+export const AUTO_TRACK_MS = 2900;
+
+/**
+ * Where the confirmation sends somebody, and whether it takes them there itself.
+ *
+ * `Order.config` is one cake, so a basket of three is three orders with three
+ * references and three tracking pages — there is no single URL that is "the
+ * order" for a multi-cake basket. `/orders` is not that URL either: it is
+ * `requireRole("CUSTOMER")`, so a guest sent there lands on a sign-in wall for
+ * orders they have just placed without an account.
+ *
+ * So a basket of one is walked to its own tracking page, and a basket of more
+ * is not walked anywhere: every reference is listed with its own link and the
+ * customer picks. Both cases get a button; only the unambiguous one gets a
+ * redirect, because guessing which of three cakes somebody meant is worse than
+ * asking.
+ *
+ * The references are the ones the *server* wrote and returned — see
+ * app/api/orders — and not a shape this browser assembled for itself. An empty
+ * list means a response that was accepted with no orders in it, which is a bug
+ * rather than a state to render a link for.
+ */
+export function trackingPlan(
+  refs: string[],
+): { href: string; auto: boolean } | null {
+  if (refs.length === 0) return null;
+  return { href: `/orders/${refs[0]}`, auto: refs.length === 1 };
 }

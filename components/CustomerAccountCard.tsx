@@ -35,24 +35,31 @@ export function CustomerAccountCard({
   return (
     <Link
       href={href}
-      className="paper-edge group flex min-h-[6.5rem] items-start gap-4 bg-paper px-5 py-5 transition-colors duration-[var(--dur-ui)] ease-[var(--ease-out)] hover:bg-counter"
+      className={
+        "group flex min-h-[6.5rem] items-start gap-4 rounded-s border border-s-line " +
+        "bg-s-shell px-5 py-5 shadow-[var(--shadow-s-card)] " +
+        "transition-[background-color,border-color,box-shadow,translate] " +
+        "duration-[var(--dur-ui)] ease-[var(--ease-out)] " +
+        "hover:border-s-line-strong hover:shadow-[var(--shadow-s-lift)] " +
+        "motion-safe:hover:-translate-y-0.5"
+      }
     >
       <span
         aria-hidden="true"
-        className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center text-graphite transition-colors duration-[var(--dur-ui)] group-hover:text-ink"
+        className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center text-s-berry"
       >
         {glyph}
       </span>
 
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="font-sans text-item leading-tight text-ink">{title}</span>
-        <span className="font-sans text-meta leading-relaxed text-steel">{blurb}</span>
+        <span className="text-[1.0625rem] leading-tight font-medium text-s-cocoa">{title}</span>
+        <span className="text-[0.875rem] leading-relaxed text-s-bark">{blurb}</span>
         {/* Under the blurb rather than beside the title. Beside it, "1 in
             progress" and a title competed for the same line and the title lost
             — "Your orders" wrapped after one word inside a card with room to
             spare. This is a fact about the section, so it reads last. */}
         {meta && (
-          <span className="mt-1 font-mono text-micro tracking-[0.08em] tabular-nums text-carbon uppercase">
+          <span className="mt-1.5 inline-flex w-fit items-center rounded-full bg-s-berry-wash px-2.5 py-1 font-mono text-[0.6875rem] tracking-[0.08em] text-s-berry uppercase tabular-nums">
             {meta}
           </span>
         )}
@@ -60,7 +67,7 @@ export function CustomerAccountCard({
 
       <span
         aria-hidden="true"
-        className="mt-0.5 font-mono text-body text-steel transition-colors duration-[var(--dur-ui)] group-hover:text-ink"
+        className="mt-0.5 font-mono text-[0.9375rem] text-s-bark transition-[color,translate] duration-[var(--dur-ui)] group-hover:text-s-berry motion-safe:group-hover:translate-x-0.5"
       >
         →
       </span>

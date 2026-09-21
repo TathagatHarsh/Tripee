@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { btn, eyebrow } from "@/lib/ui";
+import { sBtn, sCard, sEyebrow } from "@/lib/shopUi";
 
 /**
  * When the orders could not be read.
@@ -28,27 +28,24 @@ export default function OrdersError({ reset }: { error: Error; reset: () => void
   return (
     <>
       <div className="flex flex-col gap-2">
-        <span className={eyebrow}>Orders</span>
-        <h1 className="font-mono text-heading text-ink">Your orders</h1>
+        <span className={sEyebrow}>Orders</span>
+        <h1 className="text-[2.25rem] sm:text-[2.75rem]">Your orders</h1>
       </div>
 
-      <div className="paper-edge bg-paper">
-        <span className={`${eyebrow} block border-b border-rule px-5 py-3`}>Something went wrong</span>
-        <div className="flex flex-col items-start gap-4 px-5 py-8 sm:px-8">
-          <h2 className="font-mono text-title text-ink">
-            We couldn&rsquo;t load your orders
-          </h2>
-          <p className="max-w-[50ch] font-sans text-body leading-relaxed text-steel">
-            That is our end rather than yours, and your orders are not affected —
+      <div className={sCard}>
+        <div className="flex flex-col items-start gap-4 px-6 py-10 sm:px-10">
+          <h2 className="text-[1.75rem]">We couldn&rsquo;t load your orders</h2>
+          <p className="max-w-[52ch] leading-relaxed text-s-bark">
+            That is our end rather than yours, and your orders are not affected:
             nothing has been changed or cancelled. Try again, and if it keeps
             happening ring the bakery with your order reference.
           </p>
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={reset} className={btn("primary", "md")}>
+            <button type="button" onClick={reset} className={sBtn("primary", "md")}>
               Try again
             </button>
-            <Link href="/account" className={btn("secondary", "md")}>
-              Your account
+            <Link href="/shop" className={sBtn("outline", "md")}>
+              Shop cakes
             </Link>
           </div>
         </div>

@@ -44,6 +44,8 @@ import { db, hasDatabase } from "../lib/db";
  * account, only re-rank one a real sign-in already produced.
  */
 
+/* Every role, including VENDOR — it is listed so the error below can name it
+   and say where it is set instead, rather than reading as a typo. */
 const ROLES = Object.values(UserRole);
 
 function usage(message?: string): never {
@@ -122,10 +124,38 @@ async function main(): Promise<void> {
   const id = found[0].id;
   const before = await db.userProfile.findUnique({ where: { id } });
 
+  /*
+   * VENDOR is the one role this command will not set, and that is the opposite
+   * of the rule for every other one.
+   *
+   * A vendor role is only half an answer: it says somebody is a partner bakery
+   * without saying which, and lib/auth's `requireVendor` refuses a profile whose
+   * `vendorId` is null — correctly, since there is nothing to scope their orders
+   * by. Setting it here would produce an account that signs in, is told it
+   * cannot open the portal, and gives nobody a way to find out why.
+   *
+   * /admin/vendors does both halves in one write, against a bakery that already
+   * exists, and is safe to be a screen precisely because VENDOR grants nothing
+   * anybody could escalate with — see `linkVendorUser` in app/admin/actions.ts,
+   * which explains at length why that one form may write a role when nothing
+   * else on a request path may.
+   */
+  if (role === "VENDOR") {
+    console.error("\nVENDOR is set from the admin portal, not here.");
+    console.error("A vendor role also needs a bakery to belong to, and this command");
+    console.error("has no way to name one. Open /admin/vendors, pick the bakery, and");
+    console.error(`link ${email} there.\n`);
+    process.exit(1);
+  }
+
   await db.userProfile.upsert({
     where: { id },
     create: { id, role },
-    update: { role },
+    /* `vendorId: null` alongside the role, for the case this command exists to
+       cover: taking a role away. A profile demoted from VENDOR while still
+       pointing at a bakery would keep a dangling association that means nothing
+       and reads as though it might. */
+    update: { role, vendorId: null },
   });
 
   console.log(`\n  ${email}\n  ${before?.role ?? "no profile"} → ${role}\n`);

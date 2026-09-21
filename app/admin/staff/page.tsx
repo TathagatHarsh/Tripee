@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { clerkClient } from "@clerk/nextjs/server";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { formatIST } from "@/lib/format";
-import { eyebrow } from "@/lib/ui";
+import { Notice, PageHeader } from "@/components/admin/ui";
 
 export const metadata: Metadata = { title: "Staff — Admin — Makemycake" };
 export const dynamic = "force-dynamic";
@@ -20,9 +20,7 @@ const ROLE_LABEL: Record<string, string> = { ADMIN: "Admin", KITCHEN: "Kitchen" 
 export default async function StaffPage() {
   if (!hasDatabase()) {
     return (
-      <p className="border border-rule bg-paper px-4 py-3.5 text-body leading-snug text-steel">
-        {NO_DATABASE_MESSAGE}
-      </p>
+      <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>
     );
   }
 
@@ -39,14 +37,16 @@ export default async function StaffPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-3">
-        <span className={eyebrow}>Who works here</span>
-        <h1 className="text-heading">Staff</h1>
-        <p className="font-mono text-micro text-ink-35">{staff.length} with a role above customer</p>
-      </header>
+      <PageHeader
+        title="Staff"
+        blurb={
+          `Who has a job here. ${staff.length} ${staff.length === 1 ? "person has" : "people have"} `
+          + "a role above customer."
+        }
+      />
 
       {staff.length === 0 ? (
-        <p className="border border-rule bg-paper px-4 py-3.5 text-body text-steel">
+        <p className="rounded-a border border-a-line bg-a-surface px-4 py-3.5 text-a-body text-a-muted">
           Nobody has a staff role yet.
         </p>
       ) : (
@@ -54,25 +54,25 @@ export default async function StaffPage() {
           {staff.map((s) => (
             <li
               key={s.id}
-              className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border border-rule bg-paper px-4 py-3"
+              className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-a border border-a-line bg-a-surface px-4 py-3"
             >
               <div className="flex flex-wrap items-baseline gap-3">
-                <span className="border border-carbon px-2 py-0.5 font-mono text-micro text-carbon">
+                <span className="border border-a-accent-line px-2 py-0.5 font-a-mono text-a-meta text-a-accent-ink">
                   {ROLE_LABEL[s.role] ?? s.role}
                 </span>
-                <span className="font-mono text-body">
+                <span className="font-a-mono text-a-body">
                   {emailOf.get(s.id) ?? "(no longer a Clerk account)"}
                 </span>
               </div>
-              <span className="font-mono text-micro text-steel">Since {formatIST(s.createdAt)}</span>
+              <span className="font-a-mono text-a-meta text-a-muted">Since {formatIST(s.createdAt)}</span>
             </li>
           ))}
         </ul>
       )}
 
-      <p className="border-t border-rule pt-4 font-sans text-meta leading-relaxed text-steel">
+      <p className="border-t border-a-line pt-4 font-a-sans text-a-small leading-relaxed text-a-muted">
         Read-only, on purpose — the same reasoning is in scripts/role.ts. To change
-        a role: <code className="font-mono">npm run role -- email ROLE</code>, run
+        a role: <code className="font-a-mono">npm run role -- email ROLE</code>, run
         where DATABASE_URL and CLERK_SECRET_KEY live, never from a browser.
       </p>
     </div>
