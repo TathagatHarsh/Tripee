@@ -370,9 +370,12 @@ export const VENDOR_COLUMNS: {
  * note says anything, so prefixing it with a stock phrase would be padding.
  */
 export const REJECTION_REASONS: { id: string; label: string; sentence: string }[] = [
+  { id: "out_of_stock", label: "Out of stock", sentence: "Out of stock." },
+  { id: "unavailable", label: "Bakery unavailable", sentence: "Bakery unavailable." },
+  { id: "ingredients", label: "Ingredient unavailable", sentence: "Ingredient unavailable." },
   { id: "busy", label: "Too busy", sentence: "Too busy to take this on." },
-  { id: "cannot_make", label: "Cannot make this cake", sentence: "Cannot make this cake." },
-  { id: "ingredient", label: "Ingredient unavailable", sentence: "An ingredient is unavailable." },
+  { id: "cannot_make", label: "Outside operational capacity", sentence: "Outside operational capacity." },
+  { id: "ingredient", label: "Product unavailable", sentence: "Product unavailable." },
   { id: "timing", label: "Delivery timing issue", sentence: "The delivery timing does not work." },
   { id: "other", label: "Other", sentence: "" },
 ];

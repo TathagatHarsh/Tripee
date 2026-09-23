@@ -1,3 +1,6 @@
+import { portalEvent } from "@/lib/portalNotifications";
+import { startAssignment } from "@/lib/assignment";
+import type { Receipt } from "@/lib/orderReceipt";
 import { Prisma } from "@prisma/client";
 import {
   callerKey,
@@ -51,6 +54,16 @@ const CREATED = {
   deliverySlot: true,
   leadHours: true,
   requestedFor: true,
+  requestedWindow: true,
+  fulfillmentMethod: true,
+  addressLine1: true,
+  addressLine2: true,
+  landmark: true,
+  city: true,
+  state: true,
+  pincode: true,
+  deliveryLocation: true,
+  cakes: { orderBy: { position: "asc" }, select: { cakeName: true, variantLabel: true } },
   dueAt: true,
   createdAt: true,
 } satisfies Prisma.OrderSelect;
@@ -76,8 +89,28 @@ function asJson(value: unknown): Prisma.InputJsonValue {
 
 function responseFor(order: CreatedOrder) {
   const subtotal = order.productSubtotalPaise + order.deliveryFeePaise;
+  const items: { name: string; variant: string; qty: number }[] = [];
+  for (const cake of order.cakes) {
+    const name = cake.cakeName ?? "Cake";
+    const variant = cake.variantLabel ?? "";
+    const item = items.find(item => item.name === name && item.variant === variant);
+    if (item) item.qty++;
+    else items.push({ name, variant, qty: 1 });
+  }
   return {
-    order: { ref: order.ref, totalPaise: order.totalPaise },
+    order: {
+      ref: order.ref, totalPaise: order.totalPaise,
+      date: order.requestedFor ? new Date(order.requestedFor.getTime() + 19800000).toISOString().slice(0, 10) : null,
+      window: order.requestedWindow ?? "",
+      method: order.fulfillmentMethod,
+      address: order.fulfillmentMethod === "pickup" ? "Bakery pickup" : (
+        order.deliveryLocation && typeof order.deliveryLocation === "object" &&
+        "formattedAddress" in order.deliveryLocation && typeof order.deliveryLocation.formattedAddress === "string"
+          ? order.deliveryLocation.formattedAddress
+          : [order.addressLine1, order.addressLine2, order.landmark, order.city, order.state, order.pincode].filter(Boolean).join(", ")
+      ),
+      items,
+    } satisfies Receipt,
     orders: [{ ref: order.ref, totalPaise: order.totalPaise }],
     orderId: order.ref,
     totalPaise: order.totalPaise,
@@ -321,6 +354,7 @@ export async function POST(req: Request) {
     );
   }
 
+  await startAssignment(result.order.ref).catch(() => log("error", "assignment_pending_retry", { orderRef: result.order.ref }));
   await rememberGuestOrders([result.order.ref]);
   if (!result.replay) {
     await dispatchPendingNotifications(5).catch((error) => {
@@ -516,16 +550,31 @@ async function createOrder(
           productSubtotalPaise: input.review.productSubtotalPaise,
           deliveryFeePaise: input.review.deliveryFeePaise,
           payablePaise: input.review.totalPaise,
-          status: "draft",
+          status: input.fulfillment.method === "delivery" ? "confirmed" : "draft",
+          confirmedAt: input.fulfillment.method === "delivery" ? new Date() : null,
+          dueAt: input.fulfillment.method === "delivery" ? input.requestedFor : null,
           userId: input.userId,
           paymentStatus: "none",
           customerName: input.customerName,
           customerPhone: input.customerPhone,
           customerEmail: input.fulfillment.contactEmail ?? null,
-          ...(input.fulfillment.method === "delivery" &&
-          input.fulfillment.location
-            ? { deliveryLocation: asJson(input.fulfillment.location) }
-            : {}),
+          ...(input.fulfillment.method === "delivery" ? { deliveryLocation: asJson({
+            placeId: input.fulfillment.location?.placeId ?? "",
+            name: input.fulfillment.recipientName,
+            phone: input.customerPhone,
+            addressLine1: input.fulfillment.addressLine1,
+            addressLine2: input.fulfillment.addressLine2 ?? "",
+            locality: input.fulfillment.locality ?? "",
+            city: input.fulfillment.city,
+            state: input.fulfillment.state,
+            postalCode: input.fulfillment.pincode,
+            landmark: input.fulfillment.landmark ?? "",
+            instructions: input.fulfillment.deliveryInstructions ?? "",
+            latitude: input.fulfillment.location?.lat ?? null,
+            longitude: input.fulfillment.location?.lng ?? null,
+            source: input.fulfillment.location ? input.fulfillment.source ?? "map" : "manual",
+            formattedAddress: [input.fulfillment.addressLine1, input.fulfillment.addressLine2, input.fulfillment.locality, input.fulfillment.city, input.fulfillment.state, input.fulfillment.pincode].filter(Boolean).join(", "),
+          }) } : {}),
           recipientName: input.fulfillment.recipientName,
           fulfillmentMethod: input.fulfillment.method,
           addressLine1:
@@ -598,6 +647,8 @@ async function createOrder(
           response: asJson(response),
         },
       });
+      if (input.fulfillment.method === "delivery") await tx.orderEvent.create({ data: { orderId: order.id, fromStatus: "draft", toStatus: "confirmed" } });
+      await portalEvent(tx, { key: `order:${order.id}:new`, orderRef: order.ref, title: 'New customer order', message: `${order.ref} needs vendor assignment` });
       await tx.notificationOutbox.create({
         data: outboxCreate({
           orderId: order.id,

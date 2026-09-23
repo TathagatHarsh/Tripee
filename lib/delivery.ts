@@ -61,8 +61,9 @@ export function resolveSlot(
   }
 
   const zone = zoneForPincode(pincode, catalog);
+  const coverage = checkDeliveryServiceability({ postalCode: pincode }, catalog);
 
-  if (!zone) {
+  if (!zone || !coverage.serviceable) {
     /*
      * No pincode yet is not a refusal — it is a question nobody has answered,
      * so the slot stays available and nothing is said. A pincode outside every
@@ -109,4 +110,21 @@ export function servicePincode(
   catalog: CatalogSnapshot,
 ): boolean {
   return zoneForPincode(pincode, catalog) !== null;
+}
+
+/** Pincode zones are the bakery's authoritative coverage; coordinates never override them. */
+export function checkDeliveryServiceability(
+  address: { latitude?: number | null; longitude?: number | null; postalCode?: string; city?: string },
+  catalog: CatalogSnapshot,
+) {
+  const zone = zoneForPincode(address.postalCode, catalog);
+  return {
+    serviceable: Boolean(zone && zone.slots.some(slot => slot !== "pickup")),
+    message: !/^\d{6}$/.test(address.postalCode ?? "")
+      ? "Enter a six-digit delivery pincode."
+      : zone && zone.slots.some(slot => slot !== "pickup")
+        ? `Delivery available in ${zone.name}. Choose a delivery window.`
+        : "We don't deliver to that pincode yet.",
+    estimatedDelivery: null,
+  };
 }

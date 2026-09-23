@@ -1,3 +1,4 @@
+import { Earnings } from "@/components/assignment/Earnings";
 import Link from "next/link";
 import { CakePhoto } from "@/components/shop/CakePhoto";
 import { Icon } from "@/components/admin/icons";
@@ -220,6 +221,7 @@ export function OrderTicket({
         </p>
       )}
 
+        <Earnings snapshot={card} address={[order.addressLine1, order.addressLine2, order.city, order.state, order.pincode].filter(Boolean).join(", ")} location={order.deliveryLocation} />
       {/* ── what to press ──────────────────────────────────────────────── */}
       {actions && VENDOR_NEXT[status].length > 0 && (
         <div className="mt-auto flex flex-col gap-2 border-t border-a-line p-3">
@@ -229,6 +231,7 @@ export function OrderTicket({
             note on the reason panel.
           */}
           <OrderActions
+            assignmentId={card.id}
             orderRef={order.ref}
             next={VENDOR_NEXT[status]}
             compact

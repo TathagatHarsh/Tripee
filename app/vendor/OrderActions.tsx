@@ -40,10 +40,12 @@ import { Icon } from "@/components/admin/icons";
  */
 export function OrderActions({
   orderRef,
+  assignmentId,
   next,
   compact = false,
 }: {
   orderRef: string;
+  assignmentId: string;
   next: VendorOrderStatus[];
   /** The board card's version: forward move only, no decline, no reason panel. */
   compact?: boolean;
@@ -61,7 +63,7 @@ export function OrderActions({
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
-      <input type="hidden" name="ref" value={orderRef} />
+      <input type="hidden" name="ref" value={orderRef} /><input type="hidden" name="assignmentId" value={assignmentId} />
 
       {declining && canDecline && (
         <fieldset className="flex flex-col gap-2 rounded-a border border-a-bad-line bg-a-bad-wash p-3">

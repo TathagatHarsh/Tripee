@@ -40,7 +40,9 @@
     ".next-qa/types/**/*.ts",
     ".next-qa/dev/types/**/*.ts",
     ".next-redesign/types/**/*.ts",
-    ".next-redesign/dev/types/**/*.ts"
+    ".next-redesign/dev/types/**/*.ts",
+    ".next-assignment-build/types/**/*.ts",
+    ".next-assignment-build/dev/types/**/*.ts"
   ],
   // "node_modules" on its own only ever excluded the top-level one, and `include`
   // above is a bare `**/*.ts`. A git worktree under .claude carries its own

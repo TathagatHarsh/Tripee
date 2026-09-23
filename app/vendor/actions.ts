@@ -62,7 +62,7 @@ export async function moveAssignment(
   _prev: ActionResult | undefined,
   form: FormData,
 ): Promise<ActionResult> {
-  const { vendor } = await requireVendor();
+  const { vendor, userId } = await requireVendor();
   if (!hasDatabase()) {
     return { ok: false, message: "This deployment has no database, so nothing can be saved." };
   }
@@ -103,7 +103,9 @@ export async function moveAssignment(
   const note = String(form.get("note") ?? "").trim().slice(0, 300) || null;
   const reason = composeRejection(String(form.get("reason") ?? ""), note);
 
-  const moved = await applyVendorTransition(vendor.id, ref, to, reason);
+  if (to === "rejected" && !reason) return { ok: false, message: "Choose a rejection reason or enter a note." };
+
+  const moved = await applyVendorTransition(vendor.id, ref, to, reason, String(form.get("assignmentId") ?? ""), userId);
 
   revalidatePath("/vendor");
   /* The history list too: a decline moves an order off the board and onto it,

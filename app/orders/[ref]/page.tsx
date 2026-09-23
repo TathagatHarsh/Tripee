@@ -1,3 +1,4 @@
+import { AssignmentRefresh } from "@/components/assignment/Refresh";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -134,6 +135,8 @@ export default async function TrackOrder({
 
   return (
     <Shell>
+      <AssignmentRefresh/>
+      {order.fulfillmentMethod === "delivery" && !["cancelled", "delivered"].includes(order.status) && <section className="rounded-xl border border-s-line bg-s-shell p-5"><p className="font-semibold">{order.currentAssignment?.assignmentStatus === "ACCEPTED" ? "Bakery assigned ✓" : order.assignmentState === "MANUAL" ? "Order confirmed. Our main bakery is arranging your cake." : "Order confirmed. Finding the nearest available bakery…"}</p>{order.currentAssignment?.assignmentStatus === "ACCEPTED" && <p className="mt-2">Your cake is being prepared by: {order.currentAssignment.vendor.name}{order.currentAssignment.status === "ready" && " · Ready ✓"}</p>}</section>}
       <div className="flex flex-col gap-2">
         <span className={sEyebrow}>Order</span>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

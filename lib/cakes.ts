@@ -148,6 +148,8 @@ export interface CakeProductView {
   /** The recipe, when this cake has one. Null for an owner-added cake. */
   config: CakeConfig | null;
   productionSpec: ProductionSpec | null;
+  /** Admin-only diagnostics, excluded from public catalogue responses. */
+  productionIssues?: string[];
   isAvailable: boolean;
   isFeatured: boolean;
   sortOrder: number;

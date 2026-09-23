@@ -1,3 +1,5 @@
+import { AdminAssignmentPanel } from "@/components/assignment/AdminPanel";
+import { DeliveryAddressSnapshot } from "@/components/DeliveryAddressSnapshot";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -136,6 +138,7 @@ export default async function OrderDetail({
         </Link>
       </PageHeader>
 
+      <AdminAssignmentPanel orderRef={order.ref} state={order.assignmentState} note={order.assignmentNote} location={order.deliveryLocation} attempts={order.assignments} createdAt={order.createdAt} />
       {/* ── the facts that belong in one glance ─────────────────────────── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <OrderStatusBadge status={order.status} label={STATUS_LABEL[order.status]} />
@@ -373,6 +376,7 @@ export default async function OrderDetail({
           <Card>
             <h2 className={aEyebrow}>Delivery &amp; requested arrival</h2>
             <p className="mt-3 text-a-body font-semibold">{order.fulfillmentMethod === "pickup" ? "Bakery pickup" : [order.addressLine1,order.addressLine2,order.landmark,order.city,order.state,order.pincode].filter(Boolean).join(", ") || "Address not recorded"}</p>
+            <DeliveryAddressSnapshot value={order.deliveryLocation} />
             {order.requestedFor && <p className="mt-3 text-a-body">{formatIST(order.requestedFor)}</p>}
             <p className="mt-1 text-a-small text-a-muted">{order.requestedWindow ?? order.deliverySlot}</p>
             {order.deliveryInstructions && <p className="mt-3 text-a-small">Delivery instructions: {order.deliveryInstructions}</p>}
@@ -446,6 +450,7 @@ export default async function OrderDetail({
               <AssignVendor
                 key={current?.id ?? "unassigned"}
                 orderRef={order.ref}
+                assignmentId={current?.id ?? null}
                 vendors={vendors}
                 assigned={current?.vendor.name ?? null}
               />
@@ -460,7 +465,7 @@ export default async function OrderDetail({
               <div className="mt-4 border-t border-a-line pt-3">
                 <h3 className={aEyebrow}>Assignment history</h3>
                 <ul className="mt-2.5 flex flex-col gap-3">
-                  {order.assignments.map((a) => (
+                  {order.assignments.filter(a => a.offeredAt).map((a) => (
                     <li key={a.id} className="flex flex-col gap-1">
                       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                         <span className="font-a-sans text-a-small font-semibold text-a-ink">

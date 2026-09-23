@@ -425,7 +425,7 @@ describe("composing a rejection reason", () => {
     // Never the id. A stored "busy" would need this table in a second place to
     // be legible on the admin's order page.
     expect(composeRejection("busy", null)).toBe("Too busy to take this on.");
-    expect(composeRejection("ingredient", null)).toBe("An ingredient is unavailable.");
+    expect(composeRejection("ingredient", null)).toBe("Product unavailable.");
   });
 
   it("puts the typed note after the stock sentence", () => {

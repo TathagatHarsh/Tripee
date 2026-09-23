@@ -1,3 +1,4 @@
+import { PortalAlerts } from "@/components/assignment/PortalAlerts";
 import type { Metadata } from "next";
 import { getViewerEmail, requireAdmin } from "@/lib/auth";
 import { getCatalogSnapshot } from "@/lib/catalogData";
@@ -65,7 +66,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // First statement, and never inside a try: this refuses by throwing.
-  await requireAdmin();
+  const viewer = await requireAdmin();
 
   const email = await getViewerEmail();
 
@@ -106,6 +107,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         alerts={alerts}
         search={<GlobalSearch />}
       >
+        <PortalAlerts role="admin" userId={viewer.userId} />
         {children}
       </AdminShell>
     </ToastProvider>

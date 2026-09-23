@@ -290,7 +290,7 @@ export function BuyPanel({
         ) : (
           !ready && (
             <p className="text-[0.875rem] text-s-berry">
-              This cake is temporarily unavailable while its kitchen specification is reviewed.
+              This cake is currently unavailable. Please try another cake.
             </p>
           )
         )}

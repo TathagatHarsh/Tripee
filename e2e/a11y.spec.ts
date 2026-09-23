@@ -140,7 +140,7 @@ test.describe("accessibility", () => {
     await page.getByRole("radio", { name: /^pickup$/i }).check();
     await expect(page.getByText(/Pickup available/)).toBeVisible();
     await page.getByRole("button", { name: /^Place order/ }).click();
-    const heading = page.getByRole("heading", { name: "Your order is with us." });
+    const heading = page.getByRole("heading", { name: "Order Confirmed!" });
     await expect(heading).toBeVisible();
     await expect(heading).toBeFocused();
     const summary = await violations(page);
