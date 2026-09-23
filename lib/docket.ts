@@ -292,7 +292,7 @@ export function renderSpecSheet(
     return `  ${k.padEnd(w - 4 - amt.length)}${amt}`;
   };
 
-  out.push("MAKEMYCAKE — ORDER DOCKET");
+  out.push("MakeYourCakes — ORDER DOCKET");
   out.push(rule("═"));
   out.push(kv("Order ref", d.ref));
   out.push(kv("Created", d.createdAt));

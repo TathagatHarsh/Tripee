@@ -2287,7 +2287,7 @@ body:has(.k-root)::after {
   }
 }
 
-/* MakeMyCake / Celebration. Shared brand and interaction primitives. */
+/* MakeYourCakes / Celebration. Shared brand and interaction primitives. */
 :root {
   --brand-primary: #9a472b;
   --brand-secondary: #263b2d;
@@ -2421,8 +2421,8 @@ body:has(.k-root)::after {
 
 /* Keep the navigation usable on 320px screens without shrinking touch targets. */
 @media (max-width: 359px) {
-  .s-bar a[aria-label="MakeMyCake, home"] { gap: .3rem; }
-  .s-bar a[aria-label="MakeMyCake, home"] .font-display { font-size: 1.125rem; }
+  .s-bar a[aria-label="MakeYourCakes, home"] { gap: .3rem; }
+  .s-bar a[aria-label="MakeYourCakes, home"] .font-display { font-size: 1.125rem; }
 }
 
 /* Changing readiness must not tween through low-contrast color combinations. */

@@ -41,7 +41,7 @@ export async function generateMetadata(
   if (!hasDatabase()) return { title: "Vendor — Admin", robots: { index: false, follow: false } };
   const vendor = await db.vendor.findUnique({ where: { id }, select: { name: true } });
   return {
-    title: `${vendor?.name ?? "Vendor"} — Admin — Makemycake`,
+    title: `${vendor?.name ?? "Vendor"} — Admin — MakeYourCakes`,
     robots: { index: false, follow: false },
   };
 }

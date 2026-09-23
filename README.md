@@ -1,4 +1,4 @@
-# Makemycake
+# MakeYourCakes
 
 A website where someone builds their own cake and watches it appear in 3D as they
 build it. Pick a shape and a cake shows up. Choose ganache and it gets covered in

@@ -9,7 +9,7 @@ import { VendorTabs } from "./VendorTabs";
  *
  * The fourth interface in this product, and deliberately the smallest. The admin
  * has a sidebar with four sections and a dozen pages; this has two tabs, because
- * a vendor's whole relationship with Makemycake is "what have you given me, what
+ * a vendor's whole relationship with MakeYourCakes is "what have you given me, what
  * do I do next with it, and what did I do with the last one". §7: a vendor must
  * not be handed an admin portal with the dangerous pages hidden.
  *
@@ -58,7 +58,7 @@ import { VendorTabs } from "./VendorTabs";
  */
 
 export const metadata: Metadata = {
-  title: "Kitchen — Makemycake",
+  title: "Kitchen — MakeYourCakes",
   robots: { index: false, follow: false },
 };
 
@@ -83,7 +83,7 @@ export default async function VendorLayout({ children }: { children: React.React
             looking at is a vendor who cannot be sure the list is theirs.
           */}
           <span className="font-a-sans text-a-meta uppercase tracking-[0.1em] text-a-faint">
-            Makemycake orders
+            MakeYourCakes orders
           </span>
 
           <div className="ml-auto flex items-center gap-3">

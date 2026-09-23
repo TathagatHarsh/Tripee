@@ -4,7 +4,7 @@ import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { formatIST } from "@/lib/format";
 import { Notice, PageHeader } from "@/components/admin/ui";
 
-export const metadata: Metadata = { title: "Staff — Admin — Makemycake" };
+export const metadata: Metadata = { title: "Staff — Admin — MakeYourCakes" };
 export const dynamic = "force-dynamic";
 
 const ROLE_LABEL: Record<string, string> = { ADMIN: "Admin", KITCHEN: "Kitchen" };

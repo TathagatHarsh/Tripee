@@ -6,7 +6,7 @@ import { listCakes } from "@/lib/cakeData";
 import { getCatalogSnapshot } from "@/lib/catalogData";
 
 export const metadata: Metadata = {
-  title: "Checkout · Makemycake",
+  title: "Checkout · MakeYourCakes",
   robots: { index: false, follow: false },
 };
 

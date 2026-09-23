@@ -72,7 +72,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { ref } = await params;
   return {
-    title: `${ref} — Makemycake`,
+    title: `${ref} — MakeYourCakes`,
     robots: { index: false, follow: false },
   };
 }
@@ -250,7 +250,7 @@ export default async function VendorOrderDetail({
         </h2>
         <p className="mt-1 mb-3 text-a-body leading-relaxed text-a-muted">
           {status === "assigned"
-            ? "Makemycake has given you this order. Accept it to take it on, or decline " +
+            ? "MakeYourCakes has given you this order. Accept it to take it on, or decline " +
               "and say why so they can find somebody else."
             : status === "accepted"
               ? "Yours. Start preparation when you pick it up."
@@ -259,10 +259,10 @@ export default async function VendorOrderDetail({
                 : status === "ready"
                   ? "Finished. Mark it handed over when it leaves you."
                   : status === "rejected"
-                    ? "You declined this one. Makemycake will give it to another bakery — " +
+                    ? "You declined this one. MakeYourCakes will give it to another bakery — " +
                       "there is nothing further to do here."
                     : status === "withdrawn"
-                      ? "Makemycake took this order back. It is not yours to make."
+                      ? "MakeYourCakes took this order back. It is not yours to make."
                       : "Handed over. Nothing further on this one."}
         </p>
         <OrderActions assignmentId={assignment.id} orderRef={order.ref} next={next} />

@@ -251,9 +251,9 @@ export const DEFAULT_ZONES: DeliveryZoneInfo[] = [
  * unset means the line does not print. The database can now hold a real one.
  */
 export const DEFAULT_BAKERY: BakeryInfo = {
-  name: "Makemycake",
+  name: "MakeYourCakes",
   phone: "+91 90000 00000",
-  email: "orders@makemycake.example",
+  email: "orders@makeyourcakes.example",
   address: "Road No. 36, Jubilee Hills, Hyderabad 500033",
   hours: "Tue–Sun 10:00–21:00. Closed Mondays.",
   fssaiLicence: process.env.NEXT_PUBLIC_FSSAI_LICENCE ?? "",

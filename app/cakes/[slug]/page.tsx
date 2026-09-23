@@ -48,7 +48,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const product = await cakeBySlug(slug);
-  if (!product) return { title: "Cake not found · Makemycake" };
+  if (!product) return { title: "Cake not found · MakeYourCakes" };
 
   const catalog = await getCatalogSnapshot();
   /* The cheapest version, which is the figure the card and the shelf show. A
@@ -64,11 +64,11 @@ export async function generateMetadata({
 
   return {
     title: price
-      ? `${product.name} · ${formatINR(price.total)} · Makemycake`
-      : `${product.name} · Makemycake`,
+      ? `${product.name} · ${formatINR(price.total)} · MakeYourCakes`
+      : `${product.name} · MakeYourCakes`,
     description: `${product.description} Baked to order in Jubilee Hills, Hyderabad.`,
     openGraph: {
-      title: `${product.name} · Makemycake`,
+      title: `${product.name} · MakeYourCakes`,
       description: product.description,
       ...(product.imageUrl ? { images: [{ url: product.imageUrl }] } : {}),
       type: "website",

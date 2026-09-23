@@ -11,8 +11,8 @@ import { BuilderShell } from "./BuilderShell";
 
 export const metadata: Metadata = {
   title: BUILDER_ENABLED
-    ? "Build your cake — Makemycake"
-    : "3D Cake Builder — coming soon — Makemycake",
+    ? "Build your cake — MakeYourCakes"
+    : "3D Cake Builder — coming soon — MakeYourCakes",
   /* An unfinished feature is not a page to rank. When the flag goes back on,
      this becomes the builder's own metadata again with no further edit. */
   robots: BUILDER_ENABLED ? undefined : { index: false, follow: true },

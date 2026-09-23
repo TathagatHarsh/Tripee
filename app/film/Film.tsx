@@ -339,7 +339,7 @@ function Ticket({
 
       <div className="pt-[16px]">
         <div className="flex items-baseline justify-between text-[length:var(--mono-xs)] tracking-[var(--tracking-mono-xs)] text-ink-60 uppercase">
-          <span>Makemycake · Jubilee Hills</span>
+          <span>MakeYourCakes · Jubilee Hills</span>
           <span>Ticket No. {ticketNo}</span>
         </div>
         <div className="mt-[8px] h-px w-full bg-ink" />

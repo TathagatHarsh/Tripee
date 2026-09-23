@@ -13,7 +13,7 @@ import { priceProduct } from "@/lib/pricing";
 import { sBtn, sEyebrow } from "@/lib/shopUi";
 
 export const metadata: Metadata = {
-  title: "MakeMyCake · A little more celebration",
+  title: "MakeYourCakes · A little more celebration",
   description:
     "Beautiful cakes, baked to order in Hyderabad. Find your flavour, choose your size, and make their day.",
 };
@@ -207,7 +207,7 @@ export default async function Home() {
         <section className="brand-story" aria-labelledby="our-way">
           <div className="brand-section brand-story-grid">
             <div className="s-rise-in">
-              <span className="brand-story-kicker">The MakeMyCake way</span>
+              <span className="brand-story-kicker">The MakeYourCakes way</span>
               <h2 id="our-way">
                 Good cake.
                 <br />

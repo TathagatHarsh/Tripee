@@ -48,7 +48,7 @@ import { countByPhase } from "@/app/orders/data";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Your account · Makemycake",
+  title: "Your account · MakeYourCakes",
   robots: { index: false, follow: false },
 };
 

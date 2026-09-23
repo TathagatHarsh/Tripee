@@ -28,11 +28,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const found = await load(slug).catch(() => null);
-  if (!found) return { title: "Design not found — Makemycake" };
+  if (!found) return { title: "Design not found — MakeYourCakes" };
 
   const c = found.config;
   return {
-    title: `${titleCase(c.size)} ${titleCase(c.sponge)} cake — Makemycake`,
+    title: `${titleCase(c.size)} ${titleCase(c.sponge)} cake — MakeYourCakes`,
     description: `${titleCase(c.frosting)}, ${titleCase(c.finish)} finish. ${formatINR(priceCake(c, await getCatalogSnapshot()).total)} including GST.`,
   };
 }
@@ -58,7 +58,7 @@ export default async function SharedDesign({
   return (
     <main id="main" className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
       <Link href="/" className="font-mono text-meta font-medium tracking-[0.2em]">
-        MAKEMYCAKE
+        MakeYourCakes
       </Link>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1.3fr_1fr]">
