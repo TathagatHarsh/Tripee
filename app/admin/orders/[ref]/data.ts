@@ -54,12 +54,12 @@ export async function getOrderDetail(ref: string) {
         assignments: {
           orderBy: { assignedAt: "desc" },
           include: {
-            vendor: { select: { id: true, name: true } },
+            vendor: { select: { id: true, name: true, latitude: true, longitude: true } },
             assignedBy: { select: { name: true } },
             events: { orderBy: { createdAt: "asc" } },
           },
         },
-        currentAssignment: { include: { vendor: { select: { id: true, name: true } } } },
+        currentAssignment: { include: { vendor: { select: { id: true, name: true, latitude: true, longitude: true } } } },
       },
     }),
     getCatalogSnapshot(),

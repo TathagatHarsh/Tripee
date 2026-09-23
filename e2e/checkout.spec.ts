@@ -26,6 +26,8 @@ function order(extra: Record<string, unknown> = {}) {
       slot: "standard",
       recipientName: "E2E Checkout Test",
       addressLine1: "12 Test Street",
+      locality: "Test Locality",
+      source: "manual",
       city: "Hyderabad",
       state: "Telangana",
       pincode: "500081",
@@ -75,8 +77,13 @@ test("concurrent retries create one frozen order with two cakes and one shipping
   );
   expect(rows).toHaveLength(1);
   expect(rows[0].cakes).toBe(2);
+  expect(rows[0].deliveryLocation).toMatchObject({
+    name: "E2E Checkout Test", phone: "9876543210", addressLine1: "12 Test Street",
+    locality: "Test Locality", postalCode: "500081", source: "manual",
+    latitude: null, longitude: null,
+  });
   expect(rows[0].paymentStatus).toBe("none");
-  expect(rows[0].status).toBe("draft");
+  expect(rows[0].status).toBe("confirmed");
   expect(rows[0].requestedWindow).toBe("10:00–20:00");
   expect(rows[0].deliveryFeePaise).toBe(quote.deliveryFeePaise);
   expect(rows[0].requested_utc).toBe(`${date()}T04:30:00.000Z`);

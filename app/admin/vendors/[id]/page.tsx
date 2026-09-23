@@ -1,3 +1,5 @@
+import { Availability } from "@/components/inventory/Availability";
+import { AssignmentRulesForm } from "../AssignmentRulesForm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -105,6 +107,8 @@ export default async function VendorDetail({
         />
       </PageHeader>
 
+      <Availability key={vendor.updatedAt.toISOString()} vendor={vendor} />
+      <Link href={`/admin/inventory?vendor=${vendor.id}`} className="font-semibold underline">View Cake Availability</Link>
       {!vendor.isActive && (
         <Notice tone="warn" icon="alert">
           Deactivated, so this bakery cannot be given new orders and nobody can
@@ -129,7 +133,7 @@ export default async function VendorDetail({
         <div className="flex min-w-0 flex-col gap-4">
           <Card flush>
             <CardHead title="Details" note="How the office reaches this bakery." />
-            <VendorForm vendor={vendor} />
+            <VendorForm vendor={vendor} /><AssignmentRulesForm vendor={vendor} />
           </Card>
 
           <Card flush>

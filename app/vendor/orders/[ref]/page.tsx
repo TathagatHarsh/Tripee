@@ -1,3 +1,4 @@
+import { Earnings } from "@/components/assignment/Earnings";
 import { parseProductionSpec } from "@/lib/productionSpec";
 import { migrateConfig } from "@/lib/schema";
 import Link from "next/link";
@@ -208,6 +209,7 @@ export default async function VendorOrderDetail({
         )}
       </section>
 
+      <Earnings snapshot={assignment} address={[order.addressLine1, order.addressLine2, order.city, order.state, order.pincode].filter(Boolean).join(", ")} location={order.deliveryLocation} map />
       {/* ── when, which is the thing that decides the day ────────────────── */}
       <section
         className={`rounded-a border p-4 ${
@@ -263,7 +265,7 @@ export default async function VendorOrderDetail({
                       ? "Makemycake took this order back. It is not yours to make."
                       : "Handed over. Nothing further on this one."}
         </p>
-        <OrderActions orderRef={order.ref} next={next} />
+        <OrderActions assignmentId={assignment.id} orderRef={order.ref} next={next} />
       </section>
 
       {/* ── what has happened to this assignment ─────────────────────────── */}

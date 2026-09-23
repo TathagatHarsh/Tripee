@@ -95,6 +95,7 @@ export const NAV: NavSection[] = [
        * exact hit is the right rule for a board with one address.
        */
       { href: "/admin/orders/today", label: "Deliveries", icon: "delivery" },
+      { href: "/admin/inventory", label: "Cake Availability", icon: "cake", nested: true },
       { href: "/admin/vendors", label: "Vendors", icon: "vendor", nested: true },
       /* Renamed from "Delivery", which read as though it were the board above.
          The route is untouched — §5's "do not unnecessarily restructure backend

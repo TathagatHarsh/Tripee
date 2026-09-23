@@ -4,7 +4,7 @@ import type { CakeCategory, Prisma } from "@prisma/client";
 import type { CakeProductView } from "./cakes";
 import { db, hasDatabase } from "./db";
 import { migrateConfig, type SizeBand } from "./schema";
-import { parseProductionSpec } from "./productionSpec";
+import { ProductionSpec, parseProductionSpec } from "./productionSpec";
 
 /**
  * The cakes the shop sells, read on the server.
@@ -99,7 +99,7 @@ type Row = Prisma.CakeProductGetPayload<{ select: typeof FIELDS }>;
  * path validates it against the Zod enum, and a row that somehow held nonsense
  * would show its raw value on the card rather than failing the page.
  */
-function toView(r: Row): CakeProductView {
+function toView(r: Row, admin = false): CakeProductView {
   return {
     id: r.id,
     slug: r.slug,
@@ -118,6 +118,11 @@ function toView(r: Row): CakeProductView {
     gallery: r.images.map((i) => ({ id: i.id, url: i.url, alt: i.alt })),
     config: migrateConfig(r.config),
     productionSpec: parseProductionSpec(r.productionSpec),
+    ...(admin ? { productionIssues: (() => {
+      if (r.productionSpec === null) return ["Missing production specification: enter ingredients, allergens, instructions and confirm review."];
+      const parsed = ProductionSpec.safeParse(r.productionSpec);
+      return parsed.success ? [] : parsed.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`);
+    })() } : {}),
     isAvailable: r.isAvailable,
     isFeatured: r.isFeatured,
     sortOrder: r.sortOrder,
@@ -148,7 +153,7 @@ const loadAvailable = unstable_cache(
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: FIELDS,
     });
-    return rows.map(toView);
+    return rows.map(row => toView(row));
   },
   ["cakes-available"],
   { tags: [CAKES_TAG] },
@@ -245,14 +250,14 @@ export async function listCakesForAdmin(
     select: FIELDS,
   });
 
-  return rows.map(toView);
+  return rows.map(row => toView(row, true));
 }
 
 /** One cake by id, withdrawn or not — the editor's own read. */
 export async function cakeById(id: string): Promise<CakeProductView | null> {
   if (!hasDatabase()) return null;
   const row = await db.cakeProduct.findUnique({ where: { id }, select: FIELDS });
-  return row ? toView(row) : null;
+  return row ? toView(row, true) : null;
 }
 
 /**

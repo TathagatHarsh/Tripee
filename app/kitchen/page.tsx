@@ -1,3 +1,4 @@
+import { DeliveryAddressSnapshot } from "@/components/DeliveryAddressSnapshot";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { Order, OrderStatus } from "@prisma/client";
@@ -293,6 +294,14 @@ function DocketCard({
       <div aria-hidden="true" className={`h-1 ${late ? "bg-k-late" : tone.bar}`} />
 
       {/* ── allergens: the one thing that must never be missed ─────────── */}
+      {order.fulfillmentMethod === "delivery" && <details className="my-4 text-sm">
+        <summary className="min-h-11 cursor-pointer">Delivery address</summary>
+        <p>{order.recipientName ?? order.customerName}</p>
+        <p>{[order.addressLine1, order.addressLine2, order.city, order.state, order.pincode].filter(Boolean).join(", ")}</p>
+        {order.landmark && <p>Landmark: {order.landmark}</p>}
+        {order.deliveryInstructions && <p>Instructions: {order.deliveryInstructions}</p>}
+        <DeliveryAddressSnapshot value={order.deliveryLocation} />
+      </details>}
       {order.allergens.length > 0 && (
         <p className="flex flex-wrap items-baseline gap-x-2 border-b border-k-line bg-k-late/15 px-3.5 py-2">
           <span className="text-k-meta font-bold uppercase tracking-[0.08em] text-k-late">

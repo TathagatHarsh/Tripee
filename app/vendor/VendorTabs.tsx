@@ -32,6 +32,8 @@ import { Icon } from "@/components/admin/icons";
 const TABS = [
   { href: "/vendor", label: "Kitchen", icon: "kitchen" },
   { href: "/vendor/orders", label: "Orders", icon: "orders" },
+  { href: "/vendor/inventory", label: "Cake Availability", icon: "cake" },
+  { href: "/vendor/profile", label: "Profile", icon: "vendor" },
 ] as const;
 
 export function VendorTabs() {
@@ -39,7 +41,7 @@ export function VendorTabs() {
 
   return (
     <nav aria-label="Your bakery" className="mx-auto max-w-5xl px-4 sm:px-6">
-      <ul className="flex gap-1">
+      <ul className="flex gap-1 overflow-x-auto">
         {TABS.map((tab) => {
           /*
            * Kitchen is an exact match and Orders is a prefix. /vendor is a
@@ -58,7 +60,7 @@ export function VendorTabs() {
                 href={tab.href}
                 aria-current={current ? "page" : undefined}
                 className={[
-                  "flex min-h-12 items-center gap-2 border-b-2 px-3",
+                  "flex min-h-12 whitespace-nowrap items-center gap-2 border-b-2 px-3",
                   "font-a-sans text-a-body transition-colors duration-[var(--dur-ui)]",
                   current
                     ? "border-a-accent font-semibold text-a-ink"

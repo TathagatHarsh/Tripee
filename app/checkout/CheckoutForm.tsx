@@ -6,6 +6,7 @@ import { z } from "zod";
 import { LocationPicker } from "@/components/shop/LocationPicker";
 import { CakePhoto } from "@/components/shop/CakePhoto";
 import { PriceRoll } from "@/components/shop/PriceRoll";
+import { OrderReceipt } from "@/lib/orderReceipt";
 import { OrderPlaced, type Receipt } from "@/components/shop/OrderPlaced";
 import { useCart, useCartHydrated } from "@/lib/cart";
 import { variantById, variantLabel, type CakeProductView } from "@/lib/cakes";
@@ -25,6 +26,9 @@ const DraftSchema = z.object({
   email: z.string().max(254),
   method: z.enum(["delivery", "pickup"]),
   slot: DeliverySlot,
+  locality: z.string().max(120).default(""),
+  formattedAddress: z.string().max(1000).default(""),
+  source: z.enum(["manual", "map", "current_location"]).default("manual"),
   addressLine1: z.string().max(160),
   addressLine2: z.string().max(160),
   landmark: z.string().max(120),
@@ -70,6 +74,9 @@ function readDraft(): Draft {
     email: "",
     method: "delivery",
     slot: "standard",
+    locality: "",
+    formattedAddress: "",
+    source: "manual",
     addressLine1: "",
     addressLine2: "",
     landmark: "",
@@ -86,13 +93,8 @@ function readDraft(): Draft {
 function readReceipt(): Receipt | null {
   try {
     const value = JSON.parse(sessionStorage.getItem(RECEIPT_KEY) ?? "null");
-    if (
-      value &&
-      typeof value.ref === "string" &&
-      typeof value.totalPaise === "number" &&
-      Array.isArray(value.items)
-    )
-      return value;
+    const parsed = OrderReceipt.safeParse(value);
+    if (parsed.success) return parsed.data;
   } catch {}
   return null;
 }
@@ -118,6 +120,7 @@ function Checkout({ catalog, cakes }: Props) {
   const clear = useCart((s) => s.clear);
   const [draft, setDraft] = useState(readDraft);
   const [receipt, setReceipt] = useState<Receipt | null>(readReceipt);
+  const [celebrate, setCelebrate] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState("");
@@ -128,11 +131,12 @@ function Checkout({ catalog, cakes }: Props) {
     error?: string;
     code?: string;
   } | null>(null);
+  const [addressMode, setAddressMode] = useState(false);
   const [confirmedAddress, setConfirmedAddress] = useState("");
   const attempt = useRef<{ signature: string; key: string } | null>(null);
   const submitting = useRef(false);
   const patch = (change: Partial<Draft>) =>
-    setDraft((d) => ({ ...d, ...change }));
+    setDraft((d) => ({ ...d, ...change, ...(change.location === null ? { source: "manual" as const, formattedAddress: "" } : {}) }));
   useEffect(() => {
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -159,6 +163,7 @@ function Checkout({ catalog, cakes }: Props) {
     catalog,
   );
   const addressSignature = JSON.stringify([
+    draft.locality,
     draft.addressLine1,
     draft.addressLine2,
     draft.landmark,
@@ -292,6 +297,9 @@ function Checkout({ catalog, cakes }: Props) {
       occasion: draft.occasion || undefined,
       ...(draft.method === "delivery"
         ? {
+            locality: draft.locality,
+            formattedAddress: draft.formattedAddress,
+            source: draft.source,
             addressLine1: draft.addressLine1,
             addressLine2: draft.addressLine2 || undefined,
             landmark: draft.landmark || undefined,
@@ -341,42 +349,15 @@ function Checkout({ catalog, cakes }: Props) {
         }
         return;
       }
-      if (
-        typeof data.order?.ref !== "string" ||
-        typeof data.order?.totalPaise !== "number"
-      )
-        throw new Error("Invalid receipt");
-      const saved: Receipt = {
-        ref: data.order.ref,
-        totalPaise: data.order.totalPaise,
-        date: draft.requestedDate,
-        window: slotWindow(slot),
-        address:
-          draft.method === "pickup"
-            ? `Pickup · ${catalog.bakery.name}`
-            : [
-                draft.addressLine1,
-                draft.addressLine2,
-                draft.city,
-                draft.state,
-                draft.pincode,
-              ]
-                .filter(Boolean)
-                .join(", "),
-        items: resolved.map((r) => ({
-          name: r.cake!.name,
-          variant: variantLabel(r.variant!),
-          qty: r.line.qty,
-        })),
-      };
+      const saved: Receipt = OrderReceipt.parse(data.order);
       // A storage failure after the server commits must never be presented as an order failure.
       try {
         sessionStorage.setItem(RECEIPT_KEY, JSON.stringify(saved));
         sessionStorage.removeItem(DRAFT_KEY);
-        localStorage.removeItem("makemycake.checkoutAttempt");
       } catch {}
+      setCelebrate(true);
       setReceipt(saved);
-      clear();
+      try { clear(); localStorage.removeItem("makemycake.checkoutAttempt"); } catch { /* A cart storage failure cannot undo a committed order. */ }
     } catch {
       setError(
         "We couldn't confirm the result. Retry with the same details; your attempt is protected against duplicate orders.",
@@ -386,7 +367,7 @@ function Checkout({ catalog, cakes }: Props) {
       setPlacing(false);
     }
   }
-  if (lines.length === 0 && receipt) return <OrderPlaced receipt={receipt} />;
+  if (receipt && (celebrate || lines.length === 0)) return <OrderPlaced receipt={receipt} celebrate={celebrate} />;
   if (lines.length === 0)
     return (
       <div className={`${sCard} p-10 text-center`}>
@@ -488,7 +469,7 @@ function Checkout({ catalog, cakes }: Props) {
           </section>
           <section className={`checkout-section ${sCard} p-5 sm:p-7`}>
             <div className="mb-6">
-              <h2 className="text-2xl">A lovely arrival</h2>
+              <h2 className="text-2xl">Delivery address</h2>
               <p className="mt-2 text-sm text-s-bark">
                 To your doorstep, or ready for you at the bakery.
               </p>
@@ -517,14 +498,19 @@ function Checkout({ catalog, cakes }: Props) {
             </fieldset>
             {draft.method === "delivery" ? (
               <div className="flex flex-col gap-5">
-                <LocationPicker
+                {!addressConfirmed && <LocationPicker
                   disabled={placing}
+                  onManual={() => { setAddressMode(true); patch({ location: null }); }}
                   onConfirm={(address) => {
+                    setAddressMode(true);
                     patch({
-                      addressLine1: address.address.slice(0, 160),
-                      city: address.city,
-                      state: address.state,
-                      pincode: address.pincode,
+                      addressLine2: address.placeId ? address.address.slice(0, 160) : draft.addressLine2,
+                      locality: address.locality ?? "",
+                      formattedAddress: address.address,
+                      source: address.source ?? "map",
+                      city: address.city || draft.city,
+                      state: address.state || draft.state,
+                      pincode: address.pincode || draft.pincode,
                       location: {
                         lat: address.lat,
                         lng: address.lng,
@@ -533,35 +519,41 @@ function Checkout({ catalog, cakes }: Props) {
                     });
                     setConfirmedAddress("");
                   }}
-                />
-                <Field label="Address line 1">
+                />}
+                {(addressMode || draft.addressLine1) && <div className="flex flex-col gap-5">
+                {!addressConfirmed && <>
+                <p className="text-sm text-s-bark">Add the finishing details so your cake reaches the right door.</p>
+                <Field label="Flat / House / Building">
                   <input
                     value={draft.addressLine1}
                     onChange={(e) =>
-                      patch({ addressLine1: e.target.value, location: null })
+                      patch({ addressLine1: e.target.value })
                     }
                     autoComplete="address-line1"
-                    placeholder="Flat number, building and street"
+                    placeholder="Flat 402, Rosewood Apartments"
                     maxLength={160}
                     required
                     className={sField()}
                   />
                 </Field>
-                <Field label="Address line 2 (optional)">
+                <Field label="Street / Area">
                   <input
                     value={draft.addressLine2}
-                    onChange={(e) => patch({ addressLine2: e.target.value })}
+                    onChange={(e) => patch({ addressLine2: e.target.value, location: draft.location?.placeId ? null : draft.location })}
                     autoComplete="address-line2"
                     maxLength={160}
                     className={sField()}
                   />
+                </Field>
+                <Field label="Locality">
+                  <input value={draft.locality} onChange={e => patch({ locality: e.target.value, location: draft.location?.placeId ? null : draft.location })} maxLength={120} className={sField()} autoComplete="address-level3" />
                 </Field>
                 <div className="grid gap-5 sm:grid-cols-2">
                   <Field label="City">
                     <input
                       value={draft.city}
                       onChange={(e) =>
-                        patch({ city: e.target.value, location: null })
+                        patch({ city: e.target.value, location: draft.location?.placeId ? null : draft.location })
                       }
                       autoComplete="address-level2"
                       maxLength={80}
@@ -573,7 +565,7 @@ function Checkout({ catalog, cakes }: Props) {
                     <input
                       value={draft.state}
                       onChange={(e) =>
-                        patch({ state: e.target.value, location: null })
+                        patch({ state: e.target.value, location: draft.location?.placeId ? null : draft.location })
                       }
                       autoComplete="address-level1"
                       maxLength={80}
@@ -581,13 +573,13 @@ function Checkout({ catalog, cakes }: Props) {
                       className={sField()}
                     />
                   </Field>
-                  <Field label="Pincode">
+                  <Field label="Pincode" error={(touched || draft.location || draft.pincode) && !/^\d{6}$/.test(draft.pincode) ? "Enter the six-digit pincode for this address." : undefined}>
                     <input
                       value={draft.pincode}
                       onChange={(e) =>
                         patch({
                           pincode: e.target.value.replace(/\D/g, ""),
-                          location: null,
+                          location: draft.location?.placeId ? null : draft.location,
                         })
                       }
                       autoComplete="postal-code"
@@ -606,6 +598,7 @@ function Checkout({ catalog, cakes }: Props) {
                     />
                   </Field>
                 </div>
+                </>}
                 {addressComplete && (
                   <div className="location-result rounded-s border border-s-line bg-s-cream p-4">
                     <p className="text-sm font-semibold">
@@ -615,6 +608,7 @@ function Checkout({ catalog, cakes }: Props) {
                       {[
                         draft.addressLine1,
                         draft.addressLine2,
+                        draft.locality,
                         draft.landmark,
                         draft.city,
                         draft.state,
@@ -630,14 +624,16 @@ function Checkout({ catalog, cakes }: Props) {
                         "sm",
                       )}
                       disabled={addressConfirmed}
-                      onClick={() => setConfirmedAddress(addressSignature)}
+                      onClick={() => { setConfirmedAddress(addressSignature); document.getElementById("delivery-window-heading")?.focus(); }}
                     >
                       {addressConfirmed
                         ? "✓ Address confirmed"
-                        : "Confirm this address"}
+                        : "Continue to delivery"}
                     </button>
+                    {addressConfirmed && <button type="button" className={sBtn("ghost", "sm")} onClick={() => setConfirmedAddress("")}>Change address</button>}
                   </div>
                 )}
+                </div>}
                 {touched && !addressConfirmed && (
                   <p role="alert" className="text-sm text-s-stop">
                     Complete the address and confirm it above.
@@ -655,7 +651,7 @@ function Checkout({ catalog, cakes }: Props) {
           </section>
           <section className={`checkout-section ${sCard} p-5 sm:p-7`}>
             <div className="mb-6">
-              <h2 className="text-2xl">Make time for cake</h2>
+              <h2 id="delivery-window-heading" tabIndex={-1} className="text-2xl">Make time for cake</h2>
               <p className="mt-2 text-sm text-s-bark">
                 Choose your requested date and delivery window.
               </p>

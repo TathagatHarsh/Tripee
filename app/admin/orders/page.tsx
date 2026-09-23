@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { VENDOR_STATUS_LABEL } from "@/lib/vendors";
 import type { Metadata } from "next";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
@@ -67,7 +68,7 @@ const LIMIT = 100;
 export default async function AdminOrders({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; days?: string; slot?: string; due?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; days?: string; slot?: string; due?: string; production?: string }>;
 }) {
   if (!hasDatabase()) {
     return (
@@ -78,7 +79,7 @@ export default async function AdminOrders({
     );
   }
 
-  const { q, status, days, slot, due } = await searchParams;
+  const { q, status, days, slot, due, production } = await searchParams;
 
   const filter = STATUSES.includes(status as OrderStatus) ? (status as OrderStatus) : null;
   const window = days === "7" || days === "30" || days === "90" ? Number(days) : null;
@@ -100,6 +101,11 @@ export default async function AdminOrders({
 
   const where: Prisma.OrderWhereInput = {};
   if (filter) where.status = filter;
+  if (production === 'unassigned') { where.currentAssignmentId = null; where.status = { in: ['confirmed', 'in_kitchen'] }; }
+  else if (['assigned', 'accepted', 'in_preparation', 'ready', 'handed_over'].includes(production ?? '')) {
+    where.currentAssignment = { status: production as 'assigned' | 'accepted' | 'in_preparation' | 'ready' | 'handed_over' };
+    where.status = { in: ['confirmed', 'in_kitchen', 'out_for_delivery'] };
+  }
   if (slotFilter) where.deliverySlot = slotFilter;
   if (window) {
     /* Computed from the request rather than stored, so "last 7 days" means seven
@@ -141,7 +147,7 @@ export default async function AdminOrders({
       where,
       orderBy: { createdAt: "desc" },
       take: LIMIT,
-      include: { items: { orderBy: { position: "asc" } } },
+      include: { items: { orderBy: { position: "asc" } }, cakes: { select: { cakeName: true, variantLabel: true } }, currentAssignment: { include: { vendor: { select: { name: true } } } } },
     }),
     db.order.count({ where: { status: { in: ["draft", "confirmed", "in_kitchen"] } } }),
     /* Counts on the chips, and they are counts of the whole book rather than of
@@ -164,6 +170,7 @@ export default async function AdminOrders({
     const p = new URLSearchParams();
     const merged: Record<string, string | undefined> = {
       q,
+      production,
       status: filter ?? undefined,
       days: window?.toString(),
       slot: slotFilter ?? undefined,
@@ -178,18 +185,19 @@ export default async function AdminOrders({
   const statusChips: Chip[] = [
     {
       label: "All statuses",
-      href: qs({ status: undefined, due: undefined }),
-      active: !filter && !late,
+      href: qs({ status: undefined, due: undefined, production: undefined }),
+      active: !filter && !late && !production,
     },
     ...STATUSES.map((s) => ({
       label: STATUS_LABEL[s],
-      href: qs({ status: s, due: undefined }),
+      href: qs({ status: s, due: undefined, production: undefined }),
       active: filter === s,
       count: counts[s] ?? 0,
     })),
     { label: "Past its window", href: qs({ due: "late", status: undefined }), active: late },
   ];
 
+  statusChips.push(...[['unassigned', 'Awaiting assignment'], ['assigned', 'Awaiting vendor'], ['accepted', 'Accepted'], ['in_preparation', 'Preparing'], ['ready', 'Ready'], ['handed_over', 'Handed over']].map(([value, label]) => ({ label, href: qs({ production: value, status: undefined }), active: production === value })));
   const dateChips: Chip[] = [
     { label: "Any date", href: qs({ days: undefined }), active: !window },
     { label: "Last 7 days", href: qs({ days: "7" }), active: window === 7 },
@@ -291,7 +299,7 @@ export default async function AdminOrders({
                   <>
                     <Th>Order</Th>
                     <Th>Customer</Th>
-                    <Th>Status</Th>
+                    <Th>Status / Vendor</Th>
                     <Th>Delivery</Th>
                     <Th align="right">Total</Th>
                     <Th align="right">Created</Th>
@@ -308,6 +316,8 @@ export default async function AdminOrders({
                       >
                         {o.ref}
                       </Link>
+                      <p className="mt-1 text-sm">{o.cakes[0]?.cakeName ?? o.cakeName ?? 'Cake'} · Qty {o.cakes.length || 1}</p>
+                      <p className="text-xs text-a-muted">{o.cakes[0]?.variantLabel}</p>
                       <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <span className="text-a-meta text-a-muted">
                           Serves {o.servesMin}–{o.servesMax}
@@ -340,6 +350,8 @@ export default async function AdminOrders({
 
                     <Td>
                       <OrderStatusBadge status={o.status} label={STATUS_LABEL[o.status]} />
+                      <p className="mt-1 text-sm">{o.currentAssignment?.vendor.name ?? 'Unassigned'}</p>
+                      {o.currentAssignment && <p className="text-xs text-a-muted">{VENDOR_STATUS_LABEL[o.currentAssignment.status]}</p>}
                     </Td>
 
                     <Td>
@@ -397,7 +409,7 @@ export default async function AdminOrders({
 
                     <Td align="right">
                       <Link href={`/admin/orders/${o.ref}`} className={aBtn("ghost", "sm")}>
-                        View
+                        {!o.currentAssignmentId && ["confirmed", "in_kitchen"].includes(o.status) ? "Assign vendor" : "View"}
                         <Icon name="chevronRight" size={13} />
                       </Link>
                     </Td>
@@ -423,6 +435,8 @@ export default async function AdminOrders({
 
                     <span className="flex flex-wrap items-center gap-2">
                       <OrderStatusBadge status={o.status} label={STATUS_LABEL[o.status]} />
+                      <p className="mt-1 text-sm">{o.currentAssignment?.vendor.name ?? 'Unassigned'}</p>
+                      {o.currentAssignment && <p className="text-xs text-a-muted">{VENDOR_STATUS_LABEL[o.currentAssignment.status]}</p>}
                       {o.allergens.length > 0 && (
                         <StatusBadge tone="warn" dot={false} label={o.allergens.join(", ")} />
                       )}

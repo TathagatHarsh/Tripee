@@ -1,3 +1,5 @@
+import { portalEvent } from "./portalNotifications";
+import { lockAssignments } from "./assignment";
 import type { OrderStatus } from "@prisma/client";
 import { db } from "./db";
 import { outboxCreate } from "./notifications";
@@ -13,39 +15,41 @@ export async function applyStatusTransition(
   actorId: string | null,
   reason?: string | null,
 ): Promise<boolean> {
-  const order = await db.order.findUnique({
-    where: { ref },
-    select: {
-      id: true,
-      status: true,
-      leadHours: true,
-      requestedFor: true,
-      currentAssignmentId: true,
-      currentAssignment: {
-        select: {
-          id: true,
-          status: true,
-          vendorId: true,
-          vendor: { select: { email: true, phone: true } },
+  return db.$transaction(async (tx) => {
+    await lockAssignments(tx);
+    const order = await tx.order.findUnique({
+      where: { ref },
+      select: {
+        id: true,
+        status: true,
+        leadHours: true,
+        requestedFor: true,
+        currentAssignmentId: true,
+        currentAssignment: {
+          select: {
+            id: true,
+            status: true,
+            vendorId: true,
+            vendor: { select: { email: true, phone: true } },
+          },
         },
       },
-    },
-  });
-  if (!order) return false;
-  if (!canTransition(order.status, to)) return false;
+    });
+    if (!order) return false;
+    if (!canTransition(order.status, to)) return false;
 
-  const now = new Date();
-  const minimumDue = new Date(now.getTime() + order.leadHours * 3_600_000);
-  const dueAt =
-    order.requestedFor ?? minimumDue;
+    if (['out_for_delivery', 'delivered'].includes(to) && order.currentAssignment && order.currentAssignment.status !== 'handed_over') return false;
+    const now = new Date();
+    const minimumDue = new Date(now.getTime() + order.leadHours * 3_600_000);
+    const dueAt = order.requestedFor ?? minimumDue;
 
-  return db.$transaction(async (tx) => {
     const data = {
       status: to,
       ...(to === "confirmed" ? { confirmedAt: now, dueAt } : {}),
       ...(to === "cancelled"
         ? {
-            cancellationReason: reason?.trim().slice(0, 500) || "Cancelled by staff",
+            cancellationReason:
+              reason?.trim().slice(0, 500) || "Cancelled by staff",
             currentAssignmentId: null,
           }
         : {}),
@@ -65,11 +69,20 @@ export async function applyStatusTransition(
       },
     });
 
+    if (to === "cancelled")
+      await tx.vendorOrder.updateMany({
+        where: { orderId: order.id, assignmentStatus: "PENDING" },
+        data: { assignmentStatus: "CANCELLED", status: "withdrawn" },
+      });
     if (to === "cancelled" && order.currentAssignment) {
       const assignment = order.currentAssignment;
       await tx.vendorOrder.update({
         where: { id: assignment.id },
-        data: { status: "withdrawn", withdrawnAt: now },
+        data: {
+          status: "withdrawn",
+          assignmentStatus: "CANCELLED",
+          withdrawnAt: now,
+        },
       });
       await tx.vendorOrderEvent.create({
         data: {
@@ -106,6 +119,7 @@ export async function applyStatusTransition(
       }),
     });
 
+    await portalEvent(tx, { key: `order:${order.id}:${to}`, vendorId: order.currentAssignment?.vendorId, orderRef: ref, title: to.replaceAll('_', ' '), message: `${ref}: ${to.replaceAll('_', ' ')}` });
     return true;
   });
 }

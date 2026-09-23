@@ -33,8 +33,23 @@ export function parseProductionSpec(raw: unknown): ProductionSpec | null {
 }
 
 /**
+ * Maintenance helper: a stored record, or a missing record reconstructed from its recipe.
+ *
+ * Seeded cakes were on sale before `productionSpec` existed. The column is
+ * filled by a later seed pass, but a shop that has not been re-seeded still
+ * holds valid `CakeConfig` rows. Invalid authored specifications are never replaced. An
+ * owner-added cake with neither record stays unsellable.
+ */
+export function resolveProductionSpec(
+  raw: unknown,
+  config: CakeConfig | null,
+): ProductionSpec | null {
+  return parseProductionSpec(raw) ?? (raw == null && config ? productionSpecFromConfig(config) : null);
+}
+
+/**
  * Seeded cakes already have a precise CakeConfig. Convert that known recipe to
- * an explicit production record once; runtime ordering never invents one.
+ * an explicit production record. Stored specs still win when they parse.
  */
 export function productionSpecFromConfig(config: CakeConfig): ProductionSpec {
   const report = deriveAllergens(config);

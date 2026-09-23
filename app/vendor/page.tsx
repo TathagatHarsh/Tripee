@@ -1,6 +1,7 @@
+import { AssignmentRefresh } from "@/components/assignment/Refresh";
 import Link from "next/link";
 import { requireVendor } from "@/lib/auth";
-import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
+import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { dueAt } from "@/lib/orders";
 import { dueUrgency, VENDOR_COLUMNS } from "@/lib/vendors";
 import { Notice, StatCard } from "@/components/admin/ui";
@@ -19,6 +20,8 @@ export default async function KitchenBoard({
     vendorBoard(vendor.id),
     searchParams,
   ]);
+  const inventory = await db.vendorInventory.findMany({ where: { vendorId: vendor.id } });
+  const available = inventory.filter(i => i.isAvailable).length;
   const now = new Date();
   const board = filterQueue(all, query, now);
   const waiting = all.filter((c) => c.status === "assigned").length;
@@ -26,7 +29,7 @@ export default async function KitchenBoard({
     (c) => dueUrgency(dueAt(c.order), now) !== "later",
   ).length;
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6"><AssignmentRefresh/>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <span className="text-a-meta font-semibold uppercase tracking-[.14em] text-a-accent-ink">
@@ -71,6 +74,10 @@ export default async function KitchenBoard({
           value={String(urgent)}
           note="Due soon or overdue"
         />
+      </div>
+      <div className="flex flex-wrap justify-between gap-3 rounded-xl border border-a-line bg-a-surface p-4">
+        <Link href="/vendor/profile" className="font-semibold underline">{!vendor.isAcceptingOrders ? '○ Not accepting orders' : vendor.isBusy ? '◷ Busy' : '✓ Accepting orders'} · {all.length}/{vendor.maxConcurrentOrders} capacity</Link>
+        <Link href="/vendor/inventory" className="font-semibold underline">Cake Availability · {available} available · {inventory.length - available} unavailable</Link>
       </div>
       <QueueFilters query={query} />
       <p className="text-a-small text-a-muted">

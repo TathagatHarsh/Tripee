@@ -222,6 +222,7 @@ export default async function CakesPage({
                     </Td>
                     <Td>
                       <CakeAvailability id={c.id} name={c.name} available={c.isAvailable} />
+                      {!c.productionSpec && <p className="mt-2 text-xs">Sales blocked · {c.productionIssues?.[0] ?? "Missing production specification"}</p>}
                     </Td>
                     <Td>
                       <span className="text-a-muted">{formatIST(new Date(c.updatedAt))}</span>
@@ -258,6 +259,7 @@ export default async function CakesPage({
                       </span>
                       <div className="mt-1 flex flex-wrap items-center gap-2">
                         <CakeAvailability id={c.id} name={c.name} available={c.isAvailable} />
+                      {!c.productionSpec && <p className="mt-2 text-xs">Sales blocked · {c.productionIssues?.[0] ?? "Missing production specification"}</p>}
                         {c.isFeatured && <StatusBadge label="Featured" tone="accent" dot={false} />}
                       </div>
                     </div>

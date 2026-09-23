@@ -170,6 +170,9 @@ export const FulfillmentInput = z
         placeId: z.string().max(300),
       })
       .optional(),
+    locality: z.string().trim().max(120).optional(),
+    formattedAddress: z.string().trim().max(1000).optional(),
+    source: z.enum(["manual", "map", "current_location"]).optional(),
     addressLine1: z.string().trim().max(160).optional(),
     addressLine2: z.string().trim().max(160).optional(),
     landmark: z.string().trim().max(120).optional(),
@@ -589,7 +592,7 @@ export function reviewBasket(
             code: "cake_unavailable",
             status: 409,
             index,
-            message: `${found.name} is temporarily unavailable while its kitchen specification is reviewed.`,
+            message: `${found.name} is currently unavailable. Please try another cake.`,
           },
         };
       }

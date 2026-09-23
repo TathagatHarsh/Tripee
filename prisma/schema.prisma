@@ -89,6 +89,23 @@ enum NotificationKind {
 /// broke, they rang — and the only alternatives are overwriting the previous
 /// assignment, which destroys the history this table exists for, or recording
 /// it as a rejection, which puts words in the vendor's mouth.
+enum AssignmentStatus {
+  PENDING
+  OFFERED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum AssignmentState {
+  PENDING
+  ASSIGNING
+  OFFERED
+  ASSIGNED
+  MANUAL
+}
+
 enum VendorOrderStatus {
   assigned
   accepted
@@ -223,6 +240,8 @@ model Order {
   /// Cleared when an assignment is rejected or withdrawn, and *kept* when one is
   /// handed over: a finished order still has a vendor, and showing "Unassigned"
   /// the moment the cake is collected would lose the only record of who made it.
+  assignmentState AssignmentState @default(PENDING)
+  assignmentNote String?
   currentAssignmentId String?      @unique
   currentAssignment   VendorOrder? @relation("CurrentAssignment", fields: [currentAssignmentId], references: [id], onDelete: SetNull)
 
@@ -232,6 +251,7 @@ model Order {
   @@index([status, createdAt])
   @@index([userId])
   @@index([requestedFor, deliverySlot, status])
+  @@index([cakeProductId])
 }
 
 /// One physical cake inside a customer-facing order. Quantity is expanded at
@@ -282,18 +302,7 @@ model CheckoutAttempt {
   @@index([expiresAt])
 }
 
-/// A bakery that fulfils orders on Makemycake's behalf.
-///
-/// The business changed shape: the shop takes the order and the cake is made by
-/// one of a handful of partner bakeries. This is that list, and it is short —
-/// two or three rows — which is why there is no slug, no logo, no opening hours
-/// and no geography on it. Everything here is what somebody in the office needs
-/// in order to ring the right bakery about the right cake.
-///
-/// `isActive` rather than deletion, for CatalogOption's reason: a vendor that
-/// has ever been assigned an order is part of that order's history, and removing
-/// the row would leave the history pointing at nothing. Deactivating takes them
-/// out of the picker and leaves every past assignment readable.
+/// A partner bakery. Location is stored here once; orders retain customer snapshots.
 model Vendor {
   id String @id @default(cuid())
 
@@ -305,6 +314,20 @@ model Vendor {
   address String?
 
   isActive Boolean @default(true)
+  latitude Float?
+  longitude Float?
+  isAcceptingOrders Boolean @default(false)
+  preparationMinutes Int @default(120)
+  isBusy Boolean @default(false)
+  inventory VendorInventory[]
+  serviceRadiusKm Float @default(10)
+  maxConcurrentOrders Int @default(10)
+  unavailableUntil DateTime?
+  // Empty list means no supported products; explicit all-products opt-in.
+  fulfillsAllProducts Boolean @default(false)
+  supportedProductIds String[] @default([])
+  commissionBps Int @default(2000)
+  assignmentFeePaise Int @default(0)
 
   /// The people who sign in as this vendor. Usually one.
   users       UserProfile[]
@@ -317,24 +340,8 @@ model Vendor {
   @@index([isActive, name])
 }
 
-/// One order, handed to one vendor, once.
-///
-/// A row per *assignment* rather than a `vendorId` on Order, because an order
-/// can be offered to Vendor A, refused, and then given to Vendor B — and the
-/// refusal is the thing the office most needs to see when deciding who to try
-/// next. A column would hold only the last answer and would overwrite the
-/// reason for it.
-///
-/// This table is also its own history. The alternative considered and declined
-/// was extending `OrderEvent`: its `toStatus` is an `OrderStatus` and NOT NULL,
-/// so vendor events would mean widening an existing table into a generic event
-/// log, which is a much larger promise than "when did Cake House accept this".
-/// Every transition here stamps its own timestamp column below, so the sequence
-/// is recoverable from the row itself without a join — see lib/vendors'
-/// `assignmentHistory`, which reads exactly these columns.
-///
-/// Nothing is backfilled. Orders placed before vendors existed have no rows
-/// here and show "Unassigned", rather than an assignment invented for them.
+/// Reused assignment/history model. assignmentStatus owns the offer lifecycle;
+/// status retains the existing vendor production lifecycle. No duplicate OrderAssignment table.
 model VendorOrder {
   id String @id @default(cuid())
 
@@ -349,6 +356,20 @@ model VendorOrder {
   vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
 
   status VendorOrderStatus @default(assigned)
+  assignmentStatus AssignmentStatus @default(OFFERED)
+  capacityOverride Boolean @default(false)
+  sequence Int @default(0)
+  distanceKm Float?
+  estimatedMinutes Float?
+  routeSource String?
+  orderValuePaise Int?
+  commissionPaise Int?
+  feePaise Int?
+  vendorEarningPaise Int?
+  offeredAt DateTime?
+  expiresAt DateTime?
+  respondedAt DateTime?
+  createdAt DateTime @default(now())
 
   /// One timestamp per state this row can reach, all nullable except the first.
   ///
@@ -385,6 +406,8 @@ model VendorOrder {
   updatedAt DateTime @updatedAt
 
   /// The vendor dashboard's only query: "my assignments, in this state".
+  @@index([assignmentStatus, expiresAt])
+  @@unique([orderId, sequence])
   @@index([vendorId, status])
   /// The admin order page's: "everything this order has ever been offered to".
   @@index([orderId, assignedAt])
@@ -1147,4 +1170,53 @@ model CakeImage {
   createdAt DateTime @default(now())
 
   @@index([cakeId, sortOrder])
+}
+
+// Natural variant keys preserve stock identity when catalogue variants are replaced.
+model VendorInventory {
+  id String @id @default(cuid())
+  vendorId String
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  productId String
+  productName String
+  sizeBand String
+  eggType EggType
+  /// Legacy quantities and reservation/history tables remain in the DB, unmapped.
+  isAvailable Boolean @default(false)
+  updatedAt DateTime @updatedAt
+  availabilityChanges InventoryAvailabilityChange[]
+  @@unique([vendorId, productId, sizeBand, eggType])
+  @@index([vendorId, isAvailable])
+}
+
+model InventoryAvailabilityChange {
+  id String @id @default(cuid())
+  inventoryId String
+  inventory VendorInventory @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
+  /// Null means this variant was first added to the bakery.
+  previousAvailable Boolean?
+  newAvailable Boolean
+  userId String
+  createdAt DateTime @default(now())
+  @@index([inventoryId, createdAt])
+}
+
+// Browser events are independent of external webhook delivery and its retries.
+model PortalNotification {
+  id String @id @default(cuid())
+  vendorId String?
+  title String
+  message String
+  orderRef String?
+  dedupeKey String @unique
+  createdAt DateTime @default(now())
+  reads NotificationRead[]
+  @@index([vendorId, createdAt])
+}
+
+model NotificationRead {
+  notificationId String
+  notification PortalNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId String
+  @@id([notificationId, userId])
 }

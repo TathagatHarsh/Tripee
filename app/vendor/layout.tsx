@@ -1,3 +1,4 @@
+import { PortalAlerts } from "@/components/assignment/PortalAlerts";
 import type { Metadata } from "next";
 import { SignOutButton } from "@clerk/nextjs";
 import { getViewerEmail, requireVendor } from "@/lib/auth";
@@ -66,7 +67,7 @@ export const dynamic = "force-dynamic";
 
 export default async function VendorLayout({ children }: { children: React.ReactNode }) {
   // First statement, and never inside a try: this refuses by throwing.
-  const { vendor } = await requireVendor();
+  const { vendor, userId } = await requireVendor();
   const email = await getViewerEmail();
 
   return (
@@ -104,6 +105,7 @@ export default async function VendorLayout({ children }: { children: React.React
       </header>
 
       <main id="main" className="mx-auto w-full max-w-[90rem] flex-1 px-4 py-5 sm:px-6 sm:py-6">
+        <PortalAlerts role="vendor" userId={userId} />
         {children}
       </main>
     </div>

@@ -218,6 +218,7 @@ export async function getOrder(owner: OrderOwner, ref: string) {
           select: { toStatus: true, fromStatus: true, createdAt: true },
         },
         design: { select: { slug: true } },
+        currentAssignment: { select: { assignmentStatus: true, status: true, vendor: { select: { name: true } } } },
       },
     }),
     getCatalogSnapshot(),

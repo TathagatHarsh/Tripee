@@ -208,6 +208,7 @@ export function CakeForm({ cake }: { cake?: CakeProductView }) {
           title="Production specification"
           blurb="The kitchen and allergen record frozen onto every new order. A cake cannot be sold until this has been reviewed."
         >
+          {cake && !cake.productionSpec && <p role="alert" className="mb-4 text-a-small text-a-danger">{cake.productionIssues?.join(" ") ?? "Missing specification. Complete ingredients, allergens, instructions and review."}</p>}
           <FormRow label="Ingredients" htmlFor="ingredients" hint="One ingredient or prepared component per line.">
             <textarea
               id="ingredients"

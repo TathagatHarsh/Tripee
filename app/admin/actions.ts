@@ -1,4 +1,5 @@
 "use server";
+import { lockAssignments } from "@/lib/assignment";
 
 import { revalidatePath } from "next/cache";
 import { clerkClient } from "@clerk/nextjs/server";
@@ -1145,10 +1146,9 @@ export async function setVendorActive(
   const isActive = form.get("isActive") === "true";
   if (!id) return { ok: false, message: "That form is missing a vendor." };
 
-  const vendor = await db.vendor.update({
-    where: { id },
-    data: { isActive },
-    select: { name: true },
+  const vendor = await db.$transaction(async tx => {
+    await lockAssignments(tx);
+    return tx.vendor.update({ where: { id }, data: { isActive }, select: { name: true } });
   });
 
   revalidateVendors(id);
