@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BrandLogo } from "@/components/BrandLogo";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { SignOutButton } from "@clerk/nextjs";
@@ -167,7 +168,7 @@ export function AdminShell({ children, email, bakeryName, alerts, search }: Shel
               href="/admin"
               className="font-a-sans text-a-body font-bold tracking-[-0.01em] text-a-ink lg:hidden"
             >
-              {bakeryName}
+              <BrandLogo compact />
             </Link>
 
             <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
@@ -214,7 +215,7 @@ function Sidebar({
           href="/admin"
           className="min-w-0 flex-1 truncate font-a-sans text-a-item font-bold tracking-[-0.01em] text-a-nav-ink"
         >
-          <span className="block font-display text-xl font-normal">{bakeryName}</span>
+          <span className="block" title={bakeryName}><BrandLogo compact light /></span>
           <span className="mt-1 block text-[10px] font-medium uppercase tracking-[.18em] text-a-nav-muted">Bakery operations</span>
         </Link>
         {onClose && (
