@@ -13,6 +13,7 @@ import { priceProduct } from "@/lib/pricing";
 import { sBtn, sEyebrow } from "@/lib/shopUi";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/" },
   title: "MakeYourCakes · A little more celebration",
   description:
     "Beautiful cakes, baked to order in Hyderabad. Find your flavour, choose your size, and make their day.",

@@ -12,6 +12,7 @@ import { getCatalogSnapshot } from "@/lib/catalogData";
 import { sBtn, sChip, sEyebrow } from "@/lib/shopUi";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/shop" },
   title: "Shop cakes · MakeYourCakes",
   description:
     "Every cake we bake, in the size you want and with or without egg, baked to order in Jubilee Hills. Filter by flavour, sort by price, and order without paying up front.",

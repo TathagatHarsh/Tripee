@@ -253,7 +253,7 @@ export const DEFAULT_ZONES: DeliveryZoneInfo[] = [
 export const DEFAULT_BAKERY: BakeryInfo = {
   name: "MakeYourCakes",
   phone: "+91 90000 00000",
-  email: "orders@makeyourcakes.example",
+  email: "orders@makeyourcakes.com",
   address: "Road No. 36, Jubilee Hills, Hyderabad 500033",
   hours: "Tue–Sun 10:00–21:00. Closed Mondays.",
   fssaiLicence: process.env.NEXT_PUBLIC_FSSAI_LICENCE ?? "",

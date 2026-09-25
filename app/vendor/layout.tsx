@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import { PortalAlerts } from "@/components/assignment/PortalAlerts";
 import type { Metadata } from "next";
 import { SignOutButton } from "@clerk/nextjs";
@@ -83,7 +84,7 @@ export default async function VendorLayout({ children }: { children: React.React
             looking at is a vendor who cannot be sure the list is theirs.
           */}
           <span className="font-a-sans text-a-meta uppercase tracking-[0.1em] text-a-faint">
-            MakeYourCakes orders
+            <BrandLogo compact />
           </span>
 
           <div className="ml-auto flex items-center gap-3">

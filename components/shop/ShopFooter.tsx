@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import Link from "next/link";
 import type { BakeryInfo } from "@/lib/catalogSnapshot";
 import { CAKE_CATEGORIES } from "@/lib/cakes";
@@ -22,7 +23,7 @@ export function ShopFooter({ bakery }: { bakery: BakeryInfo }) {
     <footer className="border-t border-s-line bg-s-cocoa-deep text-s-cream/85">
       <div className="mx-auto grid max-w-[84rem] gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-10">
         <div className="flex flex-col gap-3">
-          <span className="font-display text-[1.5rem] text-s-cream">MakeYourCakes</span>
+          <span className="text-s-cream"><BrandLogo light /></span>
           <p className="max-w-[34ch] text-[0.9375rem] leading-relaxed text-s-cream/70">
             One bakery in Jubilee Hills, Hyderabad. Every cake is baked to the
             order it was quoted from.
@@ -83,7 +84,7 @@ export function ShopFooter({ bakery }: { bakery: BakeryInfo }) {
 
       <div className="border-t border-s-cream/10">
         <div className="mx-auto flex max-w-[84rem] flex-col gap-2 px-4 py-6 font-mono text-[0.75rem] tracking-[0.06em] text-s-cream/50 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-10">
-          <span>© {new Date().getFullYear()} {bakery.name}</span>
+          <span>© {new Date().getFullYear()} MakeYourCakes</span>
           {bakery.fssaiLicence && <span>FSSAI {bakery.fssaiLicence}</span>}
         </div>
       </div>

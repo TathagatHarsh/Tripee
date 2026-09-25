@@ -63,6 +63,7 @@ export async function generateMetadata({
     : null;
 
   return {
+    alternates: { canonical: `/cakes/${product.slug}` },
     title: price
       ? `${product.name} · ${formatINR(price.total)} · MakeYourCakes`
       : `${product.name} · MakeYourCakes`,
@@ -72,6 +73,8 @@ export async function generateMetadata({
       description: product.description,
       ...(product.imageUrl ? { images: [{ url: product.imageUrl }] } : {}),
       type: "website",
+      siteName: "MakeYourCakes",
+      url: `/cakes/${product.slug}`,
     },
   };
 }
