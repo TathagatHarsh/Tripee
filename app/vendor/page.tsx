@@ -33,7 +33,7 @@ export default async function KitchenBoard({
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <span className="text-a-meta font-semibold uppercase tracking-[.14em] text-a-accent-ink">
-            MakeMyCake · Fulfilment studio
+            MakeYourCakes · Fulfilment studio
           </span>
           <h1 className="mt-2 font-a-sans text-a-title font-bold text-a-ink">
             A good day in the kitchen.

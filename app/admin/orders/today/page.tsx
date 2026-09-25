@@ -72,7 +72,7 @@ import { deliverySnapshot } from "../../data";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Deliveries — Admin — Makemycake",
+  title: "Deliveries — Admin — MakeYourCakes",
   robots: { index: false, follow: false },
 };
 

@@ -216,7 +216,7 @@ export function OrderTicket({
       {!config && (
         <p className="flex items-start gap-1.5 border-t border-a-bad-line bg-a-bad-wash px-3 py-2 text-a-small leading-snug font-medium text-a-bad-ink">
           <Icon name="alert" size={15} className="mt-px shrink-0" />
-          This order&rsquo;s specification cannot be read. Ring Makemycake
+          This order&rsquo;s specification cannot be read. Ring MakeYourCakes
           before you start.
         </p>
       )}

@@ -76,7 +76,7 @@ function Wordmark() {
       viewBox="0 0 300 34"
       className="h-[22px] w-auto shrink-0 text-ink"
       role="img"
-      aria-label="Makemycake"
+      aria-label="MakeYourCakes"
       style={{ transform: `rotate(${WORDMARK_ANGLE}deg)` }}
     >
       <filter id="mm-ink">
@@ -94,7 +94,7 @@ function Wordmark() {
         fontWeight="500"
         letterSpacing="0.14em"
       >
-        MAKEMYCAKE
+        MakeYourCakes
       </text>
     </svg>
   );

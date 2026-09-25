@@ -11,7 +11,7 @@ import { AuthSheet, authClerkAppearance } from "@/components/AuthSheet";
  */
 
 export const metadata: Metadata = {
-  title: "Create an account — Makemycake",
+  title: "Create an account — MakeYourCakes",
   robots: { index: false, follow: false },
 };
 

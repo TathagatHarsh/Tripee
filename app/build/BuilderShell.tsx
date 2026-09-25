@@ -251,7 +251,7 @@ export function BuilderShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** MAKEMYCAKE, the design reference, and the things that undo a decision. */
+/** MakeYourCakes, the design reference, and the things that undo a decision. */
 function ShellBar({ reference }: { reference?: string }) {
   return (
     <header className="flex h-15 shrink-0 items-center justify-between gap-4 border-b border-rule bg-paper px-4 lg:px-6">
@@ -260,7 +260,7 @@ function ShellBar({ reference }: { reference?: string }) {
           href="/"
           className="shrink-0 font-mono text-meta font-medium tracking-[0.2em] text-ink"
         >
-          MAKEMYCAKE
+          MakeYourCakes
         </Link>
         {reference && (
           <>

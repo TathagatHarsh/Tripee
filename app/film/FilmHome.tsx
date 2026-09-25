@@ -313,7 +313,7 @@ export function FilmHome() {
       <footer className="bg-ink text-paper">
         <div className="mx-auto grid max-w-[1400px] gap-[32px] px-[24px] py-[64px] sm:grid-cols-3 md:px-[48px]">
           <div className="text-[length:var(--mono-xs)] leading-[1.6] tracking-[var(--tracking-mono-xs)] uppercase">
-            <div>Makemycake</div>
+            <div>MakeYourCakes</div>
             <div>Road No. 36, Jubilee Hills</div>
             <div>Hyderabad 500033</div>
           </div>

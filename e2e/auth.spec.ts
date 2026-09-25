@@ -88,7 +88,7 @@ for (const [path, what] of [
     await expect(page.locator("body")).not.toContainText("Kitchen board →");
     await expect(page.locator("body")).not.toContainText("Awaiting our call");
     // Nor anything from behind the newest door.
-    await expect(page.locator("body")).not.toContainText("Makemycake orders");
+    await expect(page.locator("body")).not.toContainText("MakeYourCakes orders");
   });
 }
 
@@ -134,7 +134,7 @@ test("the sign-in page is ours around Clerk's, and does not demand an account", 
 
   // The chrome is this bakery's: the wordmark over the photograph, and the line
   // that matters most on this page — that none of it is required to buy a cake.
-  await expect(page.getByRole("link", { name: "Makemycake" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "MakeYourCakes" })).toBeVisible();
   /*
    * A pattern rather than a literal, and the apostrophe is why: this copy is
    * typeset with a right single quote (U+2019) like the rest of the storefront,
@@ -174,7 +174,7 @@ test("the sign-in page is ours around Clerk's, and does not demand an account", 
 test("the sign-up page matches it, and still says an account is optional", async ({ page }) => {
   await page.goto("/sign-up");
 
-  await expect(page.getByRole("link", { name: "Makemycake" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "MakeYourCakes" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Create your account");
   await expect(page.getByRole("main")).toContainText(/don.t need an account/i);
 

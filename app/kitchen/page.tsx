@@ -69,7 +69,7 @@ import { advanceOrder } from "./actions";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Kitchen — Makemycake",
+  title: "Kitchen — MakeYourCakes",
   robots: { index: false, follow: false },
 };
 

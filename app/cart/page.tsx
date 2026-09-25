@@ -6,7 +6,7 @@ import { listCakes } from "@/lib/cakeData";
 import { getCatalogSnapshot } from "@/lib/catalogData";
 
 export const metadata: Metadata = {
-  title: "Your cart · Makemycake",
+  title: "Your cart · MakeYourCakes",
   /* A basket is not a page to index, and its contents live in one browser. */
   robots: { index: false, follow: true },
 };

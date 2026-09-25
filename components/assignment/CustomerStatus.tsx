@@ -29,7 +29,7 @@ export function CustomerAssignmentStatus({ orderRef }: { orderRef: string }) {
   }, [orderRef]);
   return (
     <p role="status" className="mt-3 rounded-xl bg-s-cream-deep p-4 text-sm">
-      {state ? <><strong>{state.label}</strong><span className="mt-1 block">{state.note}</span></> : 'Your order is with MakeMyCake. Track your order for updates.'}
+      {state ? <><strong>{state.label}</strong><span className="mt-1 block">{state.note}</span></> : 'Your order is with MakeYourCakes. Track your order for updates.'}
     </p>
   );
 }

@@ -60,7 +60,7 @@ export function CustomerNav({ current }: { current: "account" | "orders" }) {
           href="/"
           className="mr-auto inline-flex min-h-14 shrink-0 items-center font-mono text-item font-medium tracking-[0.2em] text-ink uppercase sm:min-h-11"
         >
-          Makemycake
+          MakeYourCakes
         </Link>
 
         {/* `aria-label` because there are two navs on a page that also has the

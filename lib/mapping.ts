@@ -23,7 +23,7 @@ async function json(url: URL) {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(5000),
     headers: {
-      "User-Agent": process.env.GEOCODING_USER_AGENT ?? "MakeMyCake/1.0",
+      "User-Agent": process.env.GEOCODING_USER_AGENT ?? "MakeYourCakes/1.0",
     },
     cache: "no-store",
   });

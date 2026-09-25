@@ -10,7 +10,7 @@ import { priceCake } from "@/lib/pricing";
 import { btn, eyebrow } from "@/lib/ui";
 
 export const metadata: Metadata = {
-  title: "A shared cake — Makemycake",
+  title: "A shared cake — MakeYourCakes",
   robots: { index: false, follow: false },
 };
 
@@ -41,7 +41,7 @@ export default async function InlineDesign({
   return (
     <main id="main" className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
       <Link href="/" className="font-mono text-meta font-medium tracking-[0.2em]">
-        MAKEMYCAKE
+        MakeYourCakes
       </Link>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1.3fr_1fr]">

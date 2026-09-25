@@ -50,7 +50,7 @@ import { ToastProvider } from "@/components/admin/Toast";
  */
 
 export const metadata: Metadata = {
-  title: "Admin — Makemycake",
+  title: "Admin — MakeYourCakes",
   robots: { index: false, follow: false },
 };
 

@@ -47,7 +47,7 @@ import { sCard, sEyebrow } from "@/lib/shopUi";
  */
 
 export const metadata: Metadata = {
-  title: "Profile & security · Makemycake",
+  title: "Profile & security · MakeYourCakes",
   robots: { index: false, follow: false },
 };
 

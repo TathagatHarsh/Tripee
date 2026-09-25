@@ -24,7 +24,7 @@ import { VendorForm } from "./VendorForms";
  */
 
 export const metadata: Metadata = {
-  title: "Vendors — Admin — Makemycake",
+  title: "Vendors — Admin — MakeYourCakes",
   robots: { index: false, follow: false },
 };
 

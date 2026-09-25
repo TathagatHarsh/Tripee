@@ -186,7 +186,7 @@ export default function ReviewStep() {
     });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `makemycake-${docket.ref}.txt`;
+    a.download = `makeyourcakes-${docket.ref}.txt`;
     a.click();
     URL.revokeObjectURL(a.href);
   }

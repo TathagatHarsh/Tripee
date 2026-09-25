@@ -63,7 +63,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { ref } = await params;
   return {
-    title: `Order ${ref} · Makemycake`,
+    title: `Order ${ref} · MakeYourCakes`,
     robots: { index: false, follow: false },
   };
 }
@@ -128,10 +128,12 @@ export default async function TrackOrder({
    * deployment with no BakerySettings row still has a letterhead. Wiring a "Ring
    * the bakery" button to either of them would be a control that fails in the
    * customer's hand — so the contact actions appear once the bakery has set its
-   * own, and this is the comparison that decides it.
+   * own, and this is the comparison that decides it. The email test is on the
+   * reserved `.example` domain rather than the exact default, so a row seeded
+   * with an older placeholder address stays hidden too.
    */
   const phone = catalog.bakery.phone === DEFAULT_BAKERY.phone ? null : catalog.bakery.phone;
-  const email = catalog.bakery.email === DEFAULT_BAKERY.email ? null : catalog.bakery.email;
+  const email = catalog.bakery.email.endsWith(".example") ? null : catalog.bakery.email;
 
   return (
     <Shell>
@@ -285,7 +287,7 @@ export default async function TrackOrder({
                     ref: order.ref,
                     createdAt: order.createdAt,
                   })}
-                  filename={`makemycake-${order.ref}.txt`}
+                  filename={`makeyourcakes-${order.ref}.txt`}
                 />
               )}
 

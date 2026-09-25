@@ -29,7 +29,7 @@ import { OrderTicket } from "../OrderTicket";
  */
 
 export const metadata: Metadata = {
-  title: "Your orders — Makemycake",
+  title: "Your orders — MakeYourCakes",
   robots: { index: false, follow: false },
 };
 
@@ -56,7 +56,7 @@ export default async function VendorOrders({
           Orders
         </h1>
         <p className="mt-1 text-a-body leading-relaxed text-a-muted">
-          Every order Makemycake has given you, newest first.
+          Every order MakeYourCakes has given you, newest first.
         </p>
       </header>
 

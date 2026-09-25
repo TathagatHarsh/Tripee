@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import Link from "next/link";
 import { AccountMenu } from "@/components/AccountMenu";
 import { CartBadge } from "@/components/shop/CartBadge";
@@ -60,13 +61,10 @@ export function ShopHeader({
 
         <Link
           href="/"
-          aria-label="MakeMyCake, home"
+          aria-label="MakeYourCakes, home"
           className="flex shrink-0 items-center gap-2 text-s-cocoa"
         >
-          <CakeWordmark />
-          <span className="font-display text-[1.375rem] leading-none tracking-[-0.01em] whitespace-nowrap">
-            MakeMyCake
-          </span>
+          <BrandLogo />
         </Link>
 
         <nav aria-label="Cakes" className="ml-4 hidden items-center gap-1 lg:flex">
@@ -216,33 +214,5 @@ function DrawerLink({ href, children }: { href: string; children: React.ReactNod
     >
       {children}
     </Link>
-  );
-}
-
-/**
- * The wordmark's mark: a cake in three strokes.
- *
- * Not to be confused with `components/orders/CakeMark`, which draws a specific
- * customer's cake from its configuration. This one is the logo and knows
- * nothing about any order.
- */
-function CakeWordmark() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-6 text-s-berry" aria-hidden focusable="false">
-      <path d="M12 2.6v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path
-        d="M4.5 20.4V12a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8.4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M4.5 14.6c1.9 0 1.9 1.6 3.75 1.6s1.9-1.6 3.75-1.6 1.9 1.6 3.75 1.6 1.9-1.6 3.75-1.6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path d="M3 20.4h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
   );
 }

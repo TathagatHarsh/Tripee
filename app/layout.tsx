@@ -7,21 +7,27 @@ import "./globals.css";
 const display = Fraunces({ subsets: ["latin"], variable: "--font-brand-display", display: "swap" });
 const body = Manrope({ subsets: ["latin"], variable: "--font-brand-body", display: "swap" });
 
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ??
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : "http://localhost:3000");
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://makeyourcakes.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "Makemycake · cakes baked to order in Hyderabad",
+  manifest: "/manifest.webmanifest",
+  applicationName: "MakeYourCakes",
+  title: "MakeYourCakes · cakes baked to order in Hyderabad",
   description:
-    "Eggless cakes baked to order in Jubilee Hills and delivered across Hyderabad. Itemised pricing, and no payment until we have confirmed your order by phone.",
+    "MakeYourCakes: eggless cakes baked to order in Jubilee Hills and delivered across Hyderabad. Itemised pricing, and no payment until we have confirmed your order by phone.",
+  twitter: {
+    card: "summary",
+    title: "MakeYourCakes",
+    description: "Cakes baked to order in Jubilee Hills, Hyderabad.",
+    images: ["/brand/icon-512.png"],
+  },
   openGraph: {
-    title: "Makemycake",
+    title: "MakeYourCakes",
+    siteName: "MakeYourCakes",
     description: "Cakes baked to order in Jubilee Hills, Hyderabad.",
     type: "website",
+    images: [{ url: "/brand/icon-512.png", width: 512, height: 512, alt: "MakeYourCakes" }],
   },
 };
 

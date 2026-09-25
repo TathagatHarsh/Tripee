@@ -293,7 +293,7 @@ function BrandPanel() {
         >
           <CakeWordmark className="size-6 shrink-0 sm:size-7" />
           <span className="font-display text-[1.375rem] leading-none tracking-[-0.01em] whitespace-nowrap sm:text-[1.5rem]">
-            Makemycake
+            MakeYourCakes
           </span>
         </Link>
 

@@ -38,7 +38,7 @@ import { countByPhase, listOrders } from "./data";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Your orders · Makemycake",
+  title: "Your orders · MakeYourCakes",
   /* Somebody's order history is not for a search index, and neither is the
      shape of this page. Same stance as /account. */
   robots: { index: false, follow: false },

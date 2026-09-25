@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LabGrid } from "./LabGrid";
 
 export const metadata: Metadata = {
-  title: "Render lab — Makemycake",
+  title: "Render lab — MakeYourCakes",
   robots: { index: false, follow: false },
 };
 

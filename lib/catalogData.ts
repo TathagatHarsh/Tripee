@@ -1,3 +1,4 @@
+import { publicBakeryBrand } from "./brand";
 import { unstable_cache, updateTag } from "next/cache";
 import {
   DEFAULT_BAKERY, DEFAULT_SETTINGS, DEFAULT_SNAPSHOT, snapshotFrom,
@@ -169,7 +170,8 @@ export async function getCatalogSnapshot(): Promise<CatalogSnapshot> {
   }
 
   try {
-    return await load();
+    const snapshot = await load();
+    return { ...snapshot, bakery: publicBakeryBrand(snapshot.bakery) };
   } catch (e) {
     console.error("catalog_read_failed", e);
     if (production) {

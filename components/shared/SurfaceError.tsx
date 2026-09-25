@@ -21,7 +21,7 @@ export function SurfaceError({ reset }: { reset(): void }) {
           Try again
         </button>
         <Link href="/" className={sBtn("outline")}>
-          Back to MakeMyCake
+          Back to MakeYourCakes
         </Link>
       </div>
     </section>
