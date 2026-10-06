@@ -1,5 +1,17 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+
+/* The orders route checks coverage itself, so the scratch database needs a
+   bakery whose radius reaches the stubbed Madhapur pin. playwright.config
+   refuses to run against anything but a scratch database. */
+test.beforeAll(async () => {
+  const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
+  const bakery = { name: "E2E Madhapur Bakery", isActive: true, isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43, longitude: 78.4, serviceRadiusKm: 10 };
+  await db.vendor.upsert({ where: { id: "e2e-madhapur-bakery" }, update: bakery, create: { id: "e2e-madhapur-bakery", ...bakery } });
+  await db.$disconnect();
+});
 
 async function configuredBasket(page: Page) {
   await page.goto("/");
@@ -179,4 +191,50 @@ test("assignment, earnings and worker APIs reject anonymous or cross-site reques
   expect((await request.get("/api/orders/MC-UNKNOWN/assignment")).status()).toBe(404);
   expect((await request.post("/api/internal/assignments")).status()).toBe(401);
   expect((await request.post("/api/assignments/MC-UNKNOWN", { headers: { origin: "https://unrelated.invalid" }, data: { action: "start" } })).status()).toBe(403);
+});
+
+test("pressing Enter in the location search never places the order", async ({ page }) => {
+  await configuredBasket(page);
+  await deliveryDetails(page);
+  let posted = 0;
+  page.on("request", (r) => {
+    if (r.url().endsWith("/api/orders") && r.method() === "POST") posted++;
+  });
+  await page.getByRole("button", { name: /Change/ }).click();
+  const search = page.getByLabel("Search for your area, street or building");
+  await search.fill("Jubilee Hills");
+  await search.press("Enter");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect(posted).toBe(0);
+});
+
+test("Change reopens the sheet at the confirmed pin, not the last search", async ({ page }) => {
+  await configuredBasket(page);
+  await deliveryDetails(page);
+  // Drag away from the search hit and confirm the new spot.
+  await page.getByRole("button", { name: /Change/ }).click();
+  const region = page.getByRole("region", { name: "Move the map to put the pin on your door" });
+  await expect(region.locator(".leaflet-map-pane")).toBeVisible();
+  const box = (await region.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 120, box.y + box.height / 2 - 80, { steps: 8 });
+  await page.mouse.up();
+  const confirm = page.getByRole("button", { name: "Confirm location", exact: true });
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  const pinned = await page.evaluate(() => JSON.parse(sessionStorage.getItem("makemycake.checkoutDraft.v2")!).location);
+  expect(Math.abs(pinned.lat - MADHAPUR.lat)).toBeGreaterThan(1e-4);
+  // Reopening must look up that confirmed spot.
+  const looked: { lat: number; lng: number }[] = [];
+  await page.route("**/api/location", (route) => {
+    const body = route.request().postDataJSON();
+    if (typeof body === "object") looked.push(body);
+    return route.fulfill({ json: { results: [MADHAPUR] } });
+  });
+  await page.getByRole("button", { name: /Change/ }).click();
+  await expect.poll(() => looked.length).toBeGreaterThan(0);
+  expect(looked[0].lat).toBeCloseTo(pinned.lat, 6);
+  expect(looked[0].lng).toBeCloseTo(pinned.lng, 6);
 });

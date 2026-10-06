@@ -622,30 +622,6 @@ function Checkout({ catalog, cakes }: Props) {
                     {draft.location ? "Finish the address details above." : "Add your delivery address to continue."}
                   </p>
                 )}
-                <LocationSheet
-                  open={sheetOpen}
-                  initial={draft.location}
-                  catalog={catalog}
-                  onClose={() => setSheetOpen(false)}
-                  onPickup={() => {
-                    patch({ method: "pickup", slot: "pickup" });
-                    setSheetOpen(false);
-                  }}
-                  onConfirm={(address) => {
-                    patch({
-                      addressLine2: address.address.slice(0, 160),
-                      locality: address.locality ?? "",
-                      formattedAddress: address.address,
-                      source: address.source ?? "map",
-                      city: address.city || draft.city,
-                      state: address.state || draft.state,
-                      pincode: address.pincode,
-                      location: { lat: address.lat, lng: address.lng, placeId: address.placeId },
-                    });
-                    setEditArea(!address.pincode);
-                    setSheetOpen(false);
-                  }}
-                />
               </div>
             ) : (
               <div className="rounded-s bg-s-cream-deep p-5">
@@ -829,6 +805,32 @@ function Checkout({ catalog, cakes }: Props) {
               : "Place order"}
         </button>
       </form>
+      {/* Outside the form on purpose: inside it, pressing Enter (or the phone
+          keyboard's Search) in the sheet's search box submitted the order. */}
+      <LocationSheet
+        open={sheetOpen}
+        initial={draft.location}
+        catalog={catalog}
+        onClose={() => setSheetOpen(false)}
+        onPickup={() => {
+          patch({ method: "pickup", slot: "pickup" });
+          setSheetOpen(false);
+        }}
+        onConfirm={(address) => {
+          patch({
+            addressLine2: address.address.slice(0, 160),
+            locality: address.locality ?? "",
+            formattedAddress: address.address,
+            source: address.source ?? "map",
+            city: address.city || draft.city,
+            state: address.state || draft.state,
+            pincode: address.pincode,
+            location: { lat: address.lat, lng: address.lng, placeId: address.placeId },
+          });
+          setEditArea(!address.pincode);
+          setSheetOpen(false);
+        }}
+      />
       <aside
         aria-label="Order summary"
         className={`checkout-summary ${sCard} p-5 sm:p-7 lg:sticky lg:top-24`}

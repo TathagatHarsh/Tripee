@@ -4,7 +4,7 @@ import {
   assignmentHistory, canVendorTransition, composeRejection, DUE_TONE, dueLabel, dueUrgency,
   isVendorFinished, mayVendorAct, ORDER_STATUS_FOR_VENDOR, REJECTION_REASONS, releasesOrder,
   STAMP, VENDOR_ACTION_LABEL, VENDOR_COLUMNS, VENDOR_EVENT_LABEL, VENDOR_NEXT, VENDOR_OPEN,
-  VENDOR_STATUS_LABEL, VENDOR_STATUS_TONE, vendorMoveLabel, vendorNext,
+  VENDOR_STATUS_LABEL, VENDOR_STATUS_TONE, vendorMayCall, vendorMoveLabel, vendorNext,
 } from "@/lib/vendors";
 import { ADMIN_MOVES, canTransition, CUSTOMER_STATUS, NEXT_STATUS } from "@/lib/orders";
 
@@ -554,5 +554,14 @@ describe("the bakery's buttons follow how the customer gets the cake", () => {
   it("keeps delivery wording for a delivery", () => {
     expect(vendorMoveLabel("delivered", false)).toBe("Mark delivered");
     expect(vendorMoveLabel("handed_over", false)).toBe("Send out for delivery");
+  });
+});
+
+describe("when a bakery may see the receiver's phone", () => {
+  it("only while the order is its own to make", () => {
+    for (const s of ["accepted", "in_preparation", "ready", "handed_over"] as VendorOrderStatus[]) expect(vendorMayCall(s), s).toBe(true);
+  });
+  it("never on an offer, a decline or an order taken back", () => {
+    for (const s of ["assigned", "rejected", "withdrawn"] as VendorOrderStatus[]) expect(vendorMayCall(s), s).toBe(false);
   });
 });

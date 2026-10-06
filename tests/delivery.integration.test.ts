@@ -16,7 +16,22 @@ const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
 let serial = 0;
 
 describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
-  afterAll(async () => { await db.$disconnect(); });
+  /* Everything this suite makes carries a DLV- / delivery-test- / Delivery
+     Bakery prefix; removing by prefix also clears rows from earlier runs, which
+     otherwise crowd the scratch shop the e2e suite browses. */
+  afterAll(async () => {
+    const orders = { ref: { startsWith: 'DLV-' } };
+    const vendors = { name: { startsWith: 'Delivery Bakery ' } };
+    await db.order.updateMany({ where: orders, data: { currentAssignmentId: null } });
+    await db.order.deleteMany({ where: orders });
+    await db.inventoryAvailabilityChange.deleteMany({ where: { inventory: { vendor: vendors } } });
+    await db.vendorInventory.deleteMany({ where: { vendor: vendors } });
+    const vendorIds = (await db.vendor.findMany({ where: vendors, select: { id: true } })).map((v) => v.id);
+    await db.portalNotification.deleteMany({ where: { OR: [{ vendorId: { in: vendorIds } }, { orderRef: { startsWith: 'DLV-' } }] } });
+    await db.vendor.deleteMany({ where: vendors });
+    await db.cakeProduct.deleteMany({ where: { slug: { startsWith: 'delivery-test-' } } });
+    await db.$disconnect();
+  });
 
   async function setup(opts: { pickup?: boolean; located?: boolean; vendorLat?: number } = {}) {
     const tag = `${Date.now()}-${++serial}`;

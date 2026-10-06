@@ -199,6 +199,12 @@ export const VENDOR_MOVE_LABEL: Record<VendorMove, string> = {
   delivered: "Mark delivered",
 };
 
+/** Whether the bakery may see the receiver's number: only while the order is
+    its own to make. Not on an offer, and not after declining or losing it. */
+export function vendorMayCall(status: VendorOrderStatus): boolean {
+  return status === "accepted" || status === "in_preparation" || status === "ready" || status === "handed_over";
+}
+
 /** The button wording, which for a pickup is about collection, not the road. */
 export function vendorMoveLabel(move: VendorMove, pickup: boolean): string {
   if (pickup && (move === "handed_over" || move === "out_for_delivery")) return "Ready for collection";

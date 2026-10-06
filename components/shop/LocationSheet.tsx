@@ -67,10 +67,18 @@ export function LocationSheet({
     const d = dialog.current;
     if (!d) return;
     if (open && !d.open) {
+      /* Reopen at the confirmed pin ("Change"), not wherever the last search
+         or drag left the map; the map looks that pin up as it mounts. */
+      setTarget(initial);
+      setPoint(initial);
+      setHere(null);
+      setCovered(null);
+      setLookup("idle");
+      chosen.current = null;
       d.showModal();
       setShown(true);
     } else if (!open && d.open) d.close();
-  }, [open]);
+  }, [open, initial]);
 
   /* Search as you type: 350ms after the last key, three characters or more.
      A picked suggestion fills the box too, and must not search for itself. */

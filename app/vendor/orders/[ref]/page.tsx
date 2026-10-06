@@ -12,6 +12,7 @@ import { dueAt } from "@/lib/orders";
 import {
   assignmentHistory,
   dueUrgency,
+  vendorMayCall,
   vendorNext,
   VENDOR_STATUS_LABEL,
   VENDOR_STATUS_TONE,
@@ -255,7 +256,7 @@ export default async function VendorOrderDetail({
               {receiver.name ?? order.customerName ?? "No name taken"}
               {/* The bakery delivers, so once it has accepted it needs a number
                   for the door. Not before: an offer is not yet its order. */}
-              {!pickup && status !== "assigned" && receiver.phone && (
+              {!pickup && vendorMayCall(status) && receiver.phone && (
                 <a href={`tel:${receiver.phone}`} className="ml-2 font-a-mono text-a-accent-ink underline underline-offset-2">
                   {receiver.phone}
                 </a>
