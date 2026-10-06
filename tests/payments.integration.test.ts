@@ -17,6 +17,7 @@ const freshKey = () => {
 };
 
 const orderReply = (id: string) => new Response(JSON.stringify({ id }), { status: 200 });
+const later = () => new Date(Date.now() + 86_400_000);
 const attempt = (key: string) => db.checkoutAttempt.findUnique({ where: { id: key } });
 
 describe.skipIf(!url)('payment intent on isolated PostgreSQL', () => {
@@ -83,5 +84,64 @@ describe.skipIf(!url)('payment intent on isolated PostgreSQL', () => {
 
     expect(await openPaymentIntent(other, 'h1', 124900)).toEqual({ kind: 'unavailable' });
     expect(await attempt(other)).toBeNull();
+  });
+
+  it('returns completed for a completed attempt without calling Razorpay', async () => {
+    const done = freshKey();
+    await db.checkoutAttempt.create({
+      data: { id: done, payloadHash: 'h1', status: 'completed', expiresAt: later(), response: { orderId: 'MC-DONE' } },
+    });
+    const before = fetchMock.mock.calls.length;
+
+    expect(await openPaymentIntent(done, 'h1', 124900)).toEqual({ kind: 'completed' });
+    expect(fetchMock).toHaveBeenCalledTimes(before);
+    expect(await attempt(done)).toMatchObject({ status: 'completed', response: { orderId: 'MC-DONE' } });
+  });
+
+  it('does not overwrite an attempt that completed meanwhile', async () => {
+    const racing = freshKey();
+    await db.checkoutAttempt.create({
+      data: { id: racing, payloadHash: 'h1', status: 'processing', expiresAt: later() },
+    });
+    // The order lands while Razorpay is still answering.
+    fetchMock.mockImplementationOnce(async () => {
+      await db.checkoutAttempt.update({
+        where: { id: racing },
+        data: { status: 'completed', response: { orderId: 'MC-RACE' } },
+      });
+      return orderReply('order_X');
+    });
+
+    expect(await openPaymentIntent(racing, 'h1', 124900)).toEqual({ kind: 'completed' });
+    expect(await attempt(racing)).toMatchObject({ status: 'completed', response: { orderId: 'MC-RACE' } });
+  });
+
+  it('keeps the first row when another intent creates it while Razorpay answers', async () => {
+    const racing = freshKey();
+    fetchMock.mockImplementationOnce(async () => {
+      await db.checkoutAttempt.create({
+        data: { id: racing, payloadHash: 'h1', status: 'processing', expiresAt: later() },
+      });
+      return orderReply('order_R');
+    });
+
+    expect(await openPaymentIntent(racing, 'h1', 124900)).toEqual({
+      kind: 'ok',
+      record: { razorpayOrderId: 'order_R', amountPaise: 124900 },
+    });
+    expect((await attempt(racing))?.response).toEqual({ razorpayOrderId: 'order_R', amountPaise: 124900 });
+  });
+
+  it('refuses when a different basket creates the row while Razorpay answers', async () => {
+    const racing = freshKey();
+    fetchMock.mockImplementationOnce(async () => {
+      await db.checkoutAttempt.create({
+        data: { id: racing, payloadHash: 'other', status: 'processing', expiresAt: later() },
+      });
+      return orderReply('order_S');
+    });
+
+    expect(await openPaymentIntent(racing, 'h1', 124900)).toEqual({ kind: 'conflict' });
+    expect(await attempt(racing)).toMatchObject({ payloadHash: 'other', response: null });
   });
 });

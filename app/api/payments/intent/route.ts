@@ -7,10 +7,42 @@ import {
   tooMany,
 } from "@/lib/apiGuard";
 import { openPaymentIntent } from "@/lib/checkoutPayment";
-import { responseFor, validateCheckout } from "@/lib/checkoutValidate";
+import {
+  type CreatedOrder,
+  responseFor,
+  validateCheckout,
+} from "@/lib/checkoutValidate";
 import { rememberGuestOrders } from "@/lib/guestOrders";
-import { requestId } from "@/lib/log";
+import { log, requestId } from "@/lib/log";
 import { keyId, paymentsEnabled } from "@/lib/razorpay";
+
+async function replayResponse(order: CreatedOrder, traceId: string) {
+  await rememberGuestOrders([order.ref]);
+  return Response.json(
+    { ...responseFor(order), duplicate: true },
+    { headers: { "x-request-id": traceId } },
+  );
+}
+
+const conflict = () =>
+  Response.json(
+    {
+      error:
+        "This checkout attempt belongs to a different basket. Reload checkout and try again.",
+      code: "idempotency_conflict",
+    },
+    { status: 409 },
+  );
+
+const unavailable = () =>
+  Response.json(
+    {
+      error:
+        "Payments are unavailable right now. Nothing was charged. Please try again.",
+      code: "payment_unavailable",
+    },
+    { status: 502 },
+  );
 
 /**
  * Step one of paying: check the basket exactly as /api/orders would, then bind a
@@ -45,39 +77,23 @@ export async function POST(req: Request) {
 
   const validated = await validateCheckout(raw, traceId);
   if (validated.kind === "problem") return validated.response;
-  if (validated.kind === "replay") {
-    await rememberGuestOrders([validated.order.ref]);
-    return Response.json(
-      { ...responseFor(validated.order), duplicate: true },
-      { headers: { "x-request-id": traceId } },
-    );
-  }
+  if (validated.kind === "replay") return replayResponse(validated.order, traceId);
 
   const { body, hash, review } = validated.checked;
-  const intent = await openPaymentIntent(
-    body.idempotencyKey,
-    hash,
-    review.totalPaise,
-  );
-  if (intent.kind === "conflict") {
-    return Response.json(
-      {
-        error:
-          "This checkout attempt belongs to a different basket. Reload checkout and try again.",
-        code: "idempotency_conflict",
-      },
-      { status: 409 },
-    );
+  let intent: Awaited<ReturnType<typeof openPaymentIntent>>;
+  try {
+    intent = await openPaymentIntent(body.idempotencyKey, hash, review.totalPaise);
+  } catch (error) {
+    log("error", "payment_intent_failed", { traceId, error: String(error) });
+    return unavailable();
   }
-  if (intent.kind === "unavailable") {
-    return Response.json(
-      {
-        error:
-          "Payments are unavailable right now. Nothing was charged. Please try again.",
-        code: "payment_unavailable",
-      },
-      { status: 502 },
-    );
+  if (intent.kind === "conflict") return conflict();
+  if (intent.kind === "unavailable") return unavailable();
+  if (intent.kind === "completed") {
+    // The order was placed since validation read the attempt: answer as a replay.
+    const again = await validateCheckout(raw, traceId);
+    if (again.kind === "replay") return replayResponse(again.order, traceId);
+    return again.kind === "problem" ? again.response : conflict();
   }
   return Response.json({
     keyId: keyId(),
