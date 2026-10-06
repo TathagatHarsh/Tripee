@@ -231,4 +231,23 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     );
     expect(refunds(paid.razorpayPaymentId)).toBe(1);
   });
+
+  it('a payment that already bought an order can never buy a second one', async () => {
+    const body = basket(day(46));
+    const paid = proof('G');
+    await intent(body, paid.razorpayOrderId);
+    const first = await (await post(placeOrder, { ...body, payment: paid })).json();
+
+    // The same payment id presented again through another checkout's Razorpay order.
+    const other = basket(day(47));
+    const { razorpayOrderId } = proof('G2');
+    await intent(other, razorpayOrderId);
+    const again = { razorpayOrderId, razorpayPaymentId: paid.razorpayPaymentId, razorpaySignature: sign(razorpayOrderId, paid.razorpayPaymentId) };
+    const res = await post(placeOrder, { ...other, payment: again });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ duplicate: true, order: { ref: first.orderId } });
+    expect(await db.order.count({ where: { razorpayPaymentId: paid.razorpayPaymentId } })).toBe(1);
+    expect(refunds(paid.razorpayPaymentId)).toBe(0);
+  });
 });

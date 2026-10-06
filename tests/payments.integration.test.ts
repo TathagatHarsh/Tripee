@@ -231,9 +231,9 @@ describe.skipIf(!url)('refundUnlessOk', () => {
     expect(await attempt(key)).toMatchObject({ status: 'failed', lastError: 'refunded:pay_B', response: null });
   });
 
-  it('never refunds a payment an order already holds', async () => {
+  it('never refunds a payment an order already holds, and answers with that order', async () => {
     const { key, proof } = await seeded();
-    await db.order.create({
+    const { ref } = await db.order.create({
       data: {
         ref: `PAY-${randomUUID().slice(0, 8)}`,
         priceBreakdown: {},
@@ -244,11 +244,10 @@ describe.skipIf(!url)('refundUnlessOk', () => {
         razorpayPaymentId: 'pay_B',
       },
     });
-    const res = capacity();
+    const out = await refundUnlessOk(capacity(), proof);
 
-    const out = await refundUnlessOk(res, proof);
-
-    expect(out).toBe(res);
+    expect(out.status).toBe(200);
+    expect(await out.json()).toMatchObject({ duplicate: true, order: { ref } });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(await attempt(key)).toMatchObject({ status: 'processing', response: { razorpayOrderId: proof.razorpayOrderId } });
   });

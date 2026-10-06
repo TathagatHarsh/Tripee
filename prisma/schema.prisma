@@ -157,7 +157,7 @@ model Order {
   payablePaise  Int
 
   razorpayOrderId   String? @unique
-  razorpayPaymentId String?
+  razorpayPaymentId String? @unique
 
   customerName             String?
   customerPhone            String?

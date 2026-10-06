@@ -1,8 +1,10 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import type { PaymentProof } from "./checkout";
+import { CREATED, responseFor } from "./checkoutValidate";
 import { db } from "./db";
 import { formatINR } from "./format";
+import { rememberGuestOrders } from "./guestOrders";
 import { log } from "./log";
 import { createRazorpayOrder, IntentRecord, refund } from "./razorpay";
 
@@ -197,14 +199,25 @@ export async function refundCancelledOrder(ref: string): Promise<void> {
 /**
  * Turn a failed order into a refunded payment, and say so. A response that is
  * not a success has already cost the customer their money, so it is replaced by
- * one that reports the refund or tells them to contact us. An order that holds
- * the payment keeps its original response.
+ * one that reports the refund or tells them to contact us. A payment an order
+ * already holds is answered with that order, as a replay: whatever this request
+ * got wrong, the customer has their cake. Only if that order can't be read does
+ * the original response stand.
  */
 export async function refundUnlessOk(res: Response, proof: PaymentProof): Promise<Response> {
   if (res.ok) return res;
 
   const { outcome, amountPaise } = await refundPayment(proof);
-  if (outcome === "held") return res;
+  const requestId = res.headers.get("x-request-id");
+  const headers = requestId ? { "x-request-id": requestId } : undefined;
+  if (outcome === "held") {
+    const order = await db.order
+      .findUnique({ where: { razorpayPaymentId: proof.razorpayPaymentId }, select: CREATED })
+      .catch(() => null);
+    if (!order) return res;
+    await rememberGuestOrders([order.ref]);
+    return Response.json({ ...responseFor(order), duplicate: true }, { headers });
+  }
 
   const done = outcome !== "failed";
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -213,9 +226,5 @@ export async function refundUnlessOk(res: Response, proof: PaymentProof): Promis
   const error = done
     ? `We couldn't place the order, so your payment${amount} has been refunded.${reason}`
     : `We couldn't place the order and couldn't refund your payment automatically. Contact us with payment ${proof.razorpayPaymentId}.${reason}`;
-  const requestId = res.headers.get("x-request-id");
-  return Response.json(
-    { ...body, refunded: done, error },
-    { status: res.status, headers: requestId ? { "x-request-id": requestId } : undefined },
-  );
+  return Response.json({ ...body, refunded: done, error }, { status: res.status, headers });
 }
