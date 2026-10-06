@@ -6,19 +6,35 @@ export type MapPin = Point & {
   label: string;
   kind: "customer" | "bakery" | "assigned";
 };
+/**
+ * `pins` mode draws labelled points (admin and vendor views). `center` mode is
+ * the checkout picker: a fixed pin over the middle, the map moves under it, and
+ * `onCenter` reports where it settled. A new `center` prop moves the map there
+ * without rebuilding it; do not feed `onCenter` back into `center`.
+ */
 export function AssignmentMap({
-  pins,
+  pins = [],
   onPick,
+  mode = "pins",
+  center,
+  onCenter,
 }: {
-  pins: MapPin[];
+  pins?: MapPin[];
   onPick?: (point: Point) => void;
+  mode?: "pins" | "center";
+  center?: Point | null;
+  onCenter?: (point: Point) => void;
 }) {
   const node = useRef<HTMLDivElement>(null);
+  const live = useRef<import("leaflet").Map | null>(null);
   const pick = useRef(onPick);
+  const settle = useRef(onCenter);
+  const start = useRef(center);
   const [error, setError] = useState(false);
   useEffect(() => {
     pick.current = onPick;
-  }, [onPick]);
+    settle.current = onCenter;
+  }, [onPick, onCenter]);
   const serialized = JSON.stringify(pins);
   useEffect(() => {
     let map: import("leaflet").Map | undefined,
@@ -33,12 +49,22 @@ export function AssignmentMap({
            throws "Cannot read properties of undefined (reading
            '_leaflet_pos')". A locator map gains nothing from the motion. */
         map = L.map(node.current, {
-          scrollWheelZoom: false,
+          scrollWheelZoom: mode === "center",
           zoomAnimation: false,
           fadeAnimation: false,
           markerZoomAnimation: false,
         });
-        if (!points.length) map.setView([17.431, 78.407], 13);
+        live.current = map;
+        if (mode === "center") {
+          const c = start.current ?? { lat: 17.385, lng: 78.4867 };
+          map.setView([c.lat, c.lng], start.current ? 17 : 12);
+          map.on("moveend", () => {
+            const p = map!.getCenter();
+            settle.current?.({ lat: p.lat, lng: p.lng });
+          });
+          /* A known starting pin (reopening to change it) is looked up at once. */
+          if (start.current) settle.current?.(start.current);
+        } else if (!points.length) map.setView([17.431, 78.407], 13);
         L.tileLayer(
           process.env.NEXT_PUBLIC_MAP_TILE_URL ??
             "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -84,10 +110,30 @@ export function AssignmentMap({
       .catch(() => setError(true));
     return () => {
       disposed = true;
+      live.current = null;
       map?.off();
       map?.remove();
     };
-  }, [serialized]);
+  }, [serialized, mode]);
+  const target = center ? `${center.lat},${center.lng}` : "";
+  useEffect(() => {
+    const map = live.current;
+    if (!map || !target) return;
+    const [lat, lng] = target.split(",").map(Number);
+    map.setView([lat, lng], Math.max(map.getZoom(), 16), { animate: false });
+  }, [target]);
+  if (mode === "center")
+    return (
+      <div className="relative h-full min-h-72 w-full">
+        <div ref={node} className="absolute inset-0 z-0" role="region" aria-label="Move the map to put the pin on your door" />
+        {/* The pin is still; the map moves. Its tip sits on the centre point. */}
+        <svg aria-hidden="true" viewBox="0 0 24 36" className="pointer-events-none absolute top-1/2 left-1/2 z-[400] h-10 w-7 -translate-x-1/2 -translate-y-full drop-shadow">
+          <path d="M12 0C5.4 0 0 5.3 0 11.9 0 20.8 12 36 12 36s12-15.2 12-24.1C24 5.3 18.6 0 12 0z" fill="var(--color-s-berry, #9a472b)" />
+          <circle cx="12" cy="12" r="4.5" fill="#fff" />
+        </svg>
+        {error && <p role="alert" className="absolute inset-x-0 bottom-0 z-[400] bg-white/90 p-2 text-sm">Map unavailable. Search still works.</p>}
+      </div>
+    );
   return (
     <div>
       <div
