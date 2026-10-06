@@ -403,6 +403,7 @@ export default async function OrderDetail({
                     orderRef={order.ref}
                     status={order.status}
                     next={NEXT_STATUS[order.status].filter((s) => ADMIN_MOVES.includes(s))}
+                    paid={order.paymentStatus === "paid"}
                   />
                   <p className="mt-3 text-a-meta leading-relaxed text-a-muted">
                     The bakery holding this order moves it from here: preparing,
