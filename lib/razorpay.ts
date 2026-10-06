@@ -65,6 +65,8 @@ async function post(path: string, body: unknown): Promise<Response> {
     method: "POST",
     headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    // A hung Razorpay must not hang a cancel or a confirm: an abort is caught as any other failure.
+    signal: AbortSignal.timeout(10_000),
   });
 }
 

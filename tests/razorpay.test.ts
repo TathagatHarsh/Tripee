@@ -114,3 +114,23 @@ describe('refund', () => {
     await expect(refund('pay_B')).resolves.toBe(false);
   });
 });
+
+describe('timeouts', () => {
+  it('gives up on Razorpay after 10 seconds, as a failure', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    // A hung Razorpay: the request only ends when its signal aborts.
+    const hung = vi.fn((_url: string, init: RequestInit) => {
+      const signal = init.signal as AbortSignal;
+      return new Promise<Response>((_resolve, reject) => {
+        if (signal.aborted) reject(signal.reason);
+        signal.addEventListener('abort', () => reject(signal.reason));
+      });
+    });
+    vi.stubGlobal('fetch', hung);
+    timeout.mockImplementation(() => AbortSignal.abort(new DOMException('timed out', 'TimeoutError')));
+
+    await expect(refund('pay_B')).resolves.toBe(false);
+    await expect(createRazorpayOrder(124900, 'MC-ABC123')).resolves.toBeNull();
+    expect(timeout).toHaveBeenCalledWith(10_000);
+  });
+});
