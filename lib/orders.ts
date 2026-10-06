@@ -22,6 +22,13 @@ export const NEXT_STATUS: Record<OrderStatus, OrderStatus[]> = {
 };
 
 /**
+ * The only moves the admin portal makes. Baking and delivery belong to the
+ * bakery holding the order (lib/vendors' vendorNext), so the office confirms,
+ * cancels, and otherwise watches.
+ */
+export const ADMIN_MOVES: OrderStatus[] = ["confirmed", "cancelled"];
+
+/**
  * The form is not the only thing that can ask for a transition, so this is
  * checked again on the server before anything is written.
  */

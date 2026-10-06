@@ -27,10 +27,18 @@ export function AssignmentMap({
       .then((L) => {
         if (!node.current || disposed) return;
         const points = JSON.parse(serialized) as MapPin[];
-        map = L.map(node.current, { scrollWheelZoom: false }).setView(
-          [17.431, 78.407],
-          13,
-        );
+        /* No animations. A zoom still in flight when this effect is cleaned up
+           (navigation, a refresh re-rendering the pins, Fast Refresh) fires
+           its last frame after map.remove() has deleted the panes, and Leaflet
+           throws "Cannot read properties of undefined (reading
+           '_leaflet_pos')". A locator map gains nothing from the motion. */
+        map = L.map(node.current, {
+          scrollWheelZoom: false,
+          zoomAnimation: false,
+          fadeAnimation: false,
+          markerZoomAnimation: false,
+        });
+        if (!points.length) map.setView([17.431, 78.407], 13);
         L.tileLayer(
           process.env.NEXT_PUBLIC_MAP_TILE_URL ??
             "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -61,6 +69,7 @@ export function AssignmentMap({
           map.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng])), {
             padding: [60, 60],
             maxZoom: 15,
+            animate: false,
           });
         map.on("click", (e) =>
           pick.current?.({ lat: e.latlng.lat, lng: e.latlng.lng }),
@@ -75,6 +84,7 @@ export function AssignmentMap({
       .catch(() => setError(true));
     return () => {
       disposed = true;
+      map?.off();
       map?.remove();
     };
   }, [serialized]);

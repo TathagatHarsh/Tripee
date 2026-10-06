@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import type { VendorOrderStatus } from "@prisma/client";
 import { requireVendor } from "@/lib/auth";
 import { hasDatabase } from "@/lib/db";
+import { db } from "@/lib/db";
+import { applyStatusTransition } from "@/lib/orderTransition";
 import { applyVendorTransition } from "@/lib/vendorTransition";
-import { composeRejection, VENDOR_ACTION_LABEL } from "@/lib/vendors";
+import { composeRejection, VENDOR_DELIVERY_NEXT, VENDOR_MOVE_LABEL, type VendorMove } from "@/lib/vendors";
 
 /**
  * The only write a partner bakery can make.
@@ -68,9 +70,15 @@ export async function moveAssignment(
   }
 
   const ref = String(form.get("ref") ?? "");
-  const to = String(form.get("to") ?? "") as VendorOrderStatus;
+  const move = String(form.get("to") ?? "") as VendorMove;
+  const assignmentId = String(form.get("assignmentId") ?? "");
 
   if (!ref) return { ok: false, message: "That move is missing an order." };
+
+  if (move === "out_for_delivery" || move === "delivered") {
+    return deliver(vendor.id, userId, ref, assignmentId, move);
+  }
+  const to = move as VendorOrderStatus;
   /*
    * A closed list checked before anything else, so `withdrawn` — which is the
    * office taking an order back, not a bakery's move — cannot be reached from
@@ -105,7 +113,11 @@ export async function moveAssignment(
 
   if (to === "rejected" && !reason) return { ok: false, message: "Choose a rejection reason or enter a note." };
 
-  const moved = await applyVendorTransition(vendor.id, ref, to, reason, String(form.get("assignmentId") ?? ""), userId);
+  const moved = await applyVendorTransition(vendor.id, ref, to, reason, assignmentId, userId);
+  /* Handing over is the cake leaving the bakery, which the customer reads as
+     out for delivery. A second transaction: if it loses a race, the ticket
+     offers "Send out for delivery" again rather than leaving the order stuck. */
+  if (moved && to === "handed_over") await applyStatusTransition(ref, "out_for_delivery", userId);
 
   revalidatePath("/vendor");
   /* The history list too: a decline moves an order off the board and onto it,
@@ -117,7 +129,7 @@ export async function moveAssignment(
   revalidatePath(`/admin/orders/${ref}`);
 
   return moved
-    ? { ok: true, message: `${VENDOR_ACTION_LABEL[to].replace(/ order$/, "")} — done.` }
+    ? { ok: true, message: `${VENDOR_MOVE_LABEL[to].replace(/ order$/, "")}: done.` }
     : {
       ok: false,
       message:
@@ -126,4 +138,36 @@ export async function moveAssignment(
           to === "accepted" ? ", and whether it is still yours" : ""
         }.`,
     };
+}
+
+/**
+ * The two delivery moves, which are the customer's Order moving rather than the
+ * bakery's assignment. Scoped the same way as above: the order must be held by
+ * this session's bakery, through this exact assignment, already handed over.
+ * lib/orderTransition then re-checks the state machine inside its own lock.
+ */
+async function deliver(
+  vendorId: string,
+  userId: string,
+  ref: string,
+  assignmentId: string,
+  to: "out_for_delivery" | "delivered",
+): Promise<ActionResult> {
+  const order = await db.order.findFirst({
+    where: { ref, currentAssignment: { id: assignmentId, vendorId, status: "handed_over" } },
+    select: { status: true },
+  });
+  const moved =
+    !!order &&
+    VENDOR_DELIVERY_NEXT[order.status] === to &&
+    (await applyStatusTransition(ref, to, userId));
+
+  revalidatePath("/vendor");
+  revalidatePath("/vendor/orders");
+  revalidatePath(`/vendor/orders/${ref}`);
+  revalidatePath(`/admin/orders/${ref}`);
+
+  return moved
+    ? { ok: true, message: `${VENDOR_MOVE_LABEL[to]}: done.` }
+    : { ok: false, message: "That is no longer available. Reload to see where this order is." };
 }

@@ -1,11 +1,12 @@
 import type { EarningSnapshot } from "@/components/assignment/Earnings";
-import type { VendorOrderStatus } from "@prisma/client";
+import type { OrderStatus, VendorOrderStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { migrateConfig, type CakeConfig } from "@/lib/schema";
 import { VENDOR_OPEN } from "@/lib/vendors";
 
 const ORDER_FOR_VENDOR = {
   ref: true,
+  status: true,
   customerName: true,
   addressLine1: true,
   addressLine2: true,
@@ -26,6 +27,7 @@ const ORDER_FOR_VENDOR = {
     select: {
       id: true,
       cakeName: true,
+      cakeImageUrl: true,
       variantLabel: true,
       allergens: true,
       productionSpec: true,
@@ -45,8 +47,10 @@ export async function vendorBoard(vendorId: string): Promise<VendorCard[]> {
     where: {
       vendorId,
       assignmentStatus: { in: ["OFFERED", "ACCEPTED"] },
-      currentFor: { status: { in: ["confirmed", "in_kitchen"] } },
-      status: { in: VENDOR_OPEN },
+      /* Out for delivery stays on the board: the bakery is the one who marks
+         it delivered (lib/vendors' vendorNext). */
+      currentFor: { status: { in: ["confirmed", "in_kitchen", "out_for_delivery"] } },
+      status: { in: [...VENDOR_OPEN, "handed_over"] },
     },
     orderBy: { assignedAt: "asc" },
     select: {
@@ -69,6 +73,7 @@ export async function vendorBoard(vendorId: string): Promise<VendorCard[]> {
 
 export interface VendorCardOrder {
   ref: string;
+  status: OrderStatus;
   customerName: string | null;
   addressLine1: string | null;
   addressLine2: string | null;
@@ -87,6 +92,7 @@ export interface VendorCardOrder {
   cakes: {
     id: string;
     cakeName: string | null;
+    cakeImageUrl: string | null;
     variantLabel: string | null;
     allergens: string[];
     productionSpec: unknown;

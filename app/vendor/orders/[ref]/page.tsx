@@ -12,8 +12,7 @@ import { dueAt } from "@/lib/orders";
 import {
   assignmentHistory,
   dueUrgency,
-  isVendorFinished,
-  VENDOR_NEXT,
+  vendorNext,
   VENDOR_STATUS_LABEL,
   VENDOR_STATUS_TONE,
 } from "@/lib/vendors";
@@ -22,6 +21,7 @@ import { Icon } from "@/components/admin/icons";
 import { vendorOrder } from "../../data";
 import { DueBadge } from "../../DueBadge";
 import { OrderActions } from "../../OrderActions";
+import { FullCakePhoto } from "@/components/orders/FullCakePhoto";
 
 /**
  * One order, as a production ticket rather than a database row.
@@ -93,13 +93,13 @@ export default async function VendorOrderDetail({
 
   const { order, config, status } = assignment;
   const due = dueAt(order);
-  const finished = isVendorFinished(status);
+  const next = vendorNext(status, order.status);
+  const finished = next.length === 0;
   /* One clock for this page, shared with the badge so the panel's edge and the
      countdown inside it can never be two readings taken a moment apart. See the
      note on app/vendor/OrderTicket.tsx. */
   const now = new Date();
   const urgent = !finished && dueUrgency(due, now) !== "later";
-  const next = VENDOR_NEXT[status];
 
   const name = order.cakeName ?? "Custom cake";
   const message = config?.message?.trim();
@@ -154,6 +154,15 @@ export default async function VendorOrderDetail({
                       )}
                     </div>
                   </div>
+                  <div className="mt-4">
+                    <FullCakePhoto
+                      orderRef={order.ref}
+                      src={cake.cakeImageUrl ?? (order.cakes.length === 1 ? order.cakeImageUrl : null)}
+                      cakeId={cake.cakeImageUrl ? cake.id : undefined}
+                      name={cake.cakeName ?? "Custom cake"}
+                      config={cakeConfig}
+                    />
+                  </div>
                   <dl className="mt-4 grid gap-4 text-a-body sm:grid-cols-2">
                     <div>
                       <dt className="text-a-meta font-semibold uppercase text-a-muted">
@@ -190,6 +199,9 @@ export default async function VendorOrderDetail({
           </ol>
         ) : (
           <div>
+            <div className="mb-4">
+              <FullCakePhoto orderRef={order.ref} src={order.cakeImageUrl} name={name} config={config} />
+            </div>
             <h3 className="text-a-lede font-semibold">{name}</h3>
             <p className="mt-2 text-a-body">
               {config
@@ -257,13 +269,17 @@ export default async function VendorOrderDetail({
               : status === "in_preparation"
                 ? "Being made. Mark it ready when it is finished and boxed."
                 : status === "ready"
-                  ? "Finished. Mark it handed over when it leaves you."
+                  ? "Finished. Send it out for delivery when it leaves you."
                   : status === "rejected"
                     ? "You declined this one. MakeYourCakes will give it to another bakery — " +
                       "there is nothing further to do here."
                     : status === "withdrawn"
                       ? "MakeYourCakes took this order back. It is not yours to make."
-                      : "Handed over. Nothing further on this one."}
+                      : order.status === "out_for_delivery"
+                        ? "On its way. Mark it delivered once the customer has it."
+                        : order.status === "in_kitchen"
+                          ? "Handed over. Send it out for delivery so the customer is told."
+                          : "Delivered. Nothing further on this one."}
         </p>
         <OrderActions assignmentId={assignment.id} orderRef={order.ref} next={next} />
       </section>

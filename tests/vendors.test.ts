@@ -4,9 +4,9 @@ import {
   assignmentHistory, canVendorTransition, composeRejection, DUE_TONE, dueLabel, dueUrgency,
   isVendorFinished, mayVendorAct, ORDER_STATUS_FOR_VENDOR, REJECTION_REASONS, releasesOrder,
   STAMP, VENDOR_ACTION_LABEL, VENDOR_COLUMNS, VENDOR_EVENT_LABEL, VENDOR_NEXT, VENDOR_OPEN,
-  VENDOR_STATUS_LABEL, VENDOR_STATUS_TONE,
+  VENDOR_STATUS_LABEL, VENDOR_STATUS_TONE, vendorNext,
 } from "@/lib/vendors";
-import { canTransition, CUSTOMER_STATUS, NEXT_STATUS } from "@/lib/orders";
+import { ADMIN_MOVES, canTransition, CUSTOMER_STATUS, NEXT_STATUS } from "@/lib/orders";
 
 /**
  * The vendor fulfilment machine, settled without a database, a session or a
@@ -519,5 +519,28 @@ describe("how long is left on an order", () => {
     expect(DUE_TONE.urgent).toBe("bad");
     expect(DUE_TONE.soon).toBe("warn");
     expect(DUE_TONE.later).toBe("plain");
+  });
+});
+
+describe("the bakery owns delivery, the office does not", () => {
+  it("offers the vendor's own moves until the cake is handed over", () => {
+    expect(vendorNext("ready", "in_kitchen")).toEqual(["handed_over"]);
+    expect(vendorNext("assigned", "confirmed")).toEqual(["accepted", "rejected"]);
+  });
+
+  it("then walks the customer's order to the door", () => {
+    expect(vendorNext("handed_over", "in_kitchen")).toEqual(["out_for_delivery"]);
+    expect(vendorNext("handed_over", "out_for_delivery")).toEqual(["delivered"]);
+    expect(vendorNext("handed_over", "delivered")).toEqual([]);
+    expect(vendorNext("handed_over", "cancelled")).toEqual([]);
+  });
+
+  it("every delivery move is one the order machine allows", () => {
+    expect(canTransition("in_kitchen", "out_for_delivery")).toBe(true);
+    expect(canTransition("out_for_delivery", "delivered")).toBe(true);
+  });
+
+  it("leaves the office only confirming and cancelling", () => {
+    expect(ADMIN_MOVES).toEqual(["confirmed", "cancelled"]);
   });
 });
