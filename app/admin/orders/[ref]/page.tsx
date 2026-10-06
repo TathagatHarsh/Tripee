@@ -247,15 +247,20 @@ export default async function OrderDetail({
               <Row
                 k="Payment"
                 /*
-                 * Read from the column rather than assumed. It is `none` on
-                 * every order in the product — nothing is paid online — and
-                 * printing the enum's own answer means this row starts telling
-                 * the truth the day a payment provider is wired up, instead of
-                 * being a hardcoded "on delivery" that quietly becomes wrong.
+                 * Read from the column. When a payment provider is wired up,
+                 * this row shows the status and the Razorpay ID when paid or
+                 * refunded. A cancelled order that was paid needs manual refund
+                 * from the Razorpay dashboard.
                  */
                 v={
                   order.paymentStatus === "none"
                     ? "Nothing taken online — on delivery"
+                    : order.status === "cancelled" && order.paymentStatus === "paid"
+                    ? "Paid, not refunded. Refund it from the Razorpay dashboard."
+                    : order.paymentStatus === "paid"
+                    ? `Paid · ${order.razorpayPaymentId}`
+                    : order.paymentStatus === "refunded"
+                    ? `Refunded · ${order.razorpayPaymentId}`
                     : titleCase(order.paymentStatus)
                 }
               />
