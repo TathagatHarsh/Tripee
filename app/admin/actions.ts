@@ -13,7 +13,7 @@ import { db, hasDatabase } from "@/lib/db";
 import { formatINR } from "@/lib/format";
 import { applyStatusTransition } from "@/lib/orderTransition";
 import { assignOrderToVendor } from "@/lib/vendorTransition";
-import { STATUS_LABEL } from "@/lib/orders";
+import { ADMIN_MOVES, STATUS_LABEL } from "@/lib/orders";
 import {
   discard, hasImageStore, ImageError, MAX_UPLOAD_BYTES, NO_IMAGE_STORE_MESSAGE,
   optimize, store,
@@ -769,6 +769,9 @@ export async function advanceOrderStatus(
   const ref = String(form.get("ref") ?? "");
   const to = String(form.get("to") ?? "") as OrderStatus;
   if (!ref || !to) return { ok: false, message: "That move is missing an order or a status." };
+  if (!ADMIN_MOVES.includes(to)) {
+    return { ok: false, message: "The bakery moves this order along now, not the office." };
+  }
 
   const reason = String(form.get("reason") ?? "").trim() || null;
   const moved = await applyStatusTransition(ref, to, viewer.profile.id, reason);

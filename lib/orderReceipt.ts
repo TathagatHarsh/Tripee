@@ -9,5 +9,7 @@ export const OrderReceipt = z.object({
   address: z.string(),
   method: z.enum(["delivery", "pickup"]).optional(),
   items: z.array(z.object({ name: z.string(), variant: z.string(), qty: z.number().int().positive() })),
+  /** The Razorpay payment that covered the order; absent on orders placed without one. */
+  payment: z.object({ id: z.string(), paise: z.number().int().nonnegative() }).nullable().optional(),
 });
 export type Receipt = z.infer<typeof OrderReceipt>;

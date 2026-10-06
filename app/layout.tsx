@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   applicationName: "MakeYourCakes",
   title: "MakeYourCakes · cakes baked to order in Hyderabad",
   description:
-    "MakeYourCakes: eggless cakes baked to order in Jubilee Hills and delivered across Hyderabad. Itemised pricing, and no payment until we have confirmed your order by phone.",
+    "MakeYourCakes: eggless cakes baked to order in Jubilee Hills and delivered across Hyderabad. Itemised pricing, and we call to confirm every order before it goes in the oven.",
   twitter: {
     card: "summary",
     title: "MakeYourCakes",

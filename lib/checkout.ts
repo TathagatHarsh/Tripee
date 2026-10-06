@@ -162,6 +162,8 @@ export const FulfillmentInput = z
     method: z.enum(["delivery", "pickup"]),
     slot: DeliverySlot,
     recipientName: z.string().trim().min(2).max(80),
+    /** The receiver's number when the cake goes to someone else. */
+    recipientPhone: z.string().regex(/^\d{10}$/).optional(),
     contactEmail: z.string().trim().email().max(254).optional(),
     location: z
       .object({
@@ -208,8 +210,16 @@ export const FulfillmentInput = z
           path: ["pincode"],
         });
       }
+      /* Every delivery order needs a pin: assignment cannot route without one. */
+      if (!f.location) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Choose your delivery location on the map.",
+          path: ["location"],
+        });
+      }
       if (
-        (f.addressLine1?.length ?? 0) < 3 ||
+        (f.addressLine1?.length ?? 0) < 1 ||
         (f.city?.length ?? 0) < 2 ||
         (f.state?.length ?? 0) < 2
       ) {
@@ -292,6 +302,38 @@ export const CheckoutRequest = z
   });
 
 export type CheckoutRequest = z.infer<typeof CheckoutRequest>;
+
+/**
+ * What Razorpay hands the browser after a successful payment. Shape only: the
+ * server checks the signature (lib/razorpay), so this stays importable from client code.
+ */
+export const PaymentProof = z.object({
+  razorpayOrderId: z.string().regex(/^order_[A-Za-z0-9]+$/),
+  razorpayPaymentId: z.string().regex(/^pay_[A-Za-z0-9]+$/),
+  razorpaySignature: z.string().regex(/^[a-f0-9]{64}$/),
+});
+
+export type PaymentProof = z.infer<typeof PaymentProof>;
+
+/**
+ * Which checkout attempt a press continues, of those in memory and saved in the
+ * browser. With payments on, a payment already taken wins over everything, so
+ * no new payment can start until the server has placed that payment's order or
+ * refunded it; the attempt is sent as it is, on its own key, even if the form
+ * has changed since. Otherwise an attempt for these exact details is reused.
+ */
+export function keptAttempt<A extends { signature: string; proof?: PaymentProof }>(
+  signature: string,
+  payments: boolean,
+  ...candidates: (A | null)[]
+): A | null {
+  const known = candidates.filter((a): a is A => a !== null);
+  return (
+    (payments ? known.find((a) => a.proof) : undefined) ??
+    known.find((a) => a.signature === signature) ??
+    null
+  );
+}
 
 /**
  * The one-cake body this route has always taken, read as a basket of one.

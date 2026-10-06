@@ -54,6 +54,30 @@ export function canVendorTransition(from: VendorOrderStatus, to: VendorOrderStat
   return VENDOR_NEXT[from]?.includes(to) ?? false;
 }
 
+/**
+ * After `handed_over` the bakery still owns the order: it carries the cake to
+ * the door, so it moves the customer's order through the last two states. These
+ * are Order moves, not VendorOrder ones, written by lib/orderTransition so the
+ * customer's notifications fire exactly as they did when the office moved them.
+ *
+ * `in_kitchen` is here for an order handed over before this rule existed, or
+ * whose automatic send-out after the handover lost a race: the bakery can still
+ * send it out by hand.
+ */
+export const VENDOR_DELIVERY_NEXT: Partial<Record<OrderStatus, "out_for_delivery" | "delivered">> = {
+  in_kitchen: "out_for_delivery",
+  out_for_delivery: "delivered",
+};
+
+export type VendorMove = VendorOrderStatus | "out_for_delivery" | "delivered";
+
+/** Every button a bakery can see on one order, its own moves then delivery. */
+export function vendorNext(status: VendorOrderStatus, orderStatus: OrderStatus): VendorMove[] {
+  if (status !== "handed_over") return VENDOR_NEXT[status];
+  const delivery = VENDOR_DELIVERY_NEXT[orderStatus];
+  return delivery ? [delivery] : [];
+}
+
 /** Nothing further for the vendor to do. Splits their board into work and history. */
 export function isVendorFinished(status: VendorOrderStatus): boolean {
   return VENDOR_NEXT[status].length === 0;
@@ -92,7 +116,8 @@ export function releasesOrder(status: VendorOrderStatus): boolean {
  *     their order has changed since. §"VENDOR INFORMATION" is explicit.
  *   - `ready` / `handed_over` — there is no `ready` on OrderStatus and the next
  *     state is `out_for_delivery`, which would claim a rider who has not been
- *     dispatched. The office dispatches, and the office moves that one.
+ *     dispatched. The bakery moves that one itself, through
+ *     VENDOR_DELIVERY_NEXT and lib/orderTransition, so the customer is told.
  *   - `rejected` / `withdrawn` — a decline and a reassignment must be invisible
  *     to the customer, who keeps the coherent status they already had. Moving
  *     the order here would leak the churn onto their timeline.
@@ -149,7 +174,7 @@ export const VENDOR_STATUS_LABEL: Record<VendorOrderStatus, string> = {
   rejected: "Declined",
   in_preparation: "In preparation",
   ready: "Ready",
-  handed_over: "Handed over",
+  handed_over: "Sent out",
   withdrawn: "Taken back",
 };
 
@@ -164,9 +189,28 @@ export const VENDOR_ACTION_LABEL: Record<VendorOrderStatus, string> = {
   rejected: "Decline order",
   in_preparation: "Start preparation",
   ready: "Mark ready",
-  handed_over: "Mark handed over",
+  handed_over: "Send out for delivery",
   withdrawn: "Take back",
 };
+
+export const VENDOR_MOVE_LABEL: Record<VendorMove, string> = {
+  ...VENDOR_ACTION_LABEL,
+  out_for_delivery: "Send out for delivery",
+  delivered: "Mark delivered",
+};
+
+/** Whether the bakery may see the receiver's number: only while the order is
+    its own to make. Not on an offer, and not after declining or losing it. */
+export function vendorMayCall(status: VendorOrderStatus): boolean {
+  return status === "accepted" || status === "in_preparation" || status === "ready" || status === "handed_over";
+}
+
+/** The button wording, which for a pickup is about collection, not the road. */
+export function vendorMoveLabel(move: VendorMove, pickup: boolean): string {
+  if (pickup && (move === "handed_over" || move === "out_for_delivery")) return "Ready for collection";
+  if (pickup && move === "delivered") return "Mark collected";
+  return VENDOR_MOVE_LABEL[move];
+}
 
 /** How an assignment reads on the admin's history, which is written in the past tense. */
 export const VENDOR_EVENT_LABEL: Record<VendorOrderStatus, string> = {

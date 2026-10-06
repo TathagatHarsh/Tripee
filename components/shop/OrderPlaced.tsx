@@ -45,7 +45,10 @@ export function OrderPlaced({ receipt, celebrate = false }: { receipt: Receipt; 
         </h2>
         <p className="mx-auto mt-4 max-w-md text-s-bark">
           {receipt.method === "pickup" ? "A lovely pickup is in the making." : "Your cake is officially in the making."}
-          <span className="mt-2 block text-sm">We’ll call to confirm the details before baking. No payment has been taken.</span>
+          <span className="mt-2 block text-sm">
+            We’ll call to confirm the details before baking.
+            {!receipt.payment && " No payment has been taken."}
+          </span>
         </p>
         {receipt.method === "delivery" && <CustomerAssignmentStatus orderRef={receipt.ref}/>}
         <div className="celebration-details my-6 rounded-s border border-s-line bg-s-shell p-5 text-left sm:p-7">
@@ -53,6 +56,11 @@ export function OrderPlaced({ receipt, celebrate = false }: { receipt: Receipt; 
             <span className="text-sm font-semibold">Order #{receipt.ref}</span>
             <strong>{formatINR(receipt.totalPaise)}</strong>
           </div>
+          {receipt.payment && (
+            <p className="border-b border-s-line py-4 text-sm text-s-bark">
+              Paid {formatINR(receipt.payment.paise)} · {receipt.payment.id}
+            </p>
+          )}
           <dl className="grid gap-5 py-5 sm:grid-cols-2">
             <div>
               <dt className="text-xs font-semibold uppercase tracking-wider text-s-bark">

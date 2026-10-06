@@ -1,9 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import type { VendorOrderStatus } from "@prisma/client";
 import { moveAssignment, type ActionResult } from "./actions";
-import { REJECTION_REASONS, VENDOR_ACTION_LABEL } from "@/lib/vendors";
+import { REJECTION_REASONS, vendorMoveLabel, type VendorMove } from "@/lib/vendors";
 import { aBtn, aField } from "@/components/admin/ui";
 import { Icon } from "@/components/admin/icons";
 
@@ -42,11 +41,14 @@ export function OrderActions({
   orderRef,
   assignmentId,
   next,
+  pickup = false,
   compact = false,
 }: {
   orderRef: string;
   assignmentId: string;
-  next: VendorOrderStatus[];
+  next: VendorMove[];
+  /** Pickup orders say collection where delivery says the road. */
+  pickup?: boolean;
   /** The board card's version: forward move only, no decline, no reason panel. */
   compact?: boolean;
 }) {
@@ -122,7 +124,7 @@ export function OrderActions({
             disabled={pending}
             className={aBtn(i === 0 ? "primary" : "secondary", "md", "min-h-12 grow sm:grow-0")}
           >
-            {pending ? "Working…" : VENDOR_ACTION_LABEL[s]}
+            {pending ? "Working…" : vendorMoveLabel(s, pickup)}
             {!pending && i === 0 && <Icon name="arrowRight" size={15} />}
           </button>
         ))}

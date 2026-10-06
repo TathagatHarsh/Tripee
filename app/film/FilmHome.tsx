@@ -300,7 +300,7 @@ export function FilmHome() {
                 Start the ticket
               </Link>
               <span className="text-[length:var(--mono-xs)] tracking-[var(--tracking-mono-xs)] text-ink-60 uppercase">
-                No payment now · We call to confirm.
+                Baked to order · We call to confirm.
               </span>
             </div>
           </div>

@@ -152,9 +152,12 @@ model Order {
   /// SetNull rather than Cascade. Deleting a person must not delete the cake
   /// they ordered — the kitchen still baked it and the books still count it.
   user          UserProfile?  @relation(fields: [userId], references: [id], onDelete: SetNull)
-  /// Hook for Razorpay later. Deliberately defaults to none — v1 takes no money.
+  /// Payment is taken by Razorpay when keys are configured; `none` otherwise.
   paymentStatus PaymentStatus @default(none)
   payablePaise  Int
+
+  razorpayOrderId   String? @unique
+  razorpayPaymentId String? @unique
 
   customerName             String?
   customerPhone            String?

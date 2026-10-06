@@ -79,7 +79,7 @@ export default async function Home() {
                 <span>
                   Baked to order. A personal touch.
                   <br />
-                  <strong>No payment until we confirm.</strong>
+                  <strong>We call to confirm every order.</strong>
                 </span>
               </div>
             </div>

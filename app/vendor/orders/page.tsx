@@ -2,7 +2,7 @@ import { QueueFilters, filterQueue, type QueueQuery } from "../QueueFilters";
 import type { Metadata } from "next";
 import { requireVendor } from "@/lib/auth";
 import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
-import { isVendorFinished } from "@/lib/vendors";
+import { vendorNext } from "@/lib/vendors";
 import { Notice } from "@/components/admin/ui";
 import { Icon } from "@/components/admin/icons";
 import { vendorHistory, type VendorCard } from "../data";
@@ -19,9 +19,9 @@ import { OrderTicket } from "../OrderTicket";
  * back to the fact that they had declined it, or to the reason they gave.
  *
  * Two sections rather than one list, and the split is the state machine's own:
- * `isVendorFinished` is true exactly when `VENDOR_NEXT` is empty, so "still
- * open" means "there is still a move" and is not a second opinion about what
- * open means.
+ * `vendorNext` is empty exactly when the bakery has no move left (delivery
+ * included), so "still open" means "there is still a move" and is not a
+ * second opinion about what open means.
  *
  * The cards carry no buttons here. Everything still open is on the board with
  * its button already, and a second place to press "Mark ready" is a second place
@@ -46,8 +46,8 @@ export default async function VendorOrders({
 
   const query = await searchParams;
   const all = filterQueue(await vendorHistory(vendor.id), query, new Date());
-  const open = all.filter((c) => !isVendorFinished(c.status));
-  const done = all.filter((c) => isVendorFinished(c.status));
+  const open = all.filter((c) => vendorNext(c.status, c.order.status).length > 0);
+  const done = all.filter((c) => vendorNext(c.status, c.order.status).length === 0);
 
   return (
     <div className="flex flex-col gap-5">

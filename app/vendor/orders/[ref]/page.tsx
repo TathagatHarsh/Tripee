@@ -12,8 +12,8 @@ import { dueAt } from "@/lib/orders";
 import {
   assignmentHistory,
   dueUrgency,
-  isVendorFinished,
-  VENDOR_NEXT,
+  vendorMayCall,
+  vendorNext,
   VENDOR_STATUS_LABEL,
   VENDOR_STATUS_TONE,
 } from "@/lib/vendors";
@@ -22,6 +22,8 @@ import { Icon } from "@/components/admin/icons";
 import { vendorOrder } from "../../data";
 import { DueBadge } from "../../DueBadge";
 import { OrderActions } from "../../OrderActions";
+import { FullCakePhoto } from "@/components/orders/FullCakePhoto";
+import { receiverFrom } from "@/components/DeliveryAddressSnapshot";
 
 /**
  * One order, as a production ticket rather than a database row.
@@ -93,13 +95,15 @@ export default async function VendorOrderDetail({
 
   const { order, config, status } = assignment;
   const due = dueAt(order);
-  const finished = isVendorFinished(status);
+  const next = vendorNext(status, order.status);
+  const pickup = order.fulfillmentMethod === "pickup";
+  const receiver = receiverFrom(order.deliveryLocation);
+  const finished = next.length === 0;
   /* One clock for this page, shared with the badge so the panel's edge and the
      countdown inside it can never be two readings taken a moment apart. See the
      note on app/vendor/OrderTicket.tsx. */
   const now = new Date();
   const urgent = !finished && dueUrgency(due, now) !== "later";
-  const next = VENDOR_NEXT[status];
 
   const name = order.cakeName ?? "Custom cake";
   const message = config?.message?.trim();
@@ -154,6 +158,15 @@ export default async function VendorOrderDetail({
                       )}
                     </div>
                   </div>
+                  <div className="mt-4">
+                    <FullCakePhoto
+                      orderRef={order.ref}
+                      src={cake.cakeImageUrl ?? (order.cakes.length === 1 ? order.cakeImageUrl : null)}
+                      cakeId={cake.cakeImageUrl ? cake.id : undefined}
+                      name={cake.cakeName ?? "Custom cake"}
+                      config={cakeConfig}
+                    />
+                  </div>
                   <dl className="mt-4 grid gap-4 text-a-body sm:grid-cols-2">
                     <div>
                       <dt className="text-a-meta font-semibold uppercase text-a-muted">
@@ -190,6 +203,9 @@ export default async function VendorOrderDetail({
           </ol>
         ) : (
           <div>
+            <div className="mb-4">
+              <FullCakePhoto orderRef={order.ref} src={order.cakeImageUrl} name={name} config={config} />
+            </div>
             <h3 className="text-a-lede font-semibold">{name}</h3>
             <p className="mt-2 text-a-body">
               {config
@@ -237,7 +253,14 @@ export default async function VendorOrderDetail({
           <div className="flex gap-2">
             <dt className="text-a-muted">For</dt>
             <dd className="text-a-ink">
-              {order.customerName ?? "No name taken"}
+              {receiver.name ?? order.customerName ?? "No name taken"}
+              {/* The bakery delivers, so once it has accepted it needs a number
+                  for the door. Not before: an offer is not yet its order. */}
+              {!pickup && vendorMayCall(status) && receiver.phone && (
+                <a href={`tel:${receiver.phone}`} className="ml-2 font-a-mono text-a-accent-ink underline underline-offset-2">
+                  {receiver.phone}
+                </a>
+              )}
             </dd>
           </div>
         </dl>
@@ -257,15 +280,27 @@ export default async function VendorOrderDetail({
               : status === "in_preparation"
                 ? "Being made. Mark it ready when it is finished and boxed."
                 : status === "ready"
-                  ? "Finished. Mark it handed over when it leaves you."
+                  ? pickup
+                    ? "Finished. Mark it ready for collection when it is boxed for the customer."
+                    : "Finished. Send it out for delivery when it leaves you."
                   : status === "rejected"
                     ? "You declined this one. MakeYourCakes will give it to another bakery — " +
                       "there is nothing further to do here."
                     : status === "withdrawn"
                       ? "MakeYourCakes took this order back. It is not yours to make."
-                      : "Handed over. Nothing further on this one."}
+                      : order.status === "out_for_delivery"
+                        ? pickup
+                          ? "Waiting for the customer. Mark it collected when they have it."
+                          : "On its way. Mark it delivered once the customer has it."
+                        : order.status === "in_kitchen"
+                          ? pickup
+                            ? "Handed over. Mark it ready for collection so the customer is told."
+                            : "Handed over. Send it out for delivery so the customer is told."
+                          : pickup
+                            ? "Collected. Nothing further on this one."
+                            : "Delivered. Nothing further on this one."}
         </p>
-        <OrderActions assignmentId={assignment.id} orderRef={order.ref} next={next} />
+        <OrderActions assignmentId={assignment.id} orderRef={order.ref} next={next} pickup={pickup} />
       </section>
 
       {/* ── what has happened to this assignment ─────────────────────────── */}

@@ -1,6 +1,5 @@
 import { portalEvent } from "@/lib/portalNotifications";
 import { startAssignment } from "@/lib/assignment";
-import type { Receipt } from "@/lib/orderReceipt";
 import { Prisma } from "@prisma/client";
 import {
   callerKey,
@@ -11,25 +10,22 @@ import {
   tooMany,
 } from "@/lib/apiGuard";
 import { getViewer } from "@/lib/auth";
-import { cakesBySlug } from "@/lib/cakeData";
 import {
-  CATALOG_UNAVAILABLE_MESSAGE,
-  tryCatalogSnapshot,
-} from "@/lib/catalogData";
-import {
-  asBasketBody,
   CheckoutRequest,
-  type BasketReview,
   type ItemQuote,
-  nameOk,
-  normalizeName,
-  normalizePhone,
-  phoneOk,
+  PaymentProof,
   refForAttempt,
-  reviewBasket,
-  checkoutIntent,
 } from "@/lib/checkout";
-import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
+import { refundPayment, refundUnlessOk } from "@/lib/checkoutPayment";
+import {
+  asJson,
+  CREATED,
+  type CreatedOrder,
+  responseFor,
+  type SuccessfulReview,
+  validateCheckout,
+} from "@/lib/checkoutValidate";
+import { db } from "@/lib/db";
 import { rememberGuestOrders } from "@/lib/guestOrders";
 import { log, requestId } from "@/lib/log";
 import {
@@ -40,86 +36,15 @@ import {
   allergensForVariant,
   productionSpecFromConfig,
 } from "@/lib/productionSpec";
-import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
+import { paymentMatches, paymentsEnabled, verifySignature } from "@/lib/razorpay";
+import { slotWindow } from "@/lib/scheduling";
 import { deriveServings, servingsForSize } from "@/lib/servings";
-
-const CREATED = {
-  id: true,
-  ref: true,
-  totalPaise: true,
-  productSubtotalPaise: true,
-  deliveryFeePaise: true,
-  customerName: true,
-  customerPhone: true,
-  deliverySlot: true,
-  leadHours: true,
-  requestedFor: true,
-  requestedWindow: true,
-  fulfillmentMethod: true,
-  addressLine1: true,
-  addressLine2: true,
-  landmark: true,
-  city: true,
-  state: true,
-  pincode: true,
-  deliveryLocation: true,
-  cakes: { orderBy: { position: "asc" }, select: { cakeName: true, variantLabel: true } },
-  dueAt: true,
-  createdAt: true,
-} satisfies Prisma.OrderSelect;
-
-type CreatedOrder = Prisma.OrderGetPayload<{ select: typeof CREATED }>;
-type SuccessfulReview = Extract<BasketReview, { ok: true }>;
+import { z } from "zod";
 
 class PayloadMismatch extends Error {}
+class PaymentMismatch extends Error {}
 class CapacityUnavailable extends Error {}
 class ReferenceUnavailable extends Error {}
-
-async function payloadHash(value: unknown): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(value));
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (b) =>
-    b.toString(16).padStart(2, "0"),
-  ).join("");
-}
-
-function asJson(value: unknown): Prisma.InputJsonValue {
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-}
-
-function responseFor(order: CreatedOrder) {
-  const subtotal = order.productSubtotalPaise + order.deliveryFeePaise;
-  const items: { name: string; variant: string; qty: number }[] = [];
-  for (const cake of order.cakes) {
-    const name = cake.cakeName ?? "Cake";
-    const variant = cake.variantLabel ?? "";
-    const item = items.find(item => item.name === name && item.variant === variant);
-    if (item) item.qty++;
-    else items.push({ name, variant, qty: 1 });
-  }
-  return {
-    order: {
-      ref: order.ref, totalPaise: order.totalPaise,
-      date: order.requestedFor ? new Date(order.requestedFor.getTime() + 19800000).toISOString().slice(0, 10) : null,
-      window: order.requestedWindow ?? "",
-      method: order.fulfillmentMethod,
-      address: order.fulfillmentMethod === "pickup" ? "Bakery pickup" : (
-        order.deliveryLocation && typeof order.deliveryLocation === "object" &&
-        "formattedAddress" in order.deliveryLocation && typeof order.deliveryLocation.formattedAddress === "string"
-          ? order.deliveryLocation.formattedAddress
-          : [order.addressLine1, order.addressLine2, order.landmark, order.city, order.state, order.pincode].filter(Boolean).join(", ")
-      ),
-      items,
-    } satisfies Receipt,
-    orders: [{ ref: order.ref, totalPaise: order.totalPaise }],
-    orderId: order.ref,
-    totalPaise: order.totalPaise,
-    subtotalPaise: subtotal,
-    gstPaise: order.totalPaise - subtotal,
-    productSubtotalPaise: order.productSubtotalPaise,
-    deliveryFeePaise: order.deliveryFeePaise,
-  };
-}
 
 export async function POST(req: Request) {
   const traceId = requestId(req);
@@ -139,156 +64,82 @@ export async function POST(req: Request) {
   } catch {
     return Response.json({ error: "Expected a JSON body" }, { status: 400 });
   }
-  if (!hasDatabase()) {
-    return Response.json({ error: NO_DATABASE_MESSAGE }, { status: 503 });
-  }
 
-  const parsed = CheckoutRequest.safeParse(asBasketBody(raw));
-  if (!parsed.success) {
+  if (!paymentsEnabled()) return place(raw, null, traceId);
+
+  const paid = PaidRequest.safeParse(raw);
+  if (!paid.success) {
     return Response.json(
-      { error: "That order couldn't be read.", code: "invalid_request" },
-      { status: 400, headers: { "x-request-id": traceId } },
+      { error: "Payment is required to place this order.", code: "payment_required" },
+      { status: 402 },
     );
   }
-
-  const body = parsed.data;
-  const customerName = normalizeName(body.customerName);
-  const customerPhone = normalizePhone(body.customerPhone);
-  if (!nameOk(customerName)) {
+  const { payment } = paid.data;
+  if (!verifySignature(payment)) {
     return Response.json(
-      { error: "We need a name for the order.", field: "customerName" },
-      { status: 400 },
-    );
-  }
-  if (!phoneOk(customerPhone)) {
-    return Response.json(
-      {
-        error: "We need a 10-digit mobile number to confirm the order.",
-        field: "customerPhone",
-      },
+      { error: "We couldn't verify that payment.", code: "payment_invalid" },
       { status: 400 },
     );
   }
 
-  // Recover a committed order before checking mutable prices, availability or time.
-  // The transaction repeats this check under a lock for concurrent first requests.
-  const hash = await payloadHash(checkoutIntent(body));
+  // From here the customer has paid: whatever goes wrong, including a throw, ends in a refund.
+  let res: Response;
   try {
-    const previous = await db.checkoutAttempt.findUnique({
-      where: { id: body.idempotencyKey },
-      include: { order: { select: CREATED } },
-    });
-    if (previous && previous.payloadHash !== hash) {
-      return Response.json(
-        {
-          error: "This checkout attempt belongs to different order details.",
-          code: "idempotency_conflict",
-        },
-        { status: 409 },
-      );
-    }
-    if (previous?.status === "completed" && previous.order) {
-      await rememberGuestOrders([previous.order.ref]);
-      return Response.json(
-        { ...responseFor(previous.order), duplicate: true },
-        { headers: { "x-request-id": traceId } },
-      );
-    }
+    res = await place(raw, payment, traceId);
   } catch (error) {
-    log("error", "checkout_recovery_failed", { traceId, error: String(error) });
-    return Response.json(
-      {
-        error:
-          "We couldn't verify this checkout attempt. Please retry with the same details.",
-        code: "recovery_unavailable",
-      },
-      { status: 503 },
-    );
+    log("error", "order_place_failed", { traceId, error: String(error) });
+    res = serverError(traceId, true);
   }
+  return refundUnlessOk(res, payment);
+}
 
-  const catalog = await tryCatalogSnapshot();
-  if (!catalog) {
-    return Response.json(
-      { error: CATALOG_UNAVAILABLE_MESSAGE, code: "catalog_unavailable" },
-      { status: 503 },
-    );
-  }
+const PaidRequest = z.object({ idempotencyKey: z.string().uuid(), payment: PaymentProof });
 
-  const slotInfo = catalog.slots[body.fulfillment.slot];
-  const schedule = scheduleVerdict(body.fulfillment.requestedDate, slotInfo);
-  if (!schedule.ok) {
-    return Response.json(
-      {
-        error: schedule.message,
-        code: "schedule_unavailable",
-        field: "requestedDate",
-      },
-      { status: 422 },
-    );
-  }
-
-  const items = body.items.map((item) => {
-    if (item.cakeSlug) {
-      return {
-        ...item,
-        choices: {
-          ...item.choices!,
-          delivery: body.fulfillment.slot,
-          pincode:
-            body.fulfillment.method === "delivery"
-              ? body.fulfillment.pincode
-              : undefined,
-        },
-      };
-    }
-    if (!item.config) return item;
-    const config = {
-      ...item.config,
-      delivery: body.fulfillment.slot,
-      pincode:
-        body.fulfillment.method === "delivery"
-          ? body.fulfillment.pincode
-          : undefined,
-    };
-    if (body.fulfillment.method === "pickup") delete config.pincode;
-    return { ...item, config };
-  });
-
-  const cakes = await cakesBySlug(
-    items
-      .map((item) => item.cakeSlug)
-      .filter((slug): slug is string => Boolean(slug)),
+/** `paid`: the customer has paid, so the refund message leads and this only adds the next step. */
+function serverError(traceId: string, paid: boolean) {
+  return Response.json(
+    {
+      error: paid
+        ? "Something went wrong on our side; please try again."
+        : "We couldn't place that order. Nothing has been charged — please try again.",
+      code: "server_error",
+    },
+    { status: 500, headers: { "x-request-id": traceId } },
   );
-  const review = reviewBasket(items, catalog, cakes);
-  if (!review.ok) {
-    const { status, ...problem } = review.problem;
-    return Response.json({ error: problem.message, ...problem }, { status });
-  }
+}
 
-  if (
-    body.quotedOrderTotalPaise !== undefined &&
-    body.quotedOrderTotalPaise !== review.totalPaise
-  ) {
+/**
+ * A replayed order that was paid for with a different payment than this proof:
+ * the customer has paid twice, so the second payment goes back. The replay
+ * itself is still answered as before.
+ */
+async function refundExtraPayment(order: CreatedOrder, payment: PaymentProof | null) {
+  if (!payment || order.razorpayPaymentId === payment.razorpayPaymentId) return;
+  const { outcome } = await refundPayment(payment);
+  log("warn", "replay_extra_payment", {
+    ref: order.ref,
+    paymentId: payment.razorpayPaymentId,
+    outcome,
+  });
+}
+
+async function place(
+  raw: unknown,
+  payment: PaymentProof | null,
+  traceId: string,
+): Promise<Response> {
+  const validated = await validateCheckout(raw, traceId);
+  if (validated.kind === "problem") return validated.response;
+  if (validated.kind === "replay") {
+    await refundExtraPayment(validated.order, payment);
+    await rememberGuestOrders([validated.order.ref]);
     return Response.json(
-      {
-        error:
-          "The order total has changed. Review the updated price before placing your order.",
-        code: "price_changed",
-      },
-      { status: 409 },
+      { ...responseFor(validated.order), duplicate: true },
+      { headers: { "x-request-id": traceId } },
     );
   }
-
-  const slot = review.quotes[0]?.slot;
-  if (!slot?.available) {
-    return Response.json(
-      {
-        error: "That fulfillment slot is not available.",
-        code: "delivery_unavailable",
-      },
-      { status: 422 },
-    );
-  }
+  const { body, hash, customerName, customerPhone, review, requestedFor } =
+    validated.checked;
 
   const viewer = await getViewer();
   const [design, bakery] = await Promise.all([
@@ -310,8 +161,9 @@ export async function POST(req: Request) {
       customerPhone,
       userId: viewer?.profile.id ?? null,
       designId: design?.id ?? null,
-      requestedFor: schedule.requestedFor,
+      requestedFor,
       notificationDestination: bakery?.orderNotifyEmail ?? null,
+      payment,
     });
   } catch (error) {
     if (error instanceof PayloadMismatch) {
@@ -320,6 +172,15 @@ export async function POST(req: Request) {
           error:
             "This checkout attempt belongs to a different basket. Reload checkout and try again.",
           code: "idempotency_conflict",
+        },
+        { status: 409 },
+      );
+    }
+    if (error instanceof PaymentMismatch) {
+      return Response.json(
+        {
+          error: "The order total changed while you were paying.",
+          code: "payment_mismatch",
         },
         { status: 409 },
       );
@@ -344,16 +205,10 @@ export async function POST(req: Request) {
       );
     }
     log("error", "order_create_failed", { traceId, error: String(error) });
-    return Response.json(
-      {
-        error:
-          "We couldn't place that order. Nothing has been charged — please try again.",
-        code: "server_error",
-      },
-      { status: 500, headers: { "x-request-id": traceId } },
-    );
+    return serverError(traceId, payment !== null);
   }
 
+  if (result.replay) await refundExtraPayment(result.order, payment);
   await startAssignment(result.order.ref).catch(() => log("error", "assignment_pending_retry", { orderRef: result.order.ref }));
   await rememberGuestOrders([result.order.ref]);
   if (!result.replay) {
@@ -387,6 +242,7 @@ interface CreateInput {
   designId: string | null;
   requestedFor: Date;
   notificationDestination: string | null;
+  payment: PaymentProof | null;
 }
 
 async function createOrder(
@@ -404,6 +260,12 @@ async function createOrder(
         throw new PayloadMismatch();
       if (previous?.status === "completed" && previous.order) {
         return { order: previous.order, replay: true };
+      }
+      if (
+        input.payment &&
+        !paymentMatches(previous?.response, input.payment, input.review.totalPaise)
+      ) {
+        throw new PaymentMismatch();
       }
 
       await tx.checkoutAttempt.upsert({
@@ -554,14 +416,16 @@ async function createOrder(
           confirmedAt: input.fulfillment.method === "delivery" ? new Date() : null,
           dueAt: input.fulfillment.method === "delivery" ? input.requestedFor : null,
           userId: input.userId,
-          paymentStatus: "none",
+          paymentStatus: input.payment ? "paid" : "none",
+          razorpayOrderId: input.payment?.razorpayOrderId,
+          razorpayPaymentId: input.payment?.razorpayPaymentId,
           customerName: input.customerName,
           customerPhone: input.customerPhone,
           customerEmail: input.fulfillment.contactEmail ?? null,
           ...(input.fulfillment.method === "delivery" ? { deliveryLocation: asJson({
             placeId: input.fulfillment.location?.placeId ?? "",
             name: input.fulfillment.recipientName,
-            phone: input.customerPhone,
+            phone: input.fulfillment.recipientPhone ?? input.customerPhone,
             addressLine1: input.fulfillment.addressLine1,
             addressLine2: input.fulfillment.addressLine2 ?? "",
             locality: input.fulfillment.locality ?? "",

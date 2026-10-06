@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
-import { LocationPicker } from "@/components/shop/LocationPicker";
+import { LocationSheet } from "@/components/shop/LocationSheet";
 import { CakePhoto } from "@/components/shop/CakePhoto";
 import { PriceRoll } from "@/components/shop/PriceRoll";
+import { payWithRazorpay } from "@/components/shop/payWithRazorpay";
 import { OrderReceipt } from "@/lib/orderReceipt";
 import { OrderPlaced, type Receipt } from "@/components/shop/OrderPlaced";
 import { useCart, useCartHydrated } from "@/lib/cart";
 import { variantById, variantLabel, type CakeProductView } from "@/lib/cakes";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
-import { checkoutIntent, nameOk, phoneOk } from "@/lib/checkout";
+import { checkoutIntent, keptAttempt, nameOk, PaymentProof, phoneOk } from "@/lib/checkout";
 import { resolveSlot } from "@/lib/delivery";
 import { formatINR } from "@/lib/format";
 import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
@@ -42,6 +43,10 @@ const DraftSchema = z.object({
   location: z
     .object({ lat: z.number(), lng: z.number(), placeId: z.string() })
     .nullable(),
+  building: z.string().max(120).default(""),
+  forSomeoneElse: z.boolean().default(false),
+  recipientName: z.string().max(80).default(""),
+  recipientPhone: z.string().max(10).default(""),
 });
 type Draft = z.infer<typeof DraftSchema>;
 type Quote = {
@@ -88,6 +93,10 @@ function readDraft(): Draft {
     customerNotes: "",
     occasion: "",
     location: null,
+    building: "",
+    forSomeoneElse: false,
+    recipientName: "",
+    recipientPhone: "",
   };
 }
 function readReceipt(): Receipt | null {
@@ -98,7 +107,36 @@ function readReceipt(): Receipt | null {
   } catch {}
   return null;
 }
-type Props = { catalog: CatalogSnapshot; cakes: CakeProductView[] };
+type Props = {
+  catalog: CatalogSnapshot;
+  cakes: CakeProductView[];
+  payments: { enabled: boolean; testMode: boolean };
+};
+const ATTEMPT_KEY = "makemycake.checkoutAttempt";
+/** The in-flight checkout: its idempotency key, and the payment once Razorpay has taken it. */
+type Attempt = { signature: string; key: string; proof?: PaymentProof };
+/** Answers that mean the quote moved under the customer: ask for a fresh one. */
+const REQUOTE = [
+  "price_changed",
+  "option_unavailable",
+  "cake_unavailable",
+  "capacity_unavailable",
+];
+const STOPPED = {
+  dismissed: "Payment cancelled. Nothing was charged.",
+  unavailable:
+    "We couldn't open the payment window. Check your connection or turn off ad blockers, then try again.",
+};
+/** The server will never accept this proof, so keeping it would only strand the customer. */
+const PROOF_REJECTED = ["payment_required", "payment_invalid"];
+function readAttempt(): Attempt | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ATTEMPT_KEY) ?? "null");
+    if (typeof saved?.signature === "string" && z.uuid().safeParse(saved.key).success)
+      return { signature: saved.signature, key: saved.key, proof: PaymentProof.safeParse(saved.proof).data };
+  } catch {}
+  return null;
+}
 export function CheckoutForm(props: Props) {
   const hydrated = useCartHydrated();
   return hydrated ? (
@@ -115,13 +153,19 @@ export function CheckoutForm(props: Props) {
     </div>
   );
 }
-function Checkout({ catalog, cakes }: Props) {
+function Checkout({ catalog, cakes, payments }: Props) {
   const lines = useCart((s) => s.lines);
   const clear = useCart((s) => s.clear);
   const [draft, setDraft] = useState(readDraft);
   const [receipt, setReceipt] = useState<Receipt | null>(readReceipt);
   const [celebrate, setCelebrate] = useState(false);
   const [placing, setPlacing] = useState(false);
+  const [stage, setStage] = useState<"paying" | "confirming" | null>(null);
+  // The checkout this browser has already paid for, if any: the label reads it, place() reads the ref.
+  const [paidSignature, setPaidSignature] = useState(() => {
+    const saved = payments.enabled ? readAttempt() : null;
+    return saved?.proof ? saved.signature : null;
+  });
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -131,9 +175,9 @@ function Checkout({ catalog, cakes }: Props) {
     error?: string;
     code?: string;
   } | null>(null);
-  const [addressMode, setAddressMode] = useState(false);
-  const [confirmedAddress, setConfirmedAddress] = useState("");
-  const attempt = useRef<{ signature: string; key: string } | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editArea, setEditArea] = useState(false);
+  const attempt = useRef<Attempt | null>(null);
   const submitting = useRef(false);
   const patch = (change: Partial<Draft>) =>
     setDraft((d) => ({ ...d, ...change, ...(change.location === null ? { source: "manual" as const, formattedAddress: "" } : {}) }));
@@ -162,23 +206,19 @@ function Checkout({ catalog, cakes }: Props) {
     draft.method === "delivery" ? draft.pincode : undefined,
     catalog,
   );
-  const addressSignature = JSON.stringify([
-    draft.locality,
-    draft.addressLine1,
-    draft.addressLine2,
-    draft.landmark,
-    draft.city,
-    draft.state,
-    draft.pincode,
-    draft.location,
-  ]);
+  const pincodeOk = /^\d{6}$/.test(draft.pincode);
+  const receiverOk =
+    !draft.forSomeoneElse ||
+    (nameOk(draft.recipientName) && /^\d{10}$/.test(draft.recipientPhone));
+  /* Complete means pinned, a door number, a place and a receiver: no separate
+     "confirm" step, the pin was the confirmation. */
   const addressComplete =
-    draft.addressLine1.trim().length >= 3 &&
+    Boolean(draft.location) &&
+    draft.addressLine1.trim().length >= 1 &&
     draft.city.trim().length >= 2 &&
     draft.state.trim().length >= 2 &&
-    /^\d{6}$/.test(draft.pincode);
-  const addressConfirmed =
-    draft.method === "pickup" || confirmedAddress === addressSignature;
+    pincodeOk &&
+    receiverOk;
   const items = useMemo(
     () =>
       lines.map((line) => ({
@@ -252,44 +292,46 @@ function Checkout({ catalog, cakes }: Props) {
   const contactOk = nameOk(draft.name) && phoneOk(draft.phone) && emailOk;
   const ready =
     contactOk &&
-    addressConfirmed &&
     (draft.method === "pickup" || addressComplete) &&
     Boolean(quote) &&
     !missing;
 
   function keyFor(signature: string) {
-    if (attempt.current?.signature === signature) return attempt.current.key;
-    try {
-      const saved = JSON.parse(
-        localStorage.getItem("makemycake.checkoutAttempt") ?? "null",
-      );
-      if (
-        saved?.signature === signature &&
-        z.uuid().safeParse(saved.key).success
-      ) {
-        attempt.current = saved;
-        return saved.key as string;
-      }
-    } catch {}
+    // A saved payment is never overwritten: this press sends it on its own key,
+    // and the server answers with its order or refunds it (the details differ).
+    const kept = keptAttempt(signature, payments.enabled, attempt.current, readAttempt());
+    if (kept) {
+      attempt.current = kept;
+      return kept.key;
+    }
     attempt.current = { signature, key: crypto.randomUUID() };
     try {
-      localStorage.setItem(
-        "makemycake.checkoutAttempt",
-        JSON.stringify(attempt.current),
-      );
+      localStorage.setItem(ATTEMPT_KEY, JSON.stringify(attempt.current));
     } catch {}
     return attempt.current.key;
   }
-  async function place() {
-    setTouched(true);
-    if (!ready || !quote || submitting.current) return;
-    submitting.current = true;
-    setPlacing(true);
-    setError("");
+  /** Remember (or forget) the payment taken for this attempt, so a lost confirm never charges twice. */
+  function keepProof(proof?: PaymentProof) {
+    if (!attempt.current) return;
+    attempt.current = { ...attempt.current, proof };
+    setPaidSignature(proof ? attempt.current.signature : null);
+    try {
+      localStorage.setItem(ATTEMPT_KEY, JSON.stringify(attempt.current));
+    } catch {}
+  }
+  function fail(data: { error?: string; code?: string }, fallback: string) {
+    setError(data.error ?? fallback);
+    if (REQUOTE.includes(String(data.code))) {
+      setAnswer(null);
+      setRetry((n) => n + 1);
+    }
+  }
+  function checkoutBody(quote: Quote) {
     const fulfillment = {
       method: draft.method,
       slot: delivery,
-      recipientName: draft.name,
+      recipientName:
+        draft.method === "delivery" && draft.forSomeoneElse ? draft.recipientName : draft.name,
       contactEmail: draft.email || undefined,
       requestedDate: draft.requestedDate,
       requestedWindow: slotWindow(slot),
@@ -301,7 +343,9 @@ function Checkout({ catalog, cakes }: Props) {
             formattedAddress: draft.formattedAddress,
             source: draft.source,
             addressLine1: draft.addressLine1,
-            addressLine2: draft.addressLine2 || undefined,
+            addressLine2:
+              [draft.building.trim(), draft.addressLine2].filter(Boolean).join(", ").slice(0, 160) || undefined,
+            recipientPhone: draft.forSomeoneElse ? draft.recipientPhone : undefined,
             landmark: draft.landmark || undefined,
             city: draft.city,
             state: draft.state,
@@ -311,7 +355,7 @@ function Checkout({ catalog, cakes }: Props) {
           }
         : {}),
     };
-    const body = {
+    return {
       quotedOrderTotalPaise: quote.totalPaise,
       customerName: draft.name,
       customerPhone: draft.phone,
@@ -321,35 +365,75 @@ function Checkout({ catalog, cakes }: Props) {
         quotedTotalPaise: Math.round(quote.each[i] / item.qty),
       })),
     };
+  }
+  async function place() {
+    setTouched(true);
+    if (!ready || !quote || submitting.current) return;
+    submitting.current = true;
+    setPlacing(true);
+    setError("");
+    const body = checkoutBody(quote);
     try {
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ...body,
-          idempotencyKey: keyFor(JSON.stringify(checkoutIntent(body))),
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setError(
-          data.error ??
-            "We couldn't place the order. Nothing has been charged.",
-        );
-        if (
-          [
-            "price_changed",
-            "option_unavailable",
-            "cake_unavailable",
-            "capacity_unavailable",
-          ].includes(data.code)
-        ) {
-          setAnswer(null);
-          setRetry((n) => n + 1);
+      const request = {
+        ...body,
+        idempotencyKey: keyFor(JSON.stringify(checkoutIntent(body))),
+      };
+      const send = (url: string, payment?: PaymentProof) =>
+        fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payment ? { ...request, payment } : request),
+        });
+      // With payments on, an order needs a Razorpay payment first. One already
+      // taken for this attempt (the confirm was lost) is reused, never repeated.
+      let payment = payments.enabled ? attempt.current?.proof : undefined;
+      let order: unknown;
+      if (payments.enabled && !payment) {
+        setStage("paying");
+        const response = await send("/api/payments/intent");
+        const intent = await response.json();
+        if (!response.ok) {
+          fail(intent, "We couldn't start the payment. Nothing has been charged.");
+          return;
         }
-        return;
+        if (intent.order) {
+          order = intent.order; // already placed: a replay, nothing to pay
+        } else {
+          const paid = await payWithRazorpay({
+            keyId: intent.keyId,
+            razorpayOrderId: intent.razorpayOrderId,
+            amountPaise: intent.amountPaise,
+            name: draft.name,
+            phone: draft.phone,
+            email: draft.email || undefined,
+          });
+          if (paid.kind !== "paid") {
+            setError(paid.kind === "failed" ? paid.message : STOPPED[paid.kind]);
+            return;
+          }
+          payment = paid.proof;
+          keepProof(payment);
+        }
       }
-      const saved: Receipt = OrderReceipt.parse(data.order);
+      if (order === undefined) {
+        if (payments.enabled) setStage("confirming");
+        const response = await send("/api/orders", payment);
+        const data = await response.json();
+        if (!response.ok) {
+          fail(
+            data,
+            payment
+              ? "We couldn't place the order. Your payment is safe. Press the button again to finish."
+              : "We couldn't place the order. Nothing has been charged.",
+          );
+          // A refund answer, or a proof the server refuses, ends this payment: the next press pays afresh.
+          if (typeof data.refunded === "boolean" || PROOF_REJECTED.includes(String(data.code)))
+            keepProof(undefined);
+          return;
+        }
+        order = data.order;
+      }
+      const saved: Receipt = OrderReceipt.parse(order);
       // A storage failure after the server commits must never be presented as an order failure.
       try {
         sessionStorage.setItem(RECEIPT_KEY, JSON.stringify(saved));
@@ -357,14 +441,17 @@ function Checkout({ catalog, cakes }: Props) {
       } catch {}
       setCelebrate(true);
       setReceipt(saved);
-      try { clear(); localStorage.removeItem("makemycake.checkoutAttempt"); } catch { /* A cart storage failure cannot undo a committed order. */ }
+      try { clear(); localStorage.removeItem(ATTEMPT_KEY); } catch { /* A cart storage failure cannot undo a committed order. */ }
     } catch {
       setError(
-        "We couldn't confirm the result. Retry with the same details; your attempt is protected against duplicate orders.",
+        payments.enabled && attempt.current?.proof
+          ? "We couldn't confirm your order. Your payment is safe. Press the button again to finish; you won't be charged twice."
+          : "We couldn't confirm the result. Retry with the same details; your attempt is protected against duplicate orders.",
       );
     } finally {
       submitting.current = false;
       setPlacing(false);
+      setStage(null);
     }
   }
   if (receipt && (celebrate || lines.length === 0)) return <OrderPlaced receipt={receipt} celebrate={celebrate} />;
@@ -391,6 +478,27 @@ function Checkout({ catalog, cakes }: Props) {
           ? "Not serviceable · please choose another address or pickup."
           : (current.error ?? "Unable to verify. Please retry.");
 
+  // Paid for exactly this checkout already (the confirm was lost): the button finishes it.
+  const finishing =
+    paidSignature !== null &&
+    quote !== undefined &&
+    paidSignature === JSON.stringify(checkoutIntent(checkoutBody(quote)));
+  const buttonLabel = !payments.enabled
+    ? placing
+      ? "Placing your order…"
+      : quote
+        ? `Place order · ${formatINR(quote.totalPaise)}`
+        : "Place order"
+    : stage === "confirming"
+      ? "Confirming payment…"
+      : placing
+        ? "Opening payment…"
+        : finishing
+          ? "Finish placing order"
+          : quote
+            ? `Pay ${formatINR(quote.totalPaise)}`
+            : "Pay";
+
   return (
     <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_25rem]">
       <form
@@ -401,7 +509,8 @@ function Checkout({ catalog, cakes }: Props) {
         }}
         noValidate
       >
-        <fieldset disabled={placing} className="contents">
+        {/* Paid already: only "Finish placing order" is offered, so the paid details can't drift. */}
+        <fieldset disabled={placing || finishing} className="contents">
           <section className={`checkout-section ${sCard} p-5 sm:p-7`}>
             <div className="mb-6">
               <h2 className="text-2xl">The person behind the celebration</h2>
@@ -498,153 +607,130 @@ function Checkout({ catalog, cakes }: Props) {
             </fieldset>
             {draft.method === "delivery" ? (
               <div className="flex flex-col gap-5">
-                {!addressConfirmed && <LocationPicker
+                <button
+                  type="button"
+                  onClick={() => setSheetOpen(true)}
                   disabled={placing}
-                  onManual={() => { setAddressMode(true); patch({ location: null }); }}
-                  onConfirm={(address) => {
-                    setAddressMode(true);
-                    patch({
-                      addressLine2: address.placeId ? address.address.slice(0, 160) : draft.addressLine2,
-                      locality: address.locality ?? "",
-                      formattedAddress: address.address,
-                      source: address.source ?? "map",
-                      city: address.city || draft.city,
-                      state: address.state || draft.state,
-                      pincode: address.pincode || draft.pincode,
-                      location: {
-                        lat: address.lat,
-                        lng: address.lng,
-                        placeId: address.placeId,
-                      },
-                    });
-                    setConfirmedAddress("");
-                  }}
-                />}
-                {(addressMode || draft.addressLine1) && <div className="flex flex-col gap-5">
-                {!addressConfirmed && <>
-                <p className="text-sm text-s-bark">Add the finishing details so your cake reaches the right door.</p>
-                <Field label="Flat / House / Building">
-                  <input
-                    value={draft.addressLine1}
-                    onChange={(e) =>
-                      patch({ addressLine1: e.target.value })
-                    }
-                    autoComplete="address-line1"
-                    placeholder="Flat 402, Rosewood Apartments"
-                    maxLength={160}
-                    required
-                    className={sField()}
-                  />
-                </Field>
-                <Field label="Street / Area">
-                  <input
-                    value={draft.addressLine2}
-                    onChange={(e) => patch({ addressLine2: e.target.value, location: draft.location?.placeId ? null : draft.location })}
-                    autoComplete="address-line2"
-                    maxLength={160}
-                    className={sField()}
-                  />
-                </Field>
-                <Field label="Locality">
-                  <input value={draft.locality} onChange={e => patch({ locality: e.target.value, location: draft.location?.placeId ? null : draft.location })} maxLength={120} className={sField()} autoComplete="address-level3" />
-                </Field>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="City">
-                    <input
-                      value={draft.city}
-                      onChange={(e) =>
-                        patch({ city: e.target.value, location: draft.location?.placeId ? null : draft.location })
-                      }
-                      autoComplete="address-level2"
-                      maxLength={80}
-                      required
-                      className={sField()}
-                    />
-                  </Field>
-                  <Field label="State">
-                    <input
-                      value={draft.state}
-                      onChange={(e) =>
-                        patch({ state: e.target.value, location: draft.location?.placeId ? null : draft.location })
-                      }
-                      autoComplete="address-level1"
-                      maxLength={80}
-                      required
-                      className={sField()}
-                    />
-                  </Field>
-                  <Field label="Pincode" error={(touched || draft.location || draft.pincode) && !/^\d{6}$/.test(draft.pincode) ? "Enter the six-digit pincode for this address." : undefined}>
-                    <input
-                      value={draft.pincode}
-                      onChange={(e) =>
-                        patch({
-                          pincode: e.target.value.replace(/\D/g, ""),
-                          location: draft.location?.placeId ? null : draft.location,
-                        })
-                      }
-                      autoComplete="postal-code"
-                      inputMode="numeric"
-                      maxLength={6}
-                      required
-                      className={sField()}
-                    />
-                  </Field>
-                  <Field label="Landmark (optional)">
-                    <input
-                      value={draft.landmark}
-                      onChange={(e) => patch({ landmark: e.target.value })}
-                      maxLength={120}
-                      className={sField()}
-                    />
-                  </Field>
-                </div>
-                </>}
-                {addressComplete && (
-                  <div className="location-result rounded-s border border-s-line bg-s-cream p-4">
-                    <p className="text-sm font-semibold">
-                      Your delivery address
-                    </p>
-                    <p className="my-2 text-sm text-s-bark">
-                      {[
-                        draft.addressLine1,
-                        draft.addressLine2,
-                        draft.locality,
-                        draft.landmark,
-                        draft.city,
-                        draft.state,
-                        draft.pincode,
-                      ]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                    <button
-                      type="button"
-                      className={sBtn(
-                        addressConfirmed ? "ghost" : "outline",
-                        "sm",
-                      )}
-                      disabled={addressConfirmed}
-                      onClick={() => { setConfirmedAddress(addressSignature); document.getElementById("delivery-window-heading")?.focus(); }}
+                  className="flex min-h-16 w-full items-center justify-between gap-4 rounded-s border border-s-line bg-s-shell p-4 text-left transition-colors hover:border-s-cocoa"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm text-s-bark">Deliver to</span>
+                    <span className="mt-0.5 block truncate font-semibold">
+                      {draft.location
+                        ? [draft.addressLine1, draft.building, draft.addressLine2, draft.locality, draft.pincode]
+                            .map((part) => part.trim())
+                            .filter(Boolean)
+                            .join(", ") || "Pinned location"
+                        : "Add delivery address"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold text-s-berry">
+                    {draft.location ? "Change" : "Add"}
+                  </span>
+                </button>
+                {draft.location && (
+                  <>
+                    <Field
+                      label="Flat / house no. and floor"
+                      error={touched && !draft.addressLine1.trim() ? "Add your flat or house number." : undefined}
                     >
-                      {addressConfirmed
-                        ? "✓ Address confirmed"
-                        : "Continue to delivery"}
-                    </button>
-                    {addressConfirmed && <button type="button" className={sBtn("ghost", "sm")} onClick={() => setConfirmedAddress("")}>Change address</button>}
-                  </div>
+                      <input
+                        value={draft.addressLine1}
+                        onChange={(e) => patch({ addressLine1: e.target.value })}
+                        autoComplete="address-line1"
+                        placeholder="Flat 402, 4th floor"
+                        maxLength={160}
+                        required
+                        className={sField()}
+                      />
+                    </Field>
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <Field label="Building / society (optional)">
+                        <input
+                          value={draft.building}
+                          onChange={(e) => patch({ building: e.target.value })}
+                          maxLength={120}
+                          className={sField()}
+                        />
+                      </Field>
+                      <Field label="Landmark (optional)">
+                        <input
+                          value={draft.landmark}
+                          onChange={(e) => patch({ landmark: e.target.value })}
+                          maxLength={120}
+                          className={sField()}
+                        />
+                      </Field>
+                    </div>
+                    {editArea || !pincodeOk ? (
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        <Field label="Area / locality">
+                          <input value={draft.locality} onChange={(e) => patch({ locality: e.target.value })} maxLength={120} className={sField()} autoComplete="address-level3" />
+                        </Field>
+                        <Field label="City">
+                          <input value={draft.city} onChange={(e) => patch({ city: e.target.value })} autoComplete="address-level2" maxLength={80} required className={sField()} />
+                        </Field>
+                        <Field label="State">
+                          <input value={draft.state} onChange={(e) => patch({ state: e.target.value })} autoComplete="address-level1" maxLength={80} required className={sField()} />
+                        </Field>
+                        <Field label="Pincode" error={!pincodeOk && (touched || draft.pincode) ? "Enter the six-digit pincode for this address." : undefined}>
+                          <input
+                            value={draft.pincode}
+                            onChange={(e) => patch({ pincode: e.target.value.replace(/\D/g, "") })}
+                            autoComplete="postal-code"
+                            inputMode="numeric"
+                            maxLength={6}
+                            required
+                            className={sField()}
+                          />
+                        </Field>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-s-bark">
+                        {[draft.locality, draft.city, draft.pincode].filter(Boolean).join(", ")}{" "}
+                        <button type="button" onClick={() => setEditArea(true)} className="font-semibold text-s-berry underline underline-offset-2">
+                          Edit
+                        </button>
+                      </p>
+                    )}
+                    <label className="flex min-h-11 cursor-pointer items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={draft.forSomeoneElse}
+                        onChange={(e) => patch({ forSomeoneElse: e.target.checked })}
+                        className="size-4"
+                      />
+                      <span className="font-semibold">Ordering for someone else?</span>
+                    </label>
+                    {draft.forSomeoneElse && (
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        <Field label="Receiver's name" error={touched && !nameOk(draft.recipientName) ? "Add the receiver's name." : undefined}>
+                          <input value={draft.recipientName} onChange={(e) => patch({ recipientName: e.target.value })} maxLength={80} autoComplete="off" className={sField()} />
+                        </Field>
+                        <Field label="Receiver's phone" error={touched && !/^\d{10}$/.test(draft.recipientPhone) ? "Enter a 10-digit mobile number." : undefined}>
+                          <input
+                            value={draft.recipientPhone}
+                            onChange={(e) => patch({ recipientPhone: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                            inputMode="numeric"
+                            autoComplete="off"
+                            className={sField()}
+                          />
+                        </Field>
+                      </div>
+                    )}
+                  </>
                 )}
-                </div>}
-                {touched && !addressConfirmed && (
+                {touched && !addressComplete && (
                   <p role="alert" className="text-sm text-s-stop">
-                    Complete the address and confirm it above.
+                    {draft.location ? "Finish the address details above." : "Add your delivery address to continue."}
                   </p>
                 )}
               </div>
             ) : (
               <div className="rounded-s bg-s-cream-deep p-5">
-                <p className="font-semibold">{catalog.bakery.name}</p>
+                <p className="font-semibold">Collect from the bakery that makes your cake</p>
                 <p className="mt-1 text-sm text-s-bark">
-                  {catalog.bakery.address}
+                  We&rsquo;ll share its address once a bakery accepts your order.
                 </p>
               </div>
             )}
@@ -770,8 +856,9 @@ function Checkout({ catalog, cakes }: Props) {
             <div>
               <h2 className="text-2xl">All set for something sweet</h2>
               <p className="mt-3 text-sm text-s-bark">
-                No online payment is taken. We’ll call to confirm your order and
-                explain payment before we start baking.
+                {payments.enabled
+                  ? "We’ll call to confirm your order and delivery details before we start baking."
+                  : "No online payment is taken. We’ll call to confirm your order and explain payment before we start baking."}
               </p>
             </div>
             <p className="mt-4 text-xs text-s-bark">
@@ -779,6 +866,26 @@ function Checkout({ catalog, cakes }: Props) {
               details before placing the order.
             </p>
           </section>
+          {payments.enabled && (
+            <section className={`checkout-section ${sCard} p-5 sm:p-7`}>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-2xl">Payment</h2>
+                {payments.testMode && (
+                  <span className="rounded-full border border-s-line-strong px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-s-bark">
+                    Test mode
+                  </span>
+                )}
+              </div>
+              <p className="mt-3 text-sm text-s-bark">
+                Pay securely with Razorpay · UPI, cards, netbanking
+              </p>
+              {payments.testMode && (
+                <p className="mt-2 text-xs text-s-bark">
+                  Card 4386 2894 0766 0153, any future expiry, any CVV, any OTP
+                </p>
+              )}
+            </section>
+          )}
         </fieldset>
         {missing && (
           <p
@@ -803,8 +910,8 @@ function Checkout({ catalog, cakes }: Props) {
           <p role="alert" className="text-sm text-s-stop">
             {!contactOk
               ? "Check your contact details."
-              : !addressConfirmed
-                ? "Confirm your delivery address above."
+              : draft.method === "delivery" && !addressComplete
+                ? "Add your delivery address above."
                 : "Delivery and pricing must be verified before placing your order."}
           </p>
         )}
@@ -815,13 +922,35 @@ function Checkout({ catalog, cakes }: Props) {
           aria-busy={placing}
           className={sBtn("primary", "lg", "w-full")}
         >
-          {placing
-            ? "Placing your order…"
-            : quote
-              ? `Place order · ${formatINR(quote.totalPaise)}`
-              : "Place order"}
+          {buttonLabel}
         </button>
       </form>
+      {/* Outside the form on purpose: inside it, pressing Enter (or the phone
+          keyboard's Search) in the sheet's search box submitted the order. */}
+      <LocationSheet
+        open={sheetOpen}
+        initial={draft.location}
+        catalog={catalog}
+        onClose={() => setSheetOpen(false)}
+        onPickup={() => {
+          patch({ method: "pickup", slot: "pickup" });
+          setSheetOpen(false);
+        }}
+        onConfirm={(address) => {
+          patch({
+            addressLine2: address.address.slice(0, 160),
+            locality: address.locality ?? "",
+            formattedAddress: address.address,
+            source: address.source ?? "map",
+            city: address.city || draft.city,
+            state: address.state || draft.state,
+            pincode: address.pincode,
+            location: { lat: address.lat, lng: address.lng, placeId: address.placeId },
+          });
+          setEditArea(!address.pincode);
+          setSheetOpen(false);
+        }}
+      />
       <aside
         aria-label="Order summary"
         className={`checkout-summary ${sCard} p-5 sm:p-7 lg:sticky lg:top-24`}
@@ -895,7 +1024,7 @@ function Checkout({ catalog, cakes }: Props) {
             </div>
           ))}
           <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-s-line pt-5">
-            <dt className="font-semibold">Total</dt>
+            <dt className="font-semibold">{payments.enabled ? "To pay" : "Total"}</dt>
             <dd className="text-3xl font-semibold tracking-tight">
               <PriceRoll text={quote ? formatINR(quote.totalPaise) : "—"} />
             </dd>
@@ -903,7 +1032,9 @@ function Checkout({ catalog, cakes }: Props) {
         </dl>
         <p className="mt-4 text-xs leading-relaxed text-s-bark">
           {quote
-            ? "Verified with the bakery. Nothing charged today."
+            ? payments.enabled
+              ? "Verified with the bakery. You'll be charged once, when you pay."
+              : "Verified with the bakery. Nothing charged today."
             : "The final price appears after delivery is verified."}
         </p>
         <div className="mt-6 border-t border-s-line pt-5">

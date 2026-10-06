@@ -12,6 +12,8 @@ import {
   Ref, StatusBadge, Td, Th, Tr,
 } from "@/components/admin/ui";
 import { Icon } from "@/components/admin/icons";
+import { CakePhoto } from "@/components/shop/CakePhoto";
+import { QuickAssign } from "./QuickAssign";
 
 /**
  * Orders, for the office rather than the bench.
@@ -23,11 +25,10 @@ import { Icon } from "@/components/admin/icons";
  * them. Same Order table, two readings of it, and §29 asks for exactly that
  * separation.
  *
- * Which is why nothing on this page moves a docket along: a list is for finding
- * the order, and the order's own page is where it is acted on. Both that page
- * and the kitchen board write through lib/orderTransition, behind lib/orders'
- * state machine — two surfaces asking one implementation, rather than a second
- * copy of the rules to drift.
+ * The one thing this page does to an order is give it to a bakery, inline, so
+ * the office never opens an order just to assign it (./QuickAssign). With no
+ * filters it opens on exactly those orders. Everything after that is the
+ * bakery's to move; see lib/orders' ADMIN_MOVES.
  *
  * ## Every field the old list showed is still here
  *
@@ -79,7 +80,12 @@ export default async function AdminOrders({
     );
   }
 
-  const { q, status, days, slot, due, production } = await searchParams;
+  const { q, status, days, slot, due, production: rawProduction } = await searchParams;
+  /* A bare /admin/orders is the work queue: orders still needing a bakery.
+     Any filter (or the "All statuses" chip, `production=all`) shows the book. */
+  const production = rawProduction === "all"
+    ? undefined
+    : rawProduction ?? (q || status || days || slot || due ? undefined : "unassigned");
 
   const filter = STATUSES.includes(status as OrderStatus) ? (status as OrderStatus) : null;
   const window = days === "7" || days === "30" || days === "90" ? Number(days) : null;
@@ -147,7 +153,7 @@ export default async function AdminOrders({
       where,
       orderBy: { createdAt: "desc" },
       take: LIMIT,
-      include: { items: { orderBy: { position: "asc" } }, cakes: { select: { cakeName: true, variantLabel: true } }, currentAssignment: { include: { vendor: { select: { name: true } } } } },
+      include: { items: { orderBy: { position: "asc" } }, cakes: { select: { cakeName: true, variantLabel: true, cakeImageUrl: true } }, currentAssignment: { include: { vendor: { select: { name: true } } } } },
     }),
     db.order.count({ where: { status: { in: ["draft", "confirmed", "in_kitchen"] } } }),
     /* Counts on the chips, and they are counts of the whole book rather than of
@@ -185,7 +191,7 @@ export default async function AdminOrders({
   const statusChips: Chip[] = [
     {
       label: "All statuses",
-      href: qs({ status: undefined, due: undefined, production: undefined }),
+      href: qs({ status: undefined, due: undefined, production: "all" }),
       active: !filter && !late && !production,
     },
     ...STATUSES.map((s) => ({
@@ -197,7 +203,7 @@ export default async function AdminOrders({
     { label: "Past its window", href: qs({ due: "late", status: undefined }), active: late },
   ];
 
-  statusChips.push(...[['unassigned', 'Awaiting assignment'], ['assigned', 'Awaiting vendor'], ['accepted', 'Accepted'], ['in_preparation', 'Preparing'], ['ready', 'Ready'], ['handed_over', 'Handed over']].map(([value, label]) => ({ label, href: qs({ production: value, status: undefined }), active: production === value })));
+  statusChips.push(...[['unassigned', 'Needs a bakery'], ['assigned', 'Awaiting vendor'], ['accepted', 'Accepted'], ['in_preparation', 'Preparing'], ['ready', 'Ready'], ['handed_over', 'Handed over']].map(([value, label]) => ({ label, href: qs({ production: value, status: undefined }), active: production === value })));
   const dateChips: Chip[] = [
     { label: "Any date", href: qs({ days: undefined }), active: !window },
     { label: "Last 7 days", href: qs({ days: "7" }), active: window === 7 },
@@ -218,7 +224,11 @@ export default async function AdminOrders({
       })),
   ];
 
-  const filtered = Boolean(q?.trim() || filter || window || slotFilter || late);
+  const filtered = Boolean(q?.trim() || filter || window || slotFilter || late || production);
+  const queue = production === "unassigned" && !q?.trim() && !filter && !window && !slotFilter && !late;
+  const canAssign = (o: (typeof orders)[number]) =>
+    !o.currentAssignmentId && (o.status === "confirmed" || o.status === "in_kitchen");
+  const photoOf = (o: (typeof orders)[number]) => o.cakeImageUrl ?? o.cakes[0]?.cakeImageUrl ?? null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -267,7 +277,17 @@ export default async function AdminOrders({
 
       <Card flush>
         {orders.length === 0 ? (
-          filtered ? (
+          queue ? (
+            <EmptyState
+              icon="check"
+              title="Every order has a bakery."
+              blurb="New orders that need one will appear here."
+            >
+              <Link href="/admin/orders?production=all" className={aBtn("secondary", "md")}>
+                See all orders
+              </Link>
+            </EmptyState>
+          ) : filtered ? (
             <EmptyState
               icon="search"
               title="No orders match those filters."
@@ -310,6 +330,9 @@ export default async function AdminOrders({
                 {orders.map((o) => (
                   <Tr key={o.id}>
                     <Td>
+                      <span className="flex gap-3">
+                      <Thumb src={photoOf(o)} name={o.cakes[0]?.cakeName ?? o.cakeName ?? "cake"} />
+                      <span className="min-w-0">
                       <Link
                         href={`/admin/orders/${o.ref}`}
                         className="font-a-mono text-a-small font-semibold tracking-[0.03em] text-a-ink underline decoration-transparent underline-offset-2 transition-colors hover:decoration-a-accent"
@@ -336,6 +359,8 @@ export default async function AdminOrders({
                             className="max-w-[12rem] truncate"
                           />
                         )}
+                      </span>
+                      </span>
                       </span>
                     </Td>
 
@@ -408,10 +433,14 @@ export default async function AdminOrders({
                     </Td>
 
                     <Td align="right">
-                      <Link href={`/admin/orders/${o.ref}`} className={aBtn("ghost", "sm")}>
-                        {!o.currentAssignmentId && ["confirmed", "in_kitchen"].includes(o.status) ? "Assign vendor" : "View"}
-                        <Icon name="chevronRight" size={13} />
-                      </Link>
+                      {canAssign(o) ? (
+                        <QuickAssign orderRef={o.ref} />
+                      ) : (
+                        <Link href={`/admin/orders/${o.ref}`} className={aBtn("ghost", "sm")}>
+                          View
+                          <Icon name="chevronRight" size={13} />
+                        </Link>
+                      )}
                     </Td>
                   </Tr>
                 ))}
@@ -427,7 +456,12 @@ export default async function AdminOrders({
                     className="flex flex-col gap-2.5 p-3.5 transition-colors active:bg-a-sunken"
                   >
                     <span className="flex flex-wrap items-center justify-between gap-2">
-                      <Ref className="text-a-item font-semibold text-a-ink">{o.ref}</Ref>
+                      <span className="flex items-center gap-2.5">
+                        <span className="relative size-12 shrink-0 overflow-hidden rounded-a-sm border border-a-line bg-a-sunken">
+                          <CakePhoto src={photoOf(o)} alt="" fit="contain" sizes="48px" />
+                        </span>
+                        <Ref className="text-a-item font-semibold text-a-ink">{o.ref}</Ref>
+                      </span>
                       <span className="font-a-mono text-a-item font-semibold tabular-nums">
                         {formatINR(o.totalPaise)}
                       </span>
@@ -459,6 +493,11 @@ export default async function AdminOrders({
                       </span>
                     </span>
                   </Link>
+                  {canAssign(o) && (
+                    <div className="flex justify-end px-3.5 pb-3.5">
+                      <QuickAssign orderRef={o.ref} />
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -467,14 +506,9 @@ export default async function AdminOrders({
       </Card>
 
       <p className="max-w-3xl text-a-small leading-relaxed text-a-muted">
-        Open a reference to read the whole order — what was agreed, how it got to
-        where it is, and the moves it can still make. For the whole day at once
-        there is the{" "}
-        <Link href="/kitchen" className="font-medium text-a-accent-ink underline">
-          kitchen board
-        </Link>
-        . Both move a docket by the same rules, from the same state machine,
-        through the same function that records the move.
+        Assign an order here and the bakery takes it from there: accepting,
+        preparing, sending it out and marking it delivered. Open a reference to
+        read the whole order and follow each step.
       </p>
     </div>
   );
@@ -488,5 +522,18 @@ function Field({ k, v, mono = false }: { k: string; v: string; mono?: boolean })
         {v}
       </dd>
     </div>
+  );
+}
+
+/** The cake as bought, whole rather than cropped, opening full size in a new tab. */
+function Thumb({ src, name }: { src: string | null; name: string }) {
+  const frame = "relative size-14 shrink-0 overflow-hidden rounded-a-sm border border-a-line bg-a-sunken";
+  const photo = <CakePhoto src={src} alt={src ? `Photo of the ${name}` : ""} fit="contain" sizes="56px" />;
+  return src ? (
+    <a href={src} target="_blank" rel="noopener" className={`${frame} block hover:border-a-accent-line`}>
+      {photo}
+    </a>
+  ) : (
+    <span className={frame}>{photo}</span>
   );
 }

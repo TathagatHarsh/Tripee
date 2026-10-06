@@ -1,5 +1,17 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+
+/* The orders route checks coverage itself, so the scratch database needs a
+   bakery whose radius reaches the stubbed Madhapur pin. playwright.config
+   refuses to run against anything but a scratch database. */
+test.beforeAll(async () => {
+  const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
+  const bakery = { name: "E2E Madhapur Bakery", isActive: true, isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43, longitude: 78.4, serviceRadiusKm: 10 };
+  await db.vendor.upsert({ where: { id: "e2e-madhapur-bakery" }, update: bakery, create: { id: "e2e-madhapur-bakery", ...bakery } });
+  await db.$disconnect();
+});
 
 async function configuredBasket(page: Page) {
   await page.goto("/");
@@ -31,21 +43,34 @@ async function configuredBasket(page: Page) {
   ).toBeVisible();
   await page.getByRole("link", { name: "Checkout", exact: true }).click();
 }
+/**
+ * Pins a Madhapur address through the location sheet. The two lookups are
+ * stubbed so the suite does not depend on the public Photon instance; placing
+ * the order still needs a bakery covering this pin in the scratch database
+ * (the orders route checks coverage itself).
+ */
+const MADHAPUR = { lat: 17.4486, lng: 78.3908, address: "Road No 36, Madhapur", locality: "Madhapur", city: "Hyderabad", state: "Telangana", pincode: "500081", placeId: "N1" };
+async function pinAddress(page: Page, place = MADHAPUR, covered = true) {
+  await page.route("**/api/location", (route) => route.fulfill({ json: { results: [place] } }));
+  await page.route("**/api/serviceability", (route) => route.fulfill({ json: { covered } }));
+  await page.getByRole("button", { name: /Add delivery address|Change/ }).click();
+  await page.getByLabel("Search for your area, street or building").fill("Madhapur");
+  await page.getByRole("button", { name: place.address, exact: true }).click();
+}
 async function deliveryDetails(page: Page) {
   await page.getByLabel("Name", { exact: true }).fill("E2E Guest Customer");
   await page.getByLabel("Phone", { exact: true }).fill("9876543210");
   await page
     .getByLabel("Email (optional)", { exact: true })
     .fill("guest@example.invalid");
-  await page.getByRole("button", { name: "Enter address manually" }).click();
+  await pinAddress(page);
+  await page.getByRole("button", { name: "Confirm location", exact: true }).click();
   await page
-    .getByLabel("Flat / House / Building", { exact: true })
+    .getByLabel("Flat / house no. and floor", { exact: true })
     .fill("12 Synthetic Test Street");
-  await page.getByLabel("Pincode", { exact: true }).fill("500081");
   await page
     .getByLabel("Requested date")
     .fill(new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10));
-  await page.getByRole("button", { name: "Continue to delivery" }).click();
   await expect(page.getByText(/We deliver here/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^Place order/ }),
@@ -62,10 +87,9 @@ test("guest can configure, edit, confirm delivery, order, refresh receipt and tr
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue(
     "E2E Guest Customer",
   );
-  await expect(page.getByLabel("Flat / House / Building", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Flat / house no. and floor", { exact: true })).toHaveValue(
     "12 Synthetic Test Street",
   );
-  await page.getByRole("button", { name: "Continue to delivery" }).click();
   await expect(page.getByText(/We deliver here/)).toBeVisible();
   const a11y = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -108,15 +132,21 @@ test("mobile checkout blocks an unserviceable address and preserves details afte
   await page.setViewportSize({ width: 390, height: 844 });
   await configuredBasket(page);
   await deliveryDetails(page);
-  await page.getByRole("button", { name: "Change address", exact: true }).click();
+  // A pin no bakery reaches is refused on the map, with pickup offered.
+  await page.unroute("**/api/location");
+  await page.unroute("**/api/serviceability");
+  await pinAddress(page, { ...MADHAPUR, address: "Connaught Place", pincode: "110001" }, false);
+  await expect(page.getByText("We don't deliver here yet")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm location", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  // A hand-edited pincode outside the zones is refused by the slot rules.
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel("Pincode", { exact: true }).fill("110001");
   await expect(page.getByText(/Not serviceable/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^Place order/ }),
   ).toHaveAttribute("aria-disabled", "true");
   await page.getByLabel("Pincode", { exact: true }).fill("500081");
-  await page.getByRole("button", { name: "Continue to delivery" }).click();
-  await expect(page.getByRole("button", { name: "✓ Address confirmed" })).toBeVisible();
   await expect(page.getByText(/We deliver here/)).toBeVisible();
   await page.route("**/api/orders", (route) => route.abort());
   await page.getByRole("button", { name: /^Place order/ }).click();
@@ -138,20 +168,13 @@ test("Leaflet pin survives completing the address and reaches server assignment"
   await configuredBasket(page);
   await page.getByLabel("Name", { exact: true }).fill("Assignment Demo Customer");
   await page.getByLabel("Phone", { exact: true }).fill("9876543210");
-  await page.getByRole("button", { name: "Search delivery location ↗" }).click();
-  const map = page.getByRole("region", { name: "Select delivery location" });
+  await pinAddress(page);
+  const map = page.getByRole("region", { name: "Move the map to put the pin on your door" });
   await expect(map.locator(".leaflet-map-pane")).toBeVisible();
-  await map.click({ position: { x: 200, y: 150 } });
-  await page.getByRole("button", { name: "Confirm this location", exact: true }).click();
-  await page.getByLabel("Flat / House / Building", { exact: true }).fill("House 12");
-  await page.getByLabel("Street / Area", { exact: true }).fill("Jubilee Hills");
-  await page.getByLabel("Locality", { exact: true }).fill("Jubilee Hills");
-  await page.getByLabel("City", { exact: true }).fill("Hyderabad");
-  await page.getByLabel("State", { exact: true }).fill("Telangana");
-  await page.getByLabel("Pincode", { exact: true }).fill("500033");
-  await page.getByLabel("Requested date").fill(new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 10));
   await map.screenshot({ path: testInfo.outputPath("leaflet-checkout.png") });
-  await page.getByRole("button", { name: "Continue to delivery", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm location", exact: true }).click();
+  await page.getByLabel("Flat / house no. and floor", { exact: true }).fill("House 12");
+  await page.getByLabel("Requested date").fill(new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 10));
   const created = page.waitForResponse(r => r.url().endsWith("/api/orders") && r.request().method() === "POST");
   await page.getByRole("button", { name: /^Place order/ }).click();
   const response = await created;
@@ -168,4 +191,50 @@ test("assignment, earnings and worker APIs reject anonymous or cross-site reques
   expect((await request.get("/api/orders/MC-UNKNOWN/assignment")).status()).toBe(404);
   expect((await request.post("/api/internal/assignments")).status()).toBe(401);
   expect((await request.post("/api/assignments/MC-UNKNOWN", { headers: { origin: "https://unrelated.invalid" }, data: { action: "start" } })).status()).toBe(403);
+});
+
+test("pressing Enter in the location search never places the order", async ({ page }) => {
+  await configuredBasket(page);
+  await deliveryDetails(page);
+  let posted = 0;
+  page.on("request", (r) => {
+    if (r.url().endsWith("/api/orders") && r.method() === "POST") posted++;
+  });
+  await page.getByRole("button", { name: /Change/ }).click();
+  const search = page.getByLabel("Search for your area, street or building");
+  await search.fill("Jubilee Hills");
+  await search.press("Enter");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect(posted).toBe(0);
+});
+
+test("Change reopens the sheet at the confirmed pin, not the last search", async ({ page }) => {
+  await configuredBasket(page);
+  await deliveryDetails(page);
+  // Drag away from the search hit and confirm the new spot.
+  await page.getByRole("button", { name: /Change/ }).click();
+  const region = page.getByRole("region", { name: "Move the map to put the pin on your door" });
+  await expect(region.locator(".leaflet-map-pane")).toBeVisible();
+  const box = (await region.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 120, box.y + box.height / 2 - 80, { steps: 8 });
+  await page.mouse.up();
+  const confirm = page.getByRole("button", { name: "Confirm location", exact: true });
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  const pinned = await page.evaluate(() => JSON.parse(sessionStorage.getItem("makemycake.checkoutDraft.v2")!).location);
+  expect(Math.abs(pinned.lat - MADHAPUR.lat)).toBeGreaterThan(1e-4);
+  // Reopening must look up that confirmed spot.
+  const looked: { lat: number; lng: number }[] = [];
+  await page.route("**/api/location", (route) => {
+    const body = route.request().postDataJSON();
+    if (typeof body === "object") looked.push(body);
+    return route.fulfill({ json: { results: [MADHAPUR] } });
+  });
+  await page.getByRole("button", { name: /Change/ }).click();
+  await expect.poll(() => looked.length).toBeGreaterThan(0);
+  expect(looked[0].lat).toBeCloseTo(pinned.lat, 6);
+  expect(looked[0].lng).toBeCloseTo(pinned.lng, 6);
 });

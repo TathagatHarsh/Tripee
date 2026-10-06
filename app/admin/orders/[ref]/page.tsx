@@ -7,11 +7,11 @@ import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { renderSpecSheet } from "@/lib/docket";
 import { formatINR, formatIST, titleCase } from "@/lib/format";
 import {
-  buildProgress, buildTimeline, customerStatus, dueAt, isClosed, NEXT_STATUS, STATUS_LABEL,
+  ADMIN_MOVES, buildProgress, buildTimeline, customerStatus, dueAt, isClosed, NEXT_STATUS, STATUS_LABEL,
 } from "@/lib/orders";
 import { priceCake } from "@/lib/pricing";
 import { sizeName } from "@/lib/cakes";
-import { CakePhoto } from "@/components/shop/CakePhoto";
+import { FullCakePhoto } from "@/components/orders/FullCakePhoto";
 import { assignmentHistory, VENDOR_STATUS_LABEL, VENDOR_STATUS_TONE } from "@/lib/vendors";
 import { OrderHistory, OrderProgress } from "@/components/admin/OrderTimeline";
 import {
@@ -203,15 +203,13 @@ export default async function OrderDetail({
               note="As it was bought. Editing the cake in the catalogue does not change this."
             />
             <div className="flex items-start gap-4 p-4 sm:p-5">
-              <div className="relative size-20 shrink-0 overflow-hidden rounded-a-sm border border-a-line bg-a-sunken">
-                <CakePhoto
-                  src={order.cakeImageUrl}
-                  /* Empty: the name is immediately beside it. */
-                  alt=""
-                  config={config}
-                  sizes="80px"
-                />
-              </div>
+              <FullCakePhoto
+                orderRef={order.ref}
+                src={order.cakeImageUrl}
+                name={order.cakeName ?? "cake"}
+                config={config}
+                size="sm"
+              />
               <dl className="grid min-w-0 flex-1 gap-x-6 gap-y-0 sm:grid-cols-2">
                 <Row k="Cake" v={order.cakeName ?? "Built in the 3D builder"} />
                 <Row k="Size" v={config ? sizeName(config.size) : "Unknown"} />
@@ -249,15 +247,20 @@ export default async function OrderDetail({
               <Row
                 k="Payment"
                 /*
-                 * Read from the column rather than assumed. It is `none` on
-                 * every order in the product — nothing is paid online — and
-                 * printing the enum's own answer means this row starts telling
-                 * the truth the day a payment provider is wired up, instead of
-                 * being a hardcoded "on delivery" that quietly becomes wrong.
+                 * Read from the column. When a payment provider is wired up,
+                 * this row shows the status and the Razorpay ID when paid or
+                 * refunded. A cancelled order that was paid needs manual refund
+                 * from the Razorpay dashboard.
                  */
                 v={
                   order.paymentStatus === "none"
                     ? "Nothing taken online — on delivery"
+                    : order.status === "cancelled" && order.paymentStatus === "paid"
+                    ? "Paid, not refunded. Refund it from the Razorpay dashboard."
+                    : order.paymentStatus === "paid"
+                    ? `Paid · ${order.razorpayPaymentId}`
+                    : order.paymentStatus === "refunded"
+                    ? `Refunded · ${order.razorpayPaymentId}`
                     : titleCase(order.paymentStatus)
                 }
               />
@@ -399,14 +402,12 @@ export default async function OrderDetail({
                   <StatusActions
                     orderRef={order.ref}
                     status={order.status}
-                    next={NEXT_STATUS[order.status]}
+                    next={NEXT_STATUS[order.status].filter((s) => ADMIN_MOVES.includes(s))}
+                    paid={order.paymentStatus === "paid"}
                   />
                   <p className="mt-3 text-a-meta leading-relaxed text-a-muted">
-                    Only the moves this order can legally make are shown. The{" "}
-                    <Link href="/kitchen" className="font-medium text-a-accent-ink underline">
-                      kitchen board
-                    </Link>{" "}
-                    moves it by the same rules, and both write the same record.
+                    The bakery holding this order moves it from here: preparing,
+                    out for delivery and delivered. You will see each step as it happens.
                   </p>
                 </>
               )}

@@ -302,7 +302,7 @@ export function BuyPanel({
         )}
 
         <p className="text-[0.875rem] text-s-bark">
-          No payment now. We call to confirm every order before it goes in the oven.
+          We call to confirm every order before it goes in the oven.
         </p>
 
         {/*

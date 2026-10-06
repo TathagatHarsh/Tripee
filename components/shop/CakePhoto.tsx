@@ -28,6 +28,7 @@ export function CakePhoto({
   config,
   sizes,
   priority = false,
+  fit = "cover",
   className = "",
 }: {
   src: string | null;
@@ -36,6 +37,8 @@ export function CakePhoto({
   config?: CakeConfig | null;
   sizes: string;
   priority?: boolean;
+  /** "contain" shows the whole photograph, for a bakery copying the cake. */
+  fit?: "cover" | "contain";
   className?: string;
 }) {
   if (!src) {
@@ -49,7 +52,7 @@ export function CakePhoto({
       fill
       sizes={sizes}
       priority={priority}
-      className={`object-cover object-[50%_62%] ${className}`}
+      className={`${fit === "contain" ? "object-contain" : "object-cover object-[50%_62%]"} ${className}`}
     />
   );
 }

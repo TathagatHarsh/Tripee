@@ -38,10 +38,13 @@ export function StatusActions({
   orderRef,
   status,
   next,
+  paid,
 }: {
   orderRef: string;
   status: OrderStatus;
   next: OrderStatus[];
+  /** Paid online: cancelling refunds the customer, and the dialog must say so. */
+  paid: boolean;
 }) {
   const [result, formAction, pending] = useActionState<ActionResult | undefined, FormData>(
     advanceOrderStatus,
@@ -154,8 +157,9 @@ export function StatusActions({
               new one.
             </span>
             <span className="mt-2 block text-a-small">
-              Nothing is charged against a cancelled order, and the kitchen board
-              drops it from the day.
+              {paid
+                ? "Cancelling refunds the customer's payment in full, and the kitchen board drops it from the day."
+                : "Nothing is charged against a cancelled order, and the kitchen board drops it from the day."}
             </span>
             <label className="mt-4 flex flex-col gap-1 text-a-small">
               <span className="font-medium">Reason</span>

@@ -78,15 +78,19 @@ async function event(
   });
   const order = await tx.order.findUniqueOrThrow({ where: { id: orderId }, select: { ref: true } });
   await portalEvent(tx, { key: `assignment:${row.id}`, vendorId, orderRef: order.ref, title: name === 'offered' ? 'New order request' : name.replaceAll('_', ' '), message: `${order.ref}: ${reason ?? name.replaceAll('_', ' ')}` });
-  await tx.notificationOutbox.create({
-    data: outboxCreate({
-      orderId,
-      vendorId,
-      kind: name === "offered" ? "vendor_assigned" : "status_changed",
-      dedupeKey: `assignment-event:${row.id}`,
-      payload: { event: name, assignmentId: id, reason: reason ?? null },
-    }),
-  });
+  /* Only the offer leaves through the outbox, to the bakery. The bakery's own
+     progress stays in its event log and portal: written as status_changed it
+     would reach the channel the customer's updates go out on. */
+  if (name === "offered")
+    await tx.notificationOutbox.create({
+      data: outboxCreate({
+        orderId,
+        vendorId,
+        kind: "vendor_assigned",
+        dedupeKey: `assignment-event:${row.id}`,
+        payload: { event: name, assignmentId: id, reason: reason ?? null },
+      }),
+    });
 }
 async function closeWaiting(tx: Tx, orderId: string) {
   await tx.vendorOrder.updateMany({

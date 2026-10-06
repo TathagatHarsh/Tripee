@@ -1,6 +1,7 @@
 import { Earnings } from "@/components/assignment/Earnings";
 import Link from "next/link";
-import { CakePhoto } from "@/components/shop/CakePhoto";
+import { FullCakePhoto } from "@/components/orders/FullCakePhoto";
+import { receiverFrom } from "@/components/DeliveryAddressSnapshot";
 import { Icon } from "@/components/admin/icons";
 import { StatusBadge } from "@/components/admin/ui";
 import { sizeName } from "@/lib/cakes";
@@ -9,8 +10,7 @@ import { dueAt } from "@/lib/orders";
 import { servingsLabel } from "@/lib/servings";
 import {
   dueUrgency,
-  isVendorFinished,
-  VENDOR_NEXT,
+  vendorNext,
   VENDOR_STATUS_LABEL,
   VENDOR_STATUS_TONE,
 } from "@/lib/vendors";
@@ -62,7 +62,10 @@ export function OrderTicket({
 }) {
   const { order, config, status } = card;
   const due = dueAt(order);
-  const finished = isVendorFinished(status);
+  /* Handed over is not finished while the cake is still on the road: the
+     bakery marks it delivered (lib/vendors' vendorNext). */
+  const next = vendorNext(status, order.status);
+  const finished = next.length === 0;
 
   /*
    * One clock for the card, read once and handed to the badge as well.
@@ -104,16 +107,14 @@ export function OrderTicket({
     >
       {/* ── what cake ──────────────────────────────────────────────────── */}
       <div className="flex gap-3 p-3">
-        <div className="relative size-20 shrink-0 overflow-hidden rounded-a-sm border border-a-line bg-a-sunken sm:size-24">
-          <CakePhoto
-            src={order.cakeImageUrl}
-            /* Empty, because the cake is named in words immediately beside it.
-               Alt text repeating an adjacent heading is read out twice. */
-            alt=""
-            config={config}
-            sizes="96px"
-          />
-        </div>
+        {/* Uncropped, with a download: the bakery is copying this cake. */}
+        <FullCakePhoto
+          orderRef={order.ref}
+          src={order.cakeImageUrl ?? order.cakes[0]?.cakeImageUrl ?? null}
+          name={name}
+          config={config}
+          size="sm"
+        />
 
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h3 className="font-a-sans text-a-item leading-tight font-semibold text-balance text-a-ink">
@@ -181,7 +182,7 @@ export function OrderTicket({
         <div className="flex gap-2">
           <dt className="w-16 shrink-0 text-a-muted">For</dt>
           <dd className="min-w-0 flex-1 text-a-ink">
-            {order.customerName ?? "No name taken"}
+            {receiverFrom(order.deliveryLocation).name ?? order.customerName ?? "No name taken"}
           </dd>
         </div>
         <div className="flex gap-2">
@@ -223,7 +224,7 @@ export function OrderTicket({
 
         <Earnings snapshot={card} address={[order.addressLine1, order.addressLine2, order.city, order.state, order.pincode].filter(Boolean).join(", ")} location={order.deliveryLocation} />
       {/* ── what to press ──────────────────────────────────────────────── */}
-      {actions && VENDOR_NEXT[status].length > 0 && (
+      {actions && next.length > 0 && (
         <div className="mt-auto flex flex-col gap-2 border-t border-a-line p-3">
           {/*
             The forward move only. Declining needs the order in front of you and
@@ -233,7 +234,8 @@ export function OrderTicket({
           <OrderActions
             assignmentId={card.id}
             orderRef={order.ref}
-            next={VENDOR_NEXT[status]}
+            next={next}
+            pickup={order.fulfillmentMethod === "pickup"}
             compact
           />
 
@@ -249,7 +251,7 @@ export function OrderTicket({
             anything from here, because a one-tap decline with no reason is the
             outcome §12 exists to avoid.
           */}
-          {VENDOR_NEXT[status].includes("rejected") && (
+          {next.includes("rejected") && (
             <Link
               href={`/vendor/orders/${order.ref}`}
               className="flex min-h-12 items-center justify-center rounded-a border border-a-line px-4 font-a-sans text-a-small font-medium text-a-bad-ink transition-colors hover:border-a-bad-line hover:bg-a-bad-wash"

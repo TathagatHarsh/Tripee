@@ -15,7 +15,7 @@ import { BUILDER_ENABLED } from "@/lib/flags";
 import { DEFAULT_BAKERY } from "@/lib/catalogDefaults";
 import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { renderSpecSheet } from "@/lib/docket";
-import { formatIST } from "@/lib/format";
+import { formatINR, formatIST } from "@/lib/format";
 import { buildProgress, customerStatus, dueAt, PHASE } from "@/lib/orders";
 import { sBtn, sCard, sEyebrow } from "@/lib/shopUi";
 import { readGuestOrderRefs } from "@/lib/guestOrders";
@@ -264,14 +264,16 @@ export default async function TrackOrder({
           <Sheet title="Order summary">
             <OrderSummary items={order.items} totalPaise={order.totalPaise} />
             {/*
-              This product takes no money on the site yet — Order.paymentStatus
-              defaults to `none` and there is no gateway behind it. Saying so is
-              better than a "Paid" badge that is not true or a silence that
-              leaves somebody wondering whether they have been charged.
+              When a Razorpay payment is made, show the status. When status is
+              `none`, the payment is settled directly with the bakery. For other
+              enum values, fall back to the existing text.
             */}
             <p className="mt-4 border-t border-s-line pt-3 text-[0.875rem] leading-relaxed text-s-bark">
-              Settled with the bakery directly. Nothing has been charged to a card
-              through this site.
+              {order.paymentStatus === "paid"
+                ? `Paid ${formatINR(order.totalPaise)} online with Razorpay.`
+                : order.paymentStatus === "refunded"
+                ? `Refunded ${formatINR(order.totalPaise)} to your original payment method. Refunds take 5 to 7 working days to reach you.`
+                : "Settled with the bakery directly. Nothing has been charged to a card through this site."}
             </p>
           </Sheet>
 
