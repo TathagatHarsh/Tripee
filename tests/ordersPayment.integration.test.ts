@@ -105,7 +105,9 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-    await db.order.deleteMany({ where: { razorpayPaymentId: { startsWith: `pay_RT${run}` } } });
+    await db.order.deleteMany({
+      where: { OR: [{ razorpayPaymentId: { startsWith: `pay_RT${run}` } }, { checkoutAttempt: { id: { in: keys } } }] },
+    });
     await db.checkoutAttempt.deleteMany({ where: { id: { in: keys } } });
     await db.fulfillmentBlackout.deleteMany({ where: { reason: `pay-route-${run}` } });
     await db.cakeProduct.deleteMany({ where: { slug } });
@@ -276,5 +278,22 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ duplicate: true, order: { ref: placed.orderId } });
     expect(refunds(paid.razorpayPaymentId)).toBe(0);
+  });
+
+  it('payments off: places the order unpaid and never calls Razorpay', async () => {
+    vi.stubEnv('RAZORPAY_KEY_ID', '');
+    vi.stubEnv('RAZORPAY_KEY_SECRET', '');
+
+    const res = await post(placeOrder, basket(day(50)));
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(json.order.payment).toBeNull();
+    expect(await db.order.findUnique({ where: { ref: json.orderId } })).toMatchObject({
+      paymentStatus: 'none',
+      razorpayOrderId: null,
+      razorpayPaymentId: null,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
