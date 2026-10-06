@@ -13,8 +13,10 @@ import { getViewer } from "@/lib/auth";
 import {
   CheckoutRequest,
   type ItemQuote,
+  PaymentProof,
   refForAttempt,
 } from "@/lib/checkout";
+import { refundUnlessOk } from "@/lib/checkoutPayment";
 import {
   asJson,
   CREATED,
@@ -34,10 +36,13 @@ import {
   allergensForVariant,
   productionSpecFromConfig,
 } from "@/lib/productionSpec";
+import { paymentMatches, paymentsEnabled, verifySignature } from "@/lib/razorpay";
 import { slotWindow } from "@/lib/scheduling";
 import { deriveServings, servingsForSize } from "@/lib/servings";
+import { z } from "zod";
 
 class PayloadMismatch extends Error {}
+class PaymentMismatch extends Error {}
 class CapacityUnavailable extends Error {}
 class ReferenceUnavailable extends Error {}
 
@@ -60,6 +65,52 @@ export async function POST(req: Request) {
     return Response.json({ error: "Expected a JSON body" }, { status: 400 });
   }
 
+  if (!paymentsEnabled()) return place(raw, null, traceId);
+
+  const paid = PaidRequest.safeParse(raw);
+  if (!paid.success) {
+    return Response.json(
+      { error: "Payment is required to place this order.", code: "payment_required" },
+      { status: 402 },
+    );
+  }
+  const { idempotencyKey, payment } = paid.data;
+  if (!verifySignature(payment)) {
+    return Response.json(
+      { error: "We couldn't verify that payment.", code: "payment_invalid" },
+      { status: 400 },
+    );
+  }
+
+  // From here the customer has paid: whatever goes wrong, including a throw, ends in a refund.
+  let res: Response;
+  try {
+    res = await place(raw, payment, traceId);
+  } catch (error) {
+    log("error", "order_place_failed", { traceId, error: String(error) });
+    res = serverError(traceId);
+  }
+  return refundUnlessOk(res, idempotencyKey, payment);
+}
+
+const PaidRequest = z.object({ idempotencyKey: z.string().uuid(), payment: PaymentProof });
+
+function serverError(traceId: string) {
+  return Response.json(
+    {
+      error:
+        "We couldn't place that order. Nothing has been charged — please try again.",
+      code: "server_error",
+    },
+    { status: 500, headers: { "x-request-id": traceId } },
+  );
+}
+
+async function place(
+  raw: unknown,
+  payment: PaymentProof | null,
+  traceId: string,
+): Promise<Response> {
   const validated = await validateCheckout(raw, traceId);
   if (validated.kind === "problem") return validated.response;
   if (validated.kind === "replay") {
@@ -94,6 +145,7 @@ export async function POST(req: Request) {
       designId: design?.id ?? null,
       requestedFor,
       notificationDestination: bakery?.orderNotifyEmail ?? null,
+      payment,
     });
   } catch (error) {
     if (error instanceof PayloadMismatch) {
@@ -102,6 +154,15 @@ export async function POST(req: Request) {
           error:
             "This checkout attempt belongs to a different basket. Reload checkout and try again.",
           code: "idempotency_conflict",
+        },
+        { status: 409 },
+      );
+    }
+    if (error instanceof PaymentMismatch) {
+      return Response.json(
+        {
+          error: "The order total changed while you were paying.",
+          code: "payment_mismatch",
         },
         { status: 409 },
       );
@@ -126,14 +187,7 @@ export async function POST(req: Request) {
       );
     }
     log("error", "order_create_failed", { traceId, error: String(error) });
-    return Response.json(
-      {
-        error:
-          "We couldn't place that order. Nothing has been charged — please try again.",
-        code: "server_error",
-      },
-      { status: 500, headers: { "x-request-id": traceId } },
-    );
+    return serverError(traceId);
   }
 
   await startAssignment(result.order.ref).catch(() => log("error", "assignment_pending_retry", { orderRef: result.order.ref }));
@@ -169,6 +223,7 @@ interface CreateInput {
   designId: string | null;
   requestedFor: Date;
   notificationDestination: string | null;
+  payment: PaymentProof | null;
 }
 
 async function createOrder(
@@ -186,6 +241,12 @@ async function createOrder(
         throw new PayloadMismatch();
       if (previous?.status === "completed" && previous.order) {
         return { order: previous.order, replay: true };
+      }
+      if (
+        input.payment &&
+        !paymentMatches(previous?.response, input.payment, input.review.totalPaise)
+      ) {
+        throw new PaymentMismatch();
       }
 
       await tx.checkoutAttempt.upsert({
@@ -336,7 +397,9 @@ async function createOrder(
           confirmedAt: input.fulfillment.method === "delivery" ? new Date() : null,
           dueAt: input.fulfillment.method === "delivery" ? input.requestedFor : null,
           userId: input.userId,
-          paymentStatus: "none",
+          paymentStatus: input.payment ? "paid" : "none",
+          razorpayOrderId: input.payment?.razorpayOrderId,
+          razorpayPaymentId: input.payment?.razorpayPaymentId,
           customerName: input.customerName,
           customerPhone: input.customerPhone,
           customerEmail: input.fulfillment.contactEmail ?? null,

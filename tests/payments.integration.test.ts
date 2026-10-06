@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 import { db } from '../lib/db';
-import { openPaymentIntent } from '../lib/checkoutPayment';
+import { openPaymentIntent, refundUnlessOk } from '../lib/checkoutPayment';
 
 /**
  * The payment-intent binding on a checkout attempt, against an isolated
@@ -39,7 +39,6 @@ describe.skipIf(!url)('payment intent on isolated PostgreSQL', () => {
 
   afterAll(async () => {
     await db.checkoutAttempt.deleteMany({ where: { id: { in: keys } } });
-    await db.$disconnect();
   });
 
   // The cases below build on each other: one key, one basket, in this order.
@@ -144,4 +143,155 @@ describe.skipIf(!url)('payment intent on isolated PostgreSQL', () => {
     expect(await openPaymentIntent(racing, 'h1', 124900)).toEqual({ kind: 'conflict' });
     expect(await attempt(racing)).toMatchObject({ payloadHash: 'other', response: null });
   });
+});
+
+describe.skipIf(!url)('refundUnlessOk', () => {
+  const fetchMock = vi.fn();
+  const proof = { razorpayOrderId: 'order_A', razorpayPaymentId: 'pay_B', razorpaySignature: '0'.repeat(64) };
+  const refundCalls = () => fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/payments/pay_B/refund'));
+  const failure = (code: string, error: string) => Response.json({ error, code }, { status: 409 });
+  const capacity = () => failure('capacity_unavailable', 'That slot has reached its cake capacity.');
+  const refunded = () => new Response('{}', { status: 200 });
+
+  /** An attempt holding the Razorpay order the customer paid, as the intent route leaves it. */
+  const seeded = async () => {
+    const key = freshKey();
+    fetchMock.mockResolvedValueOnce(orderReply('order_A'));
+    await openPaymentIntent(key, 'h1', 124900);
+    fetchMock.mockClear();
+    return key;
+  };
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_abc');
+    vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    await db.order.deleteMany({ where: { ref: { startsWith: 'PAY-' } } });
+  });
+
+  afterAll(async () => {
+    await db.checkoutAttempt.deleteMany({ where: { id: { in: keys } } });
+  });
+
+  it('passes a success through untouched', async () => {
+    const res = new Response('{}', { status: 201 });
+
+    const out = await refundUnlessOk(res, freshKey(), proof);
+
+    expect(out).toBe(res);
+    expect(out.status).toBe(201);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refunds a failure and clears the attempt', async () => {
+    const key = await seeded();
+    fetchMock.mockResolvedValueOnce(refunded());
+
+    const out = await refundUnlessOk(capacity(), key, proof);
+
+    expect(out.status).toBe(409);
+    expect(await out.json()).toEqual({
+      error:
+        "We couldn't place the order, so your payment of ₹1,249.00 has been refunded. That slot has reached its cake capacity.",
+      code: 'capacity_unavailable',
+      refunded: true,
+    });
+    expect(refundCalls()).toHaveLength(1);
+    expect(await attempt(key)).toMatchObject({ status: 'failed', lastError: 'refunded:pay_B', response: null });
+  });
+
+  it('amount mismatch refunds and clears the attempt', async () => {
+    const key = await seeded();
+    fetchMock.mockResolvedValueOnce(refunded());
+
+    const out = await refundUnlessOk(
+      failure('payment_mismatch', 'The order total changed while you were paying.'),
+      key,
+      proof,
+    );
+
+    expect(out.status).toBe(409);
+    expect(await out.json()).toMatchObject({ code: 'payment_mismatch', refunded: true });
+    expect(refundCalls()).toHaveLength(1);
+    expect(await attempt(key)).toMatchObject({ status: 'failed', lastError: 'refunded:pay_B', response: null });
+  });
+
+  it('never refunds a payment an order already holds', async () => {
+    const key = await seeded();
+    await db.order.create({
+      data: {
+        ref: `PAY-${randomUUID().slice(0, 8)}`,
+        priceBreakdown: {},
+        totalPaise: 124900,
+        payablePaise: 124900,
+        deliverySlot: 'standard',
+        leadHours: 24,
+        razorpayPaymentId: 'pay_B',
+      },
+    });
+    const res = capacity();
+
+    const out = await refundUnlessOk(res, key, proof);
+
+    expect(out).toBe(res);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await attempt(key)).toMatchObject({ status: 'processing', response: { razorpayOrderId: 'order_A' } });
+  });
+
+  it('reports a failed refund honestly', async () => {
+    const key = await seeded();
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 400 }));
+
+    const out = await refundUnlessOk(capacity(), key, proof);
+
+    const body = await out.json();
+    expect(out.status).toBe(409);
+    expect(body.refunded).toBe(false);
+    expect(body.error).toMatch(
+      /^We couldn't place the order and couldn't refund your payment automatically\. Contact us with payment pay_B\./,
+    );
+    // Left as it was, so the customer's retry can still be matched and refunded.
+    expect(await attempt(key)).toMatchObject({ status: 'processing', response: { razorpayOrderId: 'order_A' } });
+  });
+
+  it('does not refund the same payment twice', async () => {
+    const key = await seeded();
+    fetchMock.mockResolvedValue(refunded());
+
+    const first = await refundUnlessOk(capacity(), key, proof);
+    const second = await refundUnlessOk(capacity(), key, proof);
+
+    expect(refundCalls()).toHaveLength(1);
+    expect(await first.json()).toMatchObject({ refunded: true });
+    expect(await second.json()).toEqual({
+      error: "We couldn't place the order, so your payment has been refunded. That slot has reached its cake capacity.",
+      code: 'capacity_unavailable',
+      refunded: true,
+    });
+  });
+
+  it('leaves an attempt that completed meanwhile alone', async () => {
+    const key = freshKey();
+    await db.checkoutAttempt.create({
+      data: { id: key, payloadHash: 'h1', status: 'completed', expiresAt: later(), response: { orderId: 'MC-DONE' } },
+    });
+    fetchMock.mockResolvedValueOnce(refunded());
+
+    const out = await refundUnlessOk(capacity(), key, proof);
+
+    expect(await out.json()).toMatchObject({ refunded: true });
+    expect(await attempt(key)).toMatchObject({ status: 'completed', response: { orderId: 'MC-DONE' } });
+  });
+});
+
+afterAll(async () => {
+  if (url) await db.$disconnect();
 });

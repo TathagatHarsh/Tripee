@@ -93,6 +93,9 @@ export function responseFor(order: CreatedOrder) {
           : [order.addressLine1, order.addressLine2, order.landmark, order.city, order.state, order.pincode].filter(Boolean).join(", ")
       ),
       items,
+      payment: order.paymentStatus === "paid" && order.razorpayPaymentId
+        ? { id: order.razorpayPaymentId, paise: order.totalPaise }
+        : null,
     } satisfies Receipt,
     orders: [{ ref: order.ref, totalPaise: order.totalPaise }],
     orderId: order.ref,

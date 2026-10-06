@@ -5,6 +5,12 @@ it('accepts persisted receipts and authoritative pickup/delivery responses', () 
   expect(OrderReceipt.safeParse(saved).success).toBe(true);
   expect(OrderReceipt.safeParse({...saved,method:'pickup',date:null}).success).toBe(true);
 });
+it('accepts a receipt with the payment that covered it, and one without', () => {
+  const paid = OrderReceipt.safeParse({ ...saved, payment: { id: 'pay_B', paise: 124900 } });
+  expect(paid.success && paid.data.payment).toEqual({ id: 'pay_B', paise: 124900 });
+  expect(OrderReceipt.safeParse(saved).success).toBe(true);
+  expect(OrderReceipt.safeParse({ ...saved, payment: null }).success).toBe(true);
+});
 it('refuses incomplete, invalid-date and invalid-price responses before celebrating', () => {
   for (const bad of [{ref:saved.ref,totalPaise:120000}, {...saved, date:'2026-99-99'}, {...saved,totalPaise:-1}, {...saved,ref:'not-an-order'}]) {
     expect(OrderReceipt.safeParse(bad).success).toBe(false);
