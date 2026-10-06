@@ -4,6 +4,7 @@ import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
 import { listCakes } from "@/lib/cakeData";
 import { getCatalogSnapshot } from "@/lib/catalogData";
+import { isTestKey, paymentsEnabled } from "@/lib/razorpay";
 
 export const metadata: Metadata = {
   title: "Checkout · MakeYourCakes",
@@ -47,7 +48,11 @@ export default async function CheckoutPage() {
               <li>03 Celebration</li>
             </ol>
           </div>
-          <CheckoutForm catalog={catalog} cakes={cakes} />
+          <CheckoutForm
+            catalog={catalog}
+            cakes={cakes}
+            payments={{ enabled: paymentsEnabled(), testMode: isTestKey() }}
+          />
         </div>
       </main>
       <ShopFooter bakery={catalog.bakery} />

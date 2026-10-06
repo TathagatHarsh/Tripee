@@ -6,12 +6,13 @@ import { z } from "zod";
 import { LocationSheet } from "@/components/shop/LocationSheet";
 import { CakePhoto } from "@/components/shop/CakePhoto";
 import { PriceRoll } from "@/components/shop/PriceRoll";
+import { payWithRazorpay } from "@/components/shop/payWithRazorpay";
 import { OrderReceipt } from "@/lib/orderReceipt";
 import { OrderPlaced, type Receipt } from "@/components/shop/OrderPlaced";
 import { useCart, useCartHydrated } from "@/lib/cart";
 import { variantById, variantLabel, type CakeProductView } from "@/lib/cakes";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
-import { checkoutIntent, nameOk, phoneOk } from "@/lib/checkout";
+import { checkoutIntent, nameOk, PaymentProof, phoneOk } from "@/lib/checkout";
 import { resolveSlot } from "@/lib/delivery";
 import { formatINR } from "@/lib/format";
 import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
@@ -106,7 +107,36 @@ function readReceipt(): Receipt | null {
   } catch {}
   return null;
 }
-type Props = { catalog: CatalogSnapshot; cakes: CakeProductView[] };
+type Props = {
+  catalog: CatalogSnapshot;
+  cakes: CakeProductView[];
+  payments: { enabled: boolean; testMode: boolean };
+};
+const ATTEMPT_KEY = "makemycake.checkoutAttempt";
+/** The in-flight checkout: its idempotency key, and the payment once Razorpay has taken it. */
+type Attempt = { signature: string; key: string; proof?: PaymentProof };
+/** Answers that mean the quote moved under the customer: ask for a fresh one. */
+const REQUOTE = [
+  "price_changed",
+  "option_unavailable",
+  "cake_unavailable",
+  "capacity_unavailable",
+];
+const STOPPED = {
+  dismissed: "Payment cancelled. Nothing was charged.",
+  unavailable:
+    "We couldn't open the payment window. Check your connection or turn off ad blockers, then try again.",
+};
+/** The server will never accept this proof, so keeping it would only strand the customer. */
+const PROOF_REJECTED = ["payment_required", "payment_invalid"];
+function readProofSignature(): string | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ATTEMPT_KEY) ?? "null");
+    if (PaymentProof.safeParse(saved?.proof).success && typeof saved.signature === "string")
+      return saved.signature;
+  } catch {}
+  return null;
+}
 export function CheckoutForm(props: Props) {
   const hydrated = useCartHydrated();
   return hydrated ? (
@@ -123,13 +153,18 @@ export function CheckoutForm(props: Props) {
     </div>
   );
 }
-function Checkout({ catalog, cakes }: Props) {
+function Checkout({ catalog, cakes, payments }: Props) {
   const lines = useCart((s) => s.lines);
   const clear = useCart((s) => s.clear);
   const [draft, setDraft] = useState(readDraft);
   const [receipt, setReceipt] = useState<Receipt | null>(readReceipt);
   const [celebrate, setCelebrate] = useState(false);
   const [placing, setPlacing] = useState(false);
+  const [stage, setStage] = useState<"paying" | "confirming" | null>(null);
+  // The checkout this browser has already paid for, if any: the label reads it, place() reads the ref.
+  const [paidSignature, setPaidSignature] = useState(() =>
+    payments.enabled ? readProofSignature() : null,
+  );
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -141,7 +176,7 @@ function Checkout({ catalog, cakes }: Props) {
   } | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editArea, setEditArea] = useState(false);
-  const attempt = useRef<{ signature: string; key: string } | null>(null);
+  const attempt = useRef<Attempt | null>(null);
   const submitting = useRef(false);
   const patch = (change: Partial<Draft>) =>
     setDraft((d) => ({ ...d, ...change, ...(change.location === null ? { source: "manual" as const, formattedAddress: "" } : {}) }));
@@ -263,32 +298,42 @@ function Checkout({ catalog, cakes }: Props) {
   function keyFor(signature: string) {
     if (attempt.current?.signature === signature) return attempt.current.key;
     try {
-      const saved = JSON.parse(
-        localStorage.getItem("makemycake.checkoutAttempt") ?? "null",
-      );
+      const saved = JSON.parse(localStorage.getItem(ATTEMPT_KEY) ?? "null");
       if (
         saved?.signature === signature &&
         z.uuid().safeParse(saved.key).success
       ) {
-        attempt.current = saved;
+        attempt.current = {
+          signature,
+          key: saved.key as string,
+          proof: PaymentProof.safeParse(saved.proof).data,
+        };
         return saved.key as string;
       }
     } catch {}
     attempt.current = { signature, key: crypto.randomUUID() };
     try {
-      localStorage.setItem(
-        "makemycake.checkoutAttempt",
-        JSON.stringify(attempt.current),
-      );
+      localStorage.setItem(ATTEMPT_KEY, JSON.stringify(attempt.current));
     } catch {}
     return attempt.current.key;
   }
-  async function place() {
-    setTouched(true);
-    if (!ready || !quote || submitting.current) return;
-    submitting.current = true;
-    setPlacing(true);
-    setError("");
+  /** Remember (or forget) the payment taken for this attempt, so a lost confirm never charges twice. */
+  function keepProof(proof?: PaymentProof) {
+    if (!attempt.current) return;
+    attempt.current = { ...attempt.current, proof };
+    setPaidSignature(proof ? attempt.current.signature : null);
+    try {
+      localStorage.setItem(ATTEMPT_KEY, JSON.stringify(attempt.current));
+    } catch {}
+  }
+  function fail(data: { error?: string; code?: string }, fallback: string) {
+    setError(data.error ?? fallback);
+    if (REQUOTE.includes(String(data.code))) {
+      setAnswer(null);
+      setRetry((n) => n + 1);
+    }
+  }
+  function checkoutBody(quote: Quote) {
     const fulfillment = {
       method: draft.method,
       slot: delivery,
@@ -317,7 +362,7 @@ function Checkout({ catalog, cakes }: Props) {
           }
         : {}),
     };
-    const body = {
+    return {
       quotedOrderTotalPaise: quote.totalPaise,
       customerName: draft.name,
       customerPhone: draft.phone,
@@ -327,35 +372,75 @@ function Checkout({ catalog, cakes }: Props) {
         quotedTotalPaise: Math.round(quote.each[i] / item.qty),
       })),
     };
+  }
+  async function place() {
+    setTouched(true);
+    if (!ready || !quote || submitting.current) return;
+    submitting.current = true;
+    setPlacing(true);
+    setError("");
+    const body = checkoutBody(quote);
     try {
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ...body,
-          idempotencyKey: keyFor(JSON.stringify(checkoutIntent(body))),
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setError(
-          data.error ??
-            "We couldn't place the order. Nothing has been charged.",
-        );
-        if (
-          [
-            "price_changed",
-            "option_unavailable",
-            "cake_unavailable",
-            "capacity_unavailable",
-          ].includes(data.code)
-        ) {
-          setAnswer(null);
-          setRetry((n) => n + 1);
+      const request = {
+        ...body,
+        idempotencyKey: keyFor(JSON.stringify(checkoutIntent(body))),
+      };
+      const send = (url: string, payment?: PaymentProof) =>
+        fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payment ? { ...request, payment } : request),
+        });
+      // With payments on, an order needs a Razorpay payment first. One already
+      // taken for this attempt (the confirm was lost) is reused, never repeated.
+      let payment = payments.enabled ? attempt.current?.proof : undefined;
+      let order: unknown;
+      if (payments.enabled && !payment) {
+        setStage("paying");
+        const response = await send("/api/payments/intent");
+        const intent = await response.json();
+        if (!response.ok) {
+          fail(intent, "We couldn't start the payment. Nothing has been charged.");
+          return;
         }
-        return;
+        if (intent.order) {
+          order = intent.order; // already placed: a replay, nothing to pay
+        } else {
+          const paid = await payWithRazorpay({
+            keyId: intent.keyId,
+            razorpayOrderId: intent.razorpayOrderId,
+            amountPaise: intent.amountPaise,
+            name: draft.name,
+            phone: draft.phone,
+            email: draft.email || undefined,
+          });
+          if (paid.kind !== "paid") {
+            setError(paid.kind === "failed" ? paid.message : STOPPED[paid.kind]);
+            return;
+          }
+          payment = paid.proof;
+          keepProof(payment);
+        }
       }
-      const saved: Receipt = OrderReceipt.parse(data.order);
+      if (order === undefined) {
+        if (payments.enabled) setStage("confirming");
+        const response = await send("/api/orders", payment);
+        const data = await response.json();
+        if (!response.ok) {
+          fail(
+            data,
+            payment
+              ? "We couldn't place the order. Your payment is safe. Press the button again to finish."
+              : "We couldn't place the order. Nothing has been charged.",
+          );
+          // A refund answer, or a proof the server refuses, ends this payment: the next press pays afresh.
+          if (typeof data.refunded === "boolean" || PROOF_REJECTED.includes(String(data.code)))
+            keepProof(undefined);
+          return;
+        }
+        order = data.order;
+      }
+      const saved: Receipt = OrderReceipt.parse(order);
       // A storage failure after the server commits must never be presented as an order failure.
       try {
         sessionStorage.setItem(RECEIPT_KEY, JSON.stringify(saved));
@@ -363,14 +448,17 @@ function Checkout({ catalog, cakes }: Props) {
       } catch {}
       setCelebrate(true);
       setReceipt(saved);
-      try { clear(); localStorage.removeItem("makemycake.checkoutAttempt"); } catch { /* A cart storage failure cannot undo a committed order. */ }
+      try { clear(); localStorage.removeItem(ATTEMPT_KEY); } catch { /* A cart storage failure cannot undo a committed order. */ }
     } catch {
       setError(
-        "We couldn't confirm the result. Retry with the same details; your attempt is protected against duplicate orders.",
+        payments.enabled && attempt.current?.proof
+          ? "We couldn't confirm your order. Your payment is safe. Press the button again to finish; you won't be charged twice."
+          : "We couldn't confirm the result. Retry with the same details; your attempt is protected against duplicate orders.",
       );
     } finally {
       submitting.current = false;
       setPlacing(false);
+      setStage(null);
     }
   }
   if (receipt && (celebrate || lines.length === 0)) return <OrderPlaced receipt={receipt} celebrate={celebrate} />;
@@ -396,6 +484,27 @@ function Checkout({ catalog, cakes }: Props) {
             (!slot.available && /^\d{6}$/.test(draft.pincode))
           ? "Not serviceable · please choose another address or pickup."
           : (current.error ?? "Unable to verify. Please retry.");
+
+  // Paid for exactly this checkout already (the confirm was lost): the button finishes it.
+  const finishing =
+    paidSignature !== null &&
+    quote !== undefined &&
+    paidSignature === JSON.stringify(checkoutIntent(checkoutBody(quote)));
+  const buttonLabel = !payments.enabled
+    ? placing
+      ? "Placing your order…"
+      : quote
+        ? `Place order · ${formatINR(quote.totalPaise)}`
+        : "Place order"
+    : stage === "confirming"
+      ? "Confirming payment…"
+      : placing
+        ? "Opening payment…"
+        : finishing
+          ? "Finish placing order"
+          : quote
+            ? `Pay ${formatINR(quote.totalPaise)}`
+            : "Pay";
 
   return (
     <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_25rem]">
@@ -753,8 +862,9 @@ function Checkout({ catalog, cakes }: Props) {
             <div>
               <h2 className="text-2xl">All set for something sweet</h2>
               <p className="mt-3 text-sm text-s-bark">
-                No online payment is taken. We’ll call to confirm your order and
-                explain payment before we start baking.
+                {payments.enabled
+                  ? "We’ll call to confirm your order and delivery details before we start baking."
+                  : "No online payment is taken. We’ll call to confirm your order and explain payment before we start baking."}
               </p>
             </div>
             <p className="mt-4 text-xs text-s-bark">
@@ -762,6 +872,26 @@ function Checkout({ catalog, cakes }: Props) {
               details before placing the order.
             </p>
           </section>
+          {payments.enabled && (
+            <section className={`checkout-section ${sCard} p-5 sm:p-7`}>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-2xl">Payment</h2>
+                {payments.testMode && (
+                  <span className="rounded-full border border-s-line-strong px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-s-bark">
+                    Test mode
+                  </span>
+                )}
+              </div>
+              <p className="mt-3 text-sm text-s-bark">
+                Pay securely with Razorpay · UPI, cards, netbanking
+              </p>
+              {payments.testMode && (
+                <p className="mt-2 text-xs text-s-bark">
+                  Card 4111 1111 1111 1111, any future expiry, any CVV · UPI success@razorpay
+                </p>
+              )}
+            </section>
+          )}
         </fieldset>
         {missing && (
           <p
@@ -798,11 +928,7 @@ function Checkout({ catalog, cakes }: Props) {
           aria-busy={placing}
           className={sBtn("primary", "lg", "w-full")}
         >
-          {placing
-            ? "Placing your order…"
-            : quote
-              ? `Place order · ${formatINR(quote.totalPaise)}`
-              : "Place order"}
+          {buttonLabel}
         </button>
       </form>
       {/* Outside the form on purpose: inside it, pressing Enter (or the phone
@@ -904,7 +1030,7 @@ function Checkout({ catalog, cakes }: Props) {
             </div>
           ))}
           <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-s-line pt-5">
-            <dt className="font-semibold">Total</dt>
+            <dt className="font-semibold">{payments.enabled ? "To pay" : "Total"}</dt>
             <dd className="text-3xl font-semibold tracking-tight">
               <PriceRoll text={quote ? formatINR(quote.totalPaise) : "—"} />
             </dd>
@@ -912,7 +1038,9 @@ function Checkout({ catalog, cakes }: Props) {
         </dl>
         <p className="mt-4 text-xs leading-relaxed text-s-bark">
           {quote
-            ? "Verified with the bakery. Nothing charged today."
+            ? payments.enabled
+              ? "Verified with the bakery. You'll be charged once, when you pay."
+              : "Verified with the bakery. Nothing charged today."
             : "The final price appears after delivery is verified."}
         </p>
         <div className="mt-6 border-t border-s-line pt-5">
