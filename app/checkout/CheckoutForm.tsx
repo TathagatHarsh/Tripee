@@ -881,7 +881,7 @@ function Checkout({ catalog, cakes, payments }: Props) {
               </p>
               {payments.testMode && (
                 <p className="mt-2 text-xs text-s-bark">
-                  Card 4111 1111 1111 1111, any future expiry, any CVV · UPI success@razorpay
+                  Card 4386 2894 0766 0153, any future expiry, any CVV, any OTP
                 </p>
               )}
             </section>

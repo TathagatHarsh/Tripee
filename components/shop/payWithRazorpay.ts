@@ -1,4 +1,4 @@
-import { PaymentProof } from "@/lib/checkout";
+import { normalizePhone, PaymentProof } from "@/lib/checkout";
 
 /**
  * Razorpay's hosted checkout, opened from the browser.
@@ -93,7 +93,8 @@ export async function payWithRazorpay(opts: {
         amount: opts.amountPaise,
         currency: "INR",
         name: "MakeMyCake",
-        prefill: { name: opts.name, contact: opts.phone, email: opts.email },
+        // Razorpay wants the country code; checkout takes 10 digits with or without +91 or 0.
+        prefill: { name: opts.name, contact: `+91${normalizePhone(opts.phone).slice(-10)}`, email: opts.email },
         handler: (response) => {
           const proof = PaymentProof.safeParse({
             razorpayOrderId: response.razorpay_order_id,

@@ -11,7 +11,8 @@ const opts = {
   razorpayOrderId: "order_A",
   amountPaise: 124900,
   name: "Asha",
-  phone: "9876543210",
+  phone: "098765 43210",
+  email: "asha@example.com",
 };
 const success = {
   razorpay_order_id: "order_A",
@@ -57,7 +58,7 @@ describe("payWithRazorpay", () => {
       amount: 124900,
       currency: "INR",
       name: "MakeMyCake",
-      prefill: { name: "Asha", contact: "9876543210" },
+      prefill: { name: "Asha", contact: "+919876543210", email: "asha@example.com" },
     });
   });
 
