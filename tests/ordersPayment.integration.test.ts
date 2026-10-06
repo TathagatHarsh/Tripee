@@ -250,4 +250,31 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     expect(await db.order.count({ where: { razorpayPaymentId: paid.razorpayPaymentId } })).toBe(1);
     expect(refunds(paid.razorpayPaymentId)).toBe(0);
   });
+
+  // The checkout page sends a saved payment on its own key when the form changed after paying.
+  it('a saved payment sent with changed details, before its order exists, is refunded', async () => {
+    const body = basket(day(48));
+    const paid = proof('H');
+    await intent(body, paid.razorpayOrderId);
+
+    const res = await post(placeOrder, { ...body, customerName: 'Edited Customer', payment: paid });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: 'idempotency_conflict', refunded: true });
+    expect(refunds(paid.razorpayPaymentId)).toBe(1);
+    expect(await db.order.count({ where: { razorpayPaymentId: paid.razorpayPaymentId } })).toBe(0);
+  });
+
+  it('a saved payment sent with changed details, after its order exists, is answered with that order', async () => {
+    const body = basket(day(49));
+    const paid = proof('I');
+    await intent(body, paid.razorpayOrderId);
+    const placed = await (await post(placeOrder, { ...body, payment: paid })).json();
+
+    const res = await post(placeOrder, { ...body, customerName: 'Edited Customer', payment: paid });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ duplicate: true, order: { ref: placed.orderId } });
+    expect(refunds(paid.razorpayPaymentId)).toBe(0);
+  });
 });

@@ -4,7 +4,7 @@ import {
 } from "@/lib/catalogDefaults";
 import type { CatalogRow, CatalogSnapshot } from "@/lib/catalogSnapshot";
 import {
-  asBasketBody, CheckoutRequest, MAX_CAKES, MAX_QTY, nameOk, normalizeName,
+  asBasketBody, CheckoutRequest, keptAttempt, MAX_CAKES, MAX_QTY, nameOk, normalizeName,
   normalizePhone, phoneOk, refForAttempt, reviewBasket, withdrawnOptions,
 } from "@/lib/checkout";
 import { priceCake } from "@/lib/pricing";
@@ -499,5 +499,26 @@ describe("the reference a checkout attempt produces", () => {
     // 200 distinct keys, 200 distinct references: no accidental truncation to a
     // handful of values, which is how a derived reference would go wrong.
     expect(new Set(refs).size).toBe(200);
+  });
+});
+
+describe("the attempt a checkout press continues", () => {
+  const proof = { razorpayOrderId: "order_A", razorpayPaymentId: "pay_A", razorpaySignature: "a".repeat(64) };
+  const paid = { signature: "old details", key: "k1", proof };
+  const unpaid = { signature: "new details", key: "k2" };
+
+  it("never starts over while a payment is unsettled, even for changed details", () => {
+    expect(keptAttempt("new details", true, null, paid)).toBe(paid);
+    expect(keptAttempt("new details", true, unpaid, paid)).toBe(paid);
+  });
+
+  it("reuses an unpaid attempt only for the same details", () => {
+    expect(keptAttempt("new details", true, unpaid, null)).toBe(unpaid);
+    expect(keptAttempt("other details", true, unpaid, null)).toBeNull();
+  });
+
+  it("ignores a saved payment when payments are off", () => {
+    expect(keptAttempt("new details", false, null, paid)).toBeNull();
+    expect(keptAttempt("old details", false, null, paid)).toBe(paid);
   });
 });

@@ -12,7 +12,7 @@ import { OrderPlaced, type Receipt } from "@/components/shop/OrderPlaced";
 import { useCart, useCartHydrated } from "@/lib/cart";
 import { variantById, variantLabel, type CakeProductView } from "@/lib/cakes";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
-import { checkoutIntent, nameOk, PaymentProof, phoneOk } from "@/lib/checkout";
+import { checkoutIntent, keptAttempt, nameOk, PaymentProof, phoneOk } from "@/lib/checkout";
 import { resolveSlot } from "@/lib/delivery";
 import { formatINR } from "@/lib/format";
 import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
@@ -129,11 +129,11 @@ const STOPPED = {
 };
 /** The server will never accept this proof, so keeping it would only strand the customer. */
 const PROOF_REJECTED = ["payment_required", "payment_invalid"];
-function readProofSignature(): string | null {
+function readAttempt(): Attempt | null {
   try {
     const saved = JSON.parse(localStorage.getItem(ATTEMPT_KEY) ?? "null");
-    if (PaymentProof.safeParse(saved?.proof).success && typeof saved.signature === "string")
-      return saved.signature;
+    if (typeof saved?.signature === "string" && z.uuid().safeParse(saved.key).success)
+      return { signature: saved.signature, key: saved.key, proof: PaymentProof.safeParse(saved.proof).data };
   } catch {}
   return null;
 }
@@ -162,9 +162,10 @@ function Checkout({ catalog, cakes, payments }: Props) {
   const [placing, setPlacing] = useState(false);
   const [stage, setStage] = useState<"paying" | "confirming" | null>(null);
   // The checkout this browser has already paid for, if any: the label reads it, place() reads the ref.
-  const [paidSignature, setPaidSignature] = useState(() =>
-    payments.enabled ? readProofSignature() : null,
-  );
+  const [paidSignature, setPaidSignature] = useState(() => {
+    const saved = payments.enabled ? readAttempt() : null;
+    return saved?.proof ? saved.signature : null;
+  });
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -296,21 +297,13 @@ function Checkout({ catalog, cakes, payments }: Props) {
     !missing;
 
   function keyFor(signature: string) {
-    if (attempt.current?.signature === signature) return attempt.current.key;
-    try {
-      const saved = JSON.parse(localStorage.getItem(ATTEMPT_KEY) ?? "null");
-      if (
-        saved?.signature === signature &&
-        z.uuid().safeParse(saved.key).success
-      ) {
-        attempt.current = {
-          signature,
-          key: saved.key as string,
-          proof: PaymentProof.safeParse(saved.proof).data,
-        };
-        return saved.key as string;
-      }
-    } catch {}
+    // A saved payment is never overwritten: this press sends it on its own key,
+    // and the server answers with its order or refunds it (the details differ).
+    const kept = keptAttempt(signature, payments.enabled, attempt.current, readAttempt());
+    if (kept) {
+      attempt.current = kept;
+      return kept.key;
+    }
     attempt.current = { signature, key: crypto.randomUUID() };
     try {
       localStorage.setItem(ATTEMPT_KEY, JSON.stringify(attempt.current));
@@ -516,7 +509,8 @@ function Checkout({ catalog, cakes, payments }: Props) {
         }}
         noValidate
       >
-        <fieldset disabled={placing} className="contents">
+        {/* Paid already: only "Finish placing order" is offered, so the paid details can't drift. */}
+        <fieldset disabled={placing || finishing} className="contents">
           <section className={`checkout-section ${sCard} p-5 sm:p-7`}>
             <div className="mb-6">
               <h2 className="text-2xl">The person behind the celebration</h2>

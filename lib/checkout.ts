@@ -316,6 +316,26 @@ export const PaymentProof = z.object({
 export type PaymentProof = z.infer<typeof PaymentProof>;
 
 /**
+ * Which checkout attempt a press continues, of those in memory and saved in the
+ * browser. With payments on, a payment already taken wins over everything, so
+ * no new payment can start until the server has placed that payment's order or
+ * refunded it; the attempt is sent as it is, on its own key, even if the form
+ * has changed since. Otherwise an attempt for these exact details is reused.
+ */
+export function keptAttempt<A extends { signature: string; proof?: PaymentProof }>(
+  signature: string,
+  payments: boolean,
+  ...candidates: (A | null)[]
+): A | null {
+  const known = candidates.filter((a): a is A => a !== null);
+  return (
+    (payments ? known.find((a) => a.proof) : undefined) ??
+    known.find((a) => a.signature === signature) ??
+    null
+  );
+}
+
+/**
  * The one-cake body this route has always taken, read as a basket of one.
  *
  * app/build/review posts `{ config, clientTotal }` and has since long before
