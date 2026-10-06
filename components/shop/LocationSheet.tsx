@@ -72,9 +72,10 @@ export function LocationSheet({
     } else if (!open && d.open) d.close();
   }, [open]);
 
-  /* Search as you type: 350ms after the last key, three characters or more. */
+  /* Search as you type: 350ms after the last key, three characters or more.
+     A picked suggestion fills the box too, and must not search for itself. */
   useEffect(() => {
-    if (query.trim().length < 3) return;
+    if (query.trim().length < 3 || query === chosen.current?.address) return;
     const id = searches.current.next();
     const t = setTimeout(() => {
       post<{ results: LocatedAddress[] }>("/api/location", query.trim())

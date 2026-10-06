@@ -115,13 +115,13 @@ export function AssignmentMap({
       map?.remove();
     };
   }, [serialized, mode]);
-  const target = center ? `${center.lat},${center.lng}` : "";
+  /* Keyed on the object, not its coordinates: picking the same place again
+     after dragging away must still bring the map back. */
   useEffect(() => {
     const map = live.current;
-    if (!map || !target) return;
-    const [lat, lng] = target.split(",").map(Number);
-    map.setView([lat, lng], Math.max(map.getZoom(), 16), { animate: false });
-  }, [target]);
+    if (!map || !center) return;
+    map.setView([center.lat, center.lng], Math.max(map.getZoom(), 16), { animate: false });
+  }, [center]);
   if (mode === "center")
     return (
       <div className="relative h-full min-h-72 w-full">

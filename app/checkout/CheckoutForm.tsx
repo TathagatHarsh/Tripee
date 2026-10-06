@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
-import { LocationPicker } from "@/components/shop/LocationPicker";
+import { LocationSheet } from "@/components/shop/LocationSheet";
 import { CakePhoto } from "@/components/shop/CakePhoto";
 import { PriceRoll } from "@/components/shop/PriceRoll";
 import { OrderReceipt } from "@/lib/orderReceipt";
@@ -42,6 +42,10 @@ const DraftSchema = z.object({
   location: z
     .object({ lat: z.number(), lng: z.number(), placeId: z.string() })
     .nullable(),
+  building: z.string().max(120).default(""),
+  forSomeoneElse: z.boolean().default(false),
+  recipientName: z.string().max(80).default(""),
+  recipientPhone: z.string().max(10).default(""),
 });
 type Draft = z.infer<typeof DraftSchema>;
 type Quote = {
@@ -88,6 +92,10 @@ function readDraft(): Draft {
     customerNotes: "",
     occasion: "",
     location: null,
+    building: "",
+    forSomeoneElse: false,
+    recipientName: "",
+    recipientPhone: "",
   };
 }
 function readReceipt(): Receipt | null {
@@ -131,8 +139,8 @@ function Checkout({ catalog, cakes }: Props) {
     error?: string;
     code?: string;
   } | null>(null);
-  const [addressMode, setAddressMode] = useState(false);
-  const [confirmedAddress, setConfirmedAddress] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editArea, setEditArea] = useState(false);
   const attempt = useRef<{ signature: string; key: string } | null>(null);
   const submitting = useRef(false);
   const patch = (change: Partial<Draft>) =>
@@ -162,23 +170,19 @@ function Checkout({ catalog, cakes }: Props) {
     draft.method === "delivery" ? draft.pincode : undefined,
     catalog,
   );
-  const addressSignature = JSON.stringify([
-    draft.locality,
-    draft.addressLine1,
-    draft.addressLine2,
-    draft.landmark,
-    draft.city,
-    draft.state,
-    draft.pincode,
-    draft.location,
-  ]);
+  const pincodeOk = /^\d{6}$/.test(draft.pincode);
+  const receiverOk =
+    !draft.forSomeoneElse ||
+    (nameOk(draft.recipientName) && /^\d{10}$/.test(draft.recipientPhone));
+  /* Complete means pinned, a door number, a place and a receiver: no separate
+     "confirm" step, the pin was the confirmation. */
   const addressComplete =
-    draft.addressLine1.trim().length >= 3 &&
+    Boolean(draft.location) &&
+    draft.addressLine1.trim().length >= 1 &&
     draft.city.trim().length >= 2 &&
     draft.state.trim().length >= 2 &&
-    /^\d{6}$/.test(draft.pincode);
-  const addressConfirmed =
-    draft.method === "pickup" || confirmedAddress === addressSignature;
+    pincodeOk &&
+    receiverOk;
   const items = useMemo(
     () =>
       lines.map((line) => ({
@@ -252,7 +256,6 @@ function Checkout({ catalog, cakes }: Props) {
   const contactOk = nameOk(draft.name) && phoneOk(draft.phone) && emailOk;
   const ready =
     contactOk &&
-    addressConfirmed &&
     (draft.method === "pickup" || addressComplete) &&
     Boolean(quote) &&
     !missing;
@@ -289,7 +292,8 @@ function Checkout({ catalog, cakes }: Props) {
     const fulfillment = {
       method: draft.method,
       slot: delivery,
-      recipientName: draft.name,
+      recipientName:
+        draft.method === "delivery" && draft.forSomeoneElse ? draft.recipientName : draft.name,
       contactEmail: draft.email || undefined,
       requestedDate: draft.requestedDate,
       requestedWindow: slotWindow(slot),
@@ -301,7 +305,9 @@ function Checkout({ catalog, cakes }: Props) {
             formattedAddress: draft.formattedAddress,
             source: draft.source,
             addressLine1: draft.addressLine1,
-            addressLine2: draft.addressLine2 || undefined,
+            addressLine2:
+              [draft.building.trim(), draft.addressLine2].filter(Boolean).join(", ").slice(0, 160) || undefined,
+            recipientPhone: draft.forSomeoneElse ? draft.recipientPhone : undefined,
             landmark: draft.landmark || undefined,
             city: draft.city,
             state: draft.state,
@@ -498,147 +504,148 @@ function Checkout({ catalog, cakes }: Props) {
             </fieldset>
             {draft.method === "delivery" ? (
               <div className="flex flex-col gap-5">
-                {!addressConfirmed && <LocationPicker
+                <button
+                  type="button"
+                  onClick={() => setSheetOpen(true)}
                   disabled={placing}
-                  onManual={() => { setAddressMode(true); patch({ location: null }); }}
+                  className="flex min-h-16 w-full items-center justify-between gap-4 rounded-s border border-s-line bg-s-shell p-4 text-left transition-colors hover:border-s-cocoa"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm text-s-bark">Deliver to</span>
+                    <span className="mt-0.5 block truncate font-semibold">
+                      {draft.location
+                        ? [draft.addressLine1, draft.building, draft.addressLine2, draft.locality, draft.pincode]
+                            .map((part) => part.trim())
+                            .filter(Boolean)
+                            .join(", ") || "Pinned location"
+                        : "Add delivery address"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold text-s-berry">
+                    {draft.location ? "Change" : "Add"}
+                  </span>
+                </button>
+                {draft.location && (
+                  <>
+                    <Field
+                      label="Flat / house no. and floor"
+                      error={touched && !draft.addressLine1.trim() ? "Add your flat or house number." : undefined}
+                    >
+                      <input
+                        value={draft.addressLine1}
+                        onChange={(e) => patch({ addressLine1: e.target.value })}
+                        autoComplete="address-line1"
+                        placeholder="Flat 402, 4th floor"
+                        maxLength={160}
+                        required
+                        className={sField()}
+                      />
+                    </Field>
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <Field label="Building / society (optional)">
+                        <input
+                          value={draft.building}
+                          onChange={(e) => patch({ building: e.target.value })}
+                          maxLength={120}
+                          className={sField()}
+                        />
+                      </Field>
+                      <Field label="Landmark (optional)">
+                        <input
+                          value={draft.landmark}
+                          onChange={(e) => patch({ landmark: e.target.value })}
+                          maxLength={120}
+                          className={sField()}
+                        />
+                      </Field>
+                    </div>
+                    {editArea || !pincodeOk ? (
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        <Field label="Area / locality">
+                          <input value={draft.locality} onChange={(e) => patch({ locality: e.target.value })} maxLength={120} className={sField()} autoComplete="address-level3" />
+                        </Field>
+                        <Field label="City">
+                          <input value={draft.city} onChange={(e) => patch({ city: e.target.value })} autoComplete="address-level2" maxLength={80} required className={sField()} />
+                        </Field>
+                        <Field label="State">
+                          <input value={draft.state} onChange={(e) => patch({ state: e.target.value })} autoComplete="address-level1" maxLength={80} required className={sField()} />
+                        </Field>
+                        <Field label="Pincode" error={!pincodeOk && (touched || draft.pincode) ? "Enter the six-digit pincode for this address." : undefined}>
+                          <input
+                            value={draft.pincode}
+                            onChange={(e) => patch({ pincode: e.target.value.replace(/\D/g, "") })}
+                            autoComplete="postal-code"
+                            inputMode="numeric"
+                            maxLength={6}
+                            required
+                            className={sField()}
+                          />
+                        </Field>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-s-bark">
+                        {[draft.locality, draft.city, draft.pincode].filter(Boolean).join(", ")}{" "}
+                        <button type="button" onClick={() => setEditArea(true)} className="font-semibold text-s-berry underline underline-offset-2">
+                          Edit
+                        </button>
+                      </p>
+                    )}
+                    <label className="flex min-h-11 cursor-pointer items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={draft.forSomeoneElse}
+                        onChange={(e) => patch({ forSomeoneElse: e.target.checked })}
+                        className="size-4"
+                      />
+                      <span className="font-semibold">Ordering for someone else?</span>
+                    </label>
+                    {draft.forSomeoneElse && (
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        <Field label="Receiver's name" error={touched && !nameOk(draft.recipientName) ? "Add the receiver's name." : undefined}>
+                          <input value={draft.recipientName} onChange={(e) => patch({ recipientName: e.target.value })} maxLength={80} autoComplete="off" className={sField()} />
+                        </Field>
+                        <Field label="Receiver's phone" error={touched && !/^\d{10}$/.test(draft.recipientPhone) ? "Enter a 10-digit mobile number." : undefined}>
+                          <input
+                            value={draft.recipientPhone}
+                            onChange={(e) => patch({ recipientPhone: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                            inputMode="numeric"
+                            autoComplete="off"
+                            className={sField()}
+                          />
+                        </Field>
+                      </div>
+                    )}
+                  </>
+                )}
+                {touched && !addressComplete && (
+                  <p role="alert" className="text-sm text-s-stop">
+                    {draft.location ? "Finish the address details above." : "Add your delivery address to continue."}
+                  </p>
+                )}
+                <LocationSheet
+                  open={sheetOpen}
+                  initial={draft.location}
+                  catalog={catalog}
+                  onClose={() => setSheetOpen(false)}
+                  onPickup={() => {
+                    patch({ method: "pickup", slot: "pickup" });
+                    setSheetOpen(false);
+                  }}
                   onConfirm={(address) => {
-                    setAddressMode(true);
                     patch({
-                      addressLine2: address.placeId ? address.address.slice(0, 160) : draft.addressLine2,
+                      addressLine2: address.address.slice(0, 160),
                       locality: address.locality ?? "",
                       formattedAddress: address.address,
                       source: address.source ?? "map",
                       city: address.city || draft.city,
                       state: address.state || draft.state,
-                      pincode: address.pincode || draft.pincode,
-                      location: {
-                        lat: address.lat,
-                        lng: address.lng,
-                        placeId: address.placeId,
-                      },
+                      pincode: address.pincode,
+                      location: { lat: address.lat, lng: address.lng, placeId: address.placeId },
                     });
-                    setConfirmedAddress("");
+                    setEditArea(!address.pincode);
+                    setSheetOpen(false);
                   }}
-                />}
-                {(addressMode || draft.addressLine1) && <div className="flex flex-col gap-5">
-                {!addressConfirmed && <>
-                <p className="text-sm text-s-bark">Add the finishing details so your cake reaches the right door.</p>
-                <Field label="Flat / House / Building">
-                  <input
-                    value={draft.addressLine1}
-                    onChange={(e) =>
-                      patch({ addressLine1: e.target.value })
-                    }
-                    autoComplete="address-line1"
-                    placeholder="Flat 402, Rosewood Apartments"
-                    maxLength={160}
-                    required
-                    className={sField()}
-                  />
-                </Field>
-                <Field label="Street / Area">
-                  <input
-                    value={draft.addressLine2}
-                    onChange={(e) => patch({ addressLine2: e.target.value, location: draft.location?.placeId ? null : draft.location })}
-                    autoComplete="address-line2"
-                    maxLength={160}
-                    className={sField()}
-                  />
-                </Field>
-                <Field label="Locality">
-                  <input value={draft.locality} onChange={e => patch({ locality: e.target.value, location: draft.location?.placeId ? null : draft.location })} maxLength={120} className={sField()} autoComplete="address-level3" />
-                </Field>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="City">
-                    <input
-                      value={draft.city}
-                      onChange={(e) =>
-                        patch({ city: e.target.value, location: draft.location?.placeId ? null : draft.location })
-                      }
-                      autoComplete="address-level2"
-                      maxLength={80}
-                      required
-                      className={sField()}
-                    />
-                  </Field>
-                  <Field label="State">
-                    <input
-                      value={draft.state}
-                      onChange={(e) =>
-                        patch({ state: e.target.value, location: draft.location?.placeId ? null : draft.location })
-                      }
-                      autoComplete="address-level1"
-                      maxLength={80}
-                      required
-                      className={sField()}
-                    />
-                  </Field>
-                  <Field label="Pincode" error={(touched || draft.location || draft.pincode) && !/^\d{6}$/.test(draft.pincode) ? "Enter the six-digit pincode for this address." : undefined}>
-                    <input
-                      value={draft.pincode}
-                      onChange={(e) =>
-                        patch({
-                          pincode: e.target.value.replace(/\D/g, ""),
-                          location: draft.location?.placeId ? null : draft.location,
-                        })
-                      }
-                      autoComplete="postal-code"
-                      inputMode="numeric"
-                      maxLength={6}
-                      required
-                      className={sField()}
-                    />
-                  </Field>
-                  <Field label="Landmark (optional)">
-                    <input
-                      value={draft.landmark}
-                      onChange={(e) => patch({ landmark: e.target.value })}
-                      maxLength={120}
-                      className={sField()}
-                    />
-                  </Field>
-                </div>
-                </>}
-                {addressComplete && (
-                  <div className="location-result rounded-s border border-s-line bg-s-cream p-4">
-                    <p className="text-sm font-semibold">
-                      Your delivery address
-                    </p>
-                    <p className="my-2 text-sm text-s-bark">
-                      {[
-                        draft.addressLine1,
-                        draft.addressLine2,
-                        draft.locality,
-                        draft.landmark,
-                        draft.city,
-                        draft.state,
-                        draft.pincode,
-                      ]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                    <button
-                      type="button"
-                      className={sBtn(
-                        addressConfirmed ? "ghost" : "outline",
-                        "sm",
-                      )}
-                      disabled={addressConfirmed}
-                      onClick={() => { setConfirmedAddress(addressSignature); document.getElementById("delivery-window-heading")?.focus(); }}
-                    >
-                      {addressConfirmed
-                        ? "✓ Address confirmed"
-                        : "Continue to delivery"}
-                    </button>
-                    {addressConfirmed && <button type="button" className={sBtn("ghost", "sm")} onClick={() => setConfirmedAddress("")}>Change address</button>}
-                  </div>
-                )}
-                </div>}
-                {touched && !addressConfirmed && (
-                  <p role="alert" className="text-sm text-s-stop">
-                    Complete the address and confirm it above.
-                  </p>
-                )}
+                />
               </div>
             ) : (
               <div className="rounded-s bg-s-cream-deep p-5">
@@ -803,8 +810,8 @@ function Checkout({ catalog, cakes }: Props) {
           <p role="alert" className="text-sm text-s-stop">
             {!contactOk
               ? "Check your contact details."
-              : !addressConfirmed
-                ? "Confirm your delivery address above."
+              : draft.method === "delivery" && !addressComplete
+                ? "Add your delivery address above."
                 : "Delivery and pricing must be verified before placing your order."}
           </p>
         )}

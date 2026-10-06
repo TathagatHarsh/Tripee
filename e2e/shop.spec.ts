@@ -31,21 +31,34 @@ async function configuredBasket(page: Page) {
   ).toBeVisible();
   await page.getByRole("link", { name: "Checkout", exact: true }).click();
 }
+/**
+ * Pins a Madhapur address through the location sheet. The two lookups are
+ * stubbed so the suite does not depend on the public Photon instance; placing
+ * the order still needs a bakery covering this pin in the scratch database
+ * (the orders route checks coverage itself).
+ */
+const MADHAPUR = { lat: 17.4486, lng: 78.3908, address: "Road No 36, Madhapur", locality: "Madhapur", city: "Hyderabad", state: "Telangana", pincode: "500081", placeId: "N1" };
+async function pinAddress(page: Page, place = MADHAPUR, covered = true) {
+  await page.route("**/api/location", (route) => route.fulfill({ json: { results: [place] } }));
+  await page.route("**/api/serviceability", (route) => route.fulfill({ json: { covered } }));
+  await page.getByRole("button", { name: /Add delivery address|Change/ }).click();
+  await page.getByLabel("Search for your area, street or building").fill("Madhapur");
+  await page.getByRole("button", { name: place.address, exact: true }).click();
+}
 async function deliveryDetails(page: Page) {
   await page.getByLabel("Name", { exact: true }).fill("E2E Guest Customer");
   await page.getByLabel("Phone", { exact: true }).fill("9876543210");
   await page
     .getByLabel("Email (optional)", { exact: true })
     .fill("guest@example.invalid");
-  await page.getByRole("button", { name: "Enter address manually" }).click();
+  await pinAddress(page);
+  await page.getByRole("button", { name: "Confirm location", exact: true }).click();
   await page
-    .getByLabel("Flat / House / Building", { exact: true })
+    .getByLabel("Flat / house no. and floor", { exact: true })
     .fill("12 Synthetic Test Street");
-  await page.getByLabel("Pincode", { exact: true }).fill("500081");
   await page
     .getByLabel("Requested date")
     .fill(new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10));
-  await page.getByRole("button", { name: "Continue to delivery" }).click();
   await expect(page.getByText(/We deliver here/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^Place order/ }),
@@ -62,10 +75,9 @@ test("guest can configure, edit, confirm delivery, order, refresh receipt and tr
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue(
     "E2E Guest Customer",
   );
-  await expect(page.getByLabel("Flat / House / Building", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Flat / house no. and floor", { exact: true })).toHaveValue(
     "12 Synthetic Test Street",
   );
-  await page.getByRole("button", { name: "Continue to delivery" }).click();
   await expect(page.getByText(/We deliver here/)).toBeVisible();
   const a11y = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -108,15 +120,21 @@ test("mobile checkout blocks an unserviceable address and preserves details afte
   await page.setViewportSize({ width: 390, height: 844 });
   await configuredBasket(page);
   await deliveryDetails(page);
-  await page.getByRole("button", { name: "Change address", exact: true }).click();
+  // A pin no bakery reaches is refused on the map, with pickup offered.
+  await page.unroute("**/api/location");
+  await page.unroute("**/api/serviceability");
+  await pinAddress(page, { ...MADHAPUR, address: "Connaught Place", pincode: "110001" }, false);
+  await expect(page.getByText("We don't deliver here yet")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm location", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  // A hand-edited pincode outside the zones is refused by the slot rules.
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel("Pincode", { exact: true }).fill("110001");
   await expect(page.getByText(/Not serviceable/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^Place order/ }),
   ).toHaveAttribute("aria-disabled", "true");
   await page.getByLabel("Pincode", { exact: true }).fill("500081");
-  await page.getByRole("button", { name: "Continue to delivery" }).click();
-  await expect(page.getByRole("button", { name: "✓ Address confirmed" })).toBeVisible();
   await expect(page.getByText(/We deliver here/)).toBeVisible();
   await page.route("**/api/orders", (route) => route.abort());
   await page.getByRole("button", { name: /^Place order/ }).click();
@@ -138,20 +156,13 @@ test("Leaflet pin survives completing the address and reaches server assignment"
   await configuredBasket(page);
   await page.getByLabel("Name", { exact: true }).fill("Assignment Demo Customer");
   await page.getByLabel("Phone", { exact: true }).fill("9876543210");
-  await page.getByRole("button", { name: "Search delivery location ↗" }).click();
-  const map = page.getByRole("region", { name: "Select delivery location" });
+  await pinAddress(page);
+  const map = page.getByRole("region", { name: "Move the map to put the pin on your door" });
   await expect(map.locator(".leaflet-map-pane")).toBeVisible();
-  await map.click({ position: { x: 200, y: 150 } });
-  await page.getByRole("button", { name: "Confirm this location", exact: true }).click();
-  await page.getByLabel("Flat / House / Building", { exact: true }).fill("House 12");
-  await page.getByLabel("Street / Area", { exact: true }).fill("Jubilee Hills");
-  await page.getByLabel("Locality", { exact: true }).fill("Jubilee Hills");
-  await page.getByLabel("City", { exact: true }).fill("Hyderabad");
-  await page.getByLabel("State", { exact: true }).fill("Telangana");
-  await page.getByLabel("Pincode", { exact: true }).fill("500033");
-  await page.getByLabel("Requested date").fill(new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 10));
   await map.screenshot({ path: testInfo.outputPath("leaflet-checkout.png") });
-  await page.getByRole("button", { name: "Continue to delivery", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm location", exact: true }).click();
+  await page.getByLabel("Flat / house no. and floor", { exact: true }).fill("House 12");
+  await page.getByLabel("Requested date").fill(new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 10));
   const created = page.waitForResponse(r => r.url().endsWith("/api/orders") && r.request().method() === "POST");
   await page.getByRole("button", { name: /^Place order/ }).click();
   const response = await created;
