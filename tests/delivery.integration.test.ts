@@ -5,6 +5,7 @@ import { db } from '../lib/db';
 import { assignmentCandidates, manualAssignment, moveFulfillment, respondToAssignment } from '../lib/assignment';
 import { applyStatusTransition } from '../lib/orderTransition';
 import { vendorNext } from '../lib/vendors';
+import { isCovered } from '../lib/coverage';
 
 /**
  * One order from confirmed to the customer's door, the way the portals drive it
@@ -95,6 +96,13 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
     const candidate = (await assignmentCandidates(order.ref)).find((c) => c.vendorId === vendor.id)!;
     expect(candidate.eligible).toBe(false);
     expect(candidate.reasons).toContain('Verified location required');
+  });
+
+  it('checkout coverage sees a nearby bakery and refuses a pin no bakery reaches', async () => {
+    await setup();
+    expect(await isCovered({ lat: 17.431, lng: 78.401 })).toBe(true);
+    // ~70 km from every test bakery (17.43 to 17.68 N, radius at most 20 km).
+    expect(await isCovered({ lat: 17.95, lng: 78.95 })).toBe(false);
   });
 
   it('a pincode inside a delivery zone can still be outside every bakery radius', async () => {

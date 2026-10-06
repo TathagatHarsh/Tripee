@@ -162,6 +162,8 @@ export const FulfillmentInput = z
     method: z.enum(["delivery", "pickup"]),
     slot: DeliverySlot,
     recipientName: z.string().trim().min(2).max(80),
+    /** The receiver's number when the cake goes to someone else. */
+    recipientPhone: z.string().regex(/^\d{10}$/).optional(),
     contactEmail: z.string().trim().email().max(254).optional(),
     location: z
       .object({
@@ -208,8 +210,16 @@ export const FulfillmentInput = z
           path: ["pincode"],
         });
       }
+      /* Every delivery order needs a pin: assignment cannot route without one. */
+      if (!f.location) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Choose your delivery location on the map.",
+          path: ["location"],
+        });
+      }
       if (
-        (f.addressLine1?.length ?? 0) < 3 ||
+        (f.addressLine1?.length ?? 0) < 1 ||
         (f.city?.length ?? 0) < 2 ||
         (f.state?.length ?? 0) < 2
       ) {

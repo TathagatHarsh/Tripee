@@ -1,4 +1,5 @@
 import { portalEvent } from "@/lib/portalNotifications";
+import { isCovered } from "@/lib/coverage";
 import { startAssignment } from "@/lib/assignment";
 import type { Receipt } from "@/lib/orderReceipt";
 import { Prisma } from "@prisma/client";
@@ -289,6 +290,15 @@ export async function POST(req: Request) {
       { status: 422 },
     );
   }
+  /* The pincode zone says we deliver to the area; this says a bakery actually
+     reaches the pin. Without it an order can be taken that nobody can make. */
+  const pin = body.fulfillment.location;
+  if (body.fulfillment.method === "delivery" && pin && !(await isCovered(pin))) {
+    return Response.json(
+      { error: "We don't deliver here yet.", code: "not_serviceable" },
+      { status: 422 },
+    );
+  }
 
   const viewer = await getViewer();
   const [design, bakery] = await Promise.all([
@@ -561,7 +571,7 @@ async function createOrder(
           ...(input.fulfillment.method === "delivery" ? { deliveryLocation: asJson({
             placeId: input.fulfillment.location?.placeId ?? "",
             name: input.fulfillment.recipientName,
-            phone: input.customerPhone,
+            phone: input.fulfillment.recipientPhone ?? input.customerPhone,
             addressLine1: input.fulfillment.addressLine1,
             addressLine2: input.fulfillment.addressLine2 ?? "",
             locality: input.fulfillment.locality ?? "",

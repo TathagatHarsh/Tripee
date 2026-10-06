@@ -53,7 +53,7 @@ describe("the checkout request", () => {
     customerPhone: "9876543210",
     items: [{ config: { ...DEFAULT_CAKE, pincode: "500081" }, qty: 1 }],
     idempotencyKey: "00000000-0000-4000-8000-000000000001",
-    fulfillment: { method: "delivery", slot: "standard", recipientName: "Aryu", addressLine1: "12 Test Street", city: "Hyderabad", state: "Telangana", pincode: "500081", requestedDate: "2030-01-01", requestedWindow: "10:00–20:00" },
+    fulfillment: { method: "delivery", slot: "standard", recipientName: "Aryu", addressLine1: "12 Test Street", city: "Hyderabad", state: "Telangana", pincode: "500081", requestedDate: "2030-01-01", requestedWindow: "10:00–20:00", location: { lat: 17.44, lng: 78.38, placeId: "" } },
   };
 
   it("accepts a basket of one cake", () => {
