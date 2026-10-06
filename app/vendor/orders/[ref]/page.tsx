@@ -22,6 +22,7 @@ import { vendorOrder } from "../../data";
 import { DueBadge } from "../../DueBadge";
 import { OrderActions } from "../../OrderActions";
 import { FullCakePhoto } from "@/components/orders/FullCakePhoto";
+import { receiverFrom } from "@/components/DeliveryAddressSnapshot";
 
 /**
  * One order, as a production ticket rather than a database row.
@@ -95,6 +96,7 @@ export default async function VendorOrderDetail({
   const due = dueAt(order);
   const next = vendorNext(status, order.status);
   const pickup = order.fulfillmentMethod === "pickup";
+  const receiver = receiverFrom(order.deliveryLocation);
   const finished = next.length === 0;
   /* One clock for this page, shared with the badge so the panel's edge and the
      countdown inside it can never be two readings taken a moment apart. See the
@@ -250,7 +252,14 @@ export default async function VendorOrderDetail({
           <div className="flex gap-2">
             <dt className="text-a-muted">For</dt>
             <dd className="text-a-ink">
-              {order.customerName ?? "No name taken"}
+              {receiver.name ?? order.customerName ?? "No name taken"}
+              {/* The bakery delivers, so once it has accepted it needs a number
+                  for the door. Not before: an offer is not yet its order. */}
+              {!pickup && status !== "assigned" && receiver.phone && (
+                <a href={`tel:${receiver.phone}`} className="ml-2 font-a-mono text-a-accent-ink underline underline-offset-2">
+                  {receiver.phone}
+                </a>
+              )}
             </dd>
           </div>
         </dl>

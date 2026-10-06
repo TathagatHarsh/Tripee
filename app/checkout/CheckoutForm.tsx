@@ -642,9 +642,9 @@ function Checkout({ catalog, cakes }: Props) {
               </div>
             ) : (
               <div className="rounded-s bg-s-cream-deep p-5">
-                <p className="font-semibold">{catalog.bakery.name}</p>
+                <p className="font-semibold">Collect from the bakery that makes your cake</p>
                 <p className="mt-1 text-sm text-s-bark">
-                  {catalog.bakery.address}
+                  We&rsquo;ll share its address once a bakery accepts your order.
                 </p>
               </div>
             )}

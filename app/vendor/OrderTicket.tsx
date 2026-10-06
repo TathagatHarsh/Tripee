@@ -1,6 +1,7 @@
 import { Earnings } from "@/components/assignment/Earnings";
 import Link from "next/link";
 import { FullCakePhoto } from "@/components/orders/FullCakePhoto";
+import { receiverFrom } from "@/components/DeliveryAddressSnapshot";
 import { Icon } from "@/components/admin/icons";
 import { StatusBadge } from "@/components/admin/ui";
 import { sizeName } from "@/lib/cakes";
@@ -181,7 +182,7 @@ export function OrderTicket({
         <div className="flex gap-2">
           <dt className="w-16 shrink-0 text-a-muted">For</dt>
           <dd className="min-w-0 flex-1 text-a-ink">
-            {order.customerName ?? "No name taken"}
+            {receiverFrom(order.deliveryLocation).name ?? order.customerName ?? "No name taken"}
           </dd>
         </div>
         <div className="flex gap-2">

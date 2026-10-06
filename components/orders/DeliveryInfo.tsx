@@ -27,6 +27,8 @@ export function DeliveryInfo({
     createdAt: Date;
     leadHours: number;
     status: import("@prisma/client").OrderStatus;
+    /** The bakery making it: a pickup is collected from there. */
+    currentAssignment?: { assignmentStatus: string; vendor: { name: string; address: string | null } } | null;
   };
   catalog: CatalogSnapshot;
   /** The recorded arrival, when there is one. Beats any estimate. */
@@ -48,7 +50,9 @@ export function DeliveryInfo({
         k={pickup ? "Collection" : "Area"}
         v={
           pickup
-            ? catalog.bakery.address || "The counter"
+            ? order.currentAssignment?.assignmentStatus === "ACCEPTED"
+              ? [order.currentAssignment.vendor.name, order.currentAssignment.vendor.address].filter(Boolean).join(", ")
+              : "Shared once a bakery accepts your order"
             : order.pincode
               ? `${order.pincode}${zone ? ` · ${zone.name}` : ""}`
               : "Taken on the confirmation call"
