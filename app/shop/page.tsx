@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/shop" },
   title: "Shop cakes · MakeYourCakes",
   description:
-    "Every cake we bake, in the size you want and with or without egg, baked to order in Jubilee Hills. Filter by flavour, sort by price, and order without paying up front.",
+    "Every cake we bake, in the size you want and with or without egg, baked to order in Jubilee Hills. Filter by flavour, sort by price, and we call to confirm every order before we bake.",
 };
 
 const SORTS = [
@@ -166,7 +166,7 @@ export default async function ShopPage({
             </h1>
             <p className="max-w-[56ch] text-[1.0625rem] leading-relaxed text-s-bark">
               {heading?.blurb ??
-                "Each one is baked to order in Jubilee Hills. Nothing is paid for up front: we call to confirm, then bake."}
+                "Each one is baked to order in Jubilee Hills. We call to confirm every order, then bake."}
             </p>
           </div>
 

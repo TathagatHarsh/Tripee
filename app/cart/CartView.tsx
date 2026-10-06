@@ -277,8 +277,7 @@ export function CartView({
         </Link>
 
         <p className="text-[0.8125rem] leading-relaxed text-s-bark">
-          Nothing is charged now. We confirm every order by phone before it goes
-          in the oven.
+          We confirm every order by phone before it goes in the oven.
         </p>
       </aside>
     </div>

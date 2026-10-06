@@ -273,7 +273,7 @@ export default function ReviewStep() {
         </div>
 
         <p className="text-meta leading-normal text-quiet">
-          {priceNote} No payment now — we call you to confirm the details, then bake.
+          {priceNote} We call you to confirm the details, then bake.
         </p>
 
         <button
