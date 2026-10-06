@@ -16,7 +16,7 @@ import {
   PaymentProof,
   refForAttempt,
 } from "@/lib/checkout";
-import { refundUnlessOk } from "@/lib/checkoutPayment";
+import { refundPayment, refundUnlessOk } from "@/lib/checkoutPayment";
 import {
   asJson,
   CREATED,
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       { status: 402 },
     );
   }
-  const { idempotencyKey, payment } = paid.data;
+  const { payment } = paid.data;
   if (!verifySignature(payment)) {
     return Response.json(
       { error: "We couldn't verify that payment.", code: "payment_invalid" },
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
     log("error", "order_place_failed", { traceId, error: String(error) });
     res = serverError(traceId);
   }
-  return refundUnlessOk(res, idempotencyKey, payment);
+  return refundUnlessOk(res, payment);
 }
 
 const PaidRequest = z.object({ idempotencyKey: z.string().uuid(), payment: PaymentProof });
@@ -106,6 +106,21 @@ function serverError(traceId: string) {
   );
 }
 
+/**
+ * A replayed order that was paid for with a different payment than this proof:
+ * the customer has paid twice, so the second payment goes back. The replay
+ * itself is still answered as before.
+ */
+async function refundExtraPayment(order: CreatedOrder, payment: PaymentProof | null) {
+  if (!payment || order.razorpayPaymentId === payment.razorpayPaymentId) return;
+  const { outcome } = await refundPayment(payment);
+  log("warn", "replay_extra_payment", {
+    ref: order.ref,
+    paymentId: payment.razorpayPaymentId,
+    outcome,
+  });
+}
+
 async function place(
   raw: unknown,
   payment: PaymentProof | null,
@@ -114,6 +129,7 @@ async function place(
   const validated = await validateCheckout(raw, traceId);
   if (validated.kind === "problem") return validated.response;
   if (validated.kind === "replay") {
+    await refundExtraPayment(validated.order, payment);
     await rememberGuestOrders([validated.order.ref]);
     return Response.json(
       { ...responseFor(validated.order), duplicate: true },
@@ -190,6 +206,7 @@ async function place(
     return serverError(traceId);
   }
 
+  if (result.replay) await refundExtraPayment(result.order, payment);
   await startAssignment(result.order.ref).catch(() => log("error", "assignment_pending_retry", { orderRef: result.order.ref }));
   await rememberGuestOrders([result.order.ref]);
   if (!result.replay) {
