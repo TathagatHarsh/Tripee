@@ -94,6 +94,7 @@ export default async function VendorOrderDetail({
   const { order, config, status } = assignment;
   const due = dueAt(order);
   const next = vendorNext(status, order.status);
+  const pickup = order.fulfillmentMethod === "pickup";
   const finished = next.length === 0;
   /* One clock for this page, shared with the badge so the panel's edge and the
      countdown inside it can never be two readings taken a moment apart. See the
@@ -269,19 +270,27 @@ export default async function VendorOrderDetail({
               : status === "in_preparation"
                 ? "Being made. Mark it ready when it is finished and boxed."
                 : status === "ready"
-                  ? "Finished. Send it out for delivery when it leaves you."
+                  ? pickup
+                    ? "Finished. Mark it ready for collection when it is boxed for the customer."
+                    : "Finished. Send it out for delivery when it leaves you."
                   : status === "rejected"
                     ? "You declined this one. MakeYourCakes will give it to another bakery — " +
                       "there is nothing further to do here."
                     : status === "withdrawn"
                       ? "MakeYourCakes took this order back. It is not yours to make."
                       : order.status === "out_for_delivery"
-                        ? "On its way. Mark it delivered once the customer has it."
+                        ? pickup
+                          ? "Waiting for the customer. Mark it collected when they have it."
+                          : "On its way. Mark it delivered once the customer has it."
                         : order.status === "in_kitchen"
-                          ? "Handed over. Send it out for delivery so the customer is told."
-                          : "Delivered. Nothing further on this one."}
+                          ? pickup
+                            ? "Handed over. Mark it ready for collection so the customer is told."
+                            : "Handed over. Send it out for delivery so the customer is told."
+                          : pickup
+                            ? "Collected. Nothing further on this one."
+                            : "Delivered. Nothing further on this one."}
         </p>
-        <OrderActions assignmentId={assignment.id} orderRef={order.ref} next={next} />
+        <OrderActions assignmentId={assignment.id} orderRef={order.ref} next={next} pickup={pickup} />
       </section>
 
       {/* ── what has happened to this assignment ─────────────────────────── */}

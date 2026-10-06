@@ -63,14 +63,14 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
     expect(now.status).toBe('delivered');
     expect(vendorNext(now.currentAssignment!.status, now.status)).toEqual([]);
 
-    // The customer heard about both steps. (Bakery-side events share the
-    // status_changed kind under `assignment-event:` keys; only order-level
-    // rows are the customer's.)
-    const kinds = await db.notificationOutbox.findMany({ where: { orderId: order.id, kind: 'status_changed', dedupeKey: { startsWith: 'order:' } }, select: { dedupeKey: true } });
+    // The customer heard about both steps, and about nothing the bakery did.
+    const kinds = await db.notificationOutbox.findMany({ where: { orderId: order.id, kind: 'status_changed' }, select: { dedupeKey: true } });
     expect(kinds.map((k) => k.dedupeKey).sort()).toEqual([
       `order:${order.id}:status:delivered`,
       `order:${order.id}:status:out_for_delivery`,
     ]);
+    // The offer to the bakery is still sent.
+    expect(await db.notificationOutbox.count({ where: { orderId: order.id, kind: 'vendor_assigned' } })).toBe(1);
   });
 
   it('nobody can mark a cake delivered before the bakery hands it over', async () => {
@@ -80,15 +80,13 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
     expect((await status(order.id)).status).toBe('in_kitchen');
   });
 
-  it('a pickup order is offered "Send out for delivery" after handover', async () => {
+  it('a pickup order runs from ready to collected', async () => {
     const { vendor, order } = await setup({ pickup: true });
     const assignmentId = await toReady(order.ref, vendor.id, order.id);
     expect(await moveFulfillment(vendor.id, order.ref, 'handed_over', assignmentId)).toBe(true);
-    const now = await status(order.id);
-    // Documents current behaviour: pickup has no separate path, so the bakery
-    // must "send out for delivery" a cake the customer is collecting.
-    expect(vendorNext(now.currentAssignment!.status, now.status)).toEqual(['out_for_delivery']);
-    expect(await applyStatusTransition(order.ref, 'delivered', null)).toBe(false);
+    expect(await applyStatusTransition(order.ref, 'out_for_delivery', null)).toBe(true);
+    expect(await applyStatusTransition(order.ref, 'delivered', null)).toBe(true);
+    expect((await status(order.id)).status).toBe('delivered');
   });
 
   it('an order without map coordinates cannot be assigned to any bakery', async () => {

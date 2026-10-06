@@ -16,7 +16,8 @@ export const NEXT_STATUS: Record<OrderStatus, OrderStatus[]> = {
   draft: ["confirmed", "cancelled"],
   confirmed: ["in_kitchen", "cancelled"],
   in_kitchen: ["out_for_delivery", "cancelled"],
-  out_for_delivery: ["delivered", "cancelled"],
+  /* A cake that has left the bakery is finished by delivery, not cancellation. */
+  out_for_delivery: ["delivered"],
   delivered: [],
   cancelled: [],
 };

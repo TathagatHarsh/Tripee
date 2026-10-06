@@ -234,6 +234,7 @@ export function OrderTicket({
             assignmentId={card.id}
             orderRef={order.ref}
             next={next}
+            pickup={order.fulfillmentMethod === "pickup"}
             compact
           />
 

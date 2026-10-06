@@ -4,7 +4,7 @@ import {
   assignmentHistory, canVendorTransition, composeRejection, DUE_TONE, dueLabel, dueUrgency,
   isVendorFinished, mayVendorAct, ORDER_STATUS_FOR_VENDOR, REJECTION_REASONS, releasesOrder,
   STAMP, VENDOR_ACTION_LABEL, VENDOR_COLUMNS, VENDOR_EVENT_LABEL, VENDOR_NEXT, VENDOR_OPEN,
-  VENDOR_STATUS_LABEL, VENDOR_STATUS_TONE, vendorNext,
+  VENDOR_STATUS_LABEL, VENDOR_STATUS_TONE, vendorMoveLabel, vendorNext,
 } from "@/lib/vendors";
 import { ADMIN_MOVES, canTransition, CUSTOMER_STATUS, NEXT_STATUS } from "@/lib/orders";
 
@@ -542,5 +542,17 @@ describe("the bakery owns delivery, the office does not", () => {
 
   it("leaves the office only confirming and cancelling", () => {
     expect(ADMIN_MOVES).toEqual(["confirmed", "cancelled"]);
+  });
+});
+
+describe("the bakery's buttons follow how the customer gets the cake", () => {
+  it("says collection for a pickup", () => {
+    expect(vendorMoveLabel("handed_over", true)).toBe("Ready for collection");
+    expect(vendorMoveLabel("out_for_delivery", true)).toBe("Ready for collection");
+    expect(vendorMoveLabel("delivered", true)).toBe("Mark collected");
+  });
+  it("keeps delivery wording for a delivery", () => {
+    expect(vendorMoveLabel("delivered", false)).toBe("Mark delivered");
+    expect(vendorMoveLabel("handed_over", false)).toBe("Send out for delivery");
   });
 });

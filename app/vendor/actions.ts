@@ -7,7 +7,7 @@ import { hasDatabase } from "@/lib/db";
 import { db } from "@/lib/db";
 import { applyStatusTransition } from "@/lib/orderTransition";
 import { applyVendorTransition } from "@/lib/vendorTransition";
-import { composeRejection, VENDOR_DELIVERY_NEXT, VENDOR_MOVE_LABEL, type VendorMove } from "@/lib/vendors";
+import { composeRejection, VENDOR_DELIVERY_NEXT, vendorMoveLabel, type VendorMove } from "@/lib/vendors";
 
 /**
  * The only write a partner bakery can make.
@@ -129,7 +129,7 @@ export async function moveAssignment(
   revalidatePath(`/admin/orders/${ref}`);
 
   return moved
-    ? { ok: true, message: `${VENDOR_MOVE_LABEL[to].replace(/ order$/, "")}: done.` }
+    ? { ok: true, message: `${vendorMoveLabel(to, await isPickup(ref)).replace(/ order$/, "")}: done.` }
     : {
       ok: false,
       message:
@@ -155,7 +155,7 @@ async function deliver(
 ): Promise<ActionResult> {
   const order = await db.order.findFirst({
     where: { ref, currentAssignment: { id: assignmentId, vendorId, status: "handed_over" } },
-    select: { status: true },
+    select: { status: true, fulfillmentMethod: true },
   });
   const moved =
     !!order &&
@@ -168,6 +168,11 @@ async function deliver(
   revalidatePath(`/admin/orders/${ref}`);
 
   return moved
-    ? { ok: true, message: `${VENDOR_MOVE_LABEL[to]}: done.` }
+    ? { ok: true, message: `${vendorMoveLabel(to, order?.fulfillmentMethod === "pickup")}: done.` }
     : { ok: false, message: "That is no longer available. Reload to see where this order is." };
+}
+
+async function isPickup(ref: string): Promise<boolean> {
+  const order = await db.order.findUnique({ where: { ref }, select: { fulfillmentMethod: true } });
+  return order?.fulfillmentMethod === "pickup";
 }

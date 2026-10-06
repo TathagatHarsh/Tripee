@@ -31,9 +31,9 @@ describe("order status machine", () => {
     }
   });
 
-  it("lets anything still open be cancelled, and nothing closed", () => {
+  it("lets anything still at the bakery be cancelled, and nothing on the road or closed", () => {
     for (const s of ALL) {
-      expect(canTransition(s, "cancelled"), s).toBe(!isClosed(s));
+      expect(canTransition(s, "cancelled"), s).toBe(!isClosed(s) && s !== "out_for_delivery");
     }
   });
 
@@ -298,5 +298,12 @@ describe("where the confirmation sends somebody", () => {
      tracking link for. */
   it("has nowhere to send a response that named no orders", () => {
     expect(trackingPlan([])).toBeNull();
+  });
+});
+
+describe("an order on the road", () => {
+  it("is finished by delivery, not cancellation", () => {
+    expect(canTransition("out_for_delivery", "cancelled")).toBe(false);
+    expect(canTransition("out_for_delivery", "delivered")).toBe(true);
   });
 });

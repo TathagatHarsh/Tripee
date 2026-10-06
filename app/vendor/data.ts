@@ -7,6 +7,7 @@ import { VENDOR_OPEN } from "@/lib/vendors";
 const ORDER_FOR_VENDOR = {
   ref: true,
   status: true,
+  fulfillmentMethod: true,
   customerName: true,
   addressLine1: true,
   addressLine2: true,
@@ -74,6 +75,7 @@ export async function vendorBoard(vendorId: string): Promise<VendorCard[]> {
 export interface VendorCardOrder {
   ref: string;
   status: OrderStatus;
+  fulfillmentMethod: "delivery" | "pickup";
   customerName: string | null;
   addressLine1: string | null;
   addressLine2: string | null;

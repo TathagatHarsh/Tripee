@@ -199,6 +199,13 @@ export const VENDOR_MOVE_LABEL: Record<VendorMove, string> = {
   delivered: "Mark delivered",
 };
 
+/** The button wording, which for a pickup is about collection, not the road. */
+export function vendorMoveLabel(move: VendorMove, pickup: boolean): string {
+  if (pickup && (move === "handed_over" || move === "out_for_delivery")) return "Ready for collection";
+  if (pickup && move === "delivered") return "Mark collected";
+  return VENDOR_MOVE_LABEL[move];
+}
+
 /** How an assignment reads on the admin's history, which is written in the past tense. */
 export const VENDOR_EVENT_LABEL: Record<VendorOrderStatus, string> = {
   assigned: "Assigned",
