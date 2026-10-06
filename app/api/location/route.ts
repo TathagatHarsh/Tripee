@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   if (crossSite(req))
     return Response.json({ error: "Not authorised" }, { status: 403 });
   const limit = rateLimit("geocoding", callerKey(req), {
-    max: 15,
+    max: 60,
     windowSeconds: 60,
   });
   if (!limit.ok) return tooMany(limit, "location searches");

@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { haversine, type Point, type RouteEstimate } from "./assignmentRules";
-import type { LocatedAddress } from "./location";
+import { HYDERABAD_BBOX, photonToAddress, type LocatedAddress, type PhotonFeature } from "./location";
 
 export interface GeocodingProvider {
   search(query: string | Point): Promise<LocatedAddress[]>;
@@ -68,6 +68,36 @@ export const nominatim: GeocodingProvider = {
       }));
   },
 };
+/**
+ * Photon (komoot), free and built for search-as-you-type, which public
+ * Nominatim forbids. The prototype's default; `PHOTON_URL` points it at a
+ * self-hosted instance, and a paid provider replaces it via `geocoder()`.
+ */
+export const photon: GeocodingProvider = {
+  async search(query) {
+    const base = process.env.PHOTON_URL || "https://photon.komoot.io";
+    const url = new URL(
+      typeof query === "string" ? "api" : "reverse",
+      base.endsWith("/") ? base : `${base}/`,
+    );
+    url.search = new URLSearchParams(
+      typeof query === "string"
+        ? { q: query, lat: "17.385", lon: "78.4867", bbox: HYDERABAD_BBOX.join(","), limit: "5" }
+        : { lat: String(query.lat), lon: String(query.lng), limit: "1" },
+    ).toString();
+    const data = (await json(url)) as { features?: PhotonFeature[] };
+    const kind = typeof query === "string" ? "search" : "reverse";
+    return (data.features ?? [])
+      .map((f) => photonToAddress(f, kind))
+      .filter((a): a is LocatedAddress => a !== null);
+  },
+};
+
+/** Nominatim when one is configured (today's behaviour), Photon otherwise. */
+export function geocoder(): GeocodingProvider {
+  return process.env.GEOCODING_URL ? nominatim : photon;
+}
+
 export const osrm: RoutingProvider = {
   async matrix(origins, destination) {
     if (!origins.length) return [];
@@ -115,7 +145,7 @@ export const osrm: RoutingProvider = {
 };
 export function getCoordinatesFromAddress(
   address: string | Point,
-  provider: GeocodingProvider = nominatim,
+  provider: GeocodingProvider = geocoder(),
 ) {
   return provider.search(address);
 }
