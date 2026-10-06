@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { CheckoutForm } from "@/app/checkout/CheckoutForm";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
@@ -21,6 +22,8 @@ export const metadata: Metadata = {
  * condition of buying a cake.
  */
 export default async function CheckoutPage() {
+  // Rendered per request, so the payments flag is the server's now, not the build's.
+  await connection();
   const [catalog, cakes] = await Promise.all([
     getCatalogSnapshot(),
     listCakes(),
