@@ -2,9 +2,11 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn, revalidateTag: () => {}, revalidatePath: () => {} }));
-vi.mock('../lib/auth', () => ({ getViewer: async () => null }));
+const getViewer = vi.hoisted(() => vi.fn(async () => null));
+vi.mock('../lib/auth', () => ({ getViewer }));
 vi.mock('../lib/guestOrders', () => ({ rememberGuestOrders: async () => {} }));
 import { db } from '../lib/db';
+import { formatINR } from '../lib/format';
 import { paymentMatches } from '../lib/razorpay';
 import { POST as placeOrder } from '../app/api/orders/route';
 import { POST as openIntent } from '../app/api/payments/intent/route';
@@ -211,5 +213,22 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     expect(confirm.status).toBe(409);
     expect(await confirm.json()).toMatchObject({ code: 'payment_mismatch' });
     expect(await db.order.count({ where: { razorpayPaymentId: paid.razorpayPaymentId } })).toBe(0);
+  });
+
+  it('a paid order that fails on our side is refunded, and never told nothing was charged', async () => {
+    const body = basket(day(45));
+    const paid = proof('F');
+    const { amountPaise } = await intent(body, paid.razorpayOrderId);
+    getViewer.mockRejectedValueOnce(new Error('session store down'));
+
+    const res = await post(placeOrder, { ...body, payment: paid });
+    const json = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(json).toMatchObject({ code: 'server_error', refunded: true });
+    expect(json.error).toBe(
+      `We couldn't place the order, so your payment of ${formatINR(amountPaise)} has been refunded. Something went wrong on our side; please try again.`,
+    );
+    expect(refunds(paid.razorpayPaymentId)).toBe(1);
   });
 });

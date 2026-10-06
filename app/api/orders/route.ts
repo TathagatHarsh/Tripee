@@ -88,18 +88,20 @@ export async function POST(req: Request) {
     res = await place(raw, payment, traceId);
   } catch (error) {
     log("error", "order_place_failed", { traceId, error: String(error) });
-    res = serverError(traceId);
+    res = serverError(traceId, true);
   }
   return refundUnlessOk(res, payment);
 }
 
 const PaidRequest = z.object({ idempotencyKey: z.string().uuid(), payment: PaymentProof });
 
-function serverError(traceId: string) {
+/** `paid`: the customer has paid, so the refund message leads and this only adds the next step. */
+function serverError(traceId: string, paid: boolean) {
   return Response.json(
     {
-      error:
-        "We couldn't place that order. Nothing has been charged — please try again.",
+      error: paid
+        ? "Something went wrong on our side; please try again."
+        : "We couldn't place that order. Nothing has been charged — please try again.",
       code: "server_error",
     },
     { status: 500, headers: { "x-request-id": traceId } },
@@ -203,7 +205,7 @@ async function place(
       );
     }
     log("error", "order_create_failed", { traceId, error: String(error) });
-    return serverError(traceId);
+    return serverError(traceId, payment !== null);
   }
 
   if (result.replay) await refundExtraPayment(result.order, payment);
