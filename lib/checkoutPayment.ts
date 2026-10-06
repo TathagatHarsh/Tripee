@@ -163,6 +163,38 @@ export async function refundPayment(
 }
 
 /**
+ * Give a cancelled order's payment back, once the cancel has committed. Every
+ * failure is logged and swallowed: a Razorpay outage must not undo or fail a
+ * cancel, and the order simply stays `paid` so staff can see it was not refunded.
+ * Only one caller sees a cancel move the order, so this runs once per order.
+ */
+export async function refundCancelledOrder(ref: string): Promise<void> {
+  let paymentId: string;
+  try {
+    const order = await db.order.findUnique({
+      where: { ref },
+      select: { paymentStatus: true, razorpayPaymentId: true },
+    });
+    if (order?.paymentStatus !== "paid" || !order.razorpayPaymentId) return;
+    paymentId = order.razorpayPaymentId;
+  } catch (error) {
+    log("error", "refund_cancelled_lookup_failed", { ref, error: String(error) });
+    return;
+  }
+
+  if (!(await refund(paymentId))) return; // `refund` has logged why
+  try {
+    await db.order.updateMany({
+      where: { ref, paymentStatus: "paid" },
+      data: { paymentStatus: "refunded" },
+    });
+  } catch (error) {
+    // The money is back but the order still reads `paid`; staff must not refund it again.
+    log("error", "refund_cancelled_record_failed", { ref, paymentId, error: String(error) });
+  }
+}
+
+/**
  * Turn a failed order into a refunded payment, and say so. A response that is
  * not a success has already cost the customer their money, so it is replaced by
  * one that reports the refund or tells them to contact us. An order that holds

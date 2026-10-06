@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 vi.mock('server-only', () => ({}));
 import { db } from '../lib/db';
 import { openPaymentIntent, refundPayment, refundUnlessOk } from '../lib/checkoutPayment';
+import { applyStatusTransition } from '../lib/orderTransition';
 import { paymentMatches } from '../lib/razorpay';
 
 /**
@@ -10,6 +11,9 @@ import { paymentMatches } from '../lib/razorpay';
  * database like the other *.integration suites. Razorpay itself is a stubbed fetch.
  */
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
+// lib/db builds its client on first use from DATABASE_URL, so pin it before any query:
+// whatever the shell exports, this suite only ever touches the isolated database.
+if (url) process.env.DATABASE_URL = url;
 const keys: string[] = [];
 const freshKey = () => {
   const key = randomUUID();
@@ -370,6 +374,91 @@ describe.skipIf(!url)('refundUnlessOk', () => {
       data: { ref: `PAY-${randomUUID().slice(0, 8)}`, priceBreakdown: {}, totalPaise: 1, payablePaise: 1, deliverySlot: 'standard', leadHours: 24, razorpayPaymentId: 'pay_B' },
     });
     expect(await refundPayment(proofFor('order_unbound'))).toEqual({ outcome: 'held', amountPaise: null });
+    expect(refundCalls()).toHaveLength(1);
+  });
+});
+
+describe.skipIf(!url)('refund on cancel', () => {
+  const fetchMock = vi.fn();
+  const refundCalls = () => fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/payments/pay_C/refund'));
+  const placed = (paymentStatus: 'none' | 'paid', razorpayPaymentId?: string) =>
+    db.order
+      .create({
+        data: {
+          ref: `PAY-${randomUUID().slice(0, 8)}`,
+          status: 'confirmed',
+          paymentStatus,
+          razorpayPaymentId,
+          priceBreakdown: {},
+          totalPaise: 124900,
+          payablePaise: 124900,
+          deliverySlot: 'standard',
+          leadHours: 24,
+        },
+      })
+      .then((o) => o.ref);
+  const row = (ref: string) => db.order.findUniqueOrThrow({ where: { ref } });
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_abc');
+    vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    await db.portalNotification.deleteMany({ where: { orderRef: { startsWith: 'PAY-' } } });
+    await db.order.deleteMany({ where: { ref: { startsWith: 'PAY-' } } }); // events and outbox rows cascade
+  });
+
+  it('cancelling a paid order refunds it', async () => {
+    const ref = await placed('paid', 'pay_C');
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    expect(await applyStatusTransition(ref, 'cancelled', null, 'Customer asked')).toBe(true);
+
+    expect(await row(ref)).toMatchObject({ status: 'cancelled', paymentStatus: 'refunded' });
+    expect(refundCalls()).toHaveLength(1);
+  });
+
+  it('a failed refund leaves the order paid', async () => {
+    const ref = await placed('paid', 'pay_C');
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 400 }));
+
+    expect(await applyStatusTransition(ref, 'cancelled', null, 'Customer asked')).toBe(true);
+
+    expect(await row(ref)).toMatchObject({ status: 'cancelled', paymentStatus: 'paid' });
+  });
+
+  it('a Razorpay outage cannot fail a cancel that has committed', async () => {
+    const ref = await placed('paid', 'pay_C');
+    fetchMock.mockRejectedValueOnce(new Error('network down'));
+
+    expect(await applyStatusTransition(ref, 'cancelled', null)).toBe(true);
+
+    expect(await row(ref)).toMatchObject({ status: 'cancelled', paymentStatus: 'paid' });
+  });
+
+  it('an unpaid cancel calls nothing', async () => {
+    const ref = await placed('none');
+
+    expect(await applyStatusTransition(ref, 'cancelled', null)).toBe(true);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await row(ref)).toMatchObject({ status: 'cancelled', paymentStatus: 'none' });
+  });
+
+  it('a cancel that does not move the order refunds nothing', async () => {
+    const ref = await placed('paid', 'pay_C');
+    fetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
+    expect(await applyStatusTransition(ref, 'cancelled', null)).toBe(true);
+
+    expect(await applyStatusTransition(ref, 'cancelled', null)).toBe(false); // already cancelled
+
     expect(refundCalls()).toHaveLength(1);
   });
 });

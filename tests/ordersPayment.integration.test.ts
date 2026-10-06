@@ -16,6 +16,9 @@ import { POST as openIntent } from '../app/api/payments/intent/route';
  * the suite needs no seeded catalog.
  */
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
+// lib/db builds its client on first use from DATABASE_URL, so pin it before any query:
+// whatever the shell exports, this suite only ever touches the isolated database.
+if (url) process.env.DATABASE_URL = url;
 const run = randomUUID().replaceAll('-', '').slice(0, 8);
 const slug = `pay-route-${run}`;
 const keys: string[] = [];

@@ -1,5 +1,6 @@
 import { portalEvent } from "./portalNotifications";
 import { lockAssignments } from "./assignment";
+import { refundCancelledOrder } from "./checkoutPayment";
 import type { OrderStatus } from "@prisma/client";
 import { db } from "./db";
 import { outboxCreate } from "./notifications";
@@ -15,7 +16,7 @@ export async function applyStatusTransition(
   actorId: string | null,
   reason?: string | null,
 ): Promise<boolean> {
-  return db.$transaction(async (tx) => {
+  const moved = await db.$transaction(async (tx) => {
     await lockAssignments(tx);
     const order = await tx.order.findUnique({
       where: { ref },
@@ -122,4 +123,7 @@ export async function applyStatusTransition(
     await portalEvent(tx, { key: `order:${order.id}:${to}`, vendorId: order.currentAssignment?.vendorId, orderRef: ref, title: to.replaceAll('_', ' '), message: `${ref}: ${to.replaceAll('_', ' ')}` });
     return true;
   });
+  // After the commit, and never inside it: Razorpay is not part of the transaction.
+  if (moved && to === "cancelled") await refundCancelledOrder(ref);
+  return moved;
 }
