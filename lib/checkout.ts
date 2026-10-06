@@ -304,6 +304,18 @@ export const CheckoutRequest = z
 export type CheckoutRequest = z.infer<typeof CheckoutRequest>;
 
 /**
+ * What Razorpay hands the browser after a successful payment. Shape only: the
+ * server checks the signature (lib/razorpay), so this stays importable from client code.
+ */
+export const PaymentProof = z.object({
+  razorpayOrderId: z.string().regex(/^order_[A-Za-z0-9]+$/),
+  razorpayPaymentId: z.string().regex(/^pay_[A-Za-z0-9]+$/),
+  razorpaySignature: z.string().regex(/^[a-f0-9]{64}$/),
+});
+
+export type PaymentProof = z.infer<typeof PaymentProof>;
+
+/**
  * The one-cake body this route has always taken, read as a basket of one.
  *
  * app/build/review posts `{ config, clientTotal }` and has since long before
