@@ -41,13 +41,14 @@ If the delivery address cannot be geocoded unambiguously, the order stays confir
 
 `lib/mapping.ts` owns `GeocodingProvider` and `RoutingProvider`. Its public functions are `getCoordinatesFromAddress`, `getRouteDistance`, `getTravelTime` and `getDistanceMatrix`. Components and actions never construct provider API calls.
 
+- `OLA_MAPS_API_KEY`: when set, Ola Maps takes over geocoding (autocomplete held to Hyderabad, reverse lookup for pins) and routing (Distance Matrix with traffic, 50 pairs a request), ahead of everything below. Server-only; keep it unrestricted and secret. `NEXT_PUBLIC_OLA_MAPS_API_KEY` switches the map to Ola's vector tiles; it ships to browsers, so restrict it to the site's domain in the Ola console. Each Ola API has 100,000 free requests a month, then prepaid credit.
 - `GEOCODING_URL`: hosted/self-hosted Nominatim-compatible base URL. No default public Nominatim endpoint. Search is explicit submission, not autocomplete. Configure `GEOCODING_USER_AGENT` with your operations contact. To use a different protocol, implement `GeocodingProvider` and change the server's default provider.
 - `ROUTING_URL`: OSRM-compatible base URL. The public OSRM demo is the development default. Production should use a hosted/self-hosted service with suitable coverage and capacity. The table service batches 40 origins and requests both distance and duration. Known unreachable routes are excluded. Timeouts/provider failures fall back to marked Haversine estimates at an assumed 20 km/h.
-- `NEXT_PUBLIC_MAP_TILE_URL`: Leaflet-compatible raster tile URL, default OSM standard tiles. Set `NEXT_PUBLIC_MAP_ATTRIBUTION` to the attribution required by your provider. These are build-time values. Tiles are solely visual and never influence assignment.
+- `NEXT_PUBLIC_MAP_TILE_URL`: raster tile URL (XYZ) drawn by MapLibre when no Ola browser key is set, default OSM standard tiles. Set `NEXT_PUBLIC_MAP_ATTRIBUTION` to the attribution required by your provider. These are build-time values. Tiles are solely visual and never influence assignment.
 - `ASSIGNMENT_STRATEGY`: `distance` (default) or `time`; stable distance/vendor-ID tie breaking.
 - `ASSIGNMENT_RESPONSE_SECONDS`: integer 10–86400, default 900.
 
-Provider deployment must follow the service's limits and privacy terms. See [OSRM table documentation](https://project-osrm.org/docs/v26.6.1/http), [Leaflet attribution documentation](https://leafletjs.com/reference), [OSM tile policy](https://operations.osmfoundation.org/policies/tiles/) and [Nominatim policy](https://operations.osmfoundation.org/policies/nominatim/). Public demo endpoints are not production SLAs. Customer addresses go only to the explicitly configured geocoder.
+Provider deployment must follow the service's limits and privacy terms. See [OSRM table documentation](https://project-osrm.org/docs/v26.6.1/http), [Ola Maps API reference](https://maps.olakrutrim.com/apidocs), [OSM tile policy](https://operations.osmfoundation.org/policies/tiles/) and [Nominatim policy](https://operations.osmfoundation.org/policies/nominatim/). Public demo endpoints are not production SLAs. Customer addresses go only to the explicitly configured geocoder.
 
 ## Database and invariants
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { callerKey, crossSite, rateLimit, tooMany } from "@/lib/apiGuard";
+import { inHyderabad } from "@/lib/location";
 import { getCoordinatesFromAddress } from "@/lib/mapping";
 const Query = z.union([
   z.string().trim().min(3).max(300),
@@ -22,6 +23,10 @@ export async function POST(req: Request) {
       { error: "Enter a valid address or coordinates" },
       { status: 400 },
     );
+  /* Only Hyderabad is served, and each lookup is a metered provider call:
+     a pin elsewhere is not looked up at all. */
+  if (typeof query.data !== "string" && !inHyderabad(query.data))
+    return Response.json({ results: [] });
   try {
     return Response.json({
       results: await getCoordinatesFromAddress(query.data),
