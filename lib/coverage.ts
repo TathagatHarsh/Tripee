@@ -1,5 +1,5 @@
 import { haversine, type Point } from "./assignmentRules";
-import { HYDERABAD_BBOX } from "./location";
+import { inHyderabad } from "./location";
 
 export type CoverageVendor = {
   latitude: number | null;
@@ -35,9 +35,7 @@ export function coversPoint(vendors: CoverageVendor[], point: Point): boolean {
  * Hyderabad.
  */
 export function serviceAreaCovers(point: Point, area: string | undefined): boolean {
-  if (area !== "hyderabad") return false;
-  const [west, south, east, north] = HYDERABAD_BBOX;
-  return point.lng >= west && point.lng <= east && point.lat >= south && point.lat <= north;
+  return area === "hyderabad" && inHyderabad(point);
 }
 
 /** The service area, else coversPoint against the live vendor list. Server only. */

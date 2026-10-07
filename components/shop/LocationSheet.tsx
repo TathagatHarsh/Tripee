@@ -4,7 +4,7 @@ import { AssignmentMap } from "@/components/assignment/Map";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
 import { checkDeliveryServiceability } from "@/lib/delivery";
 import { latest } from "@/lib/latest";
-import type { LocatedAddress, Point } from "@/lib/location";
+import { streetPart, type LocatedAddress, type Point } from "@/lib/location";
 import { sBtn } from "@/lib/shopUi";
 
 type Lookup = "idle" | "looking" | "ready" | "failed";
@@ -27,8 +27,8 @@ const near = (a: Point, b: Point) => Math.abs(a.lat - b.lat) < 1e-6 && Math.abs(
  * and whether a bakery reaches it) and only the newest answer is shown.
  *
  * Native <dialog>, so focus, Escape and the backdrop come with the platform.
- * The map mounts only after the dialog is shown: Leaflet sizes itself on
- * creation, and inside a closed dialog it would measure zero and draw grey.
+ * The map mounts only after the dialog is shown: it sizes itself on creation,
+ * and inside a closed dialog it would measure zero and draw nothing.
  */
 export function LocationSheet({
   open,
@@ -105,8 +105,13 @@ export function LocationSheet({
     setLookup("looking");
     timer.current = setTimeout(async () => {
       const picked = chosen.current && near(chosen.current, p) ? chosen.current : null;
+      const under = () => post<{ results: LocatedAddress[] }>("/api/location", p).then((d) => d.results[0] ?? null);
+      /* An Ola suggestion is a name and a point with no pincode; the parts come
+         from what lies under the pin, and the suggestion still names it, less
+         the parts that now have fields of their own. */
       const [address, coverage] = await Promise.allSettled([
-        picked ? Promise.resolve(picked) : post<{ results: LocatedAddress[] }>("/api/location", p).then((d) => d.results[0] ?? null),
+        !picked ? under() : picked.pincode ? Promise.resolve(picked)
+          : under().then((u) => (u ? { ...u, address: streetPart(picked.address, u), placeId: picked.placeId } : picked), () => picked),
         post<{ covered: boolean }>("/api/serviceability", p),
       ]);
       if (!lookups.current.isCurrent(id)) return;

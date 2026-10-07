@@ -164,14 +164,14 @@ test("mobile checkout blocks an unserviceable address and preserves details afte
   expect(size.document).toBeLessThanOrEqual(size.viewport);
 });
 
-test("Leaflet pin survives completing the address and reaches server assignment", async ({ page }, testInfo) => {
+test("Map pin survives completing the address and reaches server assignment", async ({ page }, testInfo) => {
   await configuredBasket(page);
   await page.getByLabel("Name", { exact: true }).fill("Assignment Demo Customer");
   await page.getByLabel("Phone", { exact: true }).fill("9876543210");
   await pinAddress(page);
   const map = page.getByRole("region", { name: "Move the map to put the pin on your door" });
-  await expect(map.locator(".leaflet-map-pane")).toBeVisible();
-  await map.screenshot({ path: testInfo.outputPath("leaflet-checkout.png") });
+  await expect(map.locator(".maplibregl-canvas")).toBeVisible();
+  await map.screenshot({ path: testInfo.outputPath("map-checkout.png") });
   await page.getByRole("button", { name: "Confirm location", exact: true }).click();
   await page.getByLabel("Flat / house no. and floor", { exact: true }).fill("House 12");
   await page.getByLabel("Requested date").fill(new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 10));
@@ -215,7 +215,7 @@ test("Change reopens the sheet at the confirmed pin, not the last search", async
   // Drag away from the search hit and confirm the new spot.
   await page.getByRole("button", { name: /Change/ }).click();
   const region = page.getByRole("region", { name: "Move the map to put the pin on your door" });
-  await expect(region.locator(".leaflet-map-pane")).toBeVisible();
+  await expect(region.locator(".maplibregl-canvas")).toBeVisible();
   const box = (await region.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
