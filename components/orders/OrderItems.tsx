@@ -30,6 +30,8 @@ export function OrderItems({
   cakeName,
   cakeImageUrl,
   allergens,
+  message: savedMessage,
+  variantLabel,
 }: {
   config: CakeConfig | null;
   catalog: CatalogSnapshot;
@@ -43,12 +45,15 @@ export function OrderItems({
   cakeImageUrl?: string | null;
   /** Explicit allergen snapshot from the validated production specification. */
   allergens?: string[];
+  message?: string | null;
+  variantLabel?: string | null;
 }) {
   /* Both frozen values win over anything derived. An order is a record of what
      was agreed, and renaming or rephotographing the cake tomorrow must not
      rewrite it — see the note on these columns in prisma/schema.prisma. */
   const name = cakeDisplayName(config, catalog, cakeName);
   const size = sizeLabel(config, catalog);
+  const message = savedMessage ?? config?.message;
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
@@ -69,16 +74,16 @@ export function OrderItems({
             order's own frozen config. Editing or deleting the cake tomorrow
             cannot reach either — see the note at the top of this component. */}
         <p className="font-mono text-[0.6875rem] tracking-[0.08em] text-s-bark uppercase tabular-nums">
-          Quantity 1{size && ` · ${size}`}
-          {config && ` · ${config.eggless ? "Eggless" : "With egg"}`}
+          Quantity 1{variantLabel ? ` · ${variantLabel}` : size && ` · ${size}`}
+          {!variantLabel && config && ` · ${config.eggless ? "Eggless" : "With egg"}`}
           {" · "}serves {servesMin}-{servesMax}
         </p>
 
         {/* The message is the customer's own words, piped onto the cake. Quoted
             rather than restyled, because getting it wrong is the complaint. */}
-        {config?.message && (
+        {message && (
           <p className="mt-1 border-l-2 border-s-berry/40 pl-3 text-[0.9375rem] leading-snug text-s-cocoa">
-            Piped: &ldquo;{config.message}&rdquo;
+            Piped: &ldquo;{message}&rdquo;
           </p>
         )}
 

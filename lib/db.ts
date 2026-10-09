@@ -21,7 +21,7 @@ function createClient(): PrismaClient {
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
   }
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString, max: Number(process.env.DATABASE_POOL_MAX) || 2, connectionTimeoutMillis: 10_000 }) });
 }
 
 export function getDb(): PrismaClient {

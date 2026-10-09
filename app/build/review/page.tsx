@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { StepHeader } from "@/components/builder/StepHeader";
 import { ViolationCard } from "@/components/builder/ViolationCard";
 import { PriceBreakdown } from "@/components/docket/PriceBreakdown";
 import { deriveAllergens } from "@/lib/allergens";
-import { nameOk, phoneOk } from "@/lib/checkout";
 import { resolveSlot } from "@/lib/delivery";
 import { buildDocket, deriveLayers, renderSpecSheet } from "@/lib/docket";
 import { formatINR } from "@/lib/format";
@@ -18,7 +18,7 @@ import type { CakeConfig } from "@/lib/schema";
 import { encodeConfig } from "@/lib/share";
 import { deriveHandling, deriveServings } from "@/lib/servings";
 import { useConfig } from "@/lib/store";
-import { btn, eyebrow, field, monoField } from "@/lib/ui";
+import { btn, eyebrow } from "@/lib/ui";
 
 type Stage =
   | { kind: "idle" }
@@ -40,6 +40,7 @@ type Stage =
  * arranged under it.
  */
 export default function ReviewStep() {
+  const router = useRouter();
   const config = useConfig();
   const [stage, setStage] = useState<Stage>({ kind: "checking" });
   /*
@@ -52,24 +53,6 @@ export default function ReviewStep() {
     { config: CakeConfig; slug: string; url: string } | null
   >(null);
   const share = saved?.config === config ? saved : null;
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-
-  /*
-   * One checkout attempt, named — app/checkout/CheckoutForm carries the whole
-   * of the reasoning. Keyed on the config object itself, which the store
-   * replaces on every change, so editing the cake earns a new key and retrying
-   * the same cake does not. A ref rather than state, because reading it must
-   * not schedule a render and it has to survive the one `setStage` causes
-   * between the click and the fetch.
-   */
-  const attempt = useRef<{ config: CakeConfig; key: string } | null>(null);
-  function attemptKey(c: CakeConfig): string {
-    if (attempt.current?.config !== c) {
-      attempt.current = { config: c, key: crypto.randomUUID() };
-    }
-    return attempt.current.key;
-  }
 
   const catalog = useCatalog();
   const price = priceCake(config, catalog);
@@ -79,13 +62,7 @@ export default function ReviewStep() {
   const layers = deriveLayers(config);
   const handling = deriveHandling(config);
   const slot = resolveSlot(config.delivery, config.pincode, catalog);
-  /* The server refuses an order with no name or no reachable number, so the
-     button has to know that too — otherwise the only way to find out is to press
-     the primary action and be told no. Both predicates come from lib/checkout,
-     which is the module the route handler validates with: this used to be the
-     regex written out a third time. */
-  const contactOk = nameOk(name) && phoneOk(phone);
-  const ready = canSubmit(config) && contactOk;
+  const ready = canSubmit(config);
 
   // The client number is an estimate until the server agrees with it.
   useEffect(() => {
@@ -117,37 +94,10 @@ export default function ReviewStep() {
     return () => { cancelled = true; };
   }, [config, price.total]);
 
-  async function place() {
-    setStage({ kind: "placing" });
-    try {
-      const res = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          config,
-          clientTotal: price.total,
-          customerName: name,
-          customerPhone: phone,
-          /* One per cake-as-configured, so a double-click or a retry after a
-             timeout lands on the order the first send already wrote rather than
-             beside it. Re-read on every call: changing the cake is a different
-             order and has to earn a different key. See app/api/orders. */
-          idempotencyKey: attemptKey(config),
-          // /api/orders has always resolved this to Order.designId. Nothing
-          // ever sent it, so saving a design and then ordering it produced two
-          // rows with nothing joining them.
-          designSlug: share?.slug,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setStage({ kind: "error", message: data?.error ?? "The kitchen turned that one down." });
-        return;
-      }
-      setStage({ kind: "placed", ref: data.orderId });
-    } catch {
-      setStage({ kind: "error", message: "That didn't send. Check your connection and try again." });
-    }
+  function place() {
+    const query = new URLSearchParams({ builder: encodeConfig(config) });
+    if (share?.slug) query.set("design", share.slug);
+    router.push(`/checkout?${query}`);
   }
 
   async function save() {
@@ -216,38 +166,7 @@ export default function ReviewStep() {
       <ViolationCard />
 
       {/* Who we call. Above the order button, because the button depends on it. */}
-      <section className="flex flex-col gap-3.5 border border-rule bg-paper p-5">
-        <div className="flex flex-col gap-[3px]">
-          <h2 className="text-group font-sans font-medium tracking-[-0.01em]">
-            Who is this for?
-          </h2>
-          <p className="text-meta text-steel">
-            We call this number to confirm before we bake.
-          </p>
-        </div>
-
-        <label className="flex flex-col gap-2">
-          <span className="font-mono text-micro tracking-[0.14em] text-steel">NAME</span>
-          <input
-            value={name}
-            autoComplete="name"
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Who is collecting?"
-            className={field()}
-          />
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="font-mono text-micro tracking-[0.14em] text-steel">PHONE</span>
-          <input
-            inputMode="tel"
-            autoComplete="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="10 digits"
-            className={monoField()}
-          />
-        </label>
-      </section>
+      <p className="text-meta text-steel">Contact details, delivery date and payment are collected at checkout.</p>
 
       {/* The one ink surface in the flow, and the reason the flow exists. */}
       <section className="flex flex-col gap-4 bg-ink p-6 ">
@@ -292,7 +211,7 @@ export default function ReviewStep() {
             "disabled:cursor-not-allowed disabled:bg-graphite disabled:text-quiet",
           ].join(" ")}
         >
-          {stage.kind === "placing" ? "Sending…" : `Place order · ${formatINR(price.total)}`}
+          {stage.kind === "placing" ? "Sending…" : "Continue to checkout"}
         </button>
 
         <div className="flex gap-2">

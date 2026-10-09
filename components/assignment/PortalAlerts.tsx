@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { aBtn } from '@/components/admin/ui';
-type Alert = { id: string; title: string; message: string; orderRef: string | null; createdAt: string; read: boolean };
+import { AdminOrderPopup, pendingOrderAlerts, type OrderAlert } from './AdminOrderPopup';
+type Alert = OrderAlert & { createdAt: string };
 export function PortalAlerts({ role, userId }: { role: 'admin' | 'vendor'; userId: string }) {
   const router = useRouter();
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -12,6 +13,7 @@ export function PortalAlerts({ role, userId }: { role: 'admin' | 'vendor'; userI
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState('');
   const [announcement, setAnnouncement] = useState('');
+  const [dismissed, setDismissed] = useState<string[]>([]);
   const audio = useRef<AudioContext | null>(null);
   const seen = useRef(new Set<string>());
   const initialized = useRef(false);
@@ -62,7 +64,13 @@ export function PortalAlerts({ role, userId }: { role: 'admin' | 'vendor'; userI
     setEnabled(on); setVolume(level); settings.current = { enabled: on, volume: level };
     try { localStorage.setItem(storageKey, JSON.stringify(settings.current)); } catch { /* In-memory preferences still work. */ }
   }
-  return <section className="mb-5 rounded-xl border border-a-line bg-a-surface px-4 py-3" aria-label="Order alerts">
+  const pending = role === 'admin' ? pendingOrderAlerts(alerts, dismissed) : [];
+  const active = pending.at(-1);
+  function dismissOrder() {
+    if (active) setDismissed(ids => [...ids, ...alerts.filter(row => row.orderRef === active.orderRef).map(row => row.id)]);
+  }
+  return <section className="mb-5 rounded-lg border border-a-line bg-a-surface px-4 py-3" aria-label="Order alerts">
+    {active && <AdminOrderPopup key={active.id} alert={active} count={pending.length} onClose={dismissOrder} onAssigned={name => { setAnnouncement(`${active.orderRef} sent to ${name}. Awaiting vendor acceptance.`); dismissOrder(); }} />}
     <div className="flex flex-wrap items-center gap-3">
       <span className="text-xs text-a-muted" role="status">{connected ? '● Live updates' : '○ Reconnecting… Updates may be delayed.'}</span>
       <details className="ml-auto"><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">Notifications · {alerts.filter(a => !a.read).length} unread</summary>

@@ -1,0 +1,349 @@
+
+Running 62 tests using 1 worker
+
+(node:33550) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › shop front has no WCAG A/AA violations (3.8s)
+(node:33583) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   2 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › collection has no WCAG A/AA violations (3.9s)
+  ✓   3 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › a filtered collection has no WCAG A/AA violations (2.7s)
+  ✓   4 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › the empty collection has no WCAG A/AA violations (2.4s)
+  ✓   5 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › a cake has no WCAG A/AA violations (2.4s)
+  ✓   6 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › the empty cart has no WCAG A/AA violations (2.2s)
+  ✓   7 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › the empty checkout has no WCAG A/AA violations (2.0s)
+  ✓   8 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › the builder's coming-soon page has no WCAG A/AA violations (1.9s)
+  ✓   9 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › sign in has no WCAG A/AA violations (2.0s)
+  ✓  10 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › create an account has no WCAG A/AA violations (2.0s)
+  -  11 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › shape step has no WCAG A/AA violations
+  -  12 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › size and tiers has no WCAG A/AA violations
+  -  13 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › frosting step has no WCAG A/AA violations
+  -  14 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › colour and finish has no WCAG A/AA violations
+  -  15 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › toppings step has no WCAG A/AA violations
+  -  16 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › message step has no WCAG A/AA violations
+  -  17 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › review has no WCAG A/AA violations
+  ✓  18 [chromium] › e2e/a11y.spec.ts:120:7 › accessibility › the variant sheet has no WCAG A/AA violations (1.1s)
+  ✓  19 [chromium] › e2e/a11y.spec.ts:134:7 › accessibility › the order confirmation has no WCAG A/AA violations (5.7s)
+  -  20 [chromium] › e2e/a11y.spec.ts:157:7 › accessibility › the topping bar on the render has no WCAG A/AA violations
+  ✘  21 [chromium] › e2e/a11y.spec.ts:178:7 › accessibility › the account panel has no WCAG A/AA violations (930ms)
+(node:33669) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  22 [chromium] › e2e/a11y.spec.ts:192:7 › accessibility › the account menu opens, closes and stays inside the viewport (1.5s)
+  ✓  23 [chromium] › e2e/a11y.spec.ts:267:9 › accessibility › the account panel fits a desktop viewport (511ms)
+  ✓  24 [chromium] › e2e/a11y.spec.ts:267:9 › accessibility › the account panel fits a laptop viewport (252ms)
+  ✓  25 [chromium] › e2e/a11y.spec.ts:267:9 › accessibility › the account panel fits a tablet viewport (289ms)
+  ✓  26 [chromium] › e2e/a11y.spec.ts:267:9 › accessibility › the account panel fits a mobile viewport (254ms)
+  ✓  27 [chromium] › e2e/a11y.spec.ts:267:9 › accessibility › the account panel fits a small mobile viewport (260ms)
+  -  28 [chromium] › e2e/a11y.spec.ts:290:7 › accessibility › the builder can be driven with the keyboard alone
+  ✓  29 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the admin portal (69ms)
+  ✓  30 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the catalogue editor (62ms)
+  ✓  31 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the order book (82ms)
+  ✓  32 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the order detail (118ms)
+  ✓  33 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the printable docket (62ms)
+  ✓  34 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the delivery board (61ms)
+  ✓  35 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the filtered delivery board (59ms)
+  ✓  36 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the kitchen board (73ms)
+  ✓  37 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the account page (64ms)
+  ✓  38 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the profile and security page (62ms)
+  ✓  39 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the orders page (65ms)
+  ✓  40 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the order tracking page (70ms)
+  ✓  41 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the bakery portal (687ms)
+  ✓  42 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the bakery order detail (697ms)
+  ✓  43 [chromium] › e2e/auth.spec.ts:95:5 › shopping and a guest order are untouched by any of this (1.1s)
+  ✓  44 [chromium] › e2e/auth.spec.ts:120:5 › the 3D builder is held back on every one of its URLs (581ms)
+  ✓  45 [chromium] › e2e/auth.spec.ts:132:5 › the sign-in page is ours around Clerk's, and does not demand an account (199ms)
+  ✓  46 [chromium] › e2e/auth.spec.ts:174:5 › the sign-up page matches it, and still says an account is optional (163ms)
+  -  47 [chromium] › e2e/auth.spec.ts:210:7 › /sign-in declares autocomplete="username" on identifier
+  -  48 [chromium] › e2e/auth.spec.ts:210:7 › /sign-in declares autocomplete="current-password" on password
+  -  49 [chromium] › e2e/auth.spec.ts:210:7 › /sign-up declares autocomplete="email" on emailAddress
+  -  50 [chromium] › e2e/auth.spec.ts:210:7 › /sign-up declares autocomplete="new-password" on password
+  -  51 [chromium] › e2e/auth.spec.ts:233:5 › no development-mode chrome reaches the customer
+  ✘  52 [chromium] › e2e/checkout.spec.ts:54:5 › concurrent retries create one frozen order with two cakes and one shipping charge (53ms)
+(node:33711) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  53 [chromium] › e2e/checkout.spec.ts:92:5 › a committed attempt survives later blackout and quote changes (26ms)
+(node:33712) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  54 [chromium] › e2e/checkout.spec.ts:125:5 › a reused attempt cannot change customer or cake details (26ms)
+(node:33713) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  55 [chromium] › e2e/checkout.spec.ts:138:5 › tampered totals, impossible dates, missing addresses and unserviceable pins are refused (20ms)
+(node:33714) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  56 [chromium] › e2e/checkout.spec.ts:168:5 › cross-site writes and malformed requests fail closed (39ms)
+  ✘  57 [chromium] › e2e/shop.spec.ts:80:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track (1.5m)
+(node:33792) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  58 [chromium] › e2e/shop.spec.ts:129:5 › mobile checkout blocks an unserviceable address and preserves details after network failure (1.3m)
+
+
+  1) [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › shop front has no WCAG A/AA violations ───
+
+    Error: link-name (serious) — Links must have discernible text
+        .brand-hero-photo
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "link-name (serious) — Links must have discernible text
+    +     .brand-hero-photo",
+    + ]
+
+      79 |
+      80 |       const summary = await violations(page);
+    > 81 |       expect(summary, summary.join("\n")).toEqual([]);
+         |                                           ^
+      82 |     });
+      83 |   }
+      84 |
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/a11y.spec.ts:81:43
+
+    Error Context: test-results/a11y-accessibility-shop-front-has-no-WCAG-A-AA-violations-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/a11y-accessibility-shop-front-has-no-WCAG-A-AA-violations-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/a11y-accessibility-shop-front-has-no-WCAG-A-AA-violations-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/a11y.spec.ts:178:7 › accessibility › the account panel has no WCAG A/AA violations 
+
+    Error: link-name (serious) — Links must have discernible text
+        .brand-hero-photo
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "link-name (serious) — Links must have discernible text
+    +     .brand-hero-photo",
+    + ]
+
+      187 |
+      188 |     const summary = await violations(page);
+    > 189 |     expect(summary, summary.join("\n")).toEqual([]);
+          |                                         ^
+      190 |   });
+      191 |
+      192 |   test("the account menu opens, closes and stays inside the viewport", async ({ page }) => {
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/a11y.spec.ts:189:41
+
+    Error Context: test-results/a11y-accessibility-the-acc-17f1f-has-no-WCAG-A-AA-violations-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/a11y-accessibility-the-acc-17f1f-has-no-WCAG-A-AA-violations-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/a11y-accessibility-the-acc-17f1f-has-no-WCAG-A-AA-violations-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › e2e/checkout.spec.ts:54:5 › concurrent retries create one frozen order with two cakes and one shipping charge 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 5
+    + Received  + 5
+
+      Array [
+    -   200,
+    -   200,
+    -   200,
+    -   200,
+    -   201,
+    +   400,
+    +   400,
+    +   400,
+    +   400,
+    +   400,
+      ]
+
+      66 |     ),
+      67 |   );
+    > 68 |   expect(results.map((r) => r.status()).sort()).toEqual([
+         |                                                 ^
+      69 |     200, 200, 200, 200, 201,
+      70 |   ]);
+      71 |   const receipts = await Promise.all(results.map((r) => r.json()));
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/checkout.spec.ts:68:49
+
+    Error Context: test-results/checkout-concurrent-retrie-e9fd4-kes-and-one-shipping-charge-chromium/error-context.md
+
+    Error Context: test-results/checkout-concurrent-retrie-e9fd4-kes-and-one-shipping-charge-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/checkout-concurrent-retrie-e9fd4-kes-and-one-shipping-charge-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/checkout-concurrent-retrie-e9fd4-kes-and-one-shipping-charge-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › e2e/checkout.spec.ts:92:5 › a committed attempt survives later blackout and quote changes 
+
+    Error: {"error":"That order couldn't be read.","code":"invalid_request"}
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 400
+
+       96 |   body.fulfillment.requestedDate = date(32);
+       97 |   const first = await request.post("/api/orders", { data: body });
+    >  98 |   expect(first.status(), await first.text()).toBe(201);
+          |                                              ^
+       99 |   const receipt = await first.json();
+      100 |   const blackoutId = randomUUID();
+      101 |   await pool.query(
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/checkout.spec.ts:98:46
+
+    Error Context: test-results/checkout-a-committed-attem-cce47--blackout-and-quote-changes-chromium/error-context.md
+
+    Error Context: test-results/checkout-a-committed-attem-cce47--blackout-and-quote-changes-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/checkout-a-committed-attem-cce47--blackout-and-quote-changes-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/checkout-a-committed-attem-cce47--blackout-and-quote-changes-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › e2e/checkout.spec.ts:125:5 › a reused attempt cannot change customer or cake details 
+
+    Error: {"error":"That order couldn't be read.","code":"invalid_request"}
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 400
+
+      128 |   const body = order();
+      129 |   const first = await request.post("/api/orders", { data: body });
+    > 130 |   expect(first.status(), await first.text()).toBe(201);
+          |                                              ^
+      131 |   const changed = await request.post("/api/orders", {
+      132 |     data: { ...body, customerName: "Different customer" },
+      133 |   });
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/checkout.spec.ts:130:46
+
+    Error Context: test-results/checkout-a-reused-attempt--1e9af-ge-customer-or-cake-details-chromium/error-context.md
+
+    Error Context: test-results/checkout-a-reused-attempt--1e9af-ge-customer-or-cake-details-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/checkout-a-reused-attempt--1e9af-ge-customer-or-cake-details-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/checkout-a-reused-attempt--1e9af-ge-customer-or-cake-details-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium] › e2e/checkout.spec.ts:138:5 › tampered totals, impossible dates, missing addresses and unserviceable pins are refused 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 409
+    Received: 400
+
+      143 |     data: { ...body, quotedOrderTotalPaise: 1 },
+      144 |   });
+    > 145 |   expect(price.status()).toBe(409);
+          |                          ^
+      146 |   const invalidDate = await request.post("/api/orders", {
+      147 |     data: {
+      148 |       ...body,
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/checkout.spec.ts:145:26
+
+    Error Context: test-results/checkout-tampered-totals-i-b8e54-erviceable-pins-are-refused-chromium/error-context.md
+
+    Error Context: test-results/checkout-tampered-totals-i-b8e54-erviceable-pins-are-refused-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/checkout-tampered-totals-i-b8e54-erviceable-pins-are-refused-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/checkout-tampered-totals-i-b8e54-erviceable-pins-are-refused-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [chromium] › e2e/shop.spec.ts:80:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track 
+
+    Test timeout of 90000ms exceeded.
+
+    Error: locator.click: Test timeout of 90000ms exceeded.
+    Call log:
+      - waiting for getByRole('radio', { name: /^0\.5 kg/ })
+
+
+      22 |     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
+      23 |     .click();
+    > 24 |   await page.getByRole("radio", { name: /^0\.5 kg/ }).click();
+         |                                                       ^
+      25 |   await page.getByRole("radio", { name: /^Eggless/ }).click();
+      26 |   await page
+      27 |     .getByLabel("Message on the cake (optional)")
+        at configuredBasket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:24:55)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:84:3
+
+    Error Context: test-results/shop-guest-can-configure-e-a8ac7-r-refresh-receipt-and-track-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/shop-guest-can-configure-e-a8ac7-r-refresh-receipt-and-track-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/shop-guest-can-configure-e-a8ac7-r-refresh-receipt-and-track-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [chromium] › e2e/shop.spec.ts:129:5 › mobile checkout blocks an unserviceable address and preserves details after network failure 
+
+    Test was interrupted.
+
+    Error: locator.click: Test ended.
+    Call log:
+      - waiting for getByRole('radio', { name: /^0\.5 kg/ })
+
+
+      22 |     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
+      23 |     .click();
+    > 24 |   await page.getByRole("radio", { name: /^0\.5 kg/ }).click();
+         |                                                       ^
+      25 |   await page.getByRole("radio", { name: /^Eggless/ }).click();
+      26 |   await page
+      27 |     .getByLabel("Message on the cake (optional)")
+        at configuredBasket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:24:55)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:133:3
+
+    Error Context: test-results/shop-mobile-checkout-block-b5f21-tails-after-network-failure-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/shop-mobile-checkout-block-b5f21-tails-after-network-failure-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/shop-mobile-checkout-block-b5f21-tails-after-network-failure-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7 failed
+    [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › shop front has no WCAG A/AA violations ────
+    [chromium] › e2e/a11y.spec.ts:178:7 › accessibility › the account panel has no WCAG A/AA violations 
+    [chromium] › e2e/checkout.spec.ts:54:5 › concurrent retries create one frozen order with two cakes and one shipping charge 
+    [chromium] › e2e/checkout.spec.ts:92:5 › a committed attempt survives later blackout and quote changes 
+    [chromium] › e2e/checkout.spec.ts:125:5 › a reused attempt cannot change customer or cake details 
+    [chromium] › e2e/checkout.spec.ts:138:5 › tampered totals, impossible dates, missing addresses and unserviceable pins are refused 
+    [chromium] › e2e/shop.spec.ts:80:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track 
+  1 interrupted
+    [chromium] › e2e/shop.spec.ts:129:5 › mobile checkout blocks an unserviceable address and preserves details after network failure 
+  14 skipped
+  4 did not run
+  36 passed (3.6m)

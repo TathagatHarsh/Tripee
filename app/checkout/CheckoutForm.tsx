@@ -12,11 +12,11 @@ import { OrderPlaced, type Receipt } from "@/components/shop/OrderPlaced";
 import { useCart, useCartHydrated } from "@/lib/cart";
 import { variantById, variantLabel, type CakeProductView } from "@/lib/cakes";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
-import { checkoutIntent, keptAttempt, nameOk, PaymentProof, phoneOk } from "@/lib/checkout";
+import { CheckoutRequest, checkoutIntent, keptAttempt, nameOk, PaymentProof, phoneOk } from "@/lib/checkout";
 import { resolveSlot } from "@/lib/delivery";
 import { formatINR } from "@/lib/format";
 import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
-import { DeliverySlot } from "@/lib/schema";
+import { DeliverySlot, type CakeConfig } from "@/lib/schema";
 import { sBtn, sCard, sField } from "@/lib/shopUi";
 
 const DRAFT_KEY = "makemycake.checkoutDraft.v2";
@@ -108,13 +108,15 @@ function readReceipt(): Receipt | null {
   return null;
 }
 type Props = {
+  builder?: CakeConfig | null;
+  designSlug?: string;
   catalog: CatalogSnapshot;
   cakes: CakeProductView[];
   payments: { enabled: boolean; testMode: boolean };
 };
 const ATTEMPT_KEY = "makemycake.checkoutAttempt";
 /** The in-flight checkout: its idempotency key, and the payment once Razorpay has taken it. */
-type Attempt = { signature: string; key: string; proof?: PaymentProof };
+type Attempt = { signature: string; key: string; proof?: PaymentProof; request?: CheckoutRequest };
 /** Answers that mean the quote moved under the customer: ask for a fresh one. */
 const REQUOTE = [
   "price_changed",
@@ -133,7 +135,7 @@ function readAttempt(): Attempt | null {
   try {
     const saved = JSON.parse(localStorage.getItem(ATTEMPT_KEY) ?? "null");
     if (typeof saved?.signature === "string" && z.uuid().safeParse(saved.key).success)
-      return { signature: saved.signature, key: saved.key, proof: PaymentProof.safeParse(saved.proof).data };
+      return { signature: saved.signature, key: saved.key, proof: PaymentProof.safeParse(saved.proof).data, request: CheckoutRequest.safeParse(saved.request).data };
   } catch {}
   return null;
 }
@@ -153,8 +155,9 @@ export function CheckoutForm(props: Props) {
     </div>
   );
 }
-function Checkout({ catalog, cakes, payments }: Props) {
-  const lines = useCart((s) => s.lines);
+function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
+  const cartLines = useCart((s) => s.lines);
+  const lines = useMemo(() => builder ? [{ id: "builder", slug: "Custom cake", variantId: "builder", qty: 1, choices: { message: builder.message, delivery: builder.delivery, pincode: builder.pincode } }] : cartLines, [builder, cartLines]);
   const clear = useCart((s) => s.clear);
   const [draft, setDraft] = useState(readDraft);
   const [receipt, setReceipt] = useState<Receipt | null>(readReceipt);
@@ -177,7 +180,8 @@ function Checkout({ catalog, cakes, payments }: Props) {
   } | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editArea, setEditArea] = useState(false);
-  const attempt = useRef<Attempt | null>(null);
+  const [savedAttempt, setSavedAttempt] = useState(readAttempt);
+  const attempt = useRef<Attempt | null>(savedAttempt);
   const submitting = useRef(false);
   const patch = (change: Partial<Draft>) =>
     setDraft((d) => ({ ...d, ...change, ...(change.location === null ? { source: "manual" as const, formattedAddress: "" } : {}) }));
@@ -199,7 +203,7 @@ function Checkout({ catalog, cakes, payments }: Props) {
       }),
     [lines, cakes],
   );
-  const missing = resolved.some((r) => !r.cake || !r.variant?.isAvailable);
+  const missing = !builder && resolved.some((r) => !r.cake || !r.variant?.isAvailable);
   const delivery = draft.method === "pickup" ? "pickup" : draft.slot;
   const slot = resolveSlot(
     delivery,
@@ -222,8 +226,7 @@ function Checkout({ catalog, cakes, payments }: Props) {
   const items = useMemo(
     () =>
       lines.map((line) => ({
-        cakeSlug: line.slug,
-        variantId: line.variantId,
+        ...(builder ? { config: { ...builder, delivery, pincode: draft.method === "delivery" ? draft.pincode : undefined } } : { cakeSlug: line.slug, variantId: line.variantId }),
         qty: line.qty,
         choices: {
           ...line.choices,
@@ -231,7 +234,7 @@ function Checkout({ catalog, cakes, payments }: Props) {
           pincode: draft.method === "delivery" ? draft.pincode : undefined,
         },
       })),
-    [lines, delivery, draft.pincode, draft.method],
+    [lines, delivery, draft.pincode, draft.method, builder],
   );
   // Contact and address typing never trigger price requests. Only price-affecting choices do.
   const quoteSignature = JSON.stringify({
@@ -290,11 +293,14 @@ function Checkout({ catalog, cakes, payments }: Props) {
   const quote = current?.quote;
   const emailOk = !draft.email || z.email().safeParse(draft.email).success;
   const contactOk = nameOk(draft.name) && phoneOk(draft.phone) && emailOk;
-  const ready =
+  const signature = JSON.stringify(checkoutIntent(checkoutBody(quote)));
+  const recover = keptAttempt(signature, payments.enabled, savedAttempt);
+  const recovering = Boolean(recover?.request && (recover.signature === signature || recover.proof));
+  const ready = recovering || (
     contactOk &&
     (draft.method === "pickup" || addressComplete) &&
     Boolean(quote) &&
-    !missing;
+    !missing);
 
   function keyFor(signature: string) {
     // A saved payment is never overwritten: this press sends it on its own key,
@@ -313,7 +319,8 @@ function Checkout({ catalog, cakes, payments }: Props) {
   /** Remember (or forget) the payment taken for this attempt, so a lost confirm never charges twice. */
   function keepProof(proof?: PaymentProof) {
     if (!attempt.current) return;
-    attempt.current = { ...attempt.current, proof };
+    attempt.current = { ...attempt.current, proof, ...(!proof ? { request: undefined } : {}) };
+    setSavedAttempt(attempt.current);
     setPaidSignature(proof ? attempt.current.signature : null);
     try {
       localStorage.setItem(ATTEMPT_KEY, JSON.stringify(attempt.current));
@@ -322,11 +329,16 @@ function Checkout({ catalog, cakes, payments }: Props) {
   function fail(data: { error?: string; code?: string }, fallback: string) {
     setError(data.error ?? fallback);
     if (REQUOTE.includes(String(data.code))) {
+      if (attempt.current && !attempt.current.proof) {
+        attempt.current = { ...attempt.current, request: undefined };
+        setSavedAttempt(attempt.current);
+        try { localStorage.setItem(ATTEMPT_KEY, JSON.stringify(attempt.current)); } catch {}
+      }
       setAnswer(null);
       setRetry((n) => n + 1);
     }
   }
-  function checkoutBody(quote: Quote) {
+  function checkoutBody(quote?: Quote) {
     const fulfillment = {
       method: draft.method,
       slot: delivery,
@@ -356,28 +368,35 @@ function Checkout({ catalog, cakes, payments }: Props) {
         : {}),
     };
     return {
-      quotedOrderTotalPaise: quote.totalPaise,
+      designSlug,
+      quotedOrderTotalPaise: quote?.totalPaise,
       customerName: draft.name,
       customerPhone: draft.phone,
       fulfillment,
       items: items.map((item, i) => ({
         ...item,
-        quotedTotalPaise: Math.round(quote.each[i] / item.qty),
+        quotedTotalPaise: quote ? Math.round(quote.each[i] / item.qty) : undefined,
       })),
     };
   }
   async function place() {
     setTouched(true);
-    if (!ready || !quote || submitting.current) return;
+    if (!ready || (!quote && !recovering) || submitting.current) return;
     submitting.current = true;
     setPlacing(true);
     setError("");
     const body = checkoutBody(quote);
     try {
-      const request = {
+      const request = recovering && recover?.request ? recover.request : {
         ...body,
         idempotencyKey: keyFor(JSON.stringify(checkoutIntent(body))),
       };
+      if (recovering && recover) attempt.current = recover;
+      if (attempt.current) {
+        attempt.current = { ...attempt.current, request: CheckoutRequest.parse(request) };
+        setSavedAttempt(attempt.current);
+        try { localStorage.setItem(ATTEMPT_KEY, JSON.stringify(attempt.current)); } catch {}
+      }
       const send = (url: string, payment?: PaymentProof) =>
         fetch(url, {
           method: "POST",
@@ -441,7 +460,8 @@ function Checkout({ catalog, cakes, payments }: Props) {
       } catch {}
       setCelebrate(true);
       setReceipt(saved);
-      try { clear(); localStorage.removeItem(ATTEMPT_KEY); } catch { /* A cart storage failure cannot undo a committed order. */ }
+      if (builder) window.history.replaceState(null, "", "/checkout");
+      try { if (!builder && (!recovering || recover?.signature === signature)) clear(); localStorage.removeItem(ATTEMPT_KEY); } catch { /* A cart storage failure cannot undo a committed order. */ }
     } catch {
       setError(
         payments.enabled && attempt.current?.proof
@@ -454,7 +474,7 @@ function Checkout({ catalog, cakes, payments }: Props) {
       setStage(null);
     }
   }
-  if (receipt && (celebrate || lines.length === 0)) return <OrderPlaced receipt={receipt} celebrate={celebrate} />;
+  if (receipt && (celebrate || (!builder && lines.length === 0))) return <OrderPlaced receipt={receipt} celebrate={celebrate} />;
   if (lines.length === 0)
     return (
       <div className={`${sCard} p-10 text-center`}>
@@ -481,9 +501,8 @@ function Checkout({ catalog, cakes, payments }: Props) {
   // Paid for exactly this checkout already (the confirm was lost): the button finishes it.
   const finishing =
     paidSignature !== null &&
-    quote !== undefined &&
-    paidSignature === JSON.stringify(checkoutIntent(checkoutBody(quote)));
-  const buttonLabel = !payments.enabled
+    recovering;
+  const buttonLabel = recovering && !placing ? "Finish placing order" : !payments.enabled
     ? placing
       ? "Placing your order…"
       : quote
@@ -501,6 +520,9 @@ function Checkout({ catalog, cakes, payments }: Props) {
 
   return (
     <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_25rem]">
+      {recovering && recover?.request && recover.signature !== signature && (
+        <p role="status" className="lg:col-span-2">Finish the earlier checkout for {recover.request.customerName}, due {recover.request.fulfillment.requestedDate}. Your current basket will be kept.</p>
+      )}
       <form
         className="checkout-form flex min-w-0 flex-col gap-6"
         onSubmit={(e) => {
@@ -893,7 +915,7 @@ function Checkout({ catalog, cakes, payments }: Props) {
             className="rounded-s border border-s-stop/30 p-4 text-sm text-s-stop"
           >
             A cake or variant is no longer available.{" "}
-            <Link href="/cart" className="underline">
+            <Link href={builder ? "/build/review" : "/cart"} className="underline">
               Review your basket.
             </Link>
           </p>
@@ -958,7 +980,7 @@ function Checkout({ catalog, cakes, payments }: Props) {
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl">Your celebration</h2>
           <Link
-            href="/cart"
+            href={builder ? "/build/review" : "/cart"}
             className="min-h-11 content-center text-xs underline underline-offset-4"
           >
             Edit basket
@@ -985,7 +1007,7 @@ function Checkout({ catalog, cakes, payments }: Props) {
                   {cake?.name ?? line.slug}
                 </p>
                 <p className="mt-1 text-xs text-s-bark">
-                  {variant ? variantLabel(variant) : "No longer available"} ·
+                  {variant ? variantLabel(variant) : builder ? `${builder.size} · ${builder.eggless ? "Eggless" : "With egg"}` : "No longer available"} ·
                   Qty {line.qty}
                 </p>
                 {line.choices.message && (

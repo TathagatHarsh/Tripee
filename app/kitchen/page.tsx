@@ -1,7 +1,8 @@
+import { renderOrderCakeDocket } from "@/lib/orderCakeDocket";
 import { DeliveryAddressSnapshot } from "@/components/DeliveryAddressSnapshot";
 import Link from "next/link";
 import type { Metadata } from "next";
-import type { Order, OrderStatus } from "@prisma/client";
+import type { Order, OrderCake, OrderStatus } from "@prisma/client";
 import { SignOutButton } from "@clerk/nextjs";
 import { getViewer, getViewerEmail, requireKitchen } from "@/lib/auth";
 import { getCatalogSnapshot } from "@/lib/catalogData";
@@ -138,6 +139,7 @@ export default async function KitchenBoard() {
        */
       orderBy: { createdAt: "asc" },
       take: 200,
+      include: { cakes: { orderBy: { position: "asc" } } },
     }),
     /* A count, not the rows: "9 finished in the last 12 hours" is worth knowing
        at a glance and nine cards of finished work are not. */
@@ -231,7 +233,7 @@ function DocketCard({
   tone,
   isAdmin,
 }: {
-  order: Order;
+  order: Order & { cakes: OrderCake[] };
   due: Date;
   now: Date;
   catalog: CatalogSnapshot;
@@ -247,7 +249,7 @@ function DocketCard({
    * is holding to. This used to require a redeploy to happen; now it takes one
    * admin and one afternoon, so the check earns its keep.
    */
-  const recomputed = config ? priceCake(config, catalog).total : null;
+  const recomputed = config && !order.cakes.length ? priceCake(config, catalog).total : null;
   const drifted = recomputed !== null && recomputed !== order.totalPaise;
 
   const late = due < now;
@@ -334,7 +336,11 @@ function DocketCard({
       </div>
 
       {/* ── the specification ──────────────────────────────────────────── */}
-      {config ? (
+      {order.cakes.length > 0 ? (
+        <div className="divide-y divide-k-line">
+          {order.cakes.map((cake) => <pre key={cake.id} className="whitespace-pre-wrap break-words px-3.5 py-3 font-a-mono text-k-meta text-k-ink">{renderOrderCakeDocket(cake, catalog)}</pre>)}
+        </div>
+      ) : config ? (
         /*
          * The same `renderSpecSheet` the customer downloads and the admin's
          * order page shows. Already the artifact a kitchen works from, already

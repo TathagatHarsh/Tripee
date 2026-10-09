@@ -151,9 +151,9 @@ export default async function VendorOrderDetail({
                       <p className="mt-1 text-a-body text-a-muted">
                         {cake.variantLabel}
                       </p>
-                      {cakeConfig?.message && (
+                      {(cake.message ?? cakeConfig?.message) && (
                         <p className="mt-3 text-a-body font-medium">
-                          Pipe: “{cakeConfig.message}”
+                          Pipe: “{cake.message ?? cakeConfig?.message}”
                         </p>
                       )}
                     </div>

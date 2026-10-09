@@ -50,14 +50,14 @@ export const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const
 export const ACCEPTED_EXTENSIONS = ".jpg,.jpeg,.png,.webp";
 
 /**
- * 8MB.
+ * 4MB.
  *
  * Generous enough for any phone photograph and small enough that a request
  * cannot be used to make the server allocate arbitrary memory. Checked on the
- * client so somebody gets an instant answer instead of an 8MB round trip, and
+ * client so somebody gets an instant answer instead of an 4MB round trip, and
  * again on the server because that is the one that counts.
  */
-export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 /**
  * A crop box, in fractions of the source image.

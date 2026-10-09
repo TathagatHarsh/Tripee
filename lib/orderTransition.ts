@@ -5,6 +5,7 @@ import type { OrderStatus } from "@prisma/client";
 import { db } from "./db";
 import { outboxCreate } from "./notifications";
 import { canTransition } from "./orders";
+import { whatsappOrderStatus } from "./whatsappEvents";
 
 /**
  * The authoritative aggregate transition. Customer status, due-time freezing,
@@ -119,6 +120,8 @@ export async function applyStatusTransition(
         },
       }),
     });
+
+    await whatsappOrderStatus(tx, { orderId: order.id, to, vendorId: order.currentAssignment?.vendorId, vendorPhone: order.currentAssignment?.vendor.phone, reason: reason?.trim() || null });
 
     await portalEvent(tx, { key: `order:${order.id}:${to}`, vendorId: order.currentAssignment?.vendorId, orderRef: ref, title: to.replaceAll('_', ' '), message: `${ref}: ${to.replaceAll('_', ' ')}` });
     return true;

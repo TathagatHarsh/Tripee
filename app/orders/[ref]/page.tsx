@@ -243,6 +243,8 @@ export default async function TrackOrder({
                     servesMax={cake.servesMax}
                     cakeName={cake.cakeName}
                     cakeImageUrl={cake.cakeImageUrl}
+                    message={"message" in cake ? cake.message : null}
+                    variantLabel={"variantLabel" in cake ? cake.variantLabel : null}
                     allergens={cake.allergens}
                   />
                 </div>

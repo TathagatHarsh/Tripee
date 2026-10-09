@@ -94,6 +94,7 @@ export default async function Home() {
                 </span>
                 <Link
                   href={`/cakes/${hero.slug}`}
+                  aria-label={`View ${hero.name}`}
                   className="brand-hero-photo group"
                 >
                   <CakePhoto

@@ -1,13 +1,15 @@
 export type VariantNeed = { productId: string; sizeBand: string; eggType: 'egg' | 'eggless' };
-export function variantNeeds(order: { cakeProductId: string | null; config: unknown; cakes: { cakeProductId: string | null; config: unknown }[] }): VariantNeed[] {
+type OrderedVariant = { cakeProductId: string | null; config: unknown; sizeBand?: string | null; eggType?: 'egg' | 'eggless' | null };
+export function variantNeeds(order: OrderedVariant & { cakes: OrderedVariant[] }): VariantNeed[] {
   const needs: VariantNeed[] = [];
   for (const cake of order.cakes.length ? order.cakes : [order]) {
     const c = cake.config as { size?: unknown; eggless?: unknown } | null;
-    if (!cake.cakeProductId || !c || typeof c.size !== 'string' || typeof c.eggless !== 'boolean')
+    const sizeBand = cake.sizeBand ?? c?.size;
+    const eggType = cake.eggType ?? (typeof c?.eggless === 'boolean' ? (c.eggless ? 'eggless' : 'egg') : null);
+    if (!cake.cakeProductId || typeof sizeBand !== 'string' || !sizeBand || !eggType)
       throw new Error('Order has no verifiable product variant. Review its cake specification.');
-    const eggType = c.eggless ? 'eggless' : 'egg';
-    const existing = needs.find(n => n.productId === cake.cakeProductId && n.sizeBand === c.size && n.eggType === eggType);
-    if (!existing) needs.push({ productId: cake.cakeProductId, sizeBand: c.size, eggType });
+    if (!needs.some(n => n.productId === cake.cakeProductId && n.sizeBand === sizeBand && n.eggType === eggType))
+      needs.push({ productId: cake.cakeProductId, sizeBand, eggType });
   }
   return needs;
 }

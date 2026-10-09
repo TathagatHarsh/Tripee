@@ -275,6 +275,9 @@ model OrderCake {
   cakeName      String?
   cakeImageUrl  String?
   variantLabel  String?
+  sizeBand      String?
+  eggType       EggType?
+  message       String?
 
   allergens      String[]
   servesMin      Int

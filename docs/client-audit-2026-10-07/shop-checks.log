@@ -1,0 +1,173 @@
+
+Running 6 tests using 1 worker
+
+(node:33882) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › e2e/shop.spec.ts:80:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track (20.3s)
+(node:34072) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › e2e/shop.spec.ts:129:5 › mobile checkout blocks an unserviceable address and preserves details after network failure (20.3s)
+(node:34280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 [chromium] › e2e/shop.spec.ts:167:5 › Map pin survives completing the address and reaches server assignment (20.3s)
+(node:34464) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  4 [chromium] › e2e/shop.spec.ts:188:5 › assignment, earnings and worker APIs reject anonymous or cross-site requests (71ms)
+  ✘  5 [chromium] › e2e/shop.spec.ts:196:5 › pressing Enter in the location search never places the order (20.3s)
+(node:34653) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  6 [chromium] › e2e/shop.spec.ts:212:5 › Change reopens the sheet at the confirmed pin, not the last search (20.2s)
+
+
+  1) [chromium] › e2e/shop.spec.ts:80:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track 
+
+    Test timeout of 20000ms exceeded.
+
+    Error: locator.click: Test timeout of 20000ms exceeded.
+    Call log:
+      - waiting for getByRole('radio', { name: /^0\.5 kg/ })
+
+
+      22 |     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
+      23 |     .click();
+    > 24 |   await page.getByRole("radio", { name: /^0\.5 kg/ }).click();
+         |                                                       ^
+      25 |   await page.getByRole("radio", { name: /^Eggless/ }).click();
+      26 |   await page
+      27 |     .getByLabel("Message on the cake (optional)")
+        at configuredBasket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:24:55)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:84:3
+
+    Error Context: docs/client-audit-2026-10-07/shop-test-results/shop-guest-can-configure-e-a8ac7-r-refresh-receipt-and-track-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/client-audit-2026-10-07/shop-test-results/shop-guest-can-configure-e-a8ac7-r-refresh-receipt-and-track-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/client-audit-2026-10-07/shop-test-results/shop-guest-can-configure-e-a8ac7-r-refresh-receipt-and-track-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/shop.spec.ts:129:5 › mobile checkout blocks an unserviceable address and preserves details after network failure 
+
+    Test timeout of 20000ms exceeded.
+
+    Error: locator.click: Test timeout of 20000ms exceeded.
+    Call log:
+      - waiting for getByRole('radio', { name: /^0\.5 kg/ })
+
+
+      22 |     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
+      23 |     .click();
+    > 24 |   await page.getByRole("radio", { name: /^0\.5 kg/ }).click();
+         |                                                       ^
+      25 |   await page.getByRole("radio", { name: /^Eggless/ }).click();
+      26 |   await page
+      27 |     .getByLabel("Message on the cake (optional)")
+        at configuredBasket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:24:55)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:133:3
+
+    Error Context: docs/client-audit-2026-10-07/shop-test-results/shop-mobile-checkout-block-b5f21-tails-after-network-failure-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/client-audit-2026-10-07/shop-test-results/shop-mobile-checkout-block-b5f21-tails-after-network-failure-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/client-audit-2026-10-07/shop-test-results/shop-mobile-checkout-block-b5f21-tails-after-network-failure-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › e2e/shop.spec.ts:167:5 › Map pin survives completing the address and reaches server assignment 
+
+    Test timeout of 20000ms exceeded.
+
+    Error: locator.click: Test timeout of 20000ms exceeded.
+    Call log:
+      - waiting for getByRole('radio', { name: /^0\.5 kg/ })
+
+
+      22 |     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
+      23 |     .click();
+    > 24 |   await page.getByRole("radio", { name: /^0\.5 kg/ }).click();
+         |                                                       ^
+      25 |   await page.getByRole("radio", { name: /^Eggless/ }).click();
+      26 |   await page
+      27 |     .getByLabel("Message on the cake (optional)")
+        at configuredBasket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:24:55)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:168:3
+
+    Error Context: docs/client-audit-2026-10-07/shop-test-results/shop-Map-pin-survives-comp-0d3d8-d-reaches-server-assignment-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/client-audit-2026-10-07/shop-test-results/shop-Map-pin-survives-comp-0d3d8-d-reaches-server-assignment-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/client-audit-2026-10-07/shop-test-results/shop-Map-pin-survives-comp-0d3d8-d-reaches-server-assignment-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › e2e/shop.spec.ts:196:5 › pressing Enter in the location search never places the order 
+
+    Test timeout of 20000ms exceeded.
+
+    Error: locator.click: Test timeout of 20000ms exceeded.
+    Call log:
+      - waiting for getByRole('radio', { name: /^0\.5 kg/ })
+
+
+      22 |     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
+      23 |     .click();
+    > 24 |   await page.getByRole("radio", { name: /^0\.5 kg/ }).click();
+         |                                                       ^
+      25 |   await page.getByRole("radio", { name: /^Eggless/ }).click();
+      26 |   await page
+      27 |     .getByLabel("Message on the cake (optional)")
+        at configuredBasket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:24:55)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:197:3
+
+    Error Context: docs/client-audit-2026-10-07/shop-test-results/shop-pressing-Enter-in-the-08066-arch-never-places-the-order-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/client-audit-2026-10-07/shop-test-results/shop-pressing-Enter-in-the-08066-arch-never-places-the-order-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/client-audit-2026-10-07/shop-test-results/shop-pressing-Enter-in-the-08066-arch-never-places-the-order-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › e2e/shop.spec.ts:212:5 › Change reopens the sheet at the confirmed pin, not the last search 
+
+    Test timeout of 20000ms exceeded.
+
+    Error: locator.click: Test timeout of 20000ms exceeded.
+    Call log:
+      - waiting for getByRole('radio', { name: /^0\.5 kg/ })
+
+
+      22 |     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
+      23 |     .click();
+    > 24 |   await page.getByRole("radio", { name: /^0\.5 kg/ }).click();
+         |                                                       ^
+      25 |   await page.getByRole("radio", { name: /^Eggless/ }).click();
+      26 |   await page
+      27 |     .getByLabel("Message on the cake (optional)")
+        at configuredBasket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:24:55)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:213:3
+
+    Error Context: docs/client-audit-2026-10-07/shop-test-results/shop-Change-reopens-the-sh-2fae5-med-pin-not-the-last-search-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/client-audit-2026-10-07/shop-test-results/shop-Change-reopens-the-sh-2fae5-med-pin-not-the-last-search-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/client-audit-2026-10-07/shop-test-results/shop-Change-reopens-the-sh-2fae5-med-pin-not-the-last-search-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5 failed
+    [chromium] › e2e/shop.spec.ts:80:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track 
+    [chromium] › e2e/shop.spec.ts:129:5 › mobile checkout blocks an unserviceable address and preserves details after network failure 
+    [chromium] › e2e/shop.spec.ts:167:5 › Map pin survives completing the address and reaches server assignment 
+    [chromium] › e2e/shop.spec.ts:196:5 › pressing Enter in the location search never places the order 
+    [chromium] › e2e/shop.spec.ts:212:5 › Change reopens the sheet at the confirmed pin, not the last search 
+  1 passed (1.8m)

@@ -21,6 +21,7 @@ import { canTransition } from "./orders";
 import { inventoryForOrder, requireOrderAvailability, InventoryConflict } from './inventory';
 import { meetsDeadline } from './inventoryRules';
 import { portalEvent } from './portalNotifications';
+import { whatsappAssignmentEvent, whatsappNoBakery } from './whatsappEvents';
 type Tx = Prisma.TransactionClient;
 export class AssignmentConflict extends Error {}
 // Short DB-only critical section. Serializes capacity reservation across orders.
@@ -34,7 +35,7 @@ async function lockedOrder(tx: Tx, ref: string) {
   await tx.$queryRaw`SELECT id FROM "Order" WHERE ref = ${ref} FOR UPDATE`;
   const order = await tx.order.findUnique({
     where: { ref },
-    include: { cakes: { select: { cakeProductId: true, config: true } } },
+    include: { cakes: { select: { cakeProductId: true, sizeBand: true, eggType: true, config: true } } },
   });
   if (!order) throw new AssignmentConflict("Order not found");
   return order;
@@ -78,6 +79,7 @@ async function event(
   });
   const order = await tx.order.findUniqueOrThrow({ where: { id: orderId }, select: { ref: true } });
   await portalEvent(tx, { key: `assignment:${row.id}`, vendorId, orderRef: order.ref, title: name === 'offered' ? 'New order request' : name.replaceAll('_', ' '), message: `${order.ref}: ${reason ?? name.replaceAll('_', ' ')}` });
+  await whatsappAssignmentEvent(tx, { orderId, assignmentId: id, eventId: row.id, name, reason });
   /* Only the offer leaves through the outbox, to the bakery. The bakery's own
      progress stays in its event log and portal: written as status_changed it
      would reach the channel the customer's updates go out on. */
@@ -179,9 +181,10 @@ async function advance(tx: Tx, order: Awaited<ReturnType<typeof lockedOrder>>) {
       payload: { event: "manual_intervention" },
     }),
   });
+  await whatsappNoBakery(tx, order.id, `wa:manual:${order.id}:${rows.at(-1)?.id ?? "none"}`);
 }
 export async function assignmentCandidates(ref: string) {
-  const order = await db.order.findUnique({ where: { ref }, include: { cakeProduct: { select: { name: true } }, cakes: { select: { cakeProductId: true, cakeName: true, cakeProduct: { select: { name: true } }, config: true } } } });
+  const order = await db.order.findUnique({ where: { ref }, include: { cakeProduct: { select: { name: true } }, cakes: { select: { cakeProductId: true, sizeBand: true, eggType: true, cakeName: true, cakeProduct: { select: { name: true } }, config: true } } } });
   if (!order) throw new AssignmentConflict('Order not found');
   const customer = pointFrom(order.deliveryLocation);
   const pickup = order.fulfillmentMethod === 'pickup';
@@ -230,6 +233,21 @@ export async function findEligibleBakeries(ref: string) {
 }
 /** Idempotent; the worker also discovers PENDING/ASSIGNING orders after crashes. */
 export async function startAssignment(ref: string) {
+  if (process.env.ASSIGNMENT_AUTO_START === 'true') {
+    const order = await db.order.findUnique({ where: { ref }, select: { id: true, status: true, currentAssignmentId: true, assignmentState: true } });
+    if (!order || !['confirmed', 'in_kitchen'].includes(order.status) || order.currentAssignmentId || !['PENDING', 'ASSIGNING'].includes(order.assignmentState)) return;
+    for (const candidate of await findEligibleBakeries(ref)) {
+      try { await manualAssignment(ref, candidate.vendorId, null, null); return; }
+      catch (error) {
+        if (!(error instanceof AssignmentConflict)) throw error;
+        // A concurrent start won the race: stop rather than walk the list and end in MANUAL.
+        if ((await db.order.findUnique({ where: { ref }, select: { currentAssignmentId: true } }))?.currentAssignmentId) return;
+      }
+    }
+    const handed = await db.order.updateMany({ where: { ref, currentAssignmentId: null, assignmentState: { in: ['PENDING', 'ASSIGNING'] } }, data: { assignmentState: 'MANUAL', assignmentNote: 'No eligible bakery for this order. Main bakery intervention required.' } });
+    if (handed.count === 1) await whatsappNoBakery(db, order.id, `wa:manual:${order.id}:start`);
+    return;
+  }
   // Checkout creates demand; only the admin chooses the first bakery.
   await db.order.updateMany({ where: { ref, currentAssignmentId: null, assignmentState: { in: ['PENDING', 'ASSIGNING'] } }, data: { assignmentState: 'MANUAL', assignmentNote: 'Awaiting admin vendor selection' } });
   return;
@@ -545,7 +563,6 @@ export async function moveFulfillment(
 export async function runAssignmentWorker() {
   const orders = await db.order.findMany({
     where: {
-      fulfillmentMethod: "delivery",
       status: { in: ["confirmed", "in_kitchen"] },
       OR: [
         { assignmentState: { in: ["PENDING", "ASSIGNING"] } },

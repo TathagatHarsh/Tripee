@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { portalEvent } from "@/lib/portalNotifications";
 import { startAssignment } from "@/lib/assignment";
 import { Prisma } from "@prisma/client";
@@ -40,6 +41,7 @@ import { paymentMatches, paymentsEnabled, verifySignature } from "@/lib/razorpay
 import { slotWindow } from "@/lib/scheduling";
 import { deriveServings, servingsForSize } from "@/lib/servings";
 import { z } from "zod";
+import { whatsappNewOrder } from "@/lib/whatsappEvents";
 
 class PayloadMismatch extends Error {}
 class PaymentMismatch extends Error {}
@@ -209,17 +211,20 @@ async function place(
   }
 
   if (result.replay) await refundExtraPayment(result.order, payment);
-  await startAssignment(result.order.ref).catch(() => log("error", "assignment_pending_retry", { orderRef: result.order.ref }));
   await rememberGuestOrders([result.order.ref]);
-  if (!result.replay) {
-    await dispatchPendingNotifications(5).catch((error) => {
-      log("error", "notification_dispatch_failed", {
-        traceId,
-        orderRef: result.order.ref,
-        error: String(error),
+  // Network work (distance matrix, Meta) runs after the response; the assignment worker recovers PENDING orders if it never does.
+  after(async () => {
+    await startAssignment(result.order.ref).catch(() => log("error", "assignment_pending_retry", { orderRef: result.order.ref }));
+    if (!result.replay) {
+      await dispatchPendingNotifications(5).catch((error) => {
+        log("error", "notification_dispatch_failed", {
+          traceId,
+          orderRef: result.order.ref,
+          error: String(error),
+        });
       });
-    });
-  }
+    }
+  });
 
   return Response.json(
     { ...responseFor(result.order), duplicate: result.replay },
@@ -359,6 +364,9 @@ async function createOrder(
           cakeProductId: job.product?.id ?? null,
           cakeName: job.product?.name ?? null,
           cakeImageUrl: job.product?.imageUrl ?? null,
+          sizeBand: job.product?.variant.sizeBand ?? config?.size ?? null,
+          eggType: job.product?.variant.eggType ?? (config ? (config.eggless ? "eggless" : "egg") : null),
+          message: job.message ?? config?.message ?? null,
           variantLabel: job.product?.variant
             ? `${job.product.variant.sizeBand} · ${job.product.variant.eggType === "eggless" ? "Eggless" : "With egg"}`
             : null,
@@ -527,6 +535,7 @@ async function createOrder(
           },
         }),
       });
+      await whatsappNewOrder(tx, order.id);
 
       return { order, replay: false };
     },

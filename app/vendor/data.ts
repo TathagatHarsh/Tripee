@@ -30,6 +30,7 @@ const ORDER_FOR_VENDOR = {
       cakeName: true,
       cakeImageUrl: true,
       variantLabel: true,
+      message: true,
       allergens: true,
       productionSpec: true,
       config: true,
@@ -96,6 +97,7 @@ export interface VendorCardOrder {
     cakeName: string | null;
     cakeImageUrl: string | null;
     variantLabel: string | null;
+    message?: string | null;
     allergens: string[];
     productionSpec: unknown;
     config: unknown;
