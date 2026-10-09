@@ -8,6 +8,7 @@ import { manualAssignment, moveFulfillment, respondToAssignment, startAssignment
 import { applyStatusTransition } from '../lib/orderTransition';
 import { loadOrderFacts, whatsappNewOrder } from '../lib/whatsappEvents';
 import { offerMessage } from '../lib/whatsappMessages';
+import { handleInbound } from '../lib/whatsappInbound';
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
 const vendorIds: string[] = [], orderIds: string[] = [], orderRefs: string[] = [], productIds: string[] = [];
 let serial = 0;
@@ -112,5 +113,50 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
   it('nothing is queued when WhatsApp is not configured', async () => {
     vi.unstubAllEnvs(); const { order, vendors } = await fixture(); await manualAssignment(order.ref, vendors[0].id, null);
     expect(await wa(order.id)).toHaveLength(0);
+  });
+  describe('vendor replies', () => {
+    const sent = vi.fn();
+    beforeEach(() => { sent.mockReset(); sent.mockResolvedValue({ ok: true, json: async () => ({}) }); vi.stubGlobal('fetch', sent); });
+    afterEach(() => { vi.unstubAllGlobals(); });
+    const directTexts = () => sent.mock.calls.map(([, init]) => JSON.parse((init as { body: string }).body).text.body as string);
+    const offered = async () => { const f = await fixture(); await manualAssignment(f.order.ref, f.vendors[0].id, null); return { ...f, offer: await current(f.order.id) }; };
+
+    it('accept by button accepts and replies with the step buttons', async () => {
+      const { order, offer } = await offered();
+      await handleInbound({ id: 'wamid.1', from: '919876543210', payload: `accept:${offer.id}` });
+      expect((await current(order.id)).assignmentStatus).toBe('ACCEPTED');
+      const reply = await db.notificationOutbox.findUniqueOrThrow({ where: { dedupeKey: 'wa-reply:wamid.1:919876543210' } });
+      expect(reply.payload).toMatchObject({ type: 'buttons', buttons: [{ id: `start:${offer.id}` }, {}, {}] });
+    });
+    it('typed "order started" after a website accept starts preparation', async () => {
+      const { order, vendors, offer } = await offered();
+      await respondToAssignment(vendors[0].id, order.ref, offer.id, 'ACCEPTED');
+      await handleInbound({ id: 'wamid.2', from: '919876543210', text: 'Order started' });
+      expect((await current(order.id)).status).toBe('in_preparation');
+      expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('in_kitchen');
+    });
+    it('a retried webhook message gets one reply', async () => {
+      const { order, offer } = await offered();
+      for (let i = 0; i < 2; i++) await handleInbound({ id: 'wamid.3', from: '919876543210', payload: `accept:${offer.id}` });
+      expect((await current(order.id)).assignmentStatus).toBe('ACCEPTED');
+      expect(await db.notificationOutbox.count({ where: { dedupeKey: { startsWith: 'wa-reply:wamid.3:' } } })).toBe(1);
+    });
+    it("another vendor's assignment id is refused", async () => {
+      const { order, offer } = await offered();
+      await handleInbound({ id: 'wamid.4', from: '919876543211', payload: `accept:${offer.id}` });
+      expect((await current(order.id)).assignmentStatus).toBe('OFFERED');
+      expect(directTexts()).toContain("That order isn't waiting on you any more.");
+    });
+    it('the admin number that is also a vendor acts as that vendor', async () => {
+      vi.stubEnv('WHATSAPP_ADMIN_NUMBERS', '9876543210');
+      const { order } = await offered();
+      await handleInbound({ id: 'wamid.5', from: '919876543210', text: 'yes' });
+      expect((await current(order.id)).assignmentStatus).toBe('ACCEPTED');
+      expect(directTexts()).toEqual([]);
+    });
+    it('a stranger gets the fixed line', async () => {
+      await handleInbound({ id: 'wamid.6', from: '919111111111', text: 'hi' });
+      expect(directTexts()).toEqual(['This number is for MakeYourCakes bakery partners. For your order, use the link in your confirmation.']);
+    });
   });
 });
