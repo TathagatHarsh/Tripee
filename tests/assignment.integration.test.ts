@@ -4,7 +4,7 @@ vi.mock('../lib/auth', () => ({ getViewer: async () => ({ userId: 'test-admin', 
 vi.mock('../lib/mapping', () => ({ getDistanceMatrix: vi.fn(async (origins: unknown[]) => origins.map(() => ({ distanceKm: 2, estimatedMinutes: 10, source: 'test' }))) }));
 import { db, getDb } from '../lib/db';
 import { POST as updateInventory } from '../app/api/inventory/route';
-import { assignmentCandidates, expireAndAdvance, manualAssignment, moveFulfillment, respondToAssignment, startAssignment, correctDeliveryPin } from '../lib/assignment';
+import { assignmentCandidates, expireAndAdvance, manualAssignment, moveFulfillment, respondToAssignment, startAssignment, correctDeliveryPin, runAssignmentWorker } from '../lib/assignment';
 import { applyStatusTransition } from '../lib/orderTransition';
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
 const vendorIds: string[] = [], orderIds: string[] = [], orderRefs: string[] = [], productIds: string[] = [];
@@ -182,6 +182,21 @@ describe.skipIf(!url)('inventory and assignment transactions on isolated Postgre
     await db.vendorOrder.update({ where: { id: row.id }, data: { expiresAt: new Date(0) } });
     await expireAndAdvance(order.ref); await expireAndAdvance(order.ref);
     expect((await availabilityFor(vendors[0].id)).isAvailable).toBe(true);
+  });
+  it('the worker expires unanswered pickup offers without requiring a delivery route', async () => {
+    const { order, vendors } = await fixture();
+    await db.order.update({ where: { id: order.id }, data: { fulfillmentMethod: 'pickup', deliverySlot: 'pickup' } });
+    await db.vendor.updateMany({ where: { id: { in: vendors.map(v => v.id) } }, data: { latitude: null, longitude: null } });
+    await manualAssignment(order.ref, vendors[0].id, null);
+    const offered = await current(order.id);
+    expect(offered).toMatchObject({ routeSource: 'pickup', distanceKm: 0, estimatedMinutes: 0 });
+    await db.vendorOrder.update({ where: { id: offered.id }, data: { expiresAt: new Date(0) } });
+    await runAssignmentWorker();
+    expect(await db.vendorOrder.findUniqueOrThrow({ where: { id: offered.id } })).toMatchObject({ assignmentStatus: 'EXPIRED', status: 'withdrawn' });
+    expect(await db.order.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ currentAssignmentId: null, assignmentState: 'MANUAL' });
+    expect((await availabilityFor(vendors[0].id)).isAvailable).toBe(true);
+    await runAssignmentWorker();
+    expect(await db.vendorOrder.count({ where: { orderId: order.id } })).toBe(1);
   });
   it('explicit automatic recovery offers the next available bakery', async () => {
     process.env.ASSIGNMENT_AUTO_REASSIGN = 'true';

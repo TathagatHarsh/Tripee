@@ -359,6 +359,9 @@ async function createOrder(
           cakeProductId: job.product?.id ?? null,
           cakeName: job.product?.name ?? null,
           cakeImageUrl: job.product?.imageUrl ?? null,
+          sizeBand: job.product?.variant.sizeBand ?? config?.size ?? null,
+          eggType: job.product?.variant.eggType ?? (config ? (config.eggless ? "eggless" : "egg") : null),
+          message: job.message ?? config?.message ?? null,
           variantLabel: job.product?.variant
             ? `${job.product.variant.sizeBand} · ${job.product.variant.eggType === "eggless" ? "Eggless" : "With egg"}`
             : null,

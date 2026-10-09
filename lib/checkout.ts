@@ -438,6 +438,7 @@ export function withdrawnOptions(
 
 /** One cake, priced and checked against the catalogue as it is right now. */
 export interface ItemQuote {
+  message?: string | null;
   config: CakeConfig | null;
   qty: number;
   price: PriceBreakdown;
@@ -807,6 +808,7 @@ export function reviewBasket(
     }
 
     quotes.push({
+      message: item.choices?.message?.trim() || config?.message?.trim() || null,
       config,
       qty,
       price,

@@ -1,0 +1,140 @@
+
+Running 5 tests using 1 worker
+
+(node:34649) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › e2e/zz-ola-map.tmp.spec.ts:32:5 › map pin survives completing the address and reaches server assignment (30.1s)
+(node:34825) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › e2e/zz-ola-map.tmp.spec.ts:50:5 › pressing Enter in the location search never places the order (30.1s)
+(node:34835) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 [chromium] › e2e/zz-ola-map.tmp.spec.ts:65:5 › Change reopens the sheet at the confirmed pin after a drag (30.1s)
+(node:34919) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  4 [chromium] › e2e/zz-ola-map.tmp.spec.ts:95:5 › an Ola suggestion without a pincode takes its parts from the pin and keeps its street (29.4s)
+
+
+  1) [chromium] › e2e/zz-ola-map.tmp.spec.ts:32:5 › map pin survives completing the address and reaches server assignment 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Add to cart', exact: true }).first()
+
+
+      14 | async function basket(page: Page) {
+      15 |   await page.goto("/");
+    > 16 |   await page.getByRole("button", { name: "Add to cart", exact: true }).first().click();
+         |                                                                                ^
+      17 |   await page.getByRole("button", { name: "Add to cart", exact: true }).last().click();
+      18 |   await expect(page.getByRole("link", { name: /^Cart, 1 cake/ })).toBeVisible();
+      19 |   await page.goto("/checkout");
+        at basket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/zz-ola-map.tmp.spec.ts:16:80)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/zz-ola-map.tmp.spec.ts:33:3
+
+    Error Context: ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-map-pin-sur-80cb6-d-reaches-server-assignment-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-map-pin-sur-80cb6-d-reaches-server-assignment-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-map-pin-sur-80cb6-d-reaches-server-assignment-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/zz-ola-map.tmp.spec.ts:50:5 › pressing Enter in the location search never places the order 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Add to cart', exact: true }).first()
+
+
+      14 | async function basket(page: Page) {
+      15 |   await page.goto("/");
+    > 16 |   await page.getByRole("button", { name: "Add to cart", exact: true }).first().click();
+         |                                                                                ^
+      17 |   await page.getByRole("button", { name: "Add to cart", exact: true }).last().click();
+      18 |   await expect(page.getByRole("link", { name: /^Cart, 1 cake/ })).toBeVisible();
+      19 |   await page.goto("/checkout");
+        at basket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/zz-ola-map.tmp.spec.ts:16:80)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/zz-ola-map.tmp.spec.ts:51:3
+
+    Error Context: ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-pressing-En-51700-arch-never-places-the-order-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-pressing-En-51700-arch-never-places-the-order-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-pressing-En-51700-arch-never-places-the-order-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › e2e/zz-ola-map.tmp.spec.ts:65:5 › Change reopens the sheet at the confirmed pin after a drag 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Add to cart', exact: true }).first()
+
+
+      14 | async function basket(page: Page) {
+      15 |   await page.goto("/");
+    > 16 |   await page.getByRole("button", { name: "Add to cart", exact: true }).first().click();
+         |                                                                                ^
+      17 |   await page.getByRole("button", { name: "Add to cart", exact: true }).last().click();
+      18 |   await expect(page.getByRole("link", { name: /^Cart, 1 cake/ })).toBeVisible();
+      19 |   await page.goto("/checkout");
+        at basket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/zz-ola-map.tmp.spec.ts:16:80)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/zz-ola-map.tmp.spec.ts:66:3
+
+    Error Context: ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-Change-reop-0a091--confirmed-pin-after-a-drag-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-Change-reop-0a091--confirmed-pin-after-a-drag-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-Change-reop-0a091--confirmed-pin-after-a-drag-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › e2e/zz-ola-map.tmp.spec.ts:95:5 › an Ola suggestion without a pincode takes its parts from the pin and keeps its street 
+
+    Test was interrupted.
+
+    Error: locator.click: Test ended.
+    Call log:
+      - waiting for getByRole('button', { name: 'Add to cart', exact: true }).first()
+
+
+      14 | async function basket(page: Page) {
+      15 |   await page.goto("/");
+    > 16 |   await page.getByRole("button", { name: "Add to cart", exact: true }).first().click();
+         |                                                                                ^
+      17 |   await page.getByRole("button", { name: "Add to cart", exact: true }).last().click();
+      18 |   await expect(page.getByRole("link", { name: /^Cart, 1 cake/ })).toBeVisible();
+      19 |   await page.goto("/checkout");
+        at basket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/zz-ola-map.tmp.spec.ts:16:80)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/zz-ola-map.tmp.spec.ts:96:3
+
+    Error Context: ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-an-Ola-sugg-c1c58-he-pin-and-keeps-its-street-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-an-Ola-sugg-c1c58-he-pin-and-keeps-its-street-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../tmp/tripee-audit-map-results/zz-ola-map.tmp-an-Ola-sugg-c1c58-he-pin-and-keeps-its-street-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [chromium] › e2e/zz-ola-map.tmp.spec.ts:32:5 › map pin survives completing the address and reaches server assignment 
+    [chromium] › e2e/zz-ola-map.tmp.spec.ts:50:5 › pressing Enter in the location search never places the order 
+    [chromium] › e2e/zz-ola-map.tmp.spec.ts:65:5 › Change reopens the sheet at the confirmed pin after a drag 
+  1 interrupted
+    [chromium] › e2e/zz-ola-map.tmp.spec.ts:95:5 › an Ola suggestion without a pincode takes its parts from the pin and keeps its street 
+  1 did not run

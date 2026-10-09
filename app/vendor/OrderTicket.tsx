@@ -90,12 +90,12 @@ export function OrderTicket({
   const urgent = !finished && dueUrgency(due, now) !== "later";
 
   const name = order.cakeName ?? "Custom cake";
-  const size = config ? sizeName(config.size) : null;
+  const size = order.cakes[0]?.variantLabel ?? (config ? sizeName(config.size) : null);
   /* Whether it has egg in it, from the order's own frozen config — which is
      where the chosen variant landed when the order was placed. §22: the bench
      needs this and it is not derivable from the cake's name. */
-  const sponge = config ? (config.eggless ? "Eggless" : "With egg") : null;
-  const message = config?.message?.trim();
+  const sponge = !order.cakes[0]?.variantLabel && config ? (config.eggless ? "Eggless" : "With egg") : null;
+  const message = (order.cakes[0]?.message ?? config?.message)?.trim();
 
   return (
     <article
@@ -146,6 +146,7 @@ export function OrderTicket({
                 {i + 1}. {cake.cakeName ?? "Custom cake"}
               </strong>
               <span className="block text-a-muted">{cake.variantLabel}</span>
+              {cake.message && <span className="block">Pipe: “{cake.message}”</span>}
             </li>
           ))}
         </ul>

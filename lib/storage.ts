@@ -1,6 +1,6 @@
 import "server-only";
 import { del, put } from "@vercel/blob";
-import sharp from "sharp";
+import sharp, { type Sharp, type Metadata } from "sharp";
 import { type Crop, IMAGE_ASPECT, MAX_UPLOAD_BYTES, pixelBox } from "./imageSpec";
 
 /*
@@ -104,8 +104,8 @@ export async function optimize(input: Buffer, crop?: Crop): Promise<Buffer> {
    * photograph somebody wants to use, and refusing it would be this module
    * being fussy about something that will re-encode perfectly well.
    */
-  let pipeline: sharp.Sharp;
-  let meta: sharp.Metadata;
+  let pipeline: Sharp;
+  let meta: Metadata;
   try {
     pipeline = sharp(input, { limitInputPixels: 40_000_000, failOn: "error" });
     meta = await pipeline.metadata();
@@ -140,10 +140,9 @@ export async function optimize(input: Buffer, crop?: Crop): Promise<Buffer> {
    * the tag is consumed and the pixels are upright.
    */
   pipeline = pipeline.rotate();
-  /* Re-read: rotation may have swapped width and height. */
-  const rotated = await pipeline.metadata();
-  const srcW = rotated.width ?? meta.width;
-  const srcH = rotated.height ?? meta.height;
+  // metadata() describes the input; autoOrient matches the browser's preview.
+  const srcW = meta.autoOrient.width;
+  const srcH = meta.autoOrient.height;
 
   if (crop) {
     const box = pixelBox(crop, srcW, srcH);

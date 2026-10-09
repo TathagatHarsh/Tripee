@@ -21,7 +21,7 @@ async function configuredBasket(page: Page) {
   await page
     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
     .click();
-  await page.getByRole("radio", { name: /^0\.5 kg/ }).click();
+  await page.getByRole("radio", { name: /^1\.5 kg/ }).click();
   await page.getByRole("radio", { name: /^Eggless/ }).click();
   await page
     .getByLabel("Message on the cake (optional)")

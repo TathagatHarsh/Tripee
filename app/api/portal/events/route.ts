@@ -27,7 +27,13 @@ export async function GET(req: Request) {
         try {
           const rows = await db.portalNotification.findMany({ where: scope.where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 50, include: { reads: { where: { userId: scope.viewer.userId }, select: { userId: true } } } });
           if (stopped) return;
-          const data = rows.map(({ id, title, message, orderRef, createdAt, reads }) => ({ id, title, message, orderRef, createdAt, read: reads.length > 0 }));
+          const orders = scope.viewer.profile.role === 'ADMIN' ? await db.order.findMany({
+            where: { ref: { in: rows.flatMap(row => row.orderRef ? [row.orderRef] : []) }, currentAssignmentId: null, status: { in: ['draft', 'confirmed', 'in_kitchen'] } },
+            select: { ref: true, status: true, customerName: true, cakeName: true, totalPaise: true, addressLine1: true, city: true, cakes: { select: { cakeName: true } } },
+          }) : [];
+          if (stopped) return;
+          const byRef = new Map(orders.map(order => [order.ref, order]));
+          const data = rows.map(({ id, title, message, orderRef, createdAt, reads }) => ({ id, title, message, orderRef, createdAt, read: reads.length > 0, order: orderRef ? byRef.get(orderRef) ?? null : null }));
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
           timer = setTimeout(send, 2500);
         } catch (error) { console.error('portal_stream_failed', error); finish(); }

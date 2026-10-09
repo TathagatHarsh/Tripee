@@ -393,6 +393,40 @@ const line = (patch: Partial<BasketItem> = {}): BasketItem => ({
 });
 
 describe("reviewBasket, for a cake from the shop", () => {
+  it("preserves the paid message for an authored cake with no visual configuration", () => {
+    const cake = product({
+      config: null,
+      productionSpec: {
+        version: 1,
+        ingredients: ["Cocoa sponge", "Chocolate ganache"],
+        allergens: ["Milk", "Wheat (gluten)"],
+        dietaryClaims: ["Eggless"],
+        kitchenInstructions: "Bake the cocoa sponge and finish with chocolate ganache.",
+        allergenStatementReviewed: true,
+      },
+    });
+    const review = reviewBasket(
+      [line({ choices: { delivery: "pickup", message: "  Happy Birthday Amma  " }, qty: 2 })],
+      DEFAULT_SNAPSHOT,
+      shelf(cake),
+    );
+    expect(review.ok).toBe(true);
+    if (!review.ok) return;
+    const quote = review.quotes[0];
+    expect(quote.config).toBeNull();
+    expect(quote.message).toBe("Happy Birthday Amma");
+    expect(quote.product?.productionSpec).toEqual(cake.productionSpec);
+    expect(quote.price.lines).toContainEqual({
+      label: "Message piping",
+      amount: DEFAULT_SETTINGS.messagePipingPaise,
+      kind: "labour",
+    });
+    const eachSubtotal = cake.variants[0].pricePaise + DEFAULT_SETTINGS.messagePipingPaise;
+    expect(review.productSubtotalPaise).toBe(eachSubtotal * 2);
+    expect(review.deliveryFeePaise).toBe(0);
+    expect(review.totalPaise).toBe(eachSubtotal * 2 + Math.round(eachSubtotal * 2 * DEFAULT_SETTINGS.gstRate));
+  });
+
   it("prices from the variant row and not from anything the browser sent", () => {
     const cake = product({ variants: [variant({ pricePaise: 50000 })] });
     const review = reviewBasket([line()], DEFAULT_SNAPSHOT, shelf(cake));

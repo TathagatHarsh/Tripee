@@ -1,3 +1,4 @@
+import { renderOrderCakeDocket } from "@/lib/orderCakeDocket";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
@@ -106,7 +107,11 @@ export default async function OrderDocket({
         <Line k="Serves" v={`${order.servesMin}–${order.servesMax}`} />
       </Block>
 
-      {config ? (
+      {order.cakes.length > 0 ? (
+              <div className="divide-y">
+                {order.cakes.map((cake) => <pre key={cake.id} className="whitespace-pre-wrap break-words px-4 py-3 font-mono text-sm">{renderOrderCakeDocket(cake, catalog)}</pre>)}
+              </div>
+            ) : config ? (
         <section className="flex flex-col gap-2">
           <h2 className="text-micro uppercase tracking-[0.1em] text-steel">The cake</h2>
           <pre className="overflow-x-auto whitespace-pre-wrap text-micro leading-[1.7]">

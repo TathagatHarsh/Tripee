@@ -27,7 +27,8 @@ function order(extra: Record<string, unknown> = {}) {
       recipientName: "E2E Checkout Test",
       addressLine1: "12 Test Street",
       locality: "Test Locality",
-      source: "manual",
+      location: { lat: 17.4486, lng: 78.3908, placeId: "e2e-checkout-pin" },
+      source: "map",
       city: "Hyderabad",
       state: "Telangana",
       pincode: "500081",
@@ -46,6 +47,13 @@ test.beforeAll(async () => {
     "Seed the scratch database before running checkout tests",
   ).toBe(1);
   product = rows[0];
+  // Delivery validation checks live bakery coverage independently of the UI.
+  await pool.query(
+    `INSERT INTO "Vendor" (id, name, "isActive", "isAcceptingOrders", "fulfillsAllProducts", latitude, longitude, "serviceRadiusKm", "maxConcurrentOrders", "updatedAt")
+     VALUES ('e2e-checkout-bakery', 'E2E Checkout Bakery', true, true, true, 17.43, 78.4, 10, 100, now())
+     ON CONFLICT (id) DO UPDATE SET "isActive" = true, "isAcceptingOrders" = true, "fulfillsAllProducts" = true,
+       latitude = 17.43, longitude = 78.4, "serviceRadiusKm" = 10, "maxConcurrentOrders" = 100, "isBusy" = false, "unavailableUntil" = NULL, "updatedAt" = now()`,
+  );
 });
 test.afterAll(async () => {
   await pool.end();
@@ -79,8 +87,8 @@ test("concurrent retries create one frozen order with two cakes and one shipping
   expect(rows[0].cakes).toBe(2);
   expect(rows[0].deliveryLocation).toMatchObject({
     name: "E2E Checkout Test", phone: "9876543210", addressLine1: "12 Test Street",
-    locality: "Test Locality", postalCode: "500081", source: "manual",
-    latitude: null, longitude: null,
+    locality: "Test Locality", postalCode: "500081", source: "map",
+    latitude: 17.4486, longitude: 78.3908,
   });
   expect(rows[0].paymentStatus).toBe("none");
   expect(rows[0].status).toBe("confirmed");

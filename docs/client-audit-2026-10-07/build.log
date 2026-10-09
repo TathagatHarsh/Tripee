@@ -1,0 +1,119 @@
+
+> makemycake@0.1.0 build
+> next build
+
+▲ Next.js 16.2.12 (Turbopack)
+- Environments: .env.local, .env
+- Experiments (use with caution):
+  · optimizePackageImports
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 6.6s
+  Running TypeScript ...
+
+  We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
+  The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:
+
+  	- include was updated to add '.next-client-audit-clean/types/**/*.ts'
+  	- include was updated to add '.next-client-audit-clean/dev/types/**/*.ts'
+
+  Finished TypeScript in 8.8s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/48) ...
+  Generating static pages using 7 workers (12/48) 
+  Generating static pages using 7 workers (24/48) 
+  Generating static pages using 7 workers (36/48) 
+✓ Generating static pages using 7 workers (48/48) in 1188ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /account
+├ ƒ /account/profile/[[...rest]]
+├ ƒ /admin
+├ ƒ /admin/cakes
+├ ƒ /admin/cakes/[id]
+├ ƒ /admin/cakes/new
+├ ƒ /admin/catalog
+├ ƒ /admin/catalog/addons
+├ ƒ /admin/catalog/cakes
+├ ƒ /admin/catalog/ingredients
+├ ƒ /admin/catalog/option/[category]/[value]
+├ ƒ /admin/catalog/pricing
+├ ƒ /admin/delivery
+├ ƒ /admin/inventory
+├ ƒ /admin/orders
+├ ƒ /admin/orders/[ref]
+├ ƒ /admin/orders/[ref]/print
+├ ƒ /admin/orders/today
+├ ƒ /admin/search
+├ ƒ /admin/settings
+├ ƒ /admin/staff
+├ ƒ /admin/vendors
+├ ƒ /admin/vendors/[id]
+├ ƒ /api/assignments/[ref]
+├ ƒ /api/catalog
+├ ƒ /api/designs
+├ ƒ /api/internal/assignments
+├ ƒ /api/internal/notifications
+├ ƒ /api/inventory
+├ ƒ /api/location
+├ ƒ /api/me
+├ ƒ /api/orders
+├ ƒ /api/orders/[ref]/assignment
+├ ƒ /api/orders/[ref]/photo
+├ ƒ /api/payments/intent
+├ ƒ /api/portal/events
+├ ƒ /api/portal/notifications
+├ ƒ /api/price
+├ ƒ /api/serviceability
+├ ƒ /api/vendor/availability
+├ ƒ /api/vendor/earnings
+├ ○ /apple-icon.png
+├ ○ /build
+├ ○ /build/filling
+├ ○ /build/finish
+├ ○ /build/frosting
+├ ○ /build/message
+├ ○ /build/review
+├ ○ /build/shape
+├ ○ /build/size
+├ ○ /build/sponge
+├ ○ /build/toppings
+├ ƒ /cakes/[slug]
+├ ○ /cart
+├ ƒ /checkout
+├ ƒ /d/[slug]
+├ ƒ /d/new
+├ ○ /film
+├ ○ /icon.svg
+├ ƒ /kitchen
+├ ○ /lab
+├ ● /lab/[index]
+│ ├ /lab/0
+│ ├ /lab/1
+│ ├ /lab/2
+│ └ [+8 more paths]
+├ ○ /manifest.webmanifest
+├ ƒ /orders
+├ ƒ /orders/[ref]
+├ ƒ /post-sign-in
+├ ○ /presets
+├ ƒ /shoot/[slug]
+├ ƒ /shop
+├ ƒ /sign-in/[[...sign-in]]
+├ ƒ /sign-up/[[...sign-up]]
+├ ƒ /vendor
+├ ƒ /vendor/inventory
+├ ƒ /vendor/orders
+├ ƒ /vendor/orders/[ref]
+└ ƒ /vendor/profile
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+ƒ  (Dynamic)  server-rendered on demand
+

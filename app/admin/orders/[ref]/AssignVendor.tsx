@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { aBtn } from '@/components/admin/ui';
 type Candidate = { vendorId: string; name: string; eligible: boolean; reasons: string[]; distanceKm: number | null; estimatedMinutes: number | null; source: string; preparationMinutes: number; capacity: number; currentLoad: number; inventory: { product: string; isAvailable: boolean }[] };
-export function AssignVendor({ orderRef, assigned, assignmentId }: { orderRef: string; assigned: string | null; assignmentId: string | null; vendors: { id: string; name: string }[] }) {
+export function AssignVendor({ orderRef, assigned, assignmentId, onAssigned }: { orderRef: string; assigned: string | null; assignmentId: string | null; vendors: { id: string; name: string }[]; onAssigned?: (name: string) => void }) {
   const router = useRouter();
   const [open, setOpen] = useState(!assigned);
   const [rows, setRows] = useState<Candidate[]>([]);
@@ -39,7 +39,6 @@ export function AssignVendor({ orderRef, assigned, assignmentId }: { orderRef: s
   if (!open) return <button className={aBtn('secondary', 'md')} onClick={() => setOpen(true)}>Reassign vendor</button>;
   return <section className="flex flex-col gap-3" aria-label="Assign vendor">
     <div className="flex items-center justify-between gap-3"><h3 className="text-lg font-semibold">{assigned ? 'Reassign order' : 'Assign order'}</h3><button className={aBtn('quiet', 'sm')} disabled={!!pending} onClick={() => { setLoading(true); setVersion(v => v + 1); }}>Refresh candidates</button></div>
-    <p className="text-sm text-a-muted">Choose an eligible bakery. Cake availability is checked again when assigning; the vendor must accept.</p>
     {loading ? <div role="status" className="animate-pulse rounded-xl bg-a-canvas p-6">Checking cake availability, capacity and preparation time…</div> : <>
       {!rows.some(r => r.eligible) && <p className="rounded-lg bg-a-warn-wash p-4 text-sm">No bakery can fulfil this order now. Check cake availability, bakery capacity and delivery time.</p>}
       {[true, false].map(eligible => <section key={String(eligible)} className="flex flex-col gap-3" aria-label={eligible ? 'Eligible bakeries' : 'Unavailable bakeries'}>
@@ -54,7 +53,7 @@ export function AssignVendor({ orderRef, assigned, assignmentId }: { orderRef: s
           try {
             const response = await fetch(`/api/assignments/${encodeURIComponent(orderRef)}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'manual', vendorId: row.vendorId, expectedAssignmentId: assignmentId }) });
             const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Assignment failed.');
-            router.refresh(); setOpen(false);
+        router.refresh(); setOpen(false); onAssigned?.(row.name);
           } catch (error) { setError(error instanceof Error ? error.message : 'Connection failed. Retry.'); setVersion(v => v + 1); }
           finally { setPending(''); }
         }}>{pending === row.vendorId ? 'Assigning…' : `Assign ${row.name}`}</button>}

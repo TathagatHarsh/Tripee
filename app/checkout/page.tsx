@@ -1,3 +1,6 @@
+import { BUILDER_ENABLED } from "@/lib/flags";
+import { decodeConfig } from "@/lib/share";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { CheckoutForm } from "@/app/checkout/CheckoutForm";
@@ -21,7 +24,10 @@ export const metadata: Metadata = {
  * is what makes an order appear on /orders later, and has never been a
  * condition of buying a cake.
  */
-export default async function CheckoutPage() {
+export default async function CheckoutPage({ searchParams }: { searchParams: Promise<{ builder?: string; design?: string }> }) {
+  const query = await searchParams;
+  const builder = query.builder && BUILDER_ENABLED ? decodeConfig(query.builder) : null;
+  if (query.builder && !builder) notFound();
   // Rendered per request, so the payments flag is the server's now, not the build's.
   await connection();
   const [catalog, cakes] = await Promise.all([
@@ -52,6 +58,8 @@ export default async function CheckoutPage() {
             </ol>
           </div>
           <CheckoutForm
+            builder={builder}
+            designSlug={builder ? query.design : undefined}
             catalog={catalog}
             cakes={cakes}
             payments={{ enabled: paymentsEnabled(), testMode: isTestKey() }}

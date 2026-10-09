@@ -1,3 +1,4 @@
+import { renderOrderCakeDocket } from "@/lib/orderCakeDocket";
 import { AdminAssignmentPanel } from "@/components/assignment/AdminPanel";
 import { DeliveryAddressSnapshot } from "@/components/DeliveryAddressSnapshot";
 import Link from "next/link";
@@ -318,9 +319,13 @@ export default async function OrderDetail({
           <Card flush>
             <CardHead
               title="Cake specification"
-              note="The sheet the kitchen works from, regenerated against today's catalogue."
+              note="The frozen cake details agreed at checkout."
             />
-            {config ? (
+            {order.cakes.length > 0 ? (
+              <div className="divide-y">
+                {order.cakes.map((cake) => <pre key={cake.id} className="whitespace-pre-wrap break-words px-4 py-3 font-mono text-sm">{renderOrderCakeDocket(cake, catalog)}</pre>)}
+              </div>
+            ) : config ? (
               /*
                * Mono, and the one place in the portal where a whole block of it
                * is right: this is the kitchen's document, laid out in columns by

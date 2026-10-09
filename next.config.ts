@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
   // The 3D bundle is the whole cost centre — keep the imports tree-shaken so a
   // route chunk never pulls in the whole namespace.
   experimental: {
+    serverActions: { bodySizeLimit: "4.5mb" },
     optimizePackageImports: ["@react-three/drei", "three"],
   },
   /*

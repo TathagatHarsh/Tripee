@@ -13,6 +13,7 @@ import { isCovered } from '../lib/coverage';
  * else. Runs only against an isolated database, like assignment.integration.
  */
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
+if (url) process.env.DATABASE_URL = url;
 let serial = 0;
 
 describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {

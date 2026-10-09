@@ -34,7 +34,7 @@ async function lockedOrder(tx: Tx, ref: string) {
   await tx.$queryRaw`SELECT id FROM "Order" WHERE ref = ${ref} FOR UPDATE`;
   const order = await tx.order.findUnique({
     where: { ref },
-    include: { cakes: { select: { cakeProductId: true, config: true } } },
+    include: { cakes: { select: { cakeProductId: true, sizeBand: true, eggType: true, config: true } } },
   });
   if (!order) throw new AssignmentConflict("Order not found");
   return order;
@@ -181,7 +181,7 @@ async function advance(tx: Tx, order: Awaited<ReturnType<typeof lockedOrder>>) {
   });
 }
 export async function assignmentCandidates(ref: string) {
-  const order = await db.order.findUnique({ where: { ref }, include: { cakeProduct: { select: { name: true } }, cakes: { select: { cakeProductId: true, cakeName: true, cakeProduct: { select: { name: true } }, config: true } } } });
+  const order = await db.order.findUnique({ where: { ref }, include: { cakeProduct: { select: { name: true } }, cakes: { select: { cakeProductId: true, sizeBand: true, eggType: true, cakeName: true, cakeProduct: { select: { name: true } }, config: true } } } });
   if (!order) throw new AssignmentConflict('Order not found');
   const customer = pointFrom(order.deliveryLocation);
   const pickup = order.fulfillmentMethod === 'pickup';
@@ -545,7 +545,6 @@ export async function moveFulfillment(
 export async function runAssignmentWorker() {
   const orders = await db.order.findMany({
     where: {
-      fulfillmentMethod: "delivery",
       status: { in: ["confirmed", "in_kitchen"] },
       OR: [
         { assignmentState: { in: ["PENDING", "ASSIGNING"] } },
