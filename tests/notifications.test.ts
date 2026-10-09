@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ findMany: vi.fn(), updateMany: vi.fn() }));
 vi.mock('../lib/db', () => ({ db: { notificationOutbox: mocks } }));
 import { dispatchPendingNotifications } from '../lib/notifications';
 
-type Row = { id: string; status: string; attempts: number; availableAt: Date; kind: 'vendor_assigned'; destination: null; payload: object; lastError?: string | null; sentAt?: Date };
+type Row = { id: string; status: string; attempts: number; availableAt: Date; kind: 'vendor_assigned'; channel: string; destination: string | null; payload: object; lastError?: string | null; sentAt?: Date };
 type Where = { id?: string; status?: string | { in: string[] }; attempts?: number | { lt?: number; gte?: number }; availableAt?: Date | { lte: Date } };
 let row: Row;
 const fetchMock = vi.fn();
@@ -18,7 +18,7 @@ function matches(where: Where) {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-07T00:00:00Z'));
-  row = { id: 'notice-1', status: 'pending', attempts: 0, availableAt: new Date(), kind: 'vendor_assigned', destination: null, payload: {} };
+  row = { id: 'notice-1', status: 'pending', attempts: 0, availableAt: new Date(), kind: 'vendor_assigned', channel: 'webhook', destination: null, payload: {} };
   mocks.findMany.mockImplementation(async ({ where }: { where: Where }) => matches(where) ? [{ ...row }] : []);
   mocks.updateMany.mockImplementation(async ({ where, data }: { where: Where; data: Partial<Omit<Row, 'attempts'>> & { attempts?: { increment: number } } }) => {
     if (!matches(where)) return { count: 0 };
@@ -82,5 +82,20 @@ describe('notification claim recovery', () => {
     expect(row).toMatchObject({ status: 'sending', attempts: 2, availableAt: newerLease });
     completeNew({ ok: true });
     expect(await newDispatch).toEqual({ sent: 1, failed: 0 });
+  });
+});
+
+describe('whatsapp outbox rows', () => {
+  it('sends whatsapp rows to Meta, not the webhook', async () => {
+    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'tok'); vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', 'PNID');
+    Object.assign(row, { channel: 'whatsapp', destination: '919876543210', payload: { type: 'text', body: 'hi' } });
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+    expect(await dispatchPendingNotifications()).toEqual({ sent: 1, failed: 0 });
+    expect(fetchMock.mock.calls[0][0]).toBe('https://graph.facebook.com/v23.0/PNID/messages');
+  });
+  it('fails a whatsapp row with no destination', async () => {
+    Object.assign(row, { channel: 'whatsapp', destination: null });
+    expect(await dispatchPendingNotifications()).toEqual({ sent: 0, failed: 1 });
+    expect(row.lastError).toBe('whatsapp_destination_missing');
   });
 });

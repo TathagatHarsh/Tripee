@@ -2,11 +2,13 @@ import "server-only";
 import { Prisma, type NotificationKind } from "@prisma/client";
 import { db } from "./db";
 import { log } from "./log";
+import { sendWhatsApp, type WhatsAppMessage } from "./whatsapp";
 
 export interface OutboxInput {
   orderId: string;
   vendorId?: string | null;
   kind: NotificationKind;
+  channel?: "webhook" | "whatsapp";
   destination?: string | null;
   payload: Prisma.InputJsonValue;
   dedupeKey: string;
@@ -17,11 +19,16 @@ export function outboxCreate(input: OutboxInput): Prisma.NotificationOutboxCreat
     orderId: input.orderId,
     vendorId: input.vendorId ?? null,
     kind: input.kind,
-    channel: "webhook",
+    channel: input.channel ?? "webhook",
     destination: input.destination ?? null,
     payload: input.payload,
     dedupeKey: input.dedupeKey,
   };
+}
+
+async function sendWhatsAppRow(message: { destination: string | null; payload: Prisma.JsonValue }): Promise<void> {
+  if (!message.destination) throw new Error("whatsapp_destination_missing");
+  await sendWhatsApp(message.destination, message.payload as unknown as WhatsAppMessage);
 }
 
 async function sendWebhook(message: {
@@ -82,7 +89,7 @@ export async function dispatchPendingNotifications(limit = 20): Promise<{
     const claim = { id: candidate.id, status: "sending" as const, attempts: candidate.attempts + 1, availableAt: leaseUntil };
 
     try {
-      await sendWebhook(candidate);
+      await (candidate.channel === "whatsapp" ? sendWhatsAppRow(candidate) : sendWebhook(candidate));
       const completed = await db.notificationOutbox.updateMany({
         where: claim,
         data: { status: "sent", sentAt: new Date(), lastError: null },
