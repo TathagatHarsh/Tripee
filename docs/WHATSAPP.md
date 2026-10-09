@@ -104,13 +104,14 @@ Messages caused by website actions can lag up to a minute. Messages caused by a 
 
 Do this before the real number. Meta gives a free test number that sends to up to 5 verified phones.
 
-1. Deploy a Vercel preview with the demo database (see `.env.demo`, git-ignored). Set `NEXT_PUBLIC_SITE_URL` to the preview URL.
+1. Deploy a Vercel preview with the demo database (see `.env.demo`, git-ignored). Set `NEXT_PUBLIC_SITE_URL` to the preview URL, then **redeploy**: `NEXT_PUBLIC_` values are inlined at build time, so a change only takes effect on a new build. Also set `WHATSAPP_APP_SECRET` and `WHATSAPP_VERIFY_TOKEN` on the preview (the handshake and photo links need them).
+   - Vercel Deployment Protection (Vercel Authentication) is on for previews by default and blocks Meta's webhook calls and photo fetches. Either turn protection off for this preview while testing, or create a "Protection Bypass for Automation" secret. Meta can't send custom headers, so the practical route is the query parameter `x-vercel-protection-bypass=<secret>` on the callback URL. Check Vercel's docs for the current method before relying on this.
 2. In the Meta app, use the test number's phone number ID and temporary token. Add your own phones as recipients. Point the webhook at the preview.
 3. Create three vendors in the demo DB whose phones are the verified test phones. Set `WHATSAPP_ADMIN_NUMBERS` to another verified phone.
 4. Set `ASSIGNMENT_AUTO_START=true` and `ASSIGNMENT_AUTO_REASSIGN=true`. Run the pinger or call the two worker URLs by hand.
 5. Place an order. Check: the nearest in-stock bakery gets the photo and Accept / Reject buttons; the admin phone gets "new order" and "offered to".
 6. Tap Accept. Then Started, Ready, Handed over. Check the order page on the website follows, and the admin phone gets each step.
-7. Place a second order and Reject it. The next bakery should get an offer. Let a third offer expire and check it moves on.
+7. Place a second order and Reject it. The next bakery should get an offer. Let a third offer expire and check it moves on. To make expiry quick, set `ASSIGNMENT_RESPONSE_SECONDS=60` on the preview for this step (and redeploy), then restore it (default 900) afterwards.
 8. Type `started`, `done`, and a word with `MC-XXXX`. Check the replies.
 9. Check an order with no cake photo (a builder order). The photo is a generated name card. Known limitation: it draws text with system fonts, and Vercel's runtime may not have them. The card is still a valid image, but check the text looks right.
 
@@ -129,4 +130,5 @@ To turn it all off: unset `ASSIGNMENT_AUTO_START` (the admin picks again) and `W
 - Webhook handshake fails: `WHATSAPP_VERIFY_TOKEN` differs between Vercel and Meta.
 - Webhook returns 401: `WHATSAPP_APP_SECRET` is wrong.
 - Photos don't show: `WHATSAPP_APP_SECRET` unset (route returns 404), or `NEXT_PUBLIC_SITE_URL` points somewhere Meta can't reach.
-- A bakery gets no offer: its phone is empty, or shared with another active bakery. The offer still shows in the vendor portal and still expires on time.
+- A bakery gets no offer: its phone is empty. The offer still shows in the vendor portal and still expires on time.
+- A bakery's replies do nothing: its phone is shared with another active bakery. It still receives offers, but any reply gets "This number is linked to more than one bakery. Please contact the admin." Give each bakery its own number.

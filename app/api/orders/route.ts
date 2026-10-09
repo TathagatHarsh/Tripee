@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { portalEvent } from "@/lib/portalNotifications";
 import { startAssignment } from "@/lib/assignment";
 import { Prisma } from "@prisma/client";
@@ -210,17 +211,20 @@ async function place(
   }
 
   if (result.replay) await refundExtraPayment(result.order, payment);
-  await startAssignment(result.order.ref).catch(() => log("error", "assignment_pending_retry", { orderRef: result.order.ref }));
   await rememberGuestOrders([result.order.ref]);
-  if (!result.replay) {
-    await dispatchPendingNotifications(5).catch((error) => {
-      log("error", "notification_dispatch_failed", {
-        traceId,
-        orderRef: result.order.ref,
-        error: String(error),
+  // Network work (distance matrix, Meta) runs after the response; the assignment worker recovers PENDING orders if it never does.
+  after(async () => {
+    await startAssignment(result.order.ref).catch(() => log("error", "assignment_pending_retry", { orderRef: result.order.ref }));
+    if (!result.replay) {
+      await dispatchPendingNotifications(5).catch((error) => {
+        log("error", "notification_dispatch_failed", {
+          traceId,
+          orderRef: result.order.ref,
+          error: String(error),
+        });
       });
-    });
-  }
+    }
+  });
 
   return Response.json(
     { ...responseFor(result.order), duplicate: result.replay },

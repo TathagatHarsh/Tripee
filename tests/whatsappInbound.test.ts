@@ -9,7 +9,7 @@ describe('parseInbound', () => {
     [{ payload: 'accept:as1' }, { action: 'accept', assignmentId: 'as1' }], [{ payload: 'handover:as1', text: 'Handed over' }, { action: 'handover', assignmentId: 'as1' }],
     [{ text: 'Order started' }, { action: 'start' }], [{ text: 'STARTED mc-ab12cd' }, { action: 'start', ref: 'MC-AB12CD' }],
     [{ text: 'Started ✅' }, { action: 'start' }], [{ text: 'READY!!' }, { action: 'ready' }], [{ text: 'picked up' }, { action: 'handover' }],
-    [{ text: 'ok' }, { action: 'accept' }], [{ text: 'No' }, { action: 'reject' }],
+    [{ text: 'order\nstarted' }, { action: 'start' }], [{ text: 'handed\tover' }, { action: 'handover' }], [{ text: 'ok' }, { action: 'accept' }], [{ text: 'No' }, { action: 'reject' }],
   ])('parses %j', (input, want) => expect(parseInbound(input)).toEqual(want));
   it.each([{ text: 'hello' }, { text: '' }, { payload: 'delete:as1' }, {}])('ignores %j', input => expect(parseInbound(input)).toBeNull());
 });

@@ -87,6 +87,14 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
     const toVendor = rows.filter(r => r.destination === '919876543210' && r.kind === 'order_cancelled');
     expect(toVendor.map(r => bodyText(r))).toEqual([[order.ref, 'Cancelled. Please stop work on this order.']]);
   });
+  it('taking an order back from a bakery tells that bakery and the admin', async () => {
+    const { order, vendors } = await fixture(); await manualAssignment(order.ref, vendors[0].id, null);
+    await respondToAssignment(vendors[0].id, order.ref, (await current(order.id)).id, 'ACCEPTED');
+    await manualAssignment(order.ref, vendors[1].id, null);
+    const rows = await wa(order.id);
+    expect(rows.filter(r => r.destination === '919876543210' && r.kind === 'status_changed').map(r => bodyText(r)[1])).toContain('Taken back by MakeYourCakes. Please stop work on this order.');
+    expect(await adminTexts(order.id)).toContain('Taken from Test Bakery 0 and reassigned');
+  });
   it('no bakery left alerts the admin with the order link', async () => {
     process.env.ASSIGNMENT_AUTO_START = 'true'; const { order } = await fixture(false); await startAssignment(order.ref);
     const [text] = await adminTexts(order.id);

@@ -48,14 +48,14 @@ describe("GET /api/whatsapp/photo/[orderId]", () => {
     findUnique.mockResolvedValue({
       cakeName: null,
       cakeImageUrl: null,
-      cakes: [{ cakeName: "A", cakeImageUrl: null }, { cakeName: "B", cakeImageUrl: "https://blob.test/b.webp" }],
+      cakes: [{ cakeName: "A", cakeImageUrl: null }, { cakeName: "B", cakeImageUrl: "https://abc.public.blob.vercel-storage.com/b.webp" }],
     });
     fetchMock.mockResolvedValue({ ok: true, arrayBuffer: async () => webp });
     const res = await call("ord1", photoSignature("ord1"));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/jpeg");
     expect(res.headers.get("cache-control")).toBe("public, max-age=86400");
-    expect(fetchMock.mock.calls[0][0].toString()).toBe("https://blob.test/b.webp");
+    expect(fetchMock.mock.calls[0][0].toString()).toBe("https://abc.public.blob.vercel-storage.com/b.webp");
     expect(await isJpeg(res)).toBe(true);
   });
 
@@ -68,20 +68,43 @@ describe("GET /api/whatsapp/photo/[orderId]", () => {
 
   it("falls back to a name card when there is no photo", async () => {
     findUnique.mockResolvedValue({ cakeName: "Choco", cakeImageUrl: null, cakes: [] });
-    await expectJpeg200(await call("ord1", photoSignature("ord1")));
+    const res = await call("ord1", photoSignature("ord1"));
+    await expectJpeg200(res);
+    expect(res.headers.get("cache-control")).toBe("no-store");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("does not fetch a photo from a host the site does not serve, and does not cache the fallback", async () => {
+    for (const cakeImageUrl of ["https://evil.test/x.webp", "//evil.test/x.webp", "http://abc.public.blob.vercel-storage.com/x.webp"]) {
+      findUnique.mockResolvedValue({ cakeName: "Choco", cakeImageUrl, cakes: [] });
+      const res = await call("ord1", photoSignature("ord1"));
+      await expectJpeg200(res);
+      expect(res.headers.get("cache-control")).toBe("no-store");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("serves a plain JPEG when the name card cannot be drawn, and never caches it", async () => {
+    const svgSpy = vi.spyOn(sharp.prototype, "jpeg").mockImplementationOnce(() => { throw new Error("no fonts"); });
+    findUnique.mockResolvedValue({ cakeName: "Choco\u0001", cakeImageUrl: null, cakes: [] });
+    const res = await call("ord1", photoSignature("ord1"));
+    svgSpy.mockRestore();
+    await expectJpeg200(res);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("falls back to a name card when the fetch fails", async () => {
-    findUnique.mockResolvedValue({ cakeName: "Choco", cakeImageUrl: "https://blob.test/c.webp", cakes: [] });
+    findUnique.mockResolvedValue({ cakeName: "Choco", cakeImageUrl: "https://abc.public.blob.vercel-storage.com/c.webp", cakes: [] });
     fetchMock.mockRejectedValue(new Error("boom"));
     await expectJpeg200(await call("ord1", photoSignature("ord1")));
     fetchMock.mockResolvedValue({ ok: false });
-    await expectJpeg200(await call("ord1", photoSignature("ord1")));
+    const res = await call("ord1", photoSignature("ord1"));
+    await expectJpeg200(res);
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 
   it("falls back to a name card when the bytes are not an image", async () => {
-    findUnique.mockResolvedValue({ cakeName: "Choco", cakeImageUrl: "https://blob.test/c.webp", cakes: [] });
+    findUnique.mockResolvedValue({ cakeName: "Choco", cakeImageUrl: "https://abc.public.blob.vercel-storage.com/c.webp", cakes: [] });
     fetchMock.mockResolvedValue({ ok: true, arrayBuffer: async () => new TextEncoder().encode("not an image").buffer });
     await expectJpeg200(await call("ord1", photoSignature("ord1")));
   });

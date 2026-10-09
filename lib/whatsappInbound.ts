@@ -23,7 +23,7 @@ export function parseInbound(input: { text?: string | null; payload?: string | n
   if (button) return { action: button[1] as InboundAction, assignmentId: button[2] };
   const text = (input.text ?? "").toLowerCase();
   const ref = /\bmc-[a-z0-9]+\b/i.exec(text)?.[0];
-  const words = text.replace(/\bmc-[a-z0-9]+\b/gi, " ").replace(/[^a-z ]/g, "").replace(/\s+/g, " ").trim();
+  const words = text.replace(/\bmc-[a-z0-9]+\b/gi, " ").replace(/\s+/g, " ").replace(/[^a-z ]/g, "").replace(/ +/g, " ").trim();
   const action = WORDS[words];
   if (!action) return null;
   return ref ? { action, ref: ref.toUpperCase() } : { action };
@@ -68,7 +68,7 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
   if (vendors.length > 1) return say(from, "This number is linked to more than one bakery. Please contact the admin.");
   const vendorId = vendors[0].id;
   // A re-delivered webhook (same message id) was already answered: no action, no second reply.
-  if (await db.notificationOutbox.findFirst({ where: { dedupeKey: { startsWith: `wa-reply:${msg.id}:` } }, select: { id: true } })) return;
+  if (await db.notificationOutbox.findUnique({ where: { dedupeKey: `wa-reply:${msg.id}:${from}` }, select: { id: true } })) return;
 
   const parsed = parseInbound(msg);
   if (!parsed) return say(from, "Reply with: accept, reject, started, ready or handed over. Add the order number if you have more than one, e.g. started MC-1234.");

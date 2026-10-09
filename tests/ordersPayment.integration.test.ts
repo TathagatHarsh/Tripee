@@ -5,6 +5,9 @@ vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn, revalidateTa
 const getViewer = vi.hoisted(() => vi.fn(async () => null));
 vi.mock('../lib/auth', () => ({ getViewer }));
 vi.mock('../lib/guestOrders', () => ({ rememberGuestOrders: async () => {} }));
+// after() only works inside a Next request: capture the deferred work so a test can see it is deferred, then run it.
+const deferred = vi.hoisted(() => [] as Promise<unknown>[]);
+vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/server')>()), after: (cb: () => unknown) => { deferred.push(Promise.resolve().then(cb)); } }));
 import { db } from '../lib/db';
 import { formatINR } from '../lib/format';
 import { paymentMatches } from '../lib/razorpay';
@@ -102,6 +105,7 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
   });
 
   afterAll(async () => {
+    await Promise.allSettled(deferred);
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -119,10 +123,12 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     const paid = proof('A');
     const { amountPaise } = await intent(body, paid.razorpayOrderId);
 
+    const before = deferred.length;
     const res = await post(placeOrder, { ...body, payment: paid });
     const json = await res.json();
 
     expect(res.status).toBe(201);
+    expect(deferred.length).toBe(before + 1); // assignment + dispatch run after the response, not inside it
     expect(json.order.payment).toEqual({ id: paid.razorpayPaymentId, paise: amountPaise });
     expect(await db.order.findUnique({ where: { ref: json.orderId } })).toMatchObject({
       paymentStatus: 'paid',

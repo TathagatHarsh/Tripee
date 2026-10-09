@@ -52,7 +52,10 @@ export async function whatsappAssignmentEvent(tx: Tx, e: { orderId: string; assi
     await queueWhatsApp(tx, { orderId: e.orderId, vendorId: row.vendorId, kind: "vendor_assigned", to: [row.vendor.phone], dedupeKey: `${key}:vendor`, message: offerMessage(facts, { assignmentId: e.assignmentId, distanceKm: row.distanceKm, earningPaise: row.vendorEarningPaise, replyMinutes }) });
     return void (await tellAdmin(tx, e.orderId, row.vendorId, `${key}:admin`, facts.ref, text));
   }
-  await tellAdmin(tx, e.orderId, row.vendorId, `${key}:admin`, await ref(tx, e.orderId), text);
+  const orderRef = await ref(tx, e.orderId);
+  await tellAdmin(tx, e.orderId, row.vendorId, `${key}:admin`, orderRef, text);
+  if (e.name === "reassigned")
+    await queueWhatsApp(tx, { orderId: e.orderId, vendorId: row.vendorId, kind: "status_changed", to: [row.vendor.phone], dedupeKey: `${key}:vendor`, message: updateMessage(orderRef, "Taken back by MakeYourCakes. Please stop work on this order.") });
 }
 
 export async function whatsappNoBakery(tx: Tx, orderId: string, dedupeKey: string) {
@@ -75,5 +78,5 @@ export async function whatsappOrderStatus(tx: Tx, e: { orderId: string; to: Orde
   const r = await ref(tx, e.orderId), cancelled = e.to === "cancelled", key = `wa:order:${e.orderId}:${e.to}`;
   await queueWhatsApp(tx, { orderId: e.orderId, vendorId: e.vendorId, kind: cancelled ? "order_cancelled" : "status_changed", to: adminNumbers(), dedupeKey: key, message: updateMessage(r, label + (cancelled && e.reason ? `: ${e.reason}` : "")) });
   if (cancelled && e.vendorPhone)
-    await queueWhatsApp(tx, { orderId: e.orderId, vendorId: e.vendorId, kind: "order_cancelled", to: [e.vendorPhone], dedupeKey: key, message: updateMessage(r, "Cancelled. Please stop work on this order.") });
+    await queueWhatsApp(tx, { orderId: e.orderId, vendorId: e.vendorId, kind: "order_cancelled", to: [e.vendorPhone], dedupeKey: `${key}:vendor`, message: updateMessage(r, "Cancelled. Please stop work on this order.") });
 }
