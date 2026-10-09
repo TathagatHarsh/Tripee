@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { adminNumbers, normalizePhone, photoSignature, photoUrl, sendWhatsApp, siteUrl, verifySignature, whatsappConfigured } from '../lib/whatsapp';
+import { adminNumbers, normalizePhone, photoSignature, photoUrl, sendWhatsApp, siteUrl, verifyPhotoSignature, verifySignature, whatsappConfigured } from '../lib/whatsapp';
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
@@ -46,12 +46,31 @@ describe('verifySignature', () => {
   it('rejects missing or short headers without throwing', () => {
     expect(verifySignature('x', null)).toBe(false); expect(verifySignature('x', 'sha256=ab')).toBe(false);
   });
-  it('rejects everything when the secret is unset', () => { vi.stubEnv('WHATSAPP_APP_SECRET', ''); expect(verifySignature('x', sig('x'))).toBe(false); });
+  it('rejects everything when the secret is unset, even a header forged with the empty key', () => {
+    vi.stubEnv('WHATSAPP_APP_SECRET', '');
+    const forged = 'sha256=' + createHmac('sha256', '').update('x').digest('hex');
+    expect(verifySignature('x', forged)).toBe(false);
+    expect(verifySignature('x', sig('x'))).toBe(false);
+  });
 });
 it('photoUrl is signed and stable', () => {
   vi.stubEnv('WHATSAPP_APP_SECRET', 'app-secret'); vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://cakes.test');
   expect(photoUrl('ord1')).toBe(`https://cakes.test/api/whatsapp/photo/ord1?s=${photoSignature('ord1')}`);
   expect(photoSignature('ord1')).toMatch(/^[A-Za-z0-9_-]{22}$/); expect(photoSignature('ord2')).not.toBe(photoSignature('ord1'));
+});
+describe('verifyPhotoSignature', () => {
+  beforeEach(() => vi.stubEnv('WHATSAPP_APP_SECRET', 'app-secret'));
+  it('accepts the signature photoSignature issues for that order', () => expect(verifyPhotoSignature('ord1', photoSignature('ord1'))).toBe(true));
+  it('rejects another order’s signature, a missing one and a wrong-length one', () => {
+    expect(verifyPhotoSignature('ord1', photoSignature('ord2'))).toBe(false);
+    expect(verifyPhotoSignature('ord1', null)).toBe(false);
+    expect(verifyPhotoSignature('ord1', photoSignature('ord1').slice(0, 21))).toBe(false);
+    expect(verifyPhotoSignature('ord1', photoSignature('ord1') + 'A')).toBe(false);
+  });
+  it('fails closed when the secret is unset, even for a signature minted with the empty key', () => {
+    vi.stubEnv('WHATSAPP_APP_SECRET', '');
+    expect(verifyPhotoSignature('ord1', photoSignature('ord1'))).toBe(false);
+  });
 });
 describe('sendWhatsApp', () => {
   const fetchMock = vi.fn();

@@ -32,12 +32,15 @@ export function siteUrl(): string {
 
 const hmac = (data: string) => createHmac("sha256", process.env.WHATSAPP_APP_SECRET ?? "").update(data);
 
+const safeEqual = (a: string, b: string) => {
+  const x = Buffer.from(a), y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+};
+
 /** Checks Meta's `x-hub-signature-256` header against the raw request body. */
 export function verifySignature(rawBody: string, header: string | null): boolean {
   if (!process.env.WHATSAPP_APP_SECRET || !header) return false;
-  const want = Buffer.from(`sha256=${hmac(rawBody).digest("hex")}`);
-  const got = Buffer.from(header);
-  return got.length === want.length && timingSafeEqual(got, want);
+  return safeEqual(header, `sha256=${hmac(rawBody).digest("hex")}`);
 }
 
 export function photoSignature(orderId: string): string {
@@ -46,6 +49,12 @@ export function photoSignature(orderId: string): string {
 
 export function photoUrl(orderId: string): string {
   return `${siteUrl()}/api/whatsapp/photo/${orderId}?s=${photoSignature(orderId)}`;
+}
+
+/** Fails closed: with no app secret every signature is rejected, including one minted with the empty key. */
+export function verifyPhotoSignature(orderId: string, s: string | null): boolean {
+  if (!process.env.WHATSAPP_APP_SECRET || !s) return false;
+  return safeEqual(s, photoSignature(orderId));
 }
 
 function payload(to: string, message: WhatsAppMessage) {
