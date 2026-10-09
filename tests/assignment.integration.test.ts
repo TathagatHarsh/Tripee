@@ -1,8 +1,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 vi.mock('../lib/auth', () => ({ getViewer: async () => ({ userId: 'test-admin', profile: { role: 'ADMIN' } }) }));
-vi.mock('../lib/mapping', () => ({ getDistanceMatrix: vi.fn(async (origins: unknown[]) => origins.map(() => ({ distanceKm: 2, estimatedMinutes: 10, source: 'test' }))) }));
+const defaultDistance = vi.hoisted(() => async (origins: unknown[]) => origins.map(() => ({ distanceKm: 2, estimatedMinutes: 10, source: 'test' })));
+vi.mock('../lib/mapping', () => ({ getDistanceMatrix: vi.fn(defaultDistance) }));
 import { db, getDb } from '../lib/db';
+import { getDistanceMatrix } from '../lib/mapping';
 import { POST as updateInventory } from '../app/api/inventory/route';
 import { assignmentCandidates, expireAndAdvance, manualAssignment, moveFulfillment, respondToAssignment, startAssignment, correctDeliveryPin, runAssignmentWorker } from '../lib/assignment';
 import { applyStatusTransition } from '../lib/orderTransition';
@@ -12,7 +14,8 @@ let serial = 0;
 describe.skipIf(!url)('inventory and assignment transactions on isolated PostgreSQL', () => {
   beforeAll(() => { process.env.DATABASE_URL = url!; delete process.env.ASSIGNMENT_AUTO_REASSIGN; });
   afterEach(async () => {
-    delete process.env.ASSIGNMENT_AUTO_REASSIGN;
+    delete process.env.ASSIGNMENT_AUTO_REASSIGN; delete process.env.ASSIGNMENT_AUTO_START;
+    vi.mocked(getDistanceMatrix).mockImplementation(defaultDistance);
     await db.order.updateMany({ where: { id: { in: orderIds } }, data: { currentAssignmentId: null } });
     await db.order.deleteMany({ where: { id: { in: orderIds } } });
     await db.inventoryAvailabilityChange.deleteMany({ where: { inventory: { vendorId: { in: vendorIds } } } });
@@ -39,6 +42,40 @@ describe.skipIf(!url)('inventory and assignment transactions on isolated Postgre
   }
   const current = async (orderId: string) => (await db.order.findUniqueOrThrow({ where: { id: orderId }, include: { currentAssignment: true } })).currentAssignment!;
   const availabilityFor = (vendorId: string) => db.vendorInventory.findFirstOrThrow({ where: { vendorId } });
+  const nearerByIndex = () => vi.mocked(getDistanceMatrix).mockImplementation(async (origins: { lat: number }[]) =>
+    origins.map(o => ({ distanceKm: 5 - (o.lat - 17.43) * 1000, estimatedMinutes: 10, source: 'test' })));
+  const auto = () => { process.env.ASSIGNMENT_AUTO_START = 'true'; process.env.ASSIGNMENT_AUTO_REASSIGN = 'true'; };
+  it('auto start offers the nearest in-stock bakery and queues the rest nearest-first', async () => {
+    auto(); nearerByIndex(); const { order, vendors } = await fixture(true, 3);
+    await startAssignment(order.ref);
+    expect((await current(order.id)).vendorId).toBe(vendors[2].id);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).assignmentState).toBe('OFFERED');
+    const queued = await db.vendorOrder.findMany({ where: { orderId: order.id, assignmentStatus: 'PENDING' }, orderBy: { sequence: 'asc' } });
+    expect(queued.map(r => r.vendorId)).toEqual([vendors[1].id, vendors[0].id]);
+  });
+  it('auto start skips a nearer bakery that is out of stock', async () => {
+    auto(); nearerByIndex(); const { order, vendors } = await fixture(true, 3);
+    await db.vendorInventory.updateMany({ where: { vendorId: vendors[2].id }, data: { isAvailable: false } });
+    await startAssignment(order.ref); expect((await current(order.id)).vendorId).toBe(vendors[1].id);
+  });
+  it('auto start with no eligible bakery hands the order to the admin', async () => {
+    auto(); const { order } = await fixture(false); await startAssignment(order.ref);
+    expect(await db.order.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ assignmentState: 'MANUAL', assignmentNote: 'No eligible bakery for this order. Main bakery intervention required.' });
+    expect(await db.vendorOrder.count({ where: { orderId: order.id } })).toBe(0);
+  });
+  it('concurrent auto starts create exactly one offer', async () => {
+    auto(); const { order } = await fixture(true, 3);
+    await Promise.all([startAssignment(order.ref), startAssignment(order.ref)]);
+    expect(await db.vendorOrder.count({ where: { orderId: order.id, assignmentStatus: 'OFFERED' } })).toBe(1);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).assignmentState).toBe('OFFERED');
+  });
+  it('auto start leaves unconfirmed and admin-held orders alone', async () => {
+    auto(); const { order, product } = await fixture(true, 2);
+    await db.order.update({ where: { id: order.id }, data: { status: 'draft' } }); await startAssignment(order.ref);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).assignmentState).toBe('PENDING');
+    const held = await newOrder(product.id); await db.order.update({ where: { id: held.id }, data: { assignmentState: 'MANUAL' } });
+    await startAssignment(held.ref); expect(await db.vendorOrder.count({ where: { orderId: { in: [order.id, held.id] } } })).toBe(0);
+  });
   it('unavailable delivery candidates keep honest routing and readable missing-variant labels', async () => {
     const { order, vendors: [vendor], product } = await fixture(false, 1);
     await db.vendor.update({ where: { id: vendor.id }, data: { latitude: 17.44 } });

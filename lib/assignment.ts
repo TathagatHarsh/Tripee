@@ -230,6 +230,20 @@ export async function findEligibleBakeries(ref: string) {
 }
 /** Idempotent; the worker also discovers PENDING/ASSIGNING orders after crashes. */
 export async function startAssignment(ref: string) {
+  if (process.env.ASSIGNMENT_AUTO_START === 'true') {
+    const order = await db.order.findUnique({ where: { ref }, select: { status: true, currentAssignmentId: true, assignmentState: true } });
+    if (!order || !['confirmed', 'in_kitchen'].includes(order.status) || order.currentAssignmentId || !['PENDING', 'ASSIGNING'].includes(order.assignmentState)) return;
+    for (const candidate of await findEligibleBakeries(ref)) {
+      try { await manualAssignment(ref, candidate.vendorId, null, null); return; }
+      catch (error) {
+        if (!(error instanceof AssignmentConflict)) throw error;
+        // A concurrent start won the race: stop rather than walk the list and end in MANUAL.
+        if ((await db.order.findUnique({ where: { ref }, select: { currentAssignmentId: true } }))?.currentAssignmentId) return;
+      }
+    }
+    await db.order.updateMany({ where: { ref, currentAssignmentId: null, assignmentState: { in: ['PENDING', 'ASSIGNING'] } }, data: { assignmentState: 'MANUAL', assignmentNote: 'No eligible bakery for this order. Main bakery intervention required.' } });
+    return;
+  }
   // Checkout creates demand; only the admin chooses the first bakery.
   await db.order.updateMany({ where: { ref, currentAssignmentId: null, assignmentState: { in: ['PENDING', 'ASSIGNING'] } }, data: { assignmentState: 'MANUAL', assignmentNote: 'Awaiting admin vendor selection' } });
   return;
