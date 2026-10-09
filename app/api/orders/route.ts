@@ -40,6 +40,7 @@ import { paymentMatches, paymentsEnabled, verifySignature } from "@/lib/razorpay
 import { slotWindow } from "@/lib/scheduling";
 import { deriveServings, servingsForSize } from "@/lib/servings";
 import { z } from "zod";
+import { whatsappNewOrder } from "@/lib/whatsappEvents";
 
 class PayloadMismatch extends Error {}
 class PaymentMismatch extends Error {}
@@ -530,6 +531,7 @@ async function createOrder(
           },
         }),
       });
+      await whatsappNewOrder(tx, order.id);
 
       return { order, replay: false };
     },
