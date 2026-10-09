@@ -140,6 +140,7 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
       for (let i = 0; i < 2; i++) await handleInbound({ id: 'wamid.3', from: '919876543210', payload: `accept:${offer.id}` });
       expect((await current(order.id)).assignmentStatus).toBe('ACCEPTED');
       expect(await db.notificationOutbox.count({ where: { dedupeKey: { startsWith: 'wa-reply:wamid.3:' } } })).toBe(1);
+      expect(directTexts()).toEqual([]); expect(sent).not.toHaveBeenCalled();
     });
     it("another vendor's assignment id is refused", async () => {
       const { order, offer } = await offered();

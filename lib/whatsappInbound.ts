@@ -67,6 +67,8 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
       : "This number is for MakeYourCakes bakery partners. For your order, use the link in your confirmation.");
   if (vendors.length > 1) return say(from, "This number is linked to more than one bakery. Please contact the admin.");
   const vendorId = vendors[0].id;
+  // A re-delivered webhook (same message id) was already answered: no action, no second reply.
+  if (await db.notificationOutbox.findFirst({ where: { dedupeKey: { startsWith: `wa-reply:${msg.id}:` } }, select: { id: true } })) return;
 
   const parsed = parseInbound(msg);
   if (!parsed) return say(from, "Reply with: accept, reject, started, ready or handed over. Add the order number if you have more than one, e.g. started MC-1234.");
