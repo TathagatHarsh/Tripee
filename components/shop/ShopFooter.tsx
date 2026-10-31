@@ -85,7 +85,15 @@ export function ShopFooter({ bakery }: { bakery: BakeryInfo }) {
       <div className="border-t border-s-cream/10">
         <div className="mx-auto flex max-w-[84rem] flex-col gap-2 px-4 py-6 font-mono text-[0.75rem] tracking-[0.06em] text-s-cream/50 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-10">
           <span>© {new Date().getFullYear()} MakeYourCakes</span>
-          {bakery.fssaiLicence && <span>FSSAI {bakery.fssaiLicence}</span>}
+          <span className="flex flex-wrap items-center gap-x-5">
+            <Link
+              href="/privacy"
+              className="inline-flex min-h-11 items-center underline decoration-s-cream/30 underline-offset-4 transition-colors hover:text-s-cream hover:decoration-s-cream"
+            >
+              Privacy policy
+            </Link>
+            {bakery.fssaiLicence && <span>FSSAI {bakery.fssaiLicence}</span>}
+          </span>
         </div>
       </div>
     </footer>
