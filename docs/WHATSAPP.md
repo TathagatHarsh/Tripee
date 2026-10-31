@@ -76,9 +76,9 @@ All three: category **Utility**, language **English** (`en`). Names and paramete
 
 | Name | Header | Body | Buttons |
 |---|---|---|---|
-| `order_offer` | Image | `New order {{1}} 🎂 {{2}}. Due {{3}}. Deliver to {{4}} ({{5}} km). Your earning ₹{{6}}. Please reply within {{7}} minutes.` | Quick reply **Accept**, quick reply **Reject** |
-| `admin_new_order` | Image | `New order {{1}} for ₹{{2}}: {{3}}. Due {{4}}, delivery to {{5}}. Assignment has started.` | none |
-| `order_update` | none | `Update on order {{1}}: {{2}}. Details are on the admin page.` | none |
+| `order_offer` | Image | `New cake order {{1}} 🎂 {{2}}. This order is due on {{3}}. It needs to be delivered to {{4}}, which is about {{5}} km from your bakery. If you accept it, your earning will be ₹{{6}}. Please accept or reject it within {{7}} minutes, or it will be offered to another bakery.` | Quick reply **Accept**, quick reply **Reject** |
+| `admin_new_order` | Image | `A new cake order {{1}} has been placed for a total of ₹{{2}}. Cake details: {{3}}. It is due on {{4}} and will be delivered to {{5}}. We will send you an update here at every step of this order.` | none |
+| `order_update` | none | `Update on cake order {{1}}: {{2}}. If you have any questions about this order, please contact the MakeYourCakes team.` | none |
 
 Variables:
 
@@ -88,7 +88,7 @@ Variables:
 | `admin_new_order` | order ref | order total | cake | due time | delivery area | | |
 | `order_update` | order ref | what happened | | | | | |
 
-Parameters never contain line breaks. Approval can take a while, so create them early. If Meta rejects or edits one, change the matching builder in `lib/whatsappMessages.ts`.
+Parameters never contain line breaks. These are the texts Meta approved (the first draft was shorter, and Meta refused it with "too many variables for its length", so the fixed wording around the variables was lengthened; the variables and their order did not change). If a template is ever edited or rejected, change the matching builder in `lib/whatsappMessages.ts`.
 
 ## Pinger (every-minute timer)
 
