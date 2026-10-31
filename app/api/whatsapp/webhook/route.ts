@@ -20,6 +20,7 @@ export async function GET(req: Request) {
 interface WaMessage {
   id: string;
   from: string;
+  type?: string;
   text?: { body?: string };
   button?: { text?: string; payload?: string };
   interactive?: { button_reply?: { id?: string; title?: string } };
@@ -36,7 +37,12 @@ interface WaPayload {
 
 export async function POST(req: Request) {
   const raw = await req.text();
-  if (!verifySignature(raw, req.headers.get("x-hub-signature-256"))) {
+  const signature = req.headers.get("x-hub-signature-256");
+  if (!verifySignature(raw, signature)) {
+    /* A rejected call is otherwise invisible, and it is the first thing to
+       check when Meta says it delivered and nothing happened: a wrong
+       WHATSAPP_APP_SECRET looks exactly like this. Never the body. */
+    log("warn", "whatsapp_webhook_bad_signature", { hasSignature: signature !== null, bytes: raw.length });
     return Response.json({ error: "Bad signature" }, { status: 401 });
   }
 
@@ -54,6 +60,9 @@ export async function POST(req: Request) {
           }
         }
         for (const m of change.value?.messages ?? []) {
+          // The message id and a masked sender, never the text: this line is
+          // how to see that Meta called us at all, since success is silent.
+          log("info", "whatsapp_inbound", { id: m.id, from: maskedPhone(m.from), kind: m.type ?? "unknown" });
           await handleInbound({
             id: m.id,
             from: m.from,
