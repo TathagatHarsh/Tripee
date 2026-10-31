@@ -54,6 +54,29 @@ describe("POST", () => {
     expect(dispatchPendingNotifications).not.toHaveBeenCalled();
   });
 
+  it("warns on a failed signature check without logging the body", async () => {
+    await POST(signed("not json", "sha256=bad"));
+    expect(log).toHaveBeenCalledWith("warn", "whatsapp_webhook_bad_signature", { hasSignature: true, bytes: 8 });
+    await POST(new Request(URL, { method: "POST", body: "{}" }));
+    expect(log).toHaveBeenCalledWith("warn", "whatsapp_webhook_bad_signature", { hasSignature: false, bytes: 2 });
+  });
+
+  it("logs each inbound message with a masked sender and never its text", async () => {
+    const body = wrap({
+      messages: [
+        { id: "wamid.1", from: "919876543210", type: "button", button: { payload: "accept:as1", text: "Accept" } },
+        { id: "wamid.2", from: "919811111111", type: "text", text: { body: "private words" } },
+        { id: "wamid.3", from: "919822222222", type: "image" },
+      ],
+    });
+    await POST(signed(body));
+    expect(log).toHaveBeenCalledWith("info", "whatsapp_inbound", { id: "wamid.1", from: "…3210", kind: "button" });
+    expect(log).toHaveBeenCalledWith("info", "whatsapp_inbound", { id: "wamid.2", from: "…1111", kind: "text" });
+    expect(log).toHaveBeenCalledWith("info", "whatsapp_inbound", { id: "wamid.3", from: "…2222", kind: "image" });
+    expect(JSON.stringify(vi.mocked(log).mock.calls)).not.toContain("private words");
+    expect(JSON.stringify(vi.mocked(log).mock.calls)).not.toContain("919876543210");
+  });
+
   it("hands a signed button tap to handleInbound and dispatches", async () => {
     const body = wrap({ messages: [{ id: "wamid.1", from: "919876543210", type: "button", button: { payload: "accept:as1", text: "Accept" } }] });
     const res = await POST(signed(body));
