@@ -1,5 +1,5 @@
 import { portalEvent } from "./portalNotifications";
-import { lockAssignments } from "./assignment";
+import { ASSIGNMENT_TX, lockAssignments } from "./assignment";
 import { refundCancelledOrder } from "./checkoutPayment";
 import type { OrderStatus } from "@prisma/client";
 import { db } from "./db";
@@ -125,7 +125,7 @@ export async function applyStatusTransition(
 
     await portalEvent(tx, { key: `order:${order.id}:${to}`, vendorId: order.currentAssignment?.vendorId, orderRef: ref, title: to.replaceAll('_', ' '), message: `${ref}: ${to.replaceAll('_', ' ')}` });
     return true;
-  });
+  }, ASSIGNMENT_TX);
   // After the commit, and never inside it: Razorpay is not part of the transaction.
   if (moved && to === "cancelled") await refundCancelledOrder(ref);
   return moved;
