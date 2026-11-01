@@ -6,7 +6,7 @@ vi.mock('../lib/mapping', () => ({ getDistanceMatrix: vi.fn(defaultDistance) }))
 import { db, getDb } from '../lib/db';
 import { getDistanceMatrix } from '../lib/mapping';
 import { POST as updateInventory } from '../app/api/inventory/route';
-import { assignmentCandidates, expireAndAdvance, manualAssignment, moveFulfillment, respondToAssignment, startAssignment, correctDeliveryPin, runAssignmentWorker } from '../lib/assignment';
+import { ASSIGNMENT_TX, assignmentCandidates, expireAndAdvance, manualAssignment, moveFulfillment, respondToAssignment, startAssignment, correctDeliveryPin, runAssignmentWorker } from '../lib/assignment';
 import { applyStatusTransition } from '../lib/orderTransition';
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
 const vendorIds: string[] = [], orderIds: string[] = [], orderRefs: string[] = [], productIds: string[] = [];
@@ -308,5 +308,27 @@ describe.skipIf(!url)('inventory and assignment transactions on isolated Postgre
     await correctDeliveryPin(order.ref, { lat: 17.43, lng: 78.4 }, 'test');
     expect(await db.vendorOrder.findUniqueOrThrow({ where: { id: row.id } })).toMatchObject({ vendorEarningPaise: row.vendorEarningPaise, status: 'rejected' });
     expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).currentAssignmentId).toBeNull();
+  });
+  it("assignment and status transactions are not limited to Prisma's 5 s default", async () => {
+    expect(ASSIGNMENT_TX).toEqual({ maxWait: 10_000, timeout: 20_000 });
+    const spy = vi.spyOn(getDb(), '$transaction');
+    const { order, vendors, product } = await fixture(); const v = vendors[0].id;
+    const steps: [string, () => Promise<unknown>][] = [
+      ['manualAssignment', () => manualAssignment(order.ref, v, null)],
+      ['respondToAssignment', async () => respondToAssignment(v, order.ref, (await current(order.id)).id, 'ACCEPTED')],
+      ['moveFulfillment', async () => moveFulfillment(v, order.ref, 'in_preparation', (await current(order.id)).id)],
+      ['expireAndAdvance', () => expireAndAdvance(order.ref)],
+      ['applyStatusTransition', () => applyStatusTransition(order.ref, 'cancelled', null, 'test')],
+      ['correctDeliveryPin', async () => {
+        const other = await newOrder(product.id); await manualAssignment(other.ref, v, null);
+        await respondToAssignment(v, other.ref, (await current(other.id)).id, 'REJECTED', 'Unavailable');
+        spy.mockClear(); await correctDeliveryPin(other.ref, { lat: 17.43, lng: 78.4 }, 'test');
+      }],
+    ];
+    for (const [name, run] of steps) {
+      spy.mockClear(); await run();
+      expect(spy.mock.calls.length, name).toBeGreaterThan(0);
+      for (const call of spy.mock.calls) expect(call[1], name).toEqual(ASSIGNMENT_TX);
+    }
   });
 });

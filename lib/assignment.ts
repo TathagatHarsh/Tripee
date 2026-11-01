@@ -30,6 +30,9 @@ export class AssignmentConflict extends Error {}
 export async function lockAssignments(tx: Tx) {
   await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(7142026)`;
 }
+// Prisma's 5 s default is too short for these multi-query transactions on a pooled remote
+// database (P2028 seen live when assigning an order); checkout sets its own limit the same way.
+export const ASSIGNMENT_TX = { maxWait: 10_000, timeout: 20_000 } as const;
 async function lockedOrder(tx: Tx, ref: string) {
   await lockAssignments(tx);
   await tx.$queryRaw`SELECT id FROM "Order" WHERE ref = ${ref} FOR UPDATE`;
@@ -340,7 +343,7 @@ export async function respondToAssignment(
           ? "Order accepted. Your earnings are locked in."
           : "Order rejected; admin notified.",
     };
-  });
+  }, ASSIGNMENT_TX);
 }
 async function finishOffer(
   tx: Tx,
@@ -398,7 +401,7 @@ export async function expireAndAdvance(ref: string) {
       await finishOffer(tx, order, row.id, row.vendorId, "EXPIRED");
     else if (!row && order.assignmentState === "ASSIGNING")
       await advance(tx, order);
-  });
+  }, ASSIGNMENT_TX);
 }
 export async function manualAssignment(
   ref: string,
@@ -513,7 +516,7 @@ export async function manualAssignment(
         await tx.vendorOrder.create({ data: { orderId: order.id, vendorId: target.id, sequence: row.sequence + i + 1, assignmentStatus: 'PENDING', distanceKm: other.distanceKm, estimatedMinutes: other.estimatedMinutes, routeSource: other.source, orderValuePaise: order.totalPaise, ...earnings(order.productSubtotalPaise, target.commissionBps, target.assignmentFeePaise) } });
       }
     }
-  });
+  }, ASSIGNMENT_TX);
 }
 export async function moveFulfillment(
   vendorId: string,
@@ -558,7 +561,7 @@ export async function moveFulfillment(
       });
     }
     return true;
-  });
+  }, ASSIGNMENT_TX);
 }
 export async function runAssignmentWorker() {
   const orders = await db.order.findMany({
@@ -639,6 +642,6 @@ export async function correctDeliveryPin(
         payload: { event: "delivery_location_corrected", actorId },
       }),
     });
-  });
+  }, ASSIGNMENT_TX);
   await startAssignment(ref);
 }
