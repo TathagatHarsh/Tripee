@@ -98,4 +98,13 @@ describe('whatsapp outbox rows', () => {
     expect(await dispatchPendingNotifications()).toEqual({ sent: 0, failed: 1 });
     expect(row.lastError).toBe('whatsapp_destination_missing');
   });
+  it('logs the Meta error code, and never the number or the message', async () => {
+    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'tok'); vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', 'PNID');
+    Object.assign(row, { channel: 'whatsapp', destination: '919876543210', payload: { type: 'text', body: 'private words' } });
+    fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 132000 } }) });
+    await dispatchPendingNotifications();
+    const { log } = await import('../lib/log');
+    expect(log).toHaveBeenCalledWith('error', 'notification_failed', expect.objectContaining({ error: 'whatsapp_400_132000' }));
+    expect(JSON.stringify(vi.mocked(log).mock.calls)).not.toMatch(/919876543210|private words/);
+  });
 });
