@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { optionHref } from "@/lib/adminNav";
@@ -54,6 +55,7 @@ export default async function AdminSearch({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  await requireAdmin();
   const { q } = await searchParams;
   const term = (q ?? "").trim();
 

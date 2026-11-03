@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
@@ -31,6 +32,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function VendorsPage() {
+  await requireAdmin();
   if (!hasDatabase()) {
     return (
       <div className="flex flex-col gap-5">

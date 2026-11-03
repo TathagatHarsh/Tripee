@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import type { Metadata } from "next";
 import { CakeForm } from "@/components/admin/CakeForm";
 import { Card, Notice, PageHeader } from "@/components/admin/ui";
@@ -22,7 +23,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function NewCakePage() {
+export default async function NewCakePage() {
+  await requireAdmin();
   return (
     <div className="flex flex-col gap-5">
       <PageHeader

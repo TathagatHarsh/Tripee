@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { renderOrderCakeDocket } from "@/lib/orderCakeDocket";
 import { AdminAssignmentPanel } from "@/components/assignment/AdminPanel";
 import { DeliveryAddressSnapshot } from "@/components/DeliveryAddressSnapshot";
@@ -69,6 +70,7 @@ export default async function OrderDetail({
 }: {
   params: Promise<{ ref: string }>;
 }) {
+  await requireAdmin();
   const { ref } = await params;
 
   if (!hasDatabase()) {

@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { Notice, PageHeader } from "@/components/admin/ui";
@@ -23,6 +24,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function DeliveryAdmin() {
+  await requireAdmin();
   if (!hasDatabase()) {
     return (
       <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>

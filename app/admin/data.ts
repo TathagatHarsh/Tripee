@@ -15,11 +15,10 @@ import { VENDOR_OPEN } from "@/lib/vendors";
  * `server-only` for app/orders/data.ts's reason: none of this may be pulled into
  * a client bundle by an import somebody adds later.
  *
- * **No authorisation here, deliberately, and for the same reason
- * app/admin/orders/[ref]/data.ts states.** The only caller is a page under
- * app/admin/layout.tsx, whose `requireAdmin()` runs on the server for every
- * request to anything nested beneath it. A check in a data helper would read as
- * though it were the gate when it is not.
+ * **No authorisation here.** The only callers are app/admin pages, and each of
+ * them calls `requireAdmin()` itself before reading anything; the layout's
+ * check alone is not enough, because a client navigation can skip a layout (see
+ * app/admin/layout.tsx). tests/adminGuards.test.ts holds every page to that.
  *
  * ## The query budget
  *

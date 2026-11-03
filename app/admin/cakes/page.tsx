@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -59,6 +60,7 @@ export default async function CakesPage({
 }: {
   searchParams: Promise<{ q?: string; category?: string; status?: string }>;
 }) {
+  await requireAdmin();
   const { q, category, status } = await searchParams;
   const query = (q ?? "").trim();
 

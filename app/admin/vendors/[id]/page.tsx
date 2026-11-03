@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { Availability } from "@/components/inventory/Availability";
 import { AssignmentRulesForm } from "../AssignmentRulesForm";
 import Link from "next/link";
@@ -37,6 +38,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Metadata> {
+  await requireAdmin();
   const { id } = await params;
   if (!hasDatabase()) return { title: "Vendor — Admin", robots: { index: false, follow: false } };
   const vendor = await db.vendor.findUnique({ where: { id }, select: { name: true } });
@@ -51,6 +53,7 @@ export default async function VendorDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireAdmin();
   const { id } = await params;
 
   if (!hasDatabase()) {

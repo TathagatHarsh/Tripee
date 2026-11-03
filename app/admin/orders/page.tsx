@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { VENDOR_STATUS_LABEL } from "@/lib/vendors";
 import type { Metadata } from "next";
@@ -71,6 +72,7 @@ export default async function AdminOrders({
 }: {
   searchParams: Promise<{ q?: string; status?: string; days?: string; slot?: string; due?: string; production?: string }>;
 }) {
+  await requireAdmin();
   if (!hasDatabase()) {
     return (
       <div className="flex flex-col gap-5">

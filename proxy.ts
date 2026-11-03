@@ -40,7 +40,8 @@ import { GUEST_ORDER_COOKIE, requirementFor } from "@/lib/roles";
  * reads or mutates the data.
  *
  * So the real check runs inside the thing being protected, every time:
- * `requireAdmin()` in app/admin/layout.tsx, `requireKitchen()` in
+ * `requireAdmin()` at the top of every app/admin page (not only its layout,
+ * which a client navigation can skip), `requireKitchen()` in
  * app/kitchen/page.tsx, and one at the top of every Server Action either portal
  * can invoke. Delete this file and the portals are still shut; they would only
  * get uglier for the people who belong there.

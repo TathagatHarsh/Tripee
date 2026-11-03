@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -78,6 +79,7 @@ export default async function OptionEditor({
 }: {
   params: Promise<{ category: string; value: string }>;
 }) {
+  await requireAdmin();
   const raw = await params;
   const category = readCategory(raw.category);
   /*
