@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { CATALOG_GROUPS, CATEGORY_META } from "@/lib/adminNav";
@@ -48,6 +49,7 @@ const GROUP_ICON: Record<string, string> = {
 };
 
 export default async function CatalogAdmin() {
+  await requireAdmin();
   const head = (
     <PageHeader
       title="Catalogue"

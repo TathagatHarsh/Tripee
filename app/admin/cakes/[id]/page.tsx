@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -36,6 +37,7 @@ export default async function EditCakePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireAdmin();
   const { id } = await params;
 
   if (!hasDatabase()) {

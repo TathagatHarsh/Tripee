@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { renderOrderCakeDocket } from "@/lib/orderCakeDocket";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -33,10 +34,9 @@ import { PrintButton } from "./PrintButton";
  *
  * ## Who gets in
  *
- * Nothing here, and that is on purpose. This route is nested under
- * app/admin/layout.tsx, whose `requireAdmin()` runs on the server for every
- * request to anything beneath it, at any depth. A second check in the page
- * would read as though it were the gate.
+ * Admins, checked by the `requireAdmin()` at the top of the page. The layout's
+ * check is not enough on its own: a client navigation can skip a layout (see
+ * app/admin/layout.tsx), so every admin page guards itself.
  */
 
 export const dynamic = "force-dynamic";
@@ -53,6 +53,7 @@ export default async function OrderDocket({
 }: {
   params: Promise<{ ref: string }>;
 }) {
+  await requireAdmin();
   const { ref } = await params;
 
   if (!hasDatabase()) {

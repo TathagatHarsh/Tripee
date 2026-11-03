@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import type { Metadata } from "next";
 import { CatalogGroupPage } from "../GroupPage";
 
@@ -13,10 +14,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function Page({
+export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  await requireAdmin();
   return <CatalogGroupPage slug="ingredients" searchParams={searchParams} />;
 }

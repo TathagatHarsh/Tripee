@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
@@ -112,6 +113,7 @@ export default async function DeliveryBoard({
 }: {
   searchParams: Promise<{ day?: string; state?: string; vendor?: string; slot?: string }>;
 }) {
+  await requireAdmin();
   if (!hasDatabase()) {
     return (
       <div className="flex flex-col gap-5">

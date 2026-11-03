@@ -11,11 +11,9 @@ import { migrateConfig } from "@/lib/schema";
  * the include list has one definition — a print docket quietly missing the
  * events the detail page includes is the kind of drift a second copy invites.
  *
- * No authorization here, deliberately. Both callers are pages under
- * app/admin/layout.tsx, whose `requireAdmin()` runs on the server for every
- * request to anything nested beneath it; a check in a data helper would read as
- * though it were the gate when it is not. The gate is the layout, and for
- * writes it is the action.
+ * No authorization here. Both callers are app/admin pages that call
+ * `requireAdmin()` themselves before reading (a client navigation can skip the
+ * layout's check, see app/admin/layout.tsx); for writes the gate is the action.
  *
  * The vendor assignments are included here rather than fetched separately for
  * the same reason everything else is: one order, one query, one include list.

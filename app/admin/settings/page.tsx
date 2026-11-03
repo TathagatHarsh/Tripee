@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { DEFAULT_BAKERY } from "@/lib/catalogDefaults";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { Notice, PageHeader } from "@/components/admin/ui";
@@ -19,6 +20,7 @@ import { BakeryForm } from "./BakeryForm";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsAdmin() {
+  await requireAdmin();
   if (!hasDatabase()) {
     return (
       <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>

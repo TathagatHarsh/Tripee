@@ -12,11 +12,9 @@ import type { Row } from "@/components/admin/CatalogList";
  * whole category with no photographs and look like a category with no
  * photographs.
  *
- * No authorization here, deliberately. Every caller is a page under
- * app/admin/layout.tsx, whose `requireAdmin()` runs on the server for every
- * request to anything nested beneath it; a check in a data helper would read as
- * though it were the gate when it is not. The gate is the layout, and for
- * writes it is the action.
+ * No authorization here. Every caller is an app/admin page that calls
+ * `requireAdmin()` itself before reading (a client navigation can skip the
+ * layout's check, see app/admin/layout.tsx); for writes the gate is the action.
  */
 
 /** Timestamps are formatted here so `Row` stays serialisable across the boundary. */

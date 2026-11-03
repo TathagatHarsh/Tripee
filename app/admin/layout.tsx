@@ -37,11 +37,14 @@ import { ToastProvider } from "@/components/admin/Toast";
  *
  * ## The gate
  *
- * `requireAdmin()` here rather than only in proxy.ts, and this is the gate that
- * counts. A layout runs for this page and every page nested under it, on the
- * server, on every request, and — unlike a proxy — there is no header anybody
- * can send that skips it. proxy.ts turns guests away early and keeps the
- * session cookie fresh; this decides.
+ * `requireAdmin()` here guards the full page load and the chrome, but it is NOT
+ * the gate for the pages. On a client-side navigation Next renders only the
+ * segments below the one the browser says it already holds, and that claim is
+ * the unsigned `Next-Router-State-Tree` header: anybody can send one that skips
+ * this layout while the page under it still renders and reads the database.
+ * So every app/admin page calls `requireAdmin()` itself, first thing, and
+ * tests/adminGuards.test.ts fails the build for a page that does not.
+ * proxy.ts only turns guests away early and keeps the session cookie fresh.
  *
  * It does NOT cover the writes. A Server Action posts to the route it lives on
  * but does not re-run its layout, so every action in ./actions.ts carries its

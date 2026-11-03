@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import type { Metadata } from "next";
 import { clerkClient } from "@clerk/nextjs/server";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
@@ -18,6 +19,7 @@ const ROLE_LABEL: Record<string, string> = { ADMIN: "Admin", KITCHEN: "Kitchen" 
  * command.
  */
 export default async function StaffPage() {
+  await requireAdmin();
   if (!hasDatabase()) {
     return (
       <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>

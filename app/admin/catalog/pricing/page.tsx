@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { DEFAULT_SETTINGS } from "@/lib/catalogDefaults";
@@ -35,6 +36,7 @@ export const metadata: Metadata = {
 };
 
 export default async function PricingAdmin() {
+  await requireAdmin();
   const head = (
     <PageHeader
       title="Pricing"
