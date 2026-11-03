@@ -5,9 +5,8 @@ import type { VendorOrderStatus } from "@prisma/client";
 import { requireVendor } from "@/lib/auth";
 import { hasDatabase } from "@/lib/db";
 import { db } from "@/lib/db";
-import { applyStatusTransition } from "@/lib/orderTransition";
-import { applyVendorTransition } from "@/lib/vendorTransition";
-import { composeRejection, VENDOR_DELIVERY_NEXT, vendorMoveLabel, type VendorMove } from "@/lib/vendors";
+import { applyVendorTransition, handOver, vendorDeliveryMove } from "@/lib/vendorTransition";
+import { composeRejection, vendorMoveLabel, type VendorMove } from "@/lib/vendors";
 
 /**
  * The only write a partner bakery can make.
@@ -113,11 +112,10 @@ export async function moveAssignment(
 
   if (to === "rejected" && !reason) return { ok: false, message: "Choose a rejection reason or enter a note." };
 
-  const moved = await applyVendorTransition(vendor.id, ref, to, reason, assignmentId, userId);
-  /* Handing over is the cake leaving the bakery, which the customer reads as
-     out for delivery. A second transaction: if it loses a race, the ticket
-     offers "Send out for delivery" again rather than leaving the order stuck. */
-  if (moved && to === "handed_over") await applyStatusTransition(ref, "out_for_delivery", userId);
+  /* Handing over also sends the customer's order out; lib/vendorTransition says why. */
+  const moved = to === "handed_over"
+    ? await handOver(vendor.id, ref, assignmentId, userId)
+    : await applyVendorTransition(vendor.id, ref, to, reason, assignmentId, userId);
 
   revalidatePath("/vendor");
   /* The history list too: a decline moves an order off the board and onto it,
@@ -140,12 +138,7 @@ export async function moveAssignment(
     };
 }
 
-/**
- * The two delivery moves, which are the customer's Order moving rather than the
- * bakery's assignment. Scoped the same way as above: the order must be held by
- * this session's bakery, through this exact assignment, already handed over.
- * lib/orderTransition then re-checks the state machine inside its own lock.
- */
+/** The two delivery moves; lib/vendorTransition's vendorDeliveryMove scopes them to this bakery. */
 async function deliver(
   vendorId: string,
   userId: string,
@@ -153,14 +146,7 @@ async function deliver(
   assignmentId: string,
   to: "out_for_delivery" | "delivered",
 ): Promise<ActionResult> {
-  const order = await db.order.findFirst({
-    where: { ref, currentAssignment: { id: assignmentId, vendorId, status: "handed_over" } },
-    select: { status: true, fulfillmentMethod: true },
-  });
-  const moved =
-    !!order &&
-    VENDOR_DELIVERY_NEXT[order.status] === to &&
-    (await applyStatusTransition(ref, to, userId));
+  const moved = await vendorDeliveryMove(vendorId, ref, assignmentId, to, userId);
 
   revalidatePath("/vendor");
   revalidatePath("/vendor/orders");
@@ -168,7 +154,7 @@ async function deliver(
   revalidatePath(`/admin/orders/${ref}`);
 
   return moved
-    ? { ok: true, message: `${vendorMoveLabel(to, order?.fulfillmentMethod === "pickup")}: done.` }
+    ? { ok: true, message: `${vendorMoveLabel(to, await isPickup(ref))}: done.` }
     : { ok: false, message: "That is no longer available. Reload to see where this order is." };
 }
 

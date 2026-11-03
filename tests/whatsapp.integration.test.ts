@@ -143,6 +143,38 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
       expect((await current(order.id)).status).toBe('in_preparation');
       expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('in_kitchen');
     });
+    const orderStatus = async (orderId: string) => (await db.order.findUniqueOrThrow({ where: { id: orderId } })).status;
+    const replyTo = (msgId: string) => db.notificationOutbox.findUniqueOrThrow({ where: { dedupeKey: `wa-reply:${msgId}:919876543210` } });
+    it('handed over sends the order out and offers Delivered, which closes it', async () => {
+      const { order, vendors, offer } = await offered();
+      await respondToAssignment(vendors[0].id, order.ref, offer.id, 'ACCEPTED');
+      for (const s of ['in_preparation', 'ready'] as const) await moveFulfillment(vendors[0].id, order.ref, s, offer.id);
+      await handleInbound({ id: 'wamid.7', from: '919876543210', payload: `handover:${offer.id}` });
+      expect(await orderStatus(order.id)).toBe('out_for_delivery');
+      expect((await replyTo('wamid.7')).payload).toMatchObject({ type: 'buttons', buttons: [{ id: `deliver:${offer.id}`, title: 'Delivered' }] });
+      await handleInbound({ id: 'wamid.8', from: '919876543210', text: 'delivered' });
+      expect(await orderStatus(order.id)).toBe('delivered');
+      expect((await replyTo('wamid.8')).payload).toEqual({ type: 'text', body: `✅ ${order.ref}: delivered. Thank you!` });
+    });
+    it('a pickup reads as collection all the way, and Collected closes it', async () => {
+      const { order, offer } = await offered();
+      await db.order.update({ where: { id: order.id }, data: { fulfillmentMethod: 'pickup' } });
+      await handleInbound({ id: 'wamid.9', from: '919876543210', payload: `accept:${offer.id}` });
+      expect((await replyTo('wamid.9')).payload).toMatchObject({ buttons: [{}, {}, { id: `handover:${offer.id}`, title: 'Ready for collection' }] });
+      for (const [id, text] of [['wamid.10', 'started'], ['wamid.11', 'ready'], ['wamid.12', 'handed over']]) await handleInbound({ id, from: '919876543210', text });
+      expect(await orderStatus(order.id)).toBe('out_for_delivery');
+      expect((await replyTo('wamid.12')).payload).toMatchObject({ buttons: [{ id: `deliver:${offer.id}`, title: 'Collected' }] });
+      await handleInbound({ id: 'wamid.13', from: '919876543210', text: 'Collected' });
+      expect(await orderStatus(order.id)).toBe('delivered');
+      expect((await replyTo('wamid.13')).payload).toEqual({ type: 'text', body: `✅ ${order.ref}: collected. Thank you!` });
+    });
+    it('delivered before the cake has left is refused', async () => {
+      const { order, vendors, offer } = await offered();
+      await respondToAssignment(vendors[0].id, order.ref, offer.id, 'ACCEPTED');
+      await handleInbound({ id: 'wamid.14', from: '919876543210', text: 'delivered' });
+      expect(await orderStatus(order.id)).toBe('confirmed');
+      expect(directTexts()).toEqual(['Nothing to mark delivered right now.']);
+    });
     it('a retried webhook message gets one reply', async () => {
       const { order, offer } = await offered();
       for (let i = 0; i < 2; i++) await handleInbound({ id: 'wamid.3', from: '919876543210', payload: `accept:${offer.id}` });
