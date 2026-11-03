@@ -72,3 +72,6 @@ next-env.d.ts
 # Cake photo sources. These are shot once and converted into
 # public/presets/*.webp, which is what the site actually serves.
 /pics/
+
+# copied from node_modules by postinstall (maplibre-gl 6 worker)
+/public/maplibre-gl-worker.mjs

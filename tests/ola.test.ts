@@ -83,9 +83,9 @@ describe('Ola providers', () => {
 describe('map library', () => {
   /* maplibre-gl 6 starts its worker from a separate file that Next/Turbopack does not
      serve ("Worker failed to load"), so the map draws its background and no streets.
-     Stay on 5.x until that is fixed upstream or the worker URL is set explicitly. */
-  it('stays on 5.x', () => {
-    const { version } = JSON.parse(readFileSync('node_modules/maplibre-gl/package.json', 'utf8'));
-    expect(version.split('.')[0]).toBe('5');
+     postinstall copies it to public/ and Map.tsx points setWorkerUrl at it; a stale
+     copy from another version would break the map the same way. */
+  it('serves the worker that matches the installed maplibre-gl', () => {
+    expect(readFileSync('public/maplibre-gl-worker.mjs')).toEqual(readFileSync('node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs'));
   });
 });
