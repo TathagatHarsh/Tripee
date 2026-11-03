@@ -99,11 +99,12 @@ export async function dispatchPendingNotifications(limit = 20): Promise<{
       log("info", "notification_sent", { id: candidate.id, kind: candidate.kind });
     } catch (error) {
       const delayMinutes = Math.min(60, 2 ** Math.min(candidate.attempts, 6));
+      const lastError = error instanceof Error ? error.message.slice(0, 500) : "notification_failed";
       const completed = await db.notificationOutbox.updateMany({
         where: claim,
         data: {
           status: "failed",
-          lastError: error instanceof Error ? error.message.slice(0, 500) : "notification_failed",
+          lastError,
           availableAt: new Date(Date.now() + delayMinutes * 60_000),
         },
       });
@@ -113,6 +114,8 @@ export async function dispatchPendingNotifications(limit = 20): Promise<{
         id: candidate.id,
         kind: candidate.kind,
         attempt: candidate.attempts + 1,
+        // The provider's status and code (e.g. whatsapp_400_132000), never the number or the message.
+        error: lastError,
       });
     }
   }
