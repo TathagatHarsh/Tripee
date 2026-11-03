@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('../lib/log', () => ({ log: vi.fn() }));
 vi.mock('../lib/db', () => ({ db: {} }));
 import type { WhatsAppMessage } from '../lib/whatsapp';
-import { acceptedMessage, adminNewOrderMessage, cleanParam, formatDue, offerMessage, queueWhatsApp, rupees, textMessage, updateMessage } from '../lib/whatsappMessages';
+import { acceptedMessage, handedOverMessage, adminNewOrderMessage, cleanParam, formatDue, offerMessage, queueWhatsApp, rupees, textMessage, updateMessage } from '../lib/whatsappMessages';
 
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks(); });
 
@@ -48,6 +48,15 @@ describe('builders', () => {
   it('acceptedMessage offers the three steps', () => {
     expect(acceptedMessage('MC-1', 'as1')).toEqual({ type: 'buttons', body: 'MC-1 is yours. Tap each step as you go.',
       buttons: [{ id: 'start:as1', title: 'Started' }, { id: 'ready:as1', title: 'Ready' }, { id: 'handover:as1', title: 'Handed over' }] });
+  });
+  it('acceptedMessage words the last step as collection for a pickup', () => {
+    expect(acceptedMessage('MC-1', 'as1', true).buttons[2]).toEqual({ id: 'handover:as1', title: 'Ready for collection' });
+  });
+  it('handedOverMessage offers the final step, delivered or collected', () => {
+    expect(handedOverMessage('MC-1', 'as1', false)).toEqual({ type: 'buttons', body: "✅ MC-1: out for delivery. Tap Delivered when the customer has the cake.",
+      buttons: [{ id: 'deliver:as1', title: 'Delivered' }] });
+    expect(handedOverMessage('MC-1', 'as1', true)).toEqual({ type: 'buttons', body: "✅ MC-1: ready for collection. Tap Collected when the customer has the cake.",
+      buttons: [{ id: 'deliver:as1', title: 'Collected' }] });
   });
   it('textMessage wraps the body', () => { expect(textMessage('hi')).toEqual({ type: 'text', body: 'hi' }); });
 });

@@ -99,15 +99,28 @@ export function updateMessage(ref: string, text: string): WhatsAppMessage {
   return { type: "template", name: "order_update", components: [body(cleanParam(ref), cleanParam(text, 400))] };
 }
 
-export function acceptedMessage(ref: string, assignmentId: string): WhatsAppMessage {
+type ButtonsMessage = Extract<WhatsAppMessage, { type: "buttons" }>;
+
+/** The portal's wording: for a pickup, handing over is the cake waiting at the counter. */
+export function acceptedMessage(ref: string, assignmentId: string, pickup = false): ButtonsMessage {
   return {
     type: "buttons",
     body: `${ref} is yours. Tap each step as you go.`,
     buttons: [
       { id: `start:${assignmentId}`, title: "Started" },
       { id: `ready:${assignmentId}`, title: "Ready" },
-      { id: `handover:${assignmentId}`, title: "Handed over" },
+      { id: `handover:${assignmentId}`, title: pickup ? "Ready for collection" : "Handed over" },
     ],
+  };
+}
+
+/** After the handover the bakery still owns the order: it marks the cake delivered, or collected. */
+export function handedOverMessage(ref: string, assignmentId: string, pickup: boolean): ButtonsMessage {
+  const [state, button] = pickup ? ["ready for collection", "Collected"] : ["out for delivery", "Delivered"];
+  return {
+    type: "buttons",
+    body: `✅ ${ref}: ${state}. Tap ${button} when the customer has the cake.`,
+    buttons: [{ id: `deliver:${assignmentId}`, title: button }],
   };
 }
 

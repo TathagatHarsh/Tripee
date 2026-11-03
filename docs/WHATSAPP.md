@@ -1,6 +1,6 @@
 # WhatsApp order desk
 
-New orders go to the nearest in-stock bakery on WhatsApp, with the cake photo. The bakery taps **Accept**, then **Started**, **Ready**, **Handed over**. The admin gets every step on his own WhatsApp. The website stays the record: a WhatsApp reply runs the same checks as the vendor portal buttons.
+New orders go to the nearest in-stock bakery on WhatsApp, with the cake photo. The bakery taps **Accept**, then **Started**, **Ready**, **Handed over**, **Delivered** (for a pickup: **Ready for collection**, **Collected**). The admin gets every step on his own WhatsApp. The website stays the record: a WhatsApp reply runs the same checks as the vendor portal buttons.
 
 Design: `docs/superpowers/specs/2026-10-09-whatsapp-order-desk-design.md`. No database migration was needed.
 
@@ -10,7 +10,7 @@ Design: `docs/superpowers/specs/2026-10-09-whatsapp-order-desk-design.md`. No da
 2. The bakery gets the `order_offer` template with the cake photo and Accept / Reject buttons. The admin gets `admin_new_order` and an update saying who was offered.
 3. Accept: the bakery gets "yours" with Started / Ready / Handed over buttons. Reject, or no answer within `ASSIGNMENT_RESPONSE_SECONDS` (default 15 minutes): the next-nearest eligible bakery is offered (needs `ASSIGNMENT_AUTO_REASSIGN=true`). The admin is told each time.
 4. No bakery left: the order goes to MANUAL and the admin gets a message with the admin order link.
-5. Out for delivery, delivered and cancelled stay on the website. The admin gets each on WhatsApp. A cancellation also tells the bakery that held the order.
+5. The bakery delivers the cake, so it moves the customer's order to the end, exactly as the vendor portal does. **Started** puts the order In the kitchen. **Handed over** sends it out for delivery (for a pickup, the customer sees "Ready to collect"), and the reply carries one more button, **Delivered** (or **Collected**), which closes the order. The customer's tracker and notifications move with each step. Cancellation stays on the website. The admin gets every step on WhatsApp, and a cancellation also tells the bakery that held the order.
 
 If Meta is down, offers still expire and move on. Messages wait in the outbox and retry (up to 8 attempts).
 
@@ -24,9 +24,10 @@ Not case-sensitive. Add `MC-XXXX` when the bakery has more than one open order.
 | Reject | reject, no |
 | Started | start, started, order started, start order |
 | Ready | ready, order ready |
-| Handed over | handed over, handover, picked up, done |
+| Handed over | handed over, handover, picked up, done, ready for collection |
+| Delivered | delivered, order delivered, collected, order collected |
 
-Example: `started MC-1234`.
+Example: `started MC-1234`. **Delivered** only works once the order is out for delivery.
 
 If the word fits one order, it applies. If it fits none, the bakery is told so. If it fits several, the bakery is asked which one. Anything else gets a short help message. A message from a number that is not an active bakery gets one fixed line saying the number is for bakery partners.
 
