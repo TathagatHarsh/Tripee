@@ -83,8 +83,12 @@ export function AssignmentMap({
     let map: MapLibreMap | undefined,
       disposed = false;
     void import("maplibre-gl")
-      .then(({ Map, Marker, Popup, LngLatBounds }) => {
+      .then(({ Map, Marker, Popup, LngLatBounds, setWorkerUrl }) => {
         if (!node.current || disposed) return;
+        /* maplibre-gl 6 starts its worker from a separate file that Turbopack does not
+           bundle, so without this the map draws its background and no streets.
+           postinstall copies the worker that matches the installed version into public/. */
+        setWorkerUrl("/maplibre-gl-worker.mjs");
         const points = JSON.parse(serialized) as MapPin[];
         const c = start.current;
         const at = mode === "center" ? (c ?? { lat: 17.385, lng: 78.4867 }) : { lat: 17.431, lng: 78.407 };
