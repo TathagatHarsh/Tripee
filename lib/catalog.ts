@@ -173,7 +173,7 @@ export const DELIVERY_OPTIONS: Option<DeliverySlot>[] = [
   { value: "same-day", name: "Same day", blurb: "12 hours · order before 11:00" },
   { value: "express-4hr", name: "Express 4-hour", blurb: "4 hours · core Hyderabad only" },
   { value: "midnight", name: "Midnight", blurb: "23:30–00:30 · order by 18:00" },
-  { value: "pickup", name: "Store pickup", blurb: "Jubilee Hills · 10:00–21:00" },
+  { value: "pickup", name: "Store pickup", blurb: "Ahmedguda · 10:00–21:00" },
 ];
 
 /** Frosting colours a kitchen can actually hit with natural colouring. */

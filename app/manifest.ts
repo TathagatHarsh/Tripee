@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "MakeYourCakes",
     short_name: "MakeYourCakes",
-    description: "Cakes baked to order in Jubilee Hills, Hyderabad.",
+    description: "Cakes baked to order in Hyderabad.",
     start_url: "/",
     display: "standalone",
     background_color: "#faf7ef",
