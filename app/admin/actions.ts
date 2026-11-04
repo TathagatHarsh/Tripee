@@ -455,14 +455,18 @@ const SlotEdit = z.object({
     .refine((h) => h <= 24 * 90, "That is more than three months."),
   slotWindow: z.string().trim().min(1, "Say when it arrives.").max(120),
   slotNote: z.string().trim().max(200),
+  // Blank saves as null, which is what the seed writes and what the form shows
+  // for it: no daily limit (api/orders and api/price skip a capacity of 0), and
+  // a cutoff that falls back to the lead time (catalogSnapshot). Requiring a
+  // number here made every seeded slot unsavable.
   dailyCapacity: z.string().trim()
-    .refine((s) => /^\d+$/.test(s), "Daily capacity is a whole number.")
-    .transform(Number)
-    .refine((n) => n > 0 && n <= 10_000, "Daily capacity must be between 1 and 10,000."),
+    .refine((s) => s === "" || /^\d+$/.test(s), "Daily capacity is a whole number, or blank for no limit.")
+    .transform((s) => (s === "" ? null : Number(s)))
+    .refine((n) => n === null || (n > 0 && n <= 10_000), "Daily capacity must be between 1 and 10,000."),
   cutoffHours: z.string().trim()
-    .refine((s) => /^\d+$/.test(s), "Cutoff is a whole number of hours.")
-    .transform(Number)
-    .refine((n) => n <= 24 * 90, "That cutoff is more than three months."),
+    .refine((s) => s === "" || /^\d+$/.test(s), "Cutoff is a whole number of hours, or blank for the lead time.")
+    .transform((s) => (s === "" ? null : Number(s)))
+    .refine((n) => n === null || n <= 24 * 90, "That cutoff is more than three months."),
 });
 
 export async function saveDeliverySlot(
