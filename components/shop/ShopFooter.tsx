@@ -14,10 +14,16 @@ import { CAKE_CATEGORIES } from "@/lib/cakes";
  * policy lib/docket already holds: a licence number nobody has entered is not a
  * licence number to print.
  *
- * The link columns list pages that exist. There is no /contact and no /policies
- * route in this application, so this does not link to them — a footer full of
- * 404s is worse than a short footer.
+ * The link columns list pages that exist — a footer full of 404s is worse than a
+ * short footer. tests/policyPages.test.ts holds the policy links to that.
  */
+const POLICIES = [
+  { href: "/terms", label: "Terms" },
+  { href: "/refund-policy", label: "Cancellations & refunds" },
+  { href: "/shipping-policy", label: "Delivery" },
+  { href: "/privacy", label: "Privacy policy" },
+  { href: "/contact", label: "Contact" },
+];
 export function ShopFooter({ bakery }: { bakery: BakeryInfo }) {
   return (
     <footer className="border-t border-s-line bg-s-cocoa-deep text-s-cream/85">
@@ -86,12 +92,15 @@ export function ShopFooter({ bakery }: { bakery: BakeryInfo }) {
         <div className="mx-auto flex max-w-[84rem] flex-col gap-2 px-4 py-6 font-mono text-[0.75rem] tracking-[0.06em] text-s-cream/50 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-10">
           <span>© {new Date().getFullYear()} MakeYourCakes</span>
           <span className="flex flex-wrap items-center gap-x-5">
-            <Link
-              href="/privacy"
-              className="inline-flex min-h-11 items-center underline decoration-s-cream/30 underline-offset-4 transition-colors hover:text-s-cream hover:decoration-s-cream"
-            >
-              Privacy policy
-            </Link>
+            {POLICIES.map((p) => (
+              <Link
+                key={p.href}
+                href={p.href}
+                className="inline-flex min-h-11 items-center underline decoration-s-cream/30 underline-offset-4 transition-colors hover:text-s-cream hover:decoration-s-cream"
+              >
+                {p.label}
+              </Link>
+            ))}
             {bakery.fssaiLicence && <span>FSSAI {bakery.fssaiLicence}</span>}
           </span>
         </div>
