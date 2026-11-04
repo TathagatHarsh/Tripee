@@ -75,3 +75,6 @@ next-env.d.ts
 
 # copied from node_modules by postinstall (maplibre-gl 6 worker)
 /public/maplibre-gl-worker.mjs
+
+# The client's original photo/video exports; public/custom holds the web copies.
+/MakeYourCakes/

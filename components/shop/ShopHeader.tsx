@@ -69,13 +69,15 @@ export function ShopHeader({
 
         <nav aria-label="Cakes" className="ml-4 hidden items-center gap-1 lg:flex">
           <NavLink href="/shop" current={current === "shop"}>All cakes</NavLink>
-          {/* Four of the six, because the bar has room for four. The rest are on
-              /shop, which is where the sixth link would send somebody anyway. */}
-          {CAKE_CATEGORIES.slice(0, 4).map((c) => (
+          {/* Three of the six, because the bar has room for three beside Custom
+              cakes. The rest are on /shop, which is where another link would
+              send somebody anyway. */}
+          {CAKE_CATEGORIES.slice(0, 3).map((c) => (
             <NavLink key={c.slug} href={`/shop?category=${c.slug}`} current={current === c.slug}>
               {c.name.replace(/ Cakes$/, "")}
             </NavLink>
           ))}
+          <NavLink href="/custom-cakes" current={current === "custom-cakes"}>Custom cakes</NavLink>
         </nav>
 
         {/* `flex-1 justify-end` rather than `ml-auto` on the first control: the
@@ -159,6 +161,9 @@ export function ShopHeader({
           <ul className="flex flex-col">
             <li>
               <DrawerLink href="/shop">All cakes</DrawerLink>
+            </li>
+            <li>
+              <DrawerLink href="/custom-cakes">Custom cakes</DrawerLink>
             </li>
             {CAKE_CATEGORIES.map((c) => (
               <li key={c.slug}>

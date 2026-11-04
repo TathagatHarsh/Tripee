@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BuilderComingSoon } from "@/components/shop/BuilderComingSoon";
 import { CakePhoto } from "@/components/shop/CakePhoto";
+import { CustomCakeTile } from "@/components/shop/CustomCakeTile";
+import { CUSTOM_CAKES, HOME_CUSTOM_IDS } from "@/lib/customCakes";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
@@ -247,6 +249,32 @@ export default async function Home() {
                 </li>
               ))}
             </ol>
+          </div>
+        </section>
+        <section className="brand-section" aria-labelledby="custom">
+          <div className="brand-section-head s-rise-in">
+            <div>
+              <span className={sEyebrow}>Custom cakes</span>
+              <h2 id="custom">Made to your idea.</h2>
+              <p className="mt-3 max-w-[36rem] text-s-bark">
+                Jungle birthdays, engagement tiers, a cake shaped like their
+                job. Send us a photo of what you have in mind and we will
+                quote it on WhatsApp.
+              </p>
+            </div>
+            <Link href="/custom-cakes" className={sBtn("outline")}>
+              See all custom cakes ↗
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-6">
+            {HOME_CUSTOM_IDS.map((id) => (
+              <CustomCakeTile
+                key={id}
+                cake={CUSTOM_CAKES.find((c) => c.id === id)!}
+                phone={catalog.bakery.phone}
+                sizes="(min-width:1024px) 15vw, (min-width:640px) 30vw, 46vw"
+              />
+            ))}
           </div>
         </section>
         <section className="brand-section">
