@@ -31,7 +31,7 @@ export function ShopFooter({ bakery }: { bakery: BakeryInfo }) {
         <div className="flex flex-col gap-3">
           <span className="text-s-cream"><BrandLogo light /></span>
           <p className="max-w-[34ch] text-[0.9375rem] leading-relaxed text-s-cream/70">
-            One bakery in Jubilee Hills, Hyderabad. Every cake is baked to the
+            One bakery in Hyderabad. Every cake is baked to the
             order it was quoted from.
           </p>
         </div>

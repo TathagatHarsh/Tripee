@@ -10,7 +10,7 @@ import { FilmHome } from "./FilmHome";
 export const metadata: Metadata = {
   title: "MakeYourCakes — nine choices, one cake",
   description:
-    "One cake specified decision by decision, on a ticket the kitchen works from. Jubilee Hills, Hyderabad.",
+    "One cake specified decision by decision, on a ticket the kitchen works from. Hyderabad.",
 };
 
 export default function FilmPage() {

@@ -67,7 +67,7 @@ export async function generateMetadata({
     title: price
       ? `${product.name} · ${formatINR(price.total)} · MakeYourCakes`
       : `${product.name} · MakeYourCakes`,
-    description: `${product.description} Baked to order in Jubilee Hills, Hyderabad.`,
+    description: `${product.description} Baked to order in Hyderabad.`,
     openGraph: {
       title: `${product.name} · MakeYourCakes`,
       description: product.description,

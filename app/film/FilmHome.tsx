@@ -314,7 +314,7 @@ export function FilmHome() {
         <div className="mx-auto grid max-w-[1400px] gap-[32px] px-[24px] py-[64px] sm:grid-cols-3 md:px-[48px]">
           <div className="text-[length:var(--mono-xs)] leading-[1.6] tracking-[var(--tracking-mono-xs)] uppercase">
             <div>MakeYourCakes</div>
-            <div>Road No. 36, Jubilee Hills</div>
+            <div>MLR Colony, Ahmedguda</div>
             <div>Hyderabad 500033</div>
           </div>
           <div className="text-[length:var(--mono-xs)] leading-[1.6] tracking-[var(--tracking-mono-xs)] uppercase">

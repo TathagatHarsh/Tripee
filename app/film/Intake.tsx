@@ -85,7 +85,7 @@ export function Intake() {
     ["GOES OUT", resolved ? resolved.label : null],
     [
       pickup ? "COLLECT" : "DELIVER TO",
-      pickup ? "JUBILEE HILLS COUNTER" : pincode.length === 6 ? pincode : null,
+      pickup ? "AHMEDGUDA COUNTER" : pincode.length === 6 ? pincode : null,
     ],
   ];
 
@@ -101,7 +101,7 @@ export function Intake() {
           <div className="film-perf-top" aria-hidden />
 
           <div className="flex items-baseline justify-between pt-[16px] text-[length:var(--mono-xs)] tracking-[var(--tracking-mono-xs)] text-ink-60 uppercase">
-            <span>MakeYourCakes · Jubilee Hills</span>
+            <span>MakeYourCakes · Ahmedguda</span>
             <span>Ticket No. {TICKET_NO}</span>
           </div>
           <div className="mt-[8px] h-px w-full bg-ink" />

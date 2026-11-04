@@ -35,7 +35,7 @@ export default async function PrivacyPage() {
       title="Privacy policy"
       intro={
         <>
-          MakeYourCakes is a bakery in Jubilee Hills, Hyderabad. This page
+          MakeYourCakes is a bakery in Hyderabad. This page
           explains what this website and our ordering system collect, why, and
           who else sees it. Last updated {UPDATED}.
         </>

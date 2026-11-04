@@ -320,7 +320,7 @@ function BrandPanel() {
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[0.6875rem] tracking-[0.12em] text-s-cream/75 uppercase">
             <li>Eggless</li>
             <li aria-hidden className="size-1 rounded-full bg-s-cream/35" />
-            <li>Jubilee Hills</li>
+            <li>Hyderabad</li>
             <li aria-hidden className="size-1 rounded-full bg-s-cream/35" />
             <li>Pay after we confirm</li>
           </ul>

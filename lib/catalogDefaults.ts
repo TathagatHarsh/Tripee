@@ -202,7 +202,7 @@ const DEFAULT_SLOT_INFO: Record<
   pickup: {
     leadHours: 24,
     window: "Collect 10:00–21:00",
-    note: "Jubilee Hills counter. Bring the order reference.",
+    note: "Ahmedguda counter. Bring the order reference.",
     dailyCapacity: 25,
     cutoffHours: 24,
   },
@@ -252,10 +252,10 @@ export const DEFAULT_ZONES: DeliveryZoneInfo[] = [
  */
 export const DEFAULT_BAKERY: BakeryInfo = {
   name: "MakeYourCakes",
-  phone: "+91 90000 00000",
+  phone: "+91 99897 91579",
   email: "orders@makeyourcakes.com",
-  address: "Road No. 36, Jubilee Hills, Hyderabad 500033",
-  hours: "Tue–Sun 10:00–21:00. Closed Mondays.",
+  address: "Plot No 29, MLR Colony, Ahmedguda, Keesara Mandal, Medchal–Malkajgiri, Telangana 501301",
+  hours: "Open every day, 10:00–21:00.",
   fssaiLicence: process.env.NEXT_PUBLIC_FSSAI_LICENCE ?? "",
 };
 

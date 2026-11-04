@@ -40,7 +40,7 @@ export function Masthead() {
         <Wordmark />
 
         <div className="hidden text-[length:var(--mono-xs)] leading-[1.45] tracking-[var(--tracking-mono-xs)] text-ink-60 uppercase sm:block">
-          <div>Road No. 36, Jubilee Hills</div>
+          <div>MLR Colony, Ahmedguda</div>
           <div>Hyderabad 500033</div>
         </div>
 
