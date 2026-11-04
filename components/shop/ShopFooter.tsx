@@ -42,6 +42,7 @@ export function ShopFooter({ bakery }: { bakery: BakeryInfo }) {
           </h2>
           <ul className="flex flex-col gap-0.5">
             <FootLink href="/shop">All cakes</FootLink>
+            <FootLink href="/custom-cakes">Custom cakes</FootLink>
             {CAKE_CATEGORIES.slice(0, 4).map((c) => (
               <FootLink key={c.slug} href={`/shop?category=${c.slug}`}>
                 {c.name}
