@@ -145,6 +145,12 @@ const withClerk = clerkMiddleware(async (auth, req) => {
    * this app, taken from the matcher rather than from anything a visitor typed.
    */
   return redirectToSignIn({ returnBackUrl: req.nextUrl.pathname });
+}, {
+  /* Our own pages, not Clerk's hosted Account Portal (accounts.<domain>). Without
+     these `redirectToSignIn` falls back to the portal, so a signed-out visit to
+     /admin or /account left the site. Same pair as <ClerkProvider> in app/layout. */
+  signInUrl: "/sign-in",
+  signUpUrl: "/sign-up",
 });
 
 export default function proxy(req: NextRequest, event: NextFetchEvent) {
