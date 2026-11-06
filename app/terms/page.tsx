@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContactLinks, PolicyPage, Section } from "@/components/shop/PolicyPage";
+import { LEGAL_NAME } from "@/lib/brand";
 import { getBakeryInfo } from "@/lib/catalogData";
 import { paymentsEnabled } from "@/lib/razorpay";
 
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
   description: "The terms on which MakeYourCakes takes, makes and delivers cake orders.",
 };
 
-const UPDATED = "4 November 2026";
+const UPDATED = "6 November 2026";
 
 /**
  * The terms of service.
@@ -33,8 +34,11 @@ export default async function TermsPage() {
     >
       <Section title="Who we are">
         <p>
-          MakeYourCakes is a bakery business in Hyderabad, at {bakery.address}. You can reach us
-          on <ContactLinks bakery={bakery} />.
+          MakeYourCakes is a bakery brand run by {LEGAL_NAME}, a food business in Hyderabad, at{" "}
+          {bakery.address}.
+          {bakery.fssaiLicence && <> {LEGAL_NAME} is registered with FSSAI, registration number {bakery.fssaiLicence}.</>}{" "}
+          In these terms, &ldquo;we&rdquo; and &ldquo;us&rdquo; mean {LEGAL_NAME}. You can reach us on{" "}
+          <ContactLinks bakery={bakery} />.
         </p>
       </Section>
 

@@ -52,7 +52,7 @@ export function BakeryForm({ bakery }: { bakery: Bakery }) {
 
         <label className="flex flex-col gap-1">
           <span className="font-a-mono text-a-meta uppercase tracking-[0.1em] text-a-muted">
-            FSSAI licence number
+            FSSAI registration or licence number
           </span>
           <input
             name="fssaiLicence"
@@ -66,8 +66,8 @@ export function BakeryForm({ bakery }: { bakery: Bakery }) {
             a public docket is a worse document than no line at all.
           */}
           <span className="font-a-sans text-a-meta leading-relaxed text-a-muted">
-            Printed on every docket. Leave it empty and no line appears — better
-            an absent licence than an invented one.
+            Printed on every docket, the footer and the contact page. Leave it
+            empty and no line appears — better an absent number than an invented one.
           </span>
         </label>
       </div>
