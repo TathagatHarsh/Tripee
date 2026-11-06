@@ -324,7 +324,7 @@ export function FilmHome() {
             {/* A licence number is a regulatory identifier, so it is printed when
                 the environment carries the real one and the line is simply absent
                 otherwise. An invented one would be a fabricated record. */}
-            {FSSAI_LICENCE && <div className="mt-[16px]">FSSAI Lic. No. {FSSAI_LICENCE}</div>}
+            {FSSAI_LICENCE && <div className="mt-[16px]">FSSAI No. {FSSAI_LICENCE}</div>}
           </div>
           <div className="text-[length:var(--mono-xs)] leading-[1.6] tracking-[var(--tracking-mono-xs)] uppercase">
             <p className="max-w-none font-mono text-[length:var(--mono-xs)] leading-[1.6] tracking-[var(--tracking-mono-xs)] text-paper-3 uppercase">

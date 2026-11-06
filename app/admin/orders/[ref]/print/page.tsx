@@ -156,7 +156,7 @@ export default async function OrderDocket({
       </section>
 
       <footer className="border-t border-rule pt-3 text-micro leading-relaxed text-steel">
-        {FSSAI_LICENCE && <p>FSSAI Lic. No. {FSSAI_LICENCE}</p>}
+        {(catalog.bakery.fssaiLicence || FSSAI_LICENCE) && <p>FSSAI No. {catalog.bakery.fssaiLicence || FSSAI_LICENCE}</p>}
         <p>Printed from the order book. {order.ref}</p>
       </footer>
     </article>

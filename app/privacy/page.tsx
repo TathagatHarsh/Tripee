@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PolicyPage, Section } from "@/components/shop/PolicyPage";
+import { LEGAL_NAME } from "@/lib/brand";
 import { getBakeryInfo } from "@/lib/catalogData";
 
 export const metadata: Metadata = {
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
     "What MakeYourCakes collects when you order a cake, who it is shared with, and how to ask for it to be corrected or deleted.",
 };
 
-const UPDATED = "31 October 2026";
+const UPDATED = "6 November 2026";
 
 /**
  * The privacy policy.
@@ -35,7 +36,8 @@ export default async function PrivacyPage() {
       title="Privacy policy"
       intro={
         <>
-          MakeYourCakes is a bakery in Hyderabad. This page
+          MakeYourCakes is a bakery in Hyderabad, run by {LEGAL_NAME}, which is
+          responsible for the information described here. This page
           explains what this website and our ordering system collect, why, and
           who else sees it. Last updated {UPDATED}.
         </>

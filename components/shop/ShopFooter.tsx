@@ -1,5 +1,6 @@
 import { BrandLogo } from "@/components/BrandLogo";
 import Link from "next/link";
+import { LEGAL_NAME } from "@/lib/brand";
 import type { BakeryInfo } from "@/lib/catalogSnapshot";
 import { CAKE_CATEGORIES } from "@/lib/cakes";
 
@@ -91,7 +92,7 @@ export function ShopFooter({ bakery }: { bakery: BakeryInfo }) {
 
       <div className="border-t border-s-cream/10">
         <div className="mx-auto flex max-w-[84rem] flex-col gap-2 px-4 py-6 font-mono text-[0.75rem] tracking-[0.06em] text-s-cream/50 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-10">
-          <span>© {new Date().getFullYear()} MakeYourCakes</span>
+          <span>© {new Date().getFullYear()} MakeYourCakes · {LEGAL_NAME}</span>
           <span className="flex flex-wrap items-center gap-x-5">
             {POLICIES.map((p) => (
               <Link

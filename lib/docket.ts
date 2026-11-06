@@ -258,7 +258,9 @@ export function buildDocket(
     servings: servings.min === servings.max
       ? `${servings.max}`
       : `${servings.min}–${servings.max}`,
-    fssai: FSSAI_LICENCE,
+    // The number saved at /admin/settings; the env var only for a deployment
+    // that has none saved.
+    fssai: catalog.bakery.fssaiLicence || FSSAI_LICENCE,
   };
 }
 
@@ -353,7 +355,7 @@ export function renderSpecSheet(
   }
   if (d.fssai) {
     out.push("");
-    out.push(`FSSAI Lic. No. ${d.fssai}`);
+    out.push(`FSSAI No. ${d.fssai}`);
   }
 
   return out.join("\n");

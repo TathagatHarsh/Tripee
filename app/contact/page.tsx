@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ContactLinks, PolicyPage, Section } from "@/components/shop/PolicyPage";
+import { LEGAL_NAME } from "@/lib/brand";
 import { getBakeryInfo } from "@/lib/catalogData";
 
 export const metadata: Metadata = {
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
  * Contact. Every fact is `catalog.bakery`, the row the owner edits at
  * /admin/settings, for the footer's reason: a page that types a phone number
  * keeps printing last year's phone number. The FSSAI line follows the footer's
- * rule too: printed only once a licence number has been entered.
+ * rule too: printed only once a registration number has been entered.
  */
 export default async function ContactPage() {
   const bakery = await getBakeryInfo();
@@ -38,11 +39,12 @@ export default async function ContactPage() {
         </address>
       </Section>
 
-      {bakery.fssaiLicence && (
-        <Section title="Food licence">
-          <p>FSSAI licence number {bakery.fssaiLicence}.</p>
-        </Section>
-      )}
+      <Section title="The business">
+        <p>
+          MakeYourCakes is run by {LEGAL_NAME}.
+          {bakery.fssaiLicence && <> FSSAI registration number {bakery.fssaiLicence}.</>}
+        </p>
+      </Section>
     </PolicyPage>
   );
 }
