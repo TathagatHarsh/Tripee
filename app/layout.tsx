@@ -15,17 +15,17 @@ export const metadata: Metadata = {
   applicationName: "MakeYourCakes",
   title: "MakeYourCakes · cakes baked to order in Hyderabad",
   description:
-    "MakeYourCakes: eggless cakes baked to order and delivered across Hyderabad. Itemised pricing, and we call to confirm every order before it goes in the oven.",
+    "MakeYourCakes: eggless cakes baked to order and delivered across Hyderabad, with low sugar, prebiotic and fibre-rich cakes available. Itemised pricing, and we call to confirm every order before it goes in the oven.",
   twitter: {
     card: "summary",
     title: "MakeYourCakes",
-    description: "Cakes baked to order in Hyderabad.",
+    description: "Cakes baked to order in Hyderabad. Low sugar, prebiotic and fibre-rich cakes available.",
     images: ["/brand/icon-512.png"],
   },
   openGraph: {
     title: "MakeYourCakes",
     siteName: "MakeYourCakes",
-    description: "Cakes baked to order in Hyderabad.",
+    description: "Cakes baked to order in Hyderabad. Low sugar, prebiotic and fibre-rich cakes available.",
     type: "website",
     images: [{ url: "/brand/icon-512.png", width: 512, height: 512, alt: "MakeYourCakes" }],
   },

@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   title: "MakeYourCakes · A little more celebration",
   description:
-    "Beautiful cakes, baked to order in Hyderabad. Find your flavour, choose your size, and make their day.",
+    "Beautiful cakes, baked to order in Hyderabad, with low sugar, prebiotic and fibre-rich cakes available. Find your flavour, choose your size, and make their day.",
 };
 
 export default async function Home() {
@@ -64,6 +64,12 @@ export default async function Home() {
               <p>
                 Big milestones. Small victories. Just-because Tuesdays.
                 Beautiful cakes for everything worth a slice.
+              </p>
+              {/* The client's main selling point, so it sits above the fold
+                  on every screen size, before the buttons. */}
+              <p className="inline-flex w-fit items-center gap-2 rounded-2xl border sm:rounded-full sm:whitespace-nowrap border-s-berry/30 bg-s-shell px-4 py-2 text-[0.9375rem] font-semibold text-s-cocoa">
+                <span aria-hidden className="text-s-berry">✳</span>
+                Low sugar, prebiotic &amp; fibre-rich cakes available
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link href="/shop" className={sBtn("primary", "lg")}>
@@ -133,7 +139,7 @@ export default async function Home() {
           </div>
         </section>
         <div className="brand-ribbon" aria-label="Our approach">
-          <span>Baked for your occasion</span>
+          <span>Low sugar · Prebiotic · Fibre-rich</span>
           <span aria-hidden>✳</span>
           <span>Your cake. Your message.</span>
           <span aria-hidden>✳</span>
