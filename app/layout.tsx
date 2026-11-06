@@ -62,7 +62,13 @@ export const viewport: Viewport = {
  */
 function Identity({ children }: { children: React.ReactNode }) {
   if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return <>{children}</>;
-  return <ClerkProvider>{children}</ClerkProvider>;
+  // Our pages for every Clerk-made link (the sign-in ↔ sign-up switch included),
+  // so nobody lands on the hosted Account Portal. Same pair as proxy.ts.
+  return (
+    <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">
+      {children}
+    </ClerkProvider>
+  );
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
