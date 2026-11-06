@@ -50,7 +50,8 @@ export default async function CustomCakesPage() {
             </h1>
             <p className="text-[1.0625rem] leading-relaxed text-s-bark">
               Every cake on this page was made to someone&rsquo;s idea. Pick one you love, or send us a
-              photo of the cake you have in mind, and we will quote it for you on WhatsApp.
+              photo of the cake you have in mind, and we will quote it for you on WhatsApp. Low
+              sugar, prebiotic and fibre-rich cakes are available too.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               {sendPhoto()}

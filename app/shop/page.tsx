@@ -166,7 +166,7 @@ export default async function ShopPage({
             </h1>
             <p className="max-w-[56ch] text-[1.0625rem] leading-relaxed text-s-bark">
               {heading?.blurb ??
-                "Each one is baked to order in Hyderabad. We call to confirm every order, then bake."}
+                "Each one is baked to order in Hyderabad, and low sugar, prebiotic and fibre-rich cakes are available. We call to confirm every order, then bake."}
             </p>
           </div>
 
