@@ -2317,6 +2317,7 @@ body:has(.k-root)::after {
 .s-root .brand-hero h1 { font-size:clamp(3.5rem,6.3vw,6.3rem); line-height:1.02; letter-spacing:-.065em; font-weight:450; }
 .brand-hero h1 em { color:var(--brand-primary); font-weight:400; }
 .s-root .brand-hero-copy>p { max-width:38ch; font-size:1.05rem; line-height:1.8; color:var(--brand-muted); }
+.s-root .brand-hero-copy>.brand-hero-badge { max-width:100%; font-size:.9375rem; line-height:1.5; color:var(--brand-muted); }
 .brand-hero-note { display:flex; gap:.85rem; align-items:center; font-size:.75rem; line-height:1.7; margin-top:.5rem; }
 .brand-hero-note>span:first-child { font-size:2.25rem; color:var(--brand-primary); }
 .brand-hero-note strong { font-weight:500; color:var(--brand-muted); }

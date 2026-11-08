@@ -67,9 +67,9 @@ export default async function Home() {
               </p>
               {/* The client's main selling point, so it sits above the fold
                   on every screen size, before the buttons. */}
-              <p className="inline-flex w-fit items-center gap-2 rounded-2xl border sm:rounded-full sm:whitespace-nowrap border-s-berry/30 bg-s-shell px-4 py-2 text-[0.9375rem] font-semibold text-s-cocoa">
-                <span aria-hidden className="text-s-berry">✳</span>
-                Low sugar, prebiotic &amp; fibre-rich cakes available
+              <p className="brand-hero-badge inline-flex w-fit items-center gap-2 rounded-2xl border border-s-berry/30 bg-s-shell px-4 py-2 font-semibold">
+                <span aria-hidden className="shrink-0 text-s-berry">✳</span>
+                <span>Low sugar, prebiotic &amp; fibre-rich cakes available</span>
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link href="/shop" className={sBtn("primary", "lg")}>

@@ -18,6 +18,8 @@ export interface CustomCake {
   height: number;
   /** Photos are `/custom/<id>.webp`; videos are `/custom/<id>.mp4` with a `.poster.webp`. */
   video?: true;
+  /** Retouched photos use a new URL to bypass cached originals. */
+  retouched?: true;
 }
 
 export const CUSTOM_GROUPS: { id: CustomGroup; title: string; blurb: string }[] = [
@@ -29,27 +31,26 @@ export const CUSTOM_GROUPS: { id: CustomGroup; title: string; blurb: string }[] 
 const P = 900, T = 1200, N = 675, V = { width: 576, height: 1024, video: true } as const;
 
 export const CUSTOM_CAKES: CustomCake[] = [
-  { id: "jungle-three-tier", group: "kids", width: P, height: T, alt: "Three-tier jungle cake for a fourth birthday with a lion, giraffe and elephants" },
+  { id: "ballerina-pink-butterflies-front", group: "kids", width: 554, height: T, alt: "Pink and white ballerina birthday cake with butterfly decorations and pink, white and gold sugar balls, front view" },
+  { id: "ballerina-pink-butterflies-angle", group: "kids", width: 554, height: T, alt: "Angled view of a pink and white ballerina cake with butterflies, piped ribbons and a gold Happy Birthday topper" },
+  { id: "jungle-three-tier", retouched: true, group: "kids", width: P, height: T, alt: "Three-tier jungle cake for a fourth birthday with a lion, giraffe and elephants" },
   { id: "space-astronaut-moon", group: "kids", width: P, height: T, alt: "Two-tier blue space cake with an astronaut on a crescent moon" },
   { id: "under-the-sea", group: "kids", ...V, alt: "Three-tier under-the-sea cake with a whale, an octopus and seahorses" },
-  { id: "unicorn-rainbow", group: "kids", width: P, height: T, alt: "Pink unicorn and rainbow cake for a second birthday" },
-  { id: "racing-two-tier", group: "kids", width: N, height: T, alt: "Two-tier racing cake with cars, road signs and a superhero for a seventh birthday" },
-  { id: "frozen-third-birthday", group: "kids", width: P, height: T, alt: "Frozen-themed cake for a third birthday with snowflakes and sugar pearls" },
+  { id: "unicorn-rainbow", retouched: true, group: "kids", width: P, height: T, alt: "Pink unicorn and rainbow cake for a second birthday" },
   { id: "doll-red-frock", group: "kids", width: N, height: T, alt: "Fondant doll in a red frock on a white and pink ombré cake with sugar flowers" },
   { id: "jungle-tree-two-tier", group: "kids", width: P, height: T, alt: "Two-tier jungle birthday cake with a lion on top, a tree, monkeys, a giraffe and an elephant" },
-  { id: "teddy-cloud-two-tier", group: "kids", ...V, alt: "Two-tier teddy bear cake with clouds, gold stars and bunting" },
+  { id: "teddy-cloud-two-tier", retouched: true, group: "kids", width: 576, height: 1024, alt: "Two-tier teddy bear cake with clouds, gold stars and bunting" },
   { id: "construction-digger", group: "kids", width: P, height: T, alt: "Construction-site birthday cake with a digger, cones and a little builder" },
   { id: "lilac-princess", group: "kids", width: P, height: T, alt: "Lilac princess cake with a fondant princess topper" },
-  { id: "jungle-lion-bunting", group: "kids", width: N, height: T, alt: "Two-tier jungle cake with a lion, a monkey, a giraffe and bunting" },
+  { id: "jungle-lion-bunting", retouched: true, group: "kids", width: N, height: T, alt: "Two-tier jungle cake with a lion, a monkey, a giraffe and bunting" },
   { id: "moon-stars-dancer", group: "kids", width: P, height: T, alt: "Grey and blue cake with a gold crescent moon, stars and a little fondant dancer" },
-  { id: "teddy-lilac-two-tier", group: "kids", width: P, height: T, alt: "Two-tier lilac and white teddy bear cake with balloons and bunting" },
-  { id: "frozen-elsa", group: "kids", width: N, height: T, alt: "Frozen-themed cake with a snow princess, a snowman and snowflakes" },
-  { id: "playing-cards-first-birthday", group: "kids", width: P, height: T, alt: "Red and black playing-card cake with a gold crown for a first birthday" },
+  { id: "teddy-lilac-two-tier", retouched: true, group: "kids", width: P, height: T, alt: "Two-tier lilac and white teddy bear cake with balloons and bunting" },
+  { id: "playing-cards-first-birthday", retouched: true, group: "kids", width: P, height: T, alt: "Red and black playing-card cake with a gold crown for a first birthday" },
   { id: "butterfly-fairy", group: "kids", width: N, height: T, alt: "White and pink butterfly cake with a fondant fairy" },
   { id: "jungle-white-gifts", group: "kids", width: P, height: T, alt: "White jungle birthday cake with a lion, a monkey, a zebra and a giraffe" },
   { id: "girl-pink-balloons", group: "kids", width: P, height: T, alt: "White cake with a fondant girl in a pink dress and pink balloons" },
   { id: "doll-red-dress-daisies", group: "kids", width: P, height: T, alt: "White and pink cake with a fondant girl in a red dress and sugar daisies" },
-  { id: "jungle-sheet-first-birthday", group: "kids", width: P, height: T, alt: "Teal sheet cake with jungle animal toppers for a first birthday" },
+  { id: "jungle-sheet-first-birthday", retouched: true, group: "kids", width: P, height: T, alt: "Teal sheet cake with jungle animal toppers for a first birthday" },
 
   { id: "engaged-three-tier-rings", group: "weddings", width: N, height: T, alt: "Three-tier white and sage Just Engaged cake with roses and a ring topper" },
   { id: "happy-married-lilac", group: "weddings", ...V, alt: "Three-tier lilac Happy Married cake with lilies and orchids" },
@@ -66,14 +67,14 @@ export const CUSTOM_CAKES: CustomCake[] = [
   { id: "doctor-coat", group: "celebrations", width: P, height: T, alt: "White doctor's-coat cake with a pink collar and a fondant stethoscope" },
   { id: "pink-heart", group: "celebrations", width: P, height: T, alt: "Heart-shaped pink cake with a sugar rose" },
   { id: "pink-bows", group: "celebrations", width: P, height: T, alt: "Pink cake wrapped with ribbon bows" },
-  { id: "handwritten-sheet", group: "celebrations", width: P, height: T, alt: "White cream sheet cake with a handwritten chocolate birthday message" },
-  { id: "large-sheet-piped", group: "celebrations", width: 1175, height: T, alt: "Large cream sheet cake with a piped birthday message and a biscuit border" },
+  { id: "handwritten-sheet", retouched: true, group: "celebrations", width: P, height: T, alt: "White cream sheet cake with a handwritten chocolate birthday message" },
+  { id: "large-sheet-piped", retouched: true, group: "celebrations", width: 1175, height: T, alt: "Large cream sheet cake with a piped birthday message and a biscuit border" },
 ];
 
 /** The six the home page shows. */
-export const HOME_CUSTOM_IDS = ["jungle-three-tier", "engaged-three-tier-rings", "space-astronaut-moon", "sage-gold-drip", "unicorn-rainbow", "racing-two-tier"];
+export const HOME_CUSTOM_IDS = ["jungle-three-tier", "engaged-three-tier-rings", "space-astronaut-moon", "sage-gold-drip", "unicorn-rainbow", "teddy-lilac-two-tier"];
 
-export const customSrc = (c: CustomCake) => `/custom/${c.id}.${c.video ? "mp4" : "webp"}`;
+export const customSrc = (c: CustomCake) => `/custom/${c.id}${c.retouched ? "-name-free" : ""}.${c.video ? "mp4" : "webp"}`;
 export const customPoster = (c: CustomCake) => `/custom/${c.id}.poster.webp`;
 
 export const PHOTO_ENQUIRY =
