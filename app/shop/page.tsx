@@ -166,7 +166,7 @@ export default async function ShopPage({
             </h1>
             <p className="max-w-[56ch] text-[1.0625rem] leading-relaxed text-s-bark">
               {heading?.blurb ??
-                "Each one is baked to order in Hyderabad, and low sugar, prebiotic and fibre-rich cakes are available. We call to confirm every order, then bake."}
+                "Each one is made to order in Hyderabad. We offer low-sugar, prebiotic and fibre-rich options to suit your needs. Once you place an order, we will call you to confirm before we begin baking."}
             </p>
           </div>
 

@@ -8,14 +8,14 @@ export const metadata: Metadata = {
   description: "When you can cancel a MakeYourCakes order, and how refunds work.",
 };
 
-const UPDATED = "4 November 2026";
+const UPDATED = "8 November 2026";
 
 /**
  * Cancellation and refunds.
  *
- * The line is "until baking starts" because that is a line the customer can
- * see: the order page moves to In the kitchen at that moment (lib/orders). A
- * customer cannot cancel from the website (no such action exists), so this
+ * The owner's rule: a customer may cancel within 30 minutes of placing the
+ * order, and we refund when we cannot deliver to their address. A customer
+ * cannot cancel from the website (no such action exists), so this
  * page sends them to the phone and email in the bakery settings. A refund on a
  * cancel is automatic and full (lib/checkoutPayment's refundCancelledOrder).
  * Damaged or wrong cakes are decided case by case, by the owner's choice.
@@ -29,20 +29,20 @@ export default async function RefundPolicyPage() {
       bakery={bakery}
       eyebrow="Cancellations"
       title="Cancellation and refund policy"
-      intro={<>Every cake is baked to order, so what we can do depends on whether baking has started. Last updated {UPDATED}.</>}
+      intro={<>Every cake is baked to order, so you can cancel for a full refund within 30 minutes of placing your order. Last updated {UPDATED}.</>}
     >
       <Section title="Cancelling an order">
         <ul>
-          <li><strong>Before baking starts</strong>, you can cancel and get a full refund, or pay nothing if you have not paid yet.</li>
-          <li><strong>Once baking has started</strong>, we cannot cancel or refund the order, because the cake is already being made for you. Your order page shows <em>In the kitchen</em> from that moment.</li>
+          <li><strong>Within 30 minutes of placing your order</strong>, you can cancel and get a full refund, or pay nothing if you have not paid yet.</li>
+          <li><strong>After 30 minutes</strong>, we cannot cancel or refund the order, because we may already be making your cake.</li>
           <li>To cancel, call or email us on <ContactLinks bakery={bakery} /> with your order number (it starts with MC-). You cannot cancel from the website yet.</li>
         </ul>
       </Section>
 
       <Section title="If we cancel">
         <p>
-          If we cannot make or deliver your order, for example because no bakery can make it in time,
-          we cancel it and tell you. You pay nothing, and anything you paid is refunded in full.
+          If we cannot deliver to your location, or cannot make your order in time, we cancel it and
+          tell you. You pay nothing, and anything you paid is refunded in full.
         </p>
       </Section>
 
@@ -65,8 +65,8 @@ export default async function RefundPolicyPage() {
       <Section title="How refunds are paid">
         <p>
           {online
-            ? "A refund goes back to the card, UPI account or bank you paid with, through Razorpay. It is issued as soon as the cancellation is made; your bank usually takes 5 to 7 working days to show it."
-            : "We do not take payment on this website at the moment. If you paid us another way, we refund you the same way, as soon as the cancellation is confirmed."}
+            ? "A refund goes back to the card, UPI account or bank you paid with, through Razorpay. We issue it as soon as the cancellation is made, and it reaches you on Razorpay's refund timeline, usually 5 to 7 working days."
+            : "We do not take payment on this website at the moment. We refund you the same way you paid, as soon as the cancellation is confirmed. A refund through Razorpay follows Razorpay's refund timeline, usually 5 to 7 working days."}
         </p>
       </Section>
     </PolicyPage>
