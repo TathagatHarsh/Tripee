@@ -4,6 +4,12 @@ import { db } from "../lib/db";
 
 dotenv.config({ path: [".env.local", ".env"], quiet: true });
 
+// Demo bakeries and stock must never land in the live shop's database.
+if (process.env.DATABASE_URL?.includes("hjqozpobdfcwkykxeiub")) {
+  console.error("Refusing to seed demo bakeries into the production database.");
+  process.exit(1);
+}
+
 const bakeries = [
   { id: "demo-sweet-crumbs", name: "Sweet Crumbs (Demo)", latitude: 17.4401, longitude: 78.3489, address: "Gachibowli, Hyderabad, Telangana 500032" },
   { id: "demo-cake-studio", name: "Cake Studio (Demo)", latitude: 17.4399, longitude: 78.4983, address: "Secunderabad, Hyderabad, Telangana 500003" },

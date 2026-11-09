@@ -33,7 +33,7 @@ describe("order status machine", () => {
 
   it("lets anything still at the bakery be cancelled, and nothing on the road or closed", () => {
     for (const s of ALL) {
-      expect(canTransition(s, "cancelled"), s).toBe(!isClosed(s) && s !== "out_for_delivery");
+      expect(canTransition(s, "cancelled"), s).toBe(!isClosed(s));
     }
   });
 
@@ -302,8 +302,8 @@ describe("where the confirmation sends somebody", () => {
 });
 
 describe("an order on the road", () => {
-  it("is finished by delivery, not cancellation", () => {
-    expect(canTransition("out_for_delivery", "cancelled")).toBe(false);
+  it("is delivered, or cancelled when it could not be", () => {
+    expect(canTransition("out_for_delivery", "cancelled")).toBe(true);
     expect(canTransition("out_for_delivery", "delivered")).toBe(true);
   });
 });

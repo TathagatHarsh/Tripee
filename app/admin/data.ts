@@ -44,11 +44,10 @@ export interface OpsRow {
   createdAt: Date;
   leadHours: number;
   deliverySlot: string;
-  /** The area the cake goes to. There is no street address on an order — it is
-      taken on the confirmation call — so this is the whole of the destination
-      the database holds, and it is frozen on the order rather than read off the
-      customer's profile. */
+  /** The area the cake goes to, frozen on the order. */
   pincode: string | null;
+  /** Street and landmark as the customer gave them at checkout, when they did. */
+  address: string | null;
   customerName: string | null;
   customerPhone: string | null;
   totalPaise: number;
@@ -72,7 +71,7 @@ export interface OpsRow {
 const OPS_SELECT = {
   ref: true, status: true, createdAt: true, leadHours: true, deliverySlot: true,
   requestedFor: true, dueAt: true, confirmedAt: true,
-  pincode: true, customerName: true, customerPhone: true, totalPaise: true,
+  pincode: true, addressLine1: true, landmark: true, customerName: true, customerPhone: true, totalPaise: true,
   currentAssignment: {
     select: { status: true, assignedAt: true, vendorId: true, vendor: { select: { name: true } } },
   },
@@ -85,7 +84,13 @@ const OPS_SELECT = {
 type OpsSelected = Prisma.OrderGetPayload<{ select: typeof OPS_SELECT }>;
 
 /** One database row, as the rules and the screens both need it. */
-function toOpsRow(o: OpsSelected, now: Date): OpsRow {
+/** Whether any partner bakery is live. With none, the owner bakes everything,
+    so "no bakery holds this" is normal rather than an alarm. */
+export async function hasActivePartners(): Promise<boolean> {
+  return (await db.vendor.count({ where: { isActive: true } })) > 0;
+}
+
+function toOpsRow(o: OpsSelected, now: Date, partners = true): OpsRow {
   const due = dueAt(o);
   const a = o.currentAssignment;
   return {
@@ -95,6 +100,7 @@ function toOpsRow(o: OpsSelected, now: Date): OpsRow {
     leadHours: o.leadHours,
     deliverySlot: o.deliverySlot,
     pincode: o.pincode,
+    address: [o.addressLine1, o.landmark].filter(Boolean).join(", ") || null,
     customerName: o.customerName,
     customerPhone: o.customerPhone,
     totalPaise: o.totalPaise,
@@ -111,7 +117,7 @@ function toOpsRow(o: OpsSelected, now: Date): OpsRow {
         hadPriorAssignment: o._count.assignments > 0,
       },
       now,
-    ),
+    ).filter((r) => partners || (r !== "unassigned" && r !== "declined")),
   };
 }
 
@@ -178,7 +184,7 @@ export async function vendorLoads(): Promise<VendorLoad[]> {
  * could show an order as overdue in one panel and due-soon in another.
  */
 export async function opsSnapshot(now: Date): Promise<OpsSnapshot> {
-  const [orders, liveByState, unassigned, load] = await Promise.all([
+  const [orders, liveByState, unassigned, load, partners] = await Promise.all([
     db.order.findMany({
       where: { status: { in: LIVE } },
       orderBy: { createdAt: "asc" },
@@ -203,12 +209,13 @@ export async function opsSnapshot(now: Date): Promise<OpsSnapshot> {
     }),
 
     vendorLoads(),
+    hasActivePartners(),
   ]);
 
   const vendorState = ZERO_STATE();
   for (const g of liveByState) vendorState[g.status] = g._count._all;
 
-  const rows = orders.map((o) => toOpsRow(o, now));
+  const rows = orders.map((o) => toOpsRow(o, now, partners));
   rows.sort((x, y) => x.due.getTime() - y.due.getTime());
 
   return { rows, vendorState, unassigned, load };
@@ -291,6 +298,8 @@ export interface DeliverySnapshot {
   counts: DeliveryCounts;
   /** Which bakeries have work on this day, for the chips. Never invented. */
   vendors: { id: string; name: string; n: number }[];
+  /** False while no partner bakery is live: the board hides bakery badges. */
+  partners: boolean;
   /** Which slots are actually in use on this day. */
   slots: { slot: string; n: number }[];
   /** Orders on this day that no bakery holds. */
@@ -322,19 +331,23 @@ export async function deliverySnapshot(
       vendors: [],
       slots: [],
       unassigned: 0,
+      partners: false,
     };
   }
 
-  const orders = await db.order.findMany({
-    where: { id: { in: ids.map((r) => r.id) } },
-    select: OPS_SELECT,
-  });
+  const [orders, partners] = await Promise.all([
+    db.order.findMany({
+      where: { id: { in: ids.map((r) => r.id) } },
+      select: OPS_SELECT,
+    }),
+    hasActivePartners(),
+  ]);
 
   /* Sorted here rather than trusted from the `in`, which does not preserve the
      id order the window query chose. `past` reads backwards, so the whole day
      starts with the delivery that was missed most recently. */
   const all = orders
-    .map((o) => toOpsRow(o, now))
+    .map((o) => toOpsRow(o, now, partners))
     .sort((x, y) =>
       day === "past"
         ? y.due.getTime() - x.due.getTime()
@@ -373,6 +386,7 @@ export async function deliverySnapshot(
 
   return {
     rows,
+    partners,
     counts: deliveryCounts(all),
     vendors: [...vendorFacet.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)),
     slots: [...slotFacet.entries()]

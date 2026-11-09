@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import {
   addZone, deleteZone, saveDeliverySlot, saveMinOrder, saveZone,
   type ActionResult,
 } from "../actions";
 import { aBtn, aField, aMonoField } from "@/components/admin/ui";
+import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 
 const rupees = (paise: number) => (paise / 100).toFixed(2).replace(/\.00$/, "");
 
@@ -233,6 +234,8 @@ export function ZoneRow({ zone, slots }: { zone: ZoneRowData; slots: SlotRowData
     saveZone,
     undefined,
   );
+  const deleteRef = useRef<HTMLFormElement>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <li className={`border-b border-a-line last:border-0 ${zone.isActive ? "" : "bg-a-sunken"}`}>
@@ -259,15 +262,24 @@ export function ZoneRow({ zone, slots }: { zone: ZoneRowData; slots: SlotRowData
           </div>
         </form>
 
-        <form action={deleteZone}>
+        <form ref={deleteRef} action={deleteZone}>
           <input type="hidden" name="id" value={zone.id} />
           <button
-            type="submit"
-            className="font-a-mono text-a-meta text-a-muted underline-offset-4 hover:text-a-bad-ink hover:underline"
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="inline-flex min-h-11 items-center font-a-mono text-a-meta text-a-muted underline-offset-4 hover:text-a-bad-ink hover:underline"
           >
             Delete this zone
           </button>
         </form>
+        <ConfirmDialog
+          open={confirmDelete}
+          title={`Delete ${zone.name}?`}
+          body="Customers in these pincodes will not be able to order delivery until a zone covers them again. To pause it instead, untick Delivering here."
+          confirmLabel="Delete zone"
+          onConfirm={() => { setConfirmDelete(false); deleteRef.current?.requestSubmit(); }}
+          onCancel={() => setConfirmDelete(false)}
+        />
       </div>
     </li>
   );

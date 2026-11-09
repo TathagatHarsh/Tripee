@@ -774,7 +774,7 @@ export async function advanceOrderStatus(
   const to = String(form.get("to") ?? "") as OrderStatus;
   if (!ref || !to) return { ok: false, message: "That move is missing an order or a status." };
   if (!ADMIN_MOVES.includes(to)) {
-    return { ok: false, message: "The bakery moves this order along now, not the office." };
+    return { ok: false, message: "That is not a move an order can make." };
   }
 
   const reason = String(form.get("reason") ?? "").trim() || null;
