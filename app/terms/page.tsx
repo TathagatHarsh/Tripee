@@ -74,7 +74,7 @@ export default async function TermsPage() {
 
       <Section title="Delivery, cancellation and refunds">
         <p>
-          How delivery and pickup work is set out in the{" "}
+          How delivery works is set out in the{" "}
           <Link href="/shipping-policy" className="underline decoration-s-line underline-offset-4 hover:decoration-s-bark">delivery policy</Link>.
           When you can cancel and how refunds work is in the{" "}
           <Link href="/refund-policy" className="underline decoration-s-line underline-offset-4 hover:decoration-s-bark">cancellation and refund policy</Link>.

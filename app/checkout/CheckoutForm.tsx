@@ -13,7 +13,7 @@ import { useCart, useCartHydrated } from "@/lib/cart";
 import { variantById, variantLabel, type CakeProductView } from "@/lib/cakes";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
 import { CheckoutRequest, checkoutIntent, keptAttempt, nameOk, PaymentProof, phoneOk } from "@/lib/checkout";
-import { resolveSlot } from "@/lib/delivery";
+import { PICKUP_OPEN, resolveSlot } from "@/lib/delivery";
 import { formatINR } from "@/lib/format";
 import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
 import { DeliverySlot, type CakeConfig } from "@/lib/schema";
@@ -71,7 +71,10 @@ function readDraft(): Draft {
     const parsed = DraftSchema.safeParse(
       JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? "null"),
     );
-    if (parsed.success) return parsed.data;
+    if (parsed.success)
+      return !PICKUP_OPEN && parsed.data.method === "pickup"
+        ? { ...parsed.data, method: "delivery", slot: "standard" }
+        : parsed.data;
   } catch {}
   return {
     name: "",
@@ -495,7 +498,7 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
         ? `${draft.method === "pickup" ? "Pickup available" : "We deliver here"}${slot.zoneName ? ` · ${slot.zoneName}` : ""}`
         : current.code === "delivery_unavailable" ||
             (!slot.available && /^\d{6}$/.test(draft.pincode))
-          ? "Not serviceable · please choose another address or pickup."
+          ? `Not serviceable · please choose another address${PICKUP_OPEN ? " or pickup" : ""}.`
           : (current.error ?? "Unable to verify. Please retry.");
 
   // Paid for exactly this checkout already (the confirm was lost): the button finishes it.
@@ -602,10 +605,10 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
             <div className="mb-6">
               <h2 className="text-2xl">Delivery address</h2>
               <p className="mt-2 text-sm text-s-bark">
-                To your doorstep, or ready for you at the bakery.
+                {PICKUP_OPEN ? "To your doorstep, or ready for you at the bakery." : "Delivered to your doorstep across Hyderabad."}
               </p>
             </div>
-            <fieldset className="mb-5 grid grid-cols-2 gap-3">
+            {PICKUP_OPEN && <fieldset className="mb-5 grid grid-cols-2 gap-3">
               <legend className="sr-only">Fulfillment method</legend>
               {(["delivery", "pickup"] as const).map((method) => (
                 <label
@@ -626,7 +629,7 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
                   <span className="font-semibold capitalize">{method}</span>
                 </label>
               ))}
-            </fieldset>
+            </fieldset>}
             {draft.method === "delivery" ? (
               <div className="flex flex-col gap-5">
                 <button
@@ -954,10 +957,10 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
         initial={draft.location}
         catalog={catalog}
         onClose={() => setSheetOpen(false)}
-        onPickup={() => {
+        onPickup={PICKUP_OPEN ? () => {
           patch({ method: "pickup", slot: "pickup" });
           setSheetOpen(false);
-        }}
+        } : undefined}
         onConfirm={(address) => {
           patch({
             addressLine2: address.address.slice(0, 160),
