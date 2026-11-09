@@ -1,4 +1,5 @@
 import { CAKE_CATEGORIES, type CakeCategoryInfo } from "./cakes";
+import { cakePhotoUrl } from "./cakePhotoUrl";
 import { entryFor, type CatalogSnapshot } from "./catalogSnapshot";
 import { cakeTitle } from "./docket";
 import { PRESETS, type Preset } from "./presets";
@@ -103,7 +104,7 @@ export interface LegacyProduct extends Preset {
 /** The twenty-one, with their committed photographs. Not a catalogue. */
 export const LEGACY_PRODUCTS: LegacyProduct[] = PRESETS.map((p) => ({
   ...p,
-  image: `/presets/${p.slug}.webp`,
+  image: cakePhotoUrl(`/presets/${p.slug}.webp`),
 }));
 
 /**

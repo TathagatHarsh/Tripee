@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { cakePhotoUrl } from "@/lib/cakePhotoUrl";
 import { LoadConfig } from "@/components/builder/LoadConfig";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
 import { formatINR } from "@/lib/format";
@@ -86,7 +87,7 @@ export function PresetCard({
       */}
       <div className="cake-stage relative aspect-square overflow-hidden border-b border-rule">
         <Image
-          src={`/presets/${preset.slug}.webp`}
+          src={cakePhotoUrl(`/presets/${preset.slug}.webp`)}
           alt={preset.name}
           fill
           sizes="(min-width:1280px) 23vw, (min-width:1024px) 31vw, (min-width:640px) 47vw, 92vw"

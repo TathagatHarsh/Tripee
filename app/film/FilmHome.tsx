@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { cakePhotoUrl } from "@/lib/cakePhotoUrl";
 import { join } from "node:path";
 
 import Link from "next/link";
@@ -258,7 +259,7 @@ export function FilmHome() {
               </dl>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`/presets/${p.slug}.webp`}
+                src={cakePhotoUrl(`/presets/${p.slug}.webp`)}
                 alt={p.name}
                 loading="lazy"
                 className="mt-[12px] block h-[180px] w-full object-cover"
