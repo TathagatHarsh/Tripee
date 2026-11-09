@@ -43,6 +43,14 @@ export interface ResolvedSlot extends DeliverySlotInfo {
   unavailableReason: string | null;
 }
 
+/**
+ * Whether customers can choose to collect from the bakery. Off until the
+ * bakery offers collection; flip to true to bring pickup back at checkout and
+ * in the server's order check (lib/checkoutValidate). The resolver below still
+ * answers for pickup, so dockets and prices of past pickup orders are untouched.
+ */
+export const PICKUP_OPEN = false;
+
 export function resolveSlot(
   slot: DeliverySlot,
   pincode: string | undefined,

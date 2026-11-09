@@ -20,6 +20,7 @@ import {
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { log } from "@/lib/log";
 import { scheduleVerdict } from "@/lib/scheduling";
+import { PICKUP_OPEN } from "@/lib/delivery";
 
 /**
  * Everything a checkout request has to get past before money or an order is
@@ -213,6 +214,19 @@ export async function validateCheckout(
       Response.json(
         { error: CATALOG_UNAVAILABLE_MESSAGE, code: "catalog_unavailable" },
         { status: 503 },
+      ),
+    );
+  }
+
+  if (!PICKUP_OPEN && (body.fulfillment.method === "pickup" || body.fulfillment.slot === "pickup")) {
+    return problem(
+      Response.json(
+        {
+          error: "Pickup is not available right now. Please choose delivery.",
+          code: "pickup_unavailable",
+          field: "method",
+        },
+        { status: 422 },
       ),
     );
   }

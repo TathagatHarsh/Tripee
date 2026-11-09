@@ -215,7 +215,7 @@ export function BuyPanel({
         />
       </Group>
 
-      <div className="rounded-s bg-s-cream-deep p-4 text-sm text-s-bark">Choose delivery or bakery pickup at checkout. We verify your pincode, requested date and delivery price there.</div>
+      <div className="rounded-s bg-s-cream-deep p-4 text-sm text-s-bark">We deliver across Hyderabad. At checkout we verify your pincode, requested date and delivery price there.</div>
 
       {/* ── Quantity + the two actions ────────────────────────────────── */}
       <div className="flex flex-col gap-3 border-t border-s-line pt-6">

@@ -43,7 +43,8 @@ export function LocationSheet({
   catalog: CatalogSnapshot;
   onClose(): void;
   onConfirm(address: LocatedAddress): void;
-  onPickup(): void;
+  /** Offered only while the bakery takes collections. */
+  onPickup?: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const searchBox = useRef<HTMLInputElement>(null);
@@ -230,9 +231,11 @@ export function LocationSheet({
           {refused && (
             <div role="alert" className="rounded-s border border-s-stop/40 bg-s-berry-wash p-3 text-sm">
               <p className="font-semibold text-s-stop">We don&rsquo;t deliver here yet</p>
-              <button type="button" onClick={onPickup} className={sBtn("outline", "sm", "mt-2")}>
-                Switch to pickup
-              </button>
+              {onPickup && (
+                <button type="button" onClick={onPickup} className={sBtn("outline", "sm", "mt-2")}>
+                  Switch to pickup
+                </button>
+              )}
             </div>
           )}
           <button

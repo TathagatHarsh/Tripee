@@ -4,10 +4,10 @@ import { getBakeryInfo } from "@/lib/catalogData";
 
 export const metadata: Metadata = {
   title: "Delivery policy · MakeYourCakes",
-  description: "Where MakeYourCakes delivers, the delivery windows, pickup, and looking after your cake.",
+  description: "Where MakeYourCakes delivers, the delivery windows, and looking after your cake.",
 };
 
-const UPDATED = "4 November 2026";
+const UPDATED = "9 November 2026";
 
 /**
  * Delivery and pickup.
@@ -26,7 +26,7 @@ export default async function ShippingPolicyPage() {
       bakery={bakery}
       eyebrow="Delivery"
       title="Delivery policy"
-      intro={<>We deliver fresh cakes across Hyderabad, or you can collect from the bakery. We do not ship anywhere else. Last updated {UPDATED}.</>}
+      intro={<>We deliver fresh cakes across Hyderabad. We do not ship anywhere else, and collection from the bakery is not available at the moment. Last updated {UPDATED}.</>}
     >
       <Section title="Where we deliver">
         <p>
@@ -43,18 +43,10 @@ export default async function ShippingPolicyPage() {
         </ul>
       </Section>
 
-      <Section title="Collecting from the bakery">
-        <p>
-          Choose pickup at checkout to collect your cake for free. We share the bakery&rsquo;s address
-          once a bakery takes your order, and your order page says <em>Ready to collect</em> when the
-          cake is boxed and waiting. Bring your order number (it starts with MC-).
-        </p>
-      </Section>
-
       <Section title="Following your order">
         <p>
-          Your order page shows each step as it happens: confirmed, in the kitchen, out for delivery
-          (or ready to collect), and delivered (or collected).
+          Your order page shows each step as it happens: confirmed, in the kitchen, out for delivery,
+          and delivered.
         </p>
       </Section>
 
