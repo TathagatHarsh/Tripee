@@ -17,7 +17,7 @@ import { POST as openIntent } from '../app/api/payments/intent/route';
 /**
  * The paid /api/orders route end to end against an isolated database: the real
  * intent and orders handlers, the real checkout validation and transaction, and
- * a stubbed Razorpay. The shop cake it orders is created here, as pickup, so
+ * a stubbed Razorpay. The shop cake it orders is created here, for delivery, so
  * the suite needs no seeded catalog.
  */
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
@@ -44,7 +44,7 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     fetchMock.mock.calls.filter(([u]) => String(u).endsWith(`/payments/${paymentId}/refund`)).length;
   let variantId = '';
 
-  /** A valid one-cake pickup basket; each case gets its own key and date. */
+  /** A valid one-cake delivery basket; each case gets its own key and date. */
   const basket = (date: string) => {
     const idempotencyKey = randomUUID();
     keys.push(idempotencyKey);
@@ -52,8 +52,8 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
       idempotencyKey,
       customerName: 'Route Customer',
       customerPhone: '9876543210',
-      items: [{ cakeSlug: slug, variantId, qty: 1, choices: { delivery: 'pickup' } }],
-      fulfillment: { method: 'pickup', slot: 'pickup', recipientName: 'Route Customer', requestedDate: date, requestedWindow: 'x' },
+      items: [{ cakeSlug: slug, variantId, qty: 1, choices: { delivery: 'standard' } }],
+      fulfillment: { method: 'delivery', slot: 'standard', recipientName: 'Route Customer', addressLine1: '12 Test Street', city: 'Hyderabad', state: 'Telangana', pincode: '500081', requestedDate: date, requestedWindow: 'x', location: { lat: 17.44, lng: 78.38, placeId: '' } },
     };
   };
   const intent = async (body: ReturnType<typeof basket>, razorpayOrderId: string) => {
@@ -100,6 +100,8 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_abc');
     vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
+    // Delivery is covered city-wide, as on the live shop (lib/coverage), so no bakery fixture is needed.
+    vi.stubEnv('SERVICE_AREA', 'hyderabad');
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
@@ -202,7 +204,7 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
   it('refunds when the bakery turns out to be closed, and a failed refund says to get in touch', async () => {
     const date = day(44);
     await db.fulfillmentBlackout.create({
-      data: { date: new Date(`${date}T00:00:00.000Z`), method: 'pickup', reason: `pay-route-${run}` },
+      data: { date: new Date(`${date}T00:00:00.000Z`), method: 'delivery', reason: `pay-route-${run}` },
     });
     const body = basket(date);
     const paid = proof('E');
