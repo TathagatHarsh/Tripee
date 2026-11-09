@@ -664,6 +664,56 @@ export async function deleteZone(form: FormData): Promise<void> {
   revalidatePath("/admin/delivery");
 }
 
+const ClosedDay = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date."),
+  reason: z.string().trim().max(120, "Keep the note under 120 characters.")
+    .transform((s) => s || "We're closed on this day. Please pick another date."),
+});
+
+/**
+ * Close the bakery for a day. Checkout (/api/price) and the order endpoint
+ * (/api/orders) already refuse a date in FulfillmentBlackout, showing the
+ * reason, so this only has to write the rows: one per method, so a pickup
+ * switched back on later is closed too.
+ */
+export async function addClosedDay(
+  _prev: ActionResult | undefined,
+  form: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  if (!hasDatabase()) return NO_DB;
+
+  const parsed = ClosedDay.safeParse({ date: form.get("date"), reason: form.get("reason") ?? "" });
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
+  }
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  if (parsed.data.date < today) return { ok: false, message: "That date has already passed." };
+
+  const date = new Date(`${parsed.data.date}T00:00:00.000Z`);
+  const reason = parsed.data.reason;
+  await db.$transaction(
+    (["delivery", "pickup"] as const).map((method) =>
+      db.fulfillmentBlackout.upsert({
+        where: { date_method: { date, method } },
+        create: { date, method, reason },
+        update: { reason },
+      })),
+  );
+  revalidatePath("/admin/delivery");
+  return { ok: true, message: "Closed. Customers can't pick that date now." };
+}
+
+/** Open a closed day again. */
+export async function reopenDay(form: FormData): Promise<void> {
+  await requireAdmin();
+  if (!hasDatabase()) return;
+  const day = String(form.get("date") ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+  await db.fulfillmentBlackout.deleteMany({ where: { date: new Date(`${day}T00:00:00.000Z`) } });
+  revalidatePath("/admin/delivery");
+}
+
 export async function saveMinOrder(
   _prev: ActionResult | undefined,
   form: FormData,

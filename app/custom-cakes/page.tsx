@@ -3,7 +3,8 @@ import { CustomCakeTile } from "@/components/shop/CustomCakeTile";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
 import { getBakeryInfo } from "@/lib/catalogData";
-import { CUSTOM_CAKES, CUSTOM_GROUPS, PHOTO_ENQUIRY, whatsappHref } from "@/lib/customCakes";
+import { CUSTOM_CAKES, CUSTOM_GROUPS, whatsappTo } from "@/lib/customCakes";
+import { CustomEnquiry } from "@/components/shop/CustomEnquiry";
 import { sBtn, sEyebrow } from "@/lib/shopUi";
 
 export const metadata: Metadata = {
@@ -25,13 +26,13 @@ const SIZES = "(min-width:1024px) 22vw, (min-width:640px) 30vw, 46vw";
  */
 export default async function CustomCakesPage() {
   const bakery = await getBakeryInfo();
-  const photoHref = whatsappHref(bakery.phone, PHOTO_ENQUIRY);
+  const to = whatsappTo(bakery.phone);
 
   const sendPhoto = (extra = "") =>
-    photoHref ? (
-      <a href={photoHref} target="_blank" rel="noopener noreferrer" className={sBtn("primary", "lg", extra)}>
+    to ? (
+      <CustomEnquiry to={to} cakeLink={null} title="Your own cake design" buttonClassName={sBtn("primary", "lg", extra)}>
         Send us your cake photo <span aria-hidden>↗</span>
-      </a>
+      </CustomEnquiry>
     ) : (
       <a href={`tel:${bakery.phone.replace(/\s/g, "")}`} className={sBtn("primary", "lg", extra)}>
         Call {bakery.phone}

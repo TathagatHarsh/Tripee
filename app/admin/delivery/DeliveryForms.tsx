@@ -2,7 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import {
-  addZone, deleteZone, saveDeliverySlot, saveMinOrder, saveZone,
+  addClosedDay, addZone, deleteZone, reopenDay, saveDeliverySlot, saveMinOrder, saveZone,
   type ActionResult,
 } from "../actions";
 import { aBtn, aField, aMonoField } from "@/components/admin/ui";
@@ -334,5 +334,63 @@ export function MinOrderForm({ minOrderPaise }: { minOrderPaise: number }) {
         Before GST. Zero means no minimum, which is what this shipped with.
       </p>
     </form>
+  );
+}
+
+export interface ClosedDayData {
+  /** YYYY-MM-DD. */
+  date: string;
+  label: string;
+  reason: string;
+}
+
+/**
+ * Holidays and other days the bakery is shut. A closed date is refused at
+ * checkout with the note below, so nobody can book a cake for it.
+ */
+export function ClosedDays({ days, today }: { days: ClosedDayData[]; today: string }) {
+  const [result, formAction, pending] = useActionState<ActionResult | undefined, FormData>(
+    addClosedDay,
+    undefined,
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      {days.length === 0 ? (
+        <p className="rounded-a border border-a-line bg-a-surface px-4 py-3.5 text-a-body leading-snug text-a-muted">
+          Open every day. Add a date below to close for a holiday.
+        </p>
+      ) : (
+        <ul className="rounded-a border border-a-line bg-a-surface">
+          {days.map((d) => (
+            <li key={d.date} className="flex flex-wrap items-center justify-between gap-3 border-b border-a-line px-4 py-3 last:border-0">
+              <span className="flex min-w-0 flex-col">
+                <span className="font-semibold text-a-ink">{d.label}</span>
+                <span className="text-a-small text-a-muted">{d.reason}</span>
+              </span>
+              <form action={reopenDay}>
+                <input type="hidden" name="date" value={d.date} />
+                <button type="submit" className={aBtn("secondary", "md")}>Open again</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form action={formAction} className="flex flex-wrap items-end gap-4 rounded-a border border-a-line bg-a-surface px-4 py-4">
+        <label className="flex flex-col gap-1">
+          <span className="font-a-mono text-a-meta uppercase tracking-[0.1em] text-a-muted">Date</span>
+          <input name="date" type="date" required min={today} className={aField("w-44")} />
+        </label>
+        <label className="flex min-w-56 flex-1 flex-col gap-1">
+          <span className="font-a-mono text-a-meta uppercase tracking-[0.1em] text-a-muted">Note customers see</span>
+          <input name="reason" maxLength={120} placeholder="We're closed for Diwali. Please pick another date." className={aField("w-full")} />
+        </label>
+        <button type="submit" disabled={pending} className={aBtn("primary", "md")}>
+          {pending ? "Closing" : "Close this day"}
+        </button>
+        <Status result={result} />
+      </form>
+    </div>
   );
 }

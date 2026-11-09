@@ -3,8 +3,8 @@ import Link from "next/link";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { Notice, PageHeader } from "@/components/admin/ui";
 import {
-  AddZone, MinOrderForm, SlotRow, ZoneRow,
-  type SlotRowData, type ZoneRowData,
+  AddZone, ClosedDays, MinOrderForm, SlotRow, ZoneRow,
+  type ClosedDayData, type SlotRowData, type ZoneRowData,
 } from "./DeliveryForms";
 
 /**
@@ -31,14 +31,30 @@ export default async function DeliveryAdmin() {
     );
   }
 
-  const [slotRows, zoneRows, settings] = await Promise.all([
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const [slotRows, zoneRows, settings, blackouts] = await Promise.all([
     db.catalogOption.findMany({
       where: { category: "delivery" },
       orderBy: { sortOrder: "asc" },
     }),
     db.deliveryZone.findMany({ orderBy: { sortOrder: "asc" } }),
     db.pricingSettings.findUnique({ where: { id: "singleton" } }),
+    db.fulfillmentBlackout.findMany({
+      where: { date: { gte: new Date(`${today}T00:00:00.000Z`) } },
+      orderBy: { date: "asc" },
+    }),
   ]);
+
+  /* One row per date: a day is closed for delivery and pickup together. */
+  const closedDays: ClosedDayData[] = [
+    ...new Map(blackouts.map((b) => {
+      const date = b.date.toISOString().slice(0, 10);
+      const label = new Intl.DateTimeFormat("en-GB", {
+        weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
+      }).format(b.date);
+      return [date, { date, label, reason: b.reason }] as const;
+    })).values(),
+  ];
 
   const slots: SlotRowData[] = slotRows.map((s) => ({
     id: s.id,
@@ -73,6 +89,11 @@ export default async function DeliveryAdmin() {
         title="Delivery"
         blurb="Windows, and how far they reach. A lead time here is the promise the builder quotes and the clock the board measures lateness against, so shortening one shortens what the kitchen has agreed to. Orders already placed keep the lead time they were quoted."
       />
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-a-item">Closed days</h2>
+        <ClosedDays days={closedDays} today={today} />
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-a-item">Minimum order</h2>
