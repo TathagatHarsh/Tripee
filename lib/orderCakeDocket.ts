@@ -41,10 +41,23 @@ export function renderOrderCakeDocket(
     spec.kitchenInstructions,
   );
   if (spec.preparationNotes) lines.push("Preparation notes:", spec.preparationNotes);
-  if (spec.dietaryClaims.length) lines.push(`Dietary claims: ${spec.dietaryClaims.join(", ")}`);
+  const claims = dietaryClaimsFor(spec.dietaryClaims, config ? config.eggless : !cake.allergens.includes("Egg"));
+  if (claims.length) lines.push(`Dietary claims: ${claims.join(", ")}`);
 
   if (config) {
     lines.push("", "VISUAL CONFIGURATION", renderSpecSheet({ ...config, message: message || undefined }, catalog, { omitPrice: true }));
   }
   return lines.join("\n");
+}
+
+/**
+ * The spec is the product's recipe record, frozen as-is, so a cake sold both
+ * ways carries the recipe's egg claim whichever version was bought. The frozen
+ * config (or, without one, the frozen allergens) is the variant actually sold:
+ * swap a contradicting egg claim for the true one.
+ */
+function dietaryClaimsFor(claims: string[], eggless: boolean): string[] {
+  const contradicts = eggless ? /contains egg|with egg/i : /eggless|egg[- ]free|no egg/i;
+  const kept = claims.filter((c) => !contradicts.test(c));
+  return kept.length === claims.length ? claims : [...kept, eggless ? "Eggless" : "Contains egg"];
 }

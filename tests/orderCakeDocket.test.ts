@@ -52,4 +52,16 @@ describe("the frozen cake docket", () => {
       expect(text).not.toContain("vanilla");
     }
   });
+
+  it("never prints an eggless claim on a with-egg order, nor the reverse", () => {
+    const withEgg = renderOrderCakeDocket({ ...cake, variantLabel: "1 kg · With egg", config: { ...DEFAULT_CAKE, eggless: false } }, DEFAULT_SNAPSHOT);
+    expect(withEgg).toContain("Dietary claims: Contains egg");
+    expect(withEgg).not.toMatch(/Dietary claims:.*Eggless/);
+
+    const noConfig = renderOrderCakeDocket({ ...cake, allergens: ["Egg", "Milk"] }, DEFAULT_SNAPSHOT);
+    expect(noConfig).toContain("Dietary claims: Contains egg");
+
+    const eggless = renderOrderCakeDocket({ ...cake, config: { ...DEFAULT_CAKE, eggless: true }, productionSpec: { ...cake.productionSpec as object, dietaryClaims: ["Contains egg", "Low sugar"] } }, DEFAULT_SNAPSHOT);
+    expect(eggless).toContain("Dietary claims: Low sugar, Eggless");
+  });
 });
