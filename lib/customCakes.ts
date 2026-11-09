@@ -77,11 +77,11 @@ export const HOME_CUSTOM_IDS = ["jungle-three-tier", "engaged-three-tier-rings",
 export const customSrc = (c: CustomCake) => `/custom/${c.id}${c.retouched ? "-name-free" : ""}.${c.video ? "mp4" : "webp"}`;
 export const customPoster = (c: CustomCake) => `/custom/${c.id}.poster.webp`;
 
-export const PHOTO_ENQUIRY =
-  "Hi MakeYourCakes! I'd like a custom cake. I'm sending a photo of the design I have in mind.";
+/** The link an enquiry carries so the bakery sees which cake was meant. */
+export const customCakeLink = (c: CustomCake) => `${siteUrl()}/custom-cakes#${c.id}`;
 
-export const likeThisEnquiry = (c: CustomCake) =>
-  `Hi MakeYourCakes! I'd like a custom cake like this one: ${siteUrl()}/custom-cakes#${c.id}`;
+/** The bakery's number as WhatsApp wants it, or null if the saved number is not a phone. */
+export const whatsappTo = (phone: string) => normalizePhone(phone);
 
 /** A wa.me chat with the bakery's number from /admin/settings, or null if that number is not a phone. */
 export function whatsappHref(phone: string, text: string): string | null {

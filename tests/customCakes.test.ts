@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { CUSTOM_CAKES, CUSTOM_GROUPS, HOME_CUSTOM_IDS, customPoster, customSrc, likeThisEnquiry, whatsappHref } from '../lib/customCakes';
+import { CUSTOM_CAKES, CUSTOM_GROUPS, HOME_CUSTOM_IDS, customCakeLink, customPoster, customSrc, whatsappHref, whatsappTo } from '../lib/customCakes';
 
 const pub = (p: string) => `public${p}`;
 
@@ -31,12 +31,14 @@ describe('custom cakes gallery', () => {
 describe('whatsappHref', () => {
   it('opens a chat with the settings number and names the cake', () => {
     const cake = CUSTOM_CAKES[0];
-    const href = whatsappHref('+91 99897 91579', likeThisEnquiry(cake))!;
+    const href = whatsappHref('+91 99897 91579', `Like this: ${customCakeLink(cake)}`)!;
     expect(href.startsWith('https://wa.me/919989791579?text=')).toBe(true);
     expect(decodeURIComponent(href.split('text=')[1])).toContain(`/custom-cakes#${cake.id}`);
   });
   it('adds India to a bare ten-digit number and refuses something that is not a phone', () => {
     expect(whatsappHref('99897 91579', 'hi')).toBe('https://wa.me/919989791579?text=hi');
     expect(whatsappHref('call us', 'hi')).toBeNull();
+    expect(whatsappTo('99897 91579')).toBe('919989791579');
+    expect(whatsappTo('call us')).toBeNull();
   });
 });
