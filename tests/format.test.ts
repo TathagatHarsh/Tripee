@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatINR, rollCells } from "@/lib/format";
+import { formatINR, inCancelWindow, placedAgo, rollCells } from "@/lib/format";
 
 /** What the roll actually prints: cells come back right-hand end first. */
 const shown = (text: string) => rollCells(text).map((c) => c.char).reverse().join("");
@@ -34,5 +34,22 @@ describe("rollCells", () => {
   it("marks separators as columns that do not roll", () => {
     const fixed = rollCells("₹1,050.00").filter((c) => c.digit === null);
     expect(fixed.map((c) => c.char)).toEqual([".", ",", "₹"]);
+  });
+});
+
+describe("how long ago an order came in", () => {
+  const now = new Date("2026-11-09T12:00:00+05:30");
+  const minus = (min: number) => new Date(now.getTime() - min * 60_000);
+
+  it("reads in minutes, then hours, then the date", () => {
+    expect(placedAgo(minus(0), now)).toBe("just now");
+    expect(placedAgo(minus(12), now)).toBe("12 min ago");
+    expect(placedAgo(minus(150), now)).toBe("2 h ago");
+    expect(placedAgo(minus(26 * 60), now)).toMatch(/Nov 2026 .* IST$/);
+  });
+
+  it("is inside the cancel-for-refund window for 30 minutes only", () => {
+    expect(inCancelWindow(minus(29), now)).toBe(true);
+    expect(inCancelWindow(minus(30), now)).toBe(false);
   });
 });

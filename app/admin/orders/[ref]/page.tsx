@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { renderSpecSheet } from "@/lib/docket";
-import { formatINR, formatIST, titleCase } from "@/lib/format";
+import { formatINR, formatIST, titleCase, inCancelWindow, placedAgo } from "@/lib/format";
 import {
   ADMIN_MOVES, buildProgress, buildTimeline, customerStatus, dueAt, isClosed, NEXT_STATUS, STATUS_LABEL,
 } from "@/lib/orders";
@@ -21,6 +21,7 @@ import {
 } from "@/components/admin/ui";
 import { Icon } from "@/components/admin/icons";
 import { getOrderDetail } from "./data";
+import { whatsappHref } from "@/lib/customCakes";
 import { AssignVendor } from "./AssignVendor";
 import { StatusActions } from "./StatusActions";
 
@@ -103,6 +104,10 @@ export default async function OrderDetail({
   const due = dueAt(order);
   const overdue = due < now && !isClosed(order.status);
   const closed = isClosed(order.status);
+  /* Confirmation calls in Hyderabad often turn into WhatsApp chats. */
+  const wa = order.customerPhone
+    ? whatsappHref(order.customerPhone, `Hi${order.customerName ? ` ${order.customerName}` : ""}, this is MakeYourCakes about your cake order ${order.ref}.`)
+    : null;
 
   /* One shape for the events, read twice — the tracker wants `fromStatus` (to
      know how far a cancelled order got) and the history wants the actor's name.
@@ -152,6 +157,13 @@ export default async function OrderDetail({
           <StatusBadge tone="warn" dot={false} label={`Contains ${order.allergens.join(", ")}`} />
         )}
         {overdue && <StatusBadge tone="bad" label="Past its window" />}
+        {!closed && (
+          <StatusBadge
+            tone={inCancelWindow(order.createdAt, now) ? "warn" : "plain"}
+            dot={false}
+            label={`Placed ${placedAgo(order.createdAt, now)}${inCancelWindow(order.createdAt, now) ? " · customer can still cancel for a refund" : ""}`}
+          />
+        )}
       </div>
 
       {overdue && (
@@ -367,6 +379,7 @@ export default async function OrderDetail({
                * tablet this dials. Every other route to it is retyping ten
                * digits off a screen.
                */
+              <>
               <a
                 href={`tel:${order.customerPhone.replace(/[^\d+]/g, "")}`}
                 className="mt-1 inline-flex items-center gap-1.5 font-a-mono text-a-item tabular-nums text-a-accent-ink underline decoration-a-accent-line underline-offset-2 hover:decoration-a-accent"
@@ -374,6 +387,17 @@ export default async function OrderDetail({
                 <Icon name="phone" size={15} />
                 {order.customerPhone}
               </a>
+              {wa && (
+                <a
+                  href={wa}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-3 mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-a-line px-3 text-a-small font-semibold text-a-accent-ink hover:bg-a-sunken"
+                >
+                  WhatsApp
+                </a>
+              )}
+              </>
             ) : (
               <p className="mt-1 text-a-small text-a-faint">No number on this order.</p>
             )}
