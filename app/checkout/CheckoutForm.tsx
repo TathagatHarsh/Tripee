@@ -583,6 +583,7 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
                   aria-invalid={touched && !phoneOk(draft.phone)}
                   placeholder="10-digit mobile number"
                 />
+                <span className="text-xs text-s-bark">We&rsquo;ll send your order updates to this number on WhatsApp.</span>
               </Field>
               <Field
                 label="Email (optional)"
