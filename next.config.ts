@@ -103,6 +103,16 @@ const nextConfig: NextConfig = {
      * in lib/storage is what puts them here; nothing private is served from
      * this host.
      */
+    /*
+     * Local images, as before (no query string), plus the cache-busting
+     * version lib/cakePhotoUrl adds to refreshed preset photos. Next 16 refuses
+     * a local image with a query string unless it is listed here, and that
+     * refusal fails the whole build while prerendering the home page.
+     */
+    localPatterns: [
+      { pathname: "/**", search: "" },
+      { pathname: "/presets/**", search: "?v=filling-1" },
+    ],
     remotePatterns: [
       {
         protocol: "https",
