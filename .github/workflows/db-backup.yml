@@ -1,0 +1,69 @@
+name: Weekly database backup
+
+# A copy of the shop's data (the public schema: orders, cakes, settings) every
+# Sunday at 03:00 IST, kept as a workflow artifact for 90 days. The repository
+# is public, so the dump is encrypted before it leaves the runner: without
+# BACKUP_PASSPHRASE the artifact is unreadable. How to restore: docs/BACKUPS.md.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_BACKUP_URL  Supabase → Connect → "Session pooler" URI (port 5432).
+#                        Not the transaction pooler (6543): pg_dump needs a session.
+#   BACKUP_PASSPHRASE    A long random passphrase, kept in your password manager.
+
+on:
+  schedule:
+    - cron: "30 21 * * 6" # Saturday 21:30 UTC = Sunday 03:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Install pg_dump 18
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-18 > /dev/null
+
+      - name: Dump and encrypt
+        id: dump
+        env:
+          DB_URL: ${{ secrets.SUPABASE_BACKUP_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DB_URL" ] || [ -z "$PASSPHRASE" ]; then
+            echo "::error::Set the SUPABASE_BACKUP_URL and BACKUP_PASSPHRASE repository secrets."
+            exit 1
+          fi
+          stamp=$(date -u +%Y-%m-%d)
+          file="makeyourcakes-db-$stamp.sql.gz.enc"
+          # Plain SQL, so any psql can restore it and it can be read after decrypting.
+          /usr/lib/postgresql/18/bin/pg_dump "$DB_URL" \
+            --schema=public --no-owner --no-privileges --quote-all-identifiers \
+            | gzip -9 \
+            | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 -md sha256 -pass env:PASSPHRASE -out "$file"
+          # A dump that is suspiciously small means something went wrong upstream.
+          size=$(stat -c %s "$file")
+          if [ "$size" -lt 2000 ]; then echo "::error::Backup is only $size bytes"; exit 1; fi
+          echo "Backup $file: $size bytes (encrypted)"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ steps.dump.outputs.stamp }}
+          path: ${{ steps.dump.outputs.file }}
+          retention-days: 90
+          if-no-files-found: error
