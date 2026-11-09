@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     "What MakeYourCakes collects when you order a cake, who it is shared with, and how to ask for it to be corrected or deleted.",
 };
 
-const UPDATED = "6 November 2026";
+const UPDATED = "9 November 2026";
 
 /**
  * The privacy policy.
@@ -91,10 +91,11 @@ export default async function PrivacyPage() {
           </li>
           <li>
             <strong>WhatsApp.</strong> We use WhatsApp, which is run by Meta, to
-            coordinate with partner bakeries and our own team. Those messages
-            carry the order number, cake details, due time, delivery area and a
-            photo of the cake. They do not carry your phone number or your full
-            address.
+            send you updates about your order at the phone number you give us at
+            checkout, and to coordinate with partner bakeries and our own team.
+            Messages to bakeries and our team carry the order number, cake
+            details, due time, delivery area and a photo of the cake, but not
+            your phone number or your full address.
           </li>
           <li>
             <strong>Service providers.</strong> Clerk (sign-in), Razorpay

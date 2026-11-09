@@ -64,19 +64,55 @@ export async function whatsappNoBakery(tx: Tx, orderId: string, dedupeKey: strin
   await tellAdmin(tx, orderId, null, dedupeKey, r, `⚠️ No vendor can take this order. Assign it at ${siteUrl()}/admin/orders/${r}`);
 }
 
+/**
+ * What the customer is told at each step. It goes in the approved `order_update`
+ * template, which reads "Update on cake order {{1}}: {{2}}. If you have any
+ * questions about this order, please contact the MakeYourCakes team." — so no
+ * full stop at the end, and nothing here may contain a line break.
+ */
+export function customerUpdateText(step: OrderStatus | "placed", pickup: boolean, cake?: string): string | null {
+  switch (step) {
+    case "placed":
+      return `We have received your order${cake ? ` for ${cake}` : ""}. We will call you shortly to confirm it before we start baking`;
+    case "confirmed":
+      return "Your order is confirmed. We will bake it fresh for your chosen date";
+    case "in_kitchen":
+      return "Your cake is being baked now";
+    case "out_for_delivery":
+      return pickup ? "Your cake is ready to collect from the bakery" : "Your cake is out for delivery and on its way to you";
+    case "delivered":
+      return `${pickup ? "Collected" : "Delivered"}. Thank you for ordering from MakeYourCakes, we hope you love it`;
+    case "cancelled":
+      return "Your order has been cancelled. If you paid anything for it, the full amount will be refunded";
+    default:
+      return null;
+  }
+}
+
 export async function whatsappNewOrder(tx: Tx, orderId: string) {
   if (!whatsappConfigured()) return;
-  await queueWhatsApp(tx, { orderId, kind: "new_order", to: adminNumbers(), dedupeKey: `wa:order:${orderId}:new`, message: adminNewOrderMessage(await loadOrderFacts(tx, orderId)) });
+  const facts = await loadOrderFacts(tx, orderId);
+  await queueWhatsApp(tx, { orderId, kind: "new_order", to: adminNumbers(), dedupeKey: `wa:order:${orderId}:new`, message: adminNewOrderMessage(facts) });
+  /* The customer hears from us at every step, starting now. */
+  const o = await tx.order.findUniqueOrThrow({ where: { id: orderId }, select: { customerPhone: true, fulfillmentMethod: true } });
+  await queueWhatsApp(tx, { orderId, kind: "new_order", to: [o.customerPhone], dedupeKey: `wa:order:${orderId}:placed:customer`, message: updateMessage(facts.ref, customerUpdateText("placed", o.fulfillmentMethod === "pickup", facts.cake)!) });
 }
 
 const STATUS_TEXT: Partial<Record<OrderStatus, string>> = { confirmed: "Confirmed", out_for_delivery: "Out for delivery", delivered: "Delivered", cancelled: "Cancelled" };
 
 export async function whatsappOrderStatus(tx: Tx, e: { orderId: string; to: OrderStatus; vendorId?: string | null; vendorPhone?: string | null; reason?: string | null }) {
   if (!whatsappConfigured()) return;
+  const o = await tx.order.findUniqueOrThrow({ where: { id: e.orderId }, select: { ref: true, customerPhone: true, fulfillmentMethod: true } });
+  const r = o.ref, cancelled = e.to === "cancelled", key = `wa:order:${e.orderId}:${e.to}`;
+  const kind = cancelled ? "order_cancelled" : "status_changed";
   const label = STATUS_TEXT[e.to];
-  if (!label) return;
-  const r = await ref(tx, e.orderId), cancelled = e.to === "cancelled", key = `wa:order:${e.orderId}:${e.to}`;
-  await queueWhatsApp(tx, { orderId: e.orderId, vendorId: e.vendorId, kind: cancelled ? "order_cancelled" : "status_changed", to: adminNumbers(), dedupeKey: key, message: updateMessage(r, label + (cancelled && e.reason ? `: ${e.reason}` : "")) });
-  if (cancelled && e.vendorPhone)
-    await queueWhatsApp(tx, { orderId: e.orderId, vendorId: e.vendorId, kind: "order_cancelled", to: [e.vendorPhone], dedupeKey: `${key}:vendor`, message: updateMessage(r, "Cancelled. Please stop work on this order.") });
+  if (label) {
+    await queueWhatsApp(tx, { orderId: e.orderId, vendorId: e.vendorId, kind, to: adminNumbers(), dedupeKey: key, message: updateMessage(r, label + (cancelled && e.reason ? `: ${e.reason}` : "")) });
+    if (cancelled && e.vendorPhone)
+      await queueWhatsApp(tx, { orderId: e.orderId, vendorId: e.vendorId, kind: "order_cancelled", to: [e.vendorPhone], dedupeKey: `${key}:vendor`, message: updateMessage(r, "Cancelled. Please stop work on this order.") });
+  }
+  /* The customer's own update. The staff cancel reason is internal, so it stays out of this one. */
+  const text = customerUpdateText(e.to, o.fulfillmentMethod === "pickup");
+  if (text)
+    await queueWhatsApp(tx, { orderId: e.orderId, vendorId: e.vendorId, kind, to: [o.customerPhone], dedupeKey: `${key}:customer`, message: updateMessage(r, text) });
 }
