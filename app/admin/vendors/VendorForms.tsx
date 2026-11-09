@@ -36,7 +36,7 @@ const FIELDS: {
   wide?: boolean;
 }[] = [
   { name: "name", label: "Bakery name" },
-  { name: "phone", label: "Phone", hint: "The number the office rings about an order." },
+  { name: "phone", label: "Mobile (WhatsApp)", hint: "10-digit mobile, with or without +91. WhatsApp offers go to it.", type: "tel" },
   { name: "email", label: "Email", type: "email" },
   { name: "address", label: "Address", wide: true },
 ];

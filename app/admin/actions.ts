@@ -14,6 +14,7 @@ import { formatINR } from "@/lib/format";
 import { applyStatusTransition } from "@/lib/orderTransition";
 import { assignOrderToVendor } from "@/lib/vendorTransition";
 import { ADMIN_MOVES, STATUS_LABEL } from "@/lib/orders";
+import { indianMobile } from "@/lib/whatsapp";
 import {
   discard, hasImageStore, ImageError, MAX_UPLOAD_BYTES, NO_IMAGE_STORE_MESSAGE,
   optimize, store,
@@ -1116,7 +1117,15 @@ const VendorEdit = z.object({
    * the next `if (vendor.email)` — the same position prisma/schema.prisma takes
    * on `CatalogOption.imageUrl`.
    */
-  phone: z.string().trim().max(40).transform((s) => s || null),
+  /* Optional, but when given it must be a mobile WhatsApp can reach: offers go
+     to it and the bakery's button replies are matched back by it. Stored as
+     "+91 98765 43210" whatever way it was typed. */
+  phone: z.string().trim().max(40)
+    .refine((s) => s === "" || indianMobile(s) !== null, "Enter a 10-digit Indian mobile number, like 98765 43210. WhatsApp offers go to it.")
+    .transform((s) => {
+      const n = indianMobile(s);
+      return n ? `+91 ${n.slice(2, 7)} ${n.slice(7)}` : null;
+    }),
   email: z.string().trim().max(120).transform((s) => s || null),
   address: z.string().trim().max(300).transform((s) => s || null),
 });
