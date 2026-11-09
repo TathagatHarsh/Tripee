@@ -5,6 +5,7 @@ import type { OrderStatus } from "@prisma/client";
 import { requireKitchen } from "@/lib/auth";
 import { hasDatabase } from "@/lib/db";
 import { applyStatusTransition } from "@/lib/orderTransition";
+import { HAPPY_PATH } from "@/lib/orders";
 
 /**
  * Move one docket along the board.
@@ -38,6 +39,9 @@ export async function advanceOrder(formData: FormData) {
   const ref = String(formData.get("ref") ?? "");
   const to = String(formData.get("to") ?? "") as OrderStatus;
   if (!ref || !to) return;
+  // The board only ever offers the next forward step. Cancelling (which also
+  // refunds) is the office's call, so the kitchen may not ask for it.
+  if (!HAPPY_PATH.includes(to)) return;
 
   // A refused move is logged where the reason is known, in lib/orderTransition,
   // with the status it was refused from.
