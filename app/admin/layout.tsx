@@ -6,6 +6,7 @@ import { db, hasDatabase } from "@/lib/db";
 import { AdminShell } from "@/components/admin/Shell";
 import { GlobalSearch } from "@/components/admin/Filters";
 import { ToastProvider } from "@/components/admin/Toast";
+import { hasActivePartners } from "./data";
 
 /**
  * The admin shell.
@@ -91,9 +92,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
    * customer typed is interpolated; the only parameter is a timestamp this file
    * computed.
    */
-  const [bakery, alerts] = await Promise.all([
+  const [bakery, alerts, partners] = await Promise.all([
     getCatalogSnapshot().then((c) => c.bakery.name),
     loadAlerts(),
+    hasDatabase() ? hasActivePartners() : Promise.resolve(false),
   ]);
 
   return (
@@ -109,6 +111,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         bakeryName={bakery}
         alerts={alerts}
         search={<GlobalSearch />}
+        partners={partners}
       >
         <PortalAlerts role="admin" userId={viewer.userId} />
         {children}

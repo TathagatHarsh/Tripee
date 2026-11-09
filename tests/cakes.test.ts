@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CakeCategory } from "@prisma/client";
 import {
-  CAKE_CATEGORIES, categoryById, categoryBySlug, cheapestVariant, configForVariant,
+  allergenStatement, CAKE_CATEGORIES, categoryById, categoryBySlug, cheapestVariant, configForVariant,
   DEFAULT_CHOICES, eggTypesOffered, findVariant, fromPricePaise, hasBothEggTypes,
   hasEggless, isBuyable, sellable, sizeName, sizesOffered, SLUG, slugify, variantLabel,
   type CakeProductView, type CakeVariantView,
@@ -759,5 +759,22 @@ describe("the allergen line on a cake page", () => {
     /* The allergens common to both are still listed. */
     expect(line).toContain("Milk");
     expect(line).toContain("Wheat (gluten)");
+  });
+});
+
+describe("the product page allergen line", () => {
+  it("names egg as the with-egg version's when the cake is sold both ways", () => {
+    const line = allergenStatement(fourSizes());
+    expect(line).toMatch(/Egg only in the with-egg version$/);
+    expect(line.split(".")[0]).not.toContain("Egg");
+  });
+
+  it("lists egg plainly when only the with-egg version is on sale", () => {
+    expect(allergenStatement(product({ variants: [variant({ eggType: "egg" })] }))).toContain("Egg");
+    expect(allergenStatement(product({ variants: [variant({ eggType: "egg" })] }))).not.toContain("with-egg version");
+  });
+
+  it("leaves egg out of an eggless-only cake", () => {
+    expect(allergenStatement(product())).not.toContain("Egg");
   });
 });

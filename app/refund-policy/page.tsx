@@ -57,8 +57,9 @@ export default async function RefundPolicyPage() {
 
       <Section title="Changing an order">
         <p>
-          To change the date, time or address, contact us before baking starts. We will do what we
-          can, but a different time or place may not be possible, or may cost more to deliver.
+          To change the date, time or address, contact us within 30 minutes of placing your order.
+          After that we will still try, but a different time or place may not be possible, or may
+          cost more to deliver.
         </p>
       </Section>
 

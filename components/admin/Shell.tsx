@@ -52,9 +52,11 @@ export interface ShellProps {
   alerts: { awaiting: number; overdue: number };
   /** The global search, rendered on the server so it needs no JavaScript. */
   search: React.ReactNode;
+  /** Whether any partner bakery is active; partner-only nav items hide without one. */
+  partners: boolean;
 }
 
-export function AdminShell({ children, email, bakeryName, alerts, search }: ShellProps) {
+export function AdminShell({ children, email, bakeryName, alerts, search, partners }: ShellProps) {
   const pathname = usePathname();
   /*
    * The drawer holds the pathname it was opened *at*, and is considered open
@@ -118,7 +120,7 @@ export function AdminShell({ children, email, bakeryName, alerts, search }: Shel
     <div className="a-root min-h-dvh lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
       {/* ── the desktop sidebar ─────────────────────────────────────────── */}
       <div data-admin-chrome className="hidden lg:sticky lg:top-0 lg:block lg:h-dvh">
-        <Sidebar pathname={pathname} bakeryName={bakeryName} />
+        <Sidebar pathname={pathname} bakeryName={bakeryName} partners={partners} />
       </div>
 
       {/* ── the drawer, and the sheet it sits under ─────────────────────── */}
@@ -137,6 +139,7 @@ export function AdminShell({ children, email, bakeryName, alerts, search }: Shel
             <Sidebar
               pathname={pathname}
               bakeryName={bakeryName}
+              partners={partners}
               onClose={() => {
                 closeDrawer();
                 toggleRef.current?.focus();
@@ -199,10 +202,12 @@ export function AdminShell({ children, email, bakeryName, alerts, search }: Shel
 function Sidebar({
   pathname,
   bakeryName,
+  partners,
   onClose,
 }: {
   pathname: string;
   bakeryName: string;
+  partners: boolean;
   onClose?: () => void;
 }) {
   return (
@@ -237,7 +242,7 @@ function Sidebar({
               {section.label}
             </p>
             <ul className="flex flex-col gap-0.5">
-              {section.items.map((item) => {
+              {section.items.filter((item) => partners || !item.partnersOnly).map((item) => {
                 const current = isCurrent(item, pathname);
                 return (
                   <li key={item.href}>

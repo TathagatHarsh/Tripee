@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth';
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from '@/lib/db';
 import { formatINR, formatIST } from '@/lib/format';
+import { STATUS_LABEL } from '@/lib/orders';
 import { PageHeader, StatCard, Card, CardHead, EmptyState, Notice, aBtn } from '@/components/admin/ui';
 export default async function Dashboard() {
   await requireAdmin();
@@ -25,6 +26,26 @@ export default async function Dashboard() {
     { label: 'Ready', value: ready.length, query: 'production=ready' },
     { label: 'Delivering', value: orders.filter(o => o.status === 'out_for_delivery').length, query: 'status=out_for_delivery' },
   ];
+  /* No partner bakery is live: the owner bakes everything, so the marketplace
+     panels (assignment, vendor responses, availability) would only show empty
+     alarms. Show the open orders and where each one is instead. */
+  if (vendors.length === 0) {
+    const count = (s: string) => orders.filter(o => o.status === s).length;
+    const simple = [
+      { label: 'New orders', value: count('draft'), query: 'status=draft' },
+      { label: 'Confirmed', value: count('confirmed'), query: 'status=confirmed' },
+      { label: 'Baking', value: count('in_kitchen'), query: 'status=in_kitchen' },
+      { label: 'Out for delivery', value: count('out_for_delivery'), query: 'status=out_for_delivery' },
+    ];
+    return <div className="flex flex-col gap-6">
+      <PageHeader title="Today's orders" blurb="New orders to call, cakes to bake and deliveries to send."><Link href="/admin/orders" className={aBtn('primary', 'md')}>All orders</Link></PageHeader>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{simple.map(c => <StatCard key={c.label} label={c.label} value={String(c.value)} href={`/admin/orders?${c.query}`} />)}</div>
+      <Card><CardHead title="Open orders" note="Soonest due first. New orders are waiting for your call." />
+        {!orders.length ? <EmptyState icon="check" title="All caught up" blurb="New orders appear here the moment they are placed." /> : <ul className="divide-y divide-a-line">{orders.slice(0, 15).map(o => <li key={o.id} className="flex flex-wrap items-center justify-between gap-4 py-4"><div><Link className="font-a-mono text-sm font-semibold" href={`/admin/orders/${o.ref}`}>{o.ref}</Link><span className="ml-2 text-xs font-semibold uppercase tracking-wide text-a-muted">{STATUS_LABEL[o.status]}</span><h3 className="mt-1 font-semibold">{o.cakes[0]?.cakeName ?? o.cakeName ?? 'Cake order'}{o.cakes.length > 1 ? ` + ${o.cakes.length - 1} cakes` : ''}</h3><p className="text-sm text-a-muted">{o.customerName} · {formatINR(o.totalPaise)}</p><p className="mt-1 text-xs text-a-muted">{o.requestedFor ? formatIST(o.requestedFor) : 'Delivery time to confirm'} · {o.requestedWindow ?? o.deliverySlot}</p></div><Link className={aBtn('secondary', 'md')} href={`/admin/orders/${o.ref}`}>Open</Link></li>)}</ul>}
+      </Card>
+    </div>;
+  }
+
   return <div className="flex flex-col gap-6">
     <PageHeader title="Every order. The right bakery." blurb="Your operations control center. Start with what needs attention."><Link href="/admin/orders" className={aBtn('primary', 'md')}>All orders</Link></PageHeader>
     <section className="ops-overview-band"><div><span className="text-xs uppercase tracking-widest">MakeYourCakes · Operations</span><h2>Keep every promise.</h2><p>{unassigned.length ? `${unassigned.length} orders need a bakery. Check cake availability, choose a vendor, and keep production moving.` : 'Every confirmed order has a bakery. Watch responses and keep cake availability up to date.'}</p></div><div className="ops-overview-figures"><Link href="/admin/inventory"><strong>{unavailable.length}</strong><span>Unavailable cake variants ↗</span></Link><Link href="/admin/vendors"><strong>{vendors.filter(v => v.isAcceptingOrders && !v.isBusy && v.assignments.length < v.maxConcurrentOrders && (!v.unavailableUntil || v.unavailableUntil <= new Date())).length}</strong><span>Available bakeries ↗</span></Link></div></section>

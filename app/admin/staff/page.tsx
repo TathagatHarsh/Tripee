@@ -73,9 +73,8 @@ export default async function StaffPage() {
       )}
 
       <p className="border-t border-a-line pt-4 font-a-sans text-a-small leading-relaxed text-a-muted">
-        Read-only, on purpose — the same reasoning is in scripts/role.ts. To change
-        a role: <code className="font-a-mono">npm run role -- email ROLE</code>, run
-        where DATABASE_URL and CLERK_SECRET_KEY live, never from a browser.
+        {/* Read-only on purpose: roles change only through scripts/role.ts, never from a browser. */}
+        To add someone or change what they can do, ask your developer.
       </p>
     </div>
   );

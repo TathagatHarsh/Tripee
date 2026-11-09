@@ -61,6 +61,8 @@ export interface NavItem {
    * otherwise be permanently highlighted.
    */
   nested?: boolean;
+  /** Shown only while a partner bakery is active; the owner baking alone has no use for it. */
+  partnersOnly?: boolean;
 }
 
 export interface NavSection {
@@ -95,8 +97,8 @@ export const NAV: NavSection[] = [
        * exact hit is the right rule for a board with one address.
        */
       { href: "/admin/orders/today", label: "Deliveries", icon: "delivery" },
-      { href: "/admin/inventory", label: "Cake Availability", icon: "cake", nested: true },
-      { href: "/admin/vendors", label: "Vendors", icon: "vendor", nested: true },
+      { href: "/admin/inventory", label: "Cake Availability", icon: "cake", nested: true, partnersOnly: true },
+      { href: "/admin/vendors", label: "Vendors", icon: "vendor", nested: true, partnersOnly: true },
       /* Renamed from "Delivery", which read as though it were the board above.
          The route is untouched — §5's "do not unnecessarily restructure backend
          routes" is about addresses, and this is a word on a sidebar. */
