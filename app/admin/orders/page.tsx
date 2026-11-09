@@ -4,8 +4,8 @@ import { VENDOR_STATUS_LABEL } from "@/lib/vendors";
 import type { Metadata } from "next";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
-import { formatINR, formatIST, titleCase } from "@/lib/format";
-import { dueAt, STATUS_LABEL } from "@/lib/orders";
+import { formatINR, formatIST, titleCase, inCancelWindow, placedAgo } from "@/lib/format";
+import { dueAt, isClosed, STATUS_LABEL } from "@/lib/orders";
 import { FilterChips, SearchForm, type Chip } from "@/components/admin/Filters";
 import { DueLabel } from "@/components/admin/OrderTimeline";
 import {
@@ -380,6 +380,13 @@ export default async function AdminOrders({
 
                     <Td>
                       <OrderStatusBadge status={o.status} label={STATUS_LABEL[o.status]} />
+                      {!isClosed(o.status) && (
+                        <StatusBadge
+                          tone={inCancelWindow(o.createdAt, now) ? "warn" : "plain"}
+                          dot={false}
+                          label={`Placed ${placedAgo(o.createdAt, now)}`}
+                        />
+                      )}
                       <p className="mt-1 text-sm">{o.currentAssignment?.vendor.name ?? 'Unassigned'}</p>
                       {o.currentAssignment && <p className="text-xs text-a-muted">{VENDOR_STATUS_LABEL[o.currentAssignment.status]}</p>}
                     </Td>
@@ -474,6 +481,13 @@ export default async function AdminOrders({
 
                     <span className="flex flex-wrap items-center gap-2">
                       <OrderStatusBadge status={o.status} label={STATUS_LABEL[o.status]} />
+                      {!isClosed(o.status) && (
+                        <StatusBadge
+                          tone={inCancelWindow(o.createdAt, now) ? "warn" : "plain"}
+                          dot={false}
+                          label={`Placed ${placedAgo(o.createdAt, now)}`}
+                        />
+                      )}
                       <p className="mt-1 text-sm">{o.currentAssignment?.vendor.name ?? 'Unassigned'}</p>
                       {o.currentAssignment && <p className="text-xs text-a-muted">{VENDOR_STATUS_LABEL[o.currentAssignment.status]}</p>}
                       {o.allergens.length > 0 && (

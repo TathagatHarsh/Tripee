@@ -79,3 +79,20 @@ export function formatIST(d: Date): string {
     timeZone: "Asia/Kolkata",
   }).format(d).replace(",", "") + " IST";
 }
+
+/** Minutes after placing an order in which the customer may cancel for a refund (/refund-policy). */
+export const CANCEL_WINDOW_MIN = 30;
+
+/** How long ago an order came in: "just now", "12 min ago", "3 h ago", or the date after a day. */
+export function placedAgo(d: Date, now: Date): string {
+  const min = Math.max(0, Math.floor((now.getTime() - d.getTime()) / 60_000));
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  if (min < 24 * 60) return `${Math.floor(min / 60)} h ago`;
+  return formatIST(d);
+}
+
+/** Whether an order is still inside the customer's cancel-for-refund window. */
+export function inCancelWindow(d: Date, now: Date): boolean {
+  return now.getTime() - d.getTime() < CANCEL_WINDOW_MIN * 60_000;
+}
