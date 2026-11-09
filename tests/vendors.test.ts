@@ -540,8 +540,8 @@ describe("the bakery owns delivery, the office does not", () => {
     expect(canTransition("out_for_delivery", "delivered")).toBe(true);
   });
 
-  it("leaves the office only confirming and cancelling", () => {
-    expect(ADMIN_MOVES).toEqual(["confirmed", "cancelled"]);
+  it("lets the office take an order the whole way, since the owner bakes too", () => {
+    expect(ADMIN_MOVES).toEqual(["confirmed", "in_kitchen", "out_for_delivery", "delivered", "cancelled"]);
   });
 });
 

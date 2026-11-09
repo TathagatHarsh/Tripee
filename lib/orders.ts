@@ -16,18 +16,19 @@ export const NEXT_STATUS: Record<OrderStatus, OrderStatus[]> = {
   draft: ["confirmed", "cancelled"],
   confirmed: ["in_kitchen", "cancelled"],
   in_kitchen: ["out_for_delivery", "cancelled"],
-  /* A cake that has left the bakery is finished by delivery, not cancellation. */
-  out_for_delivery: ["delivered"],
+  /* Delivered, or cancelled when it could not be: nobody home, refused, wrong address. */
+  out_for_delivery: ["delivered", "cancelled"],
   delivered: [],
   cancelled: [],
 };
 
 /**
- * The only moves the admin portal makes. Baking and delivery belong to the
- * bakery holding the order (lib/vendors' vendorNext), so the office confirms,
- * cancels, and otherwise watches.
+ * The moves the admin portal makes: all of them. The owner bakes and delivers
+ * too, so the order page has to take an order the whole way. When a partner
+ * bakery holds an order, lib/orderTransition still refuses sending it out until
+ * the bakery has handed it over.
  */
-export const ADMIN_MOVES: OrderStatus[] = ["confirmed", "cancelled"];
+export const ADMIN_MOVES: OrderStatus[] = ["confirmed", "in_kitchen", "out_for_delivery", "delivered", "cancelled"];
 
 /**
  * The form is not the only thing that can ask for a transition, so this is

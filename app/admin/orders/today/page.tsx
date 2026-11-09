@@ -349,10 +349,10 @@ export default async function DeliveryBoard({
             />
             <ul className="flex flex-col">
               {g.rows.map((d) => (
-                <li key={d.ref} className="border-b border-a-line last:border-0">
+                <li key={d.ref} className="flex items-center border-b border-a-line last:border-0">
                   <Link
                     href={`/admin/orders/${d.ref}`}
-                    className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-a-sunken sm:px-5"
+                    className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-a-sunken sm:px-5"
                   >
                     <span className="flex min-w-0 flex-1 flex-col gap-1">
                       <span className="flex flex-wrap items-center gap-2">
@@ -366,9 +366,9 @@ export default async function DeliveryBoard({
                             label={VENDOR_STATUS_LABEL[d.vendorStatus]}
                             tone={VENDOR_STATUS_TONE[d.vendorStatus]}
                           />
-                        ) : (
+                        ) : board.partners ? (
                           <StatusBadge label="No bakery" tone="plain" />
-                        )}
+                        ) : null}
                         {/*
                           The one thing somebody loading a van is scanning for,
                           said in words and not only in colour — §10. A different
@@ -376,7 +376,7 @@ export default async function DeliveryBoard({
                           existing, which only the vendor machine knows, and it is
                           worth saying only while the order has not gone out.
                         */}
-                        {d.status !== "out_for_delivery" && d.status !== "delivered" && (
+                        {(board.partners || d.vendorStatus) && d.status !== "out_for_delivery" && d.status !== "delivered" && (
                           <StatusBadge
                             label={isCakeReady(d.vendorStatus) ? "Ready" : "Not ready"}
                             tone={isCakeReady(d.vendorStatus) ? "good" : "warn"}
@@ -393,11 +393,9 @@ export default async function DeliveryBoard({
                       <span className="text-a-meta text-a-muted">
                         {d.customerName ?? "No name taken"}
                         {d.customerPhone && ` · ${d.customerPhone}`}
-                        {/* The whole of the destination this database holds. The
-                            street address is taken on the confirmation call and is
-                            not a column — see components/orders/DeliveryInfo. */}
+                        {d.address && ` · ${d.address}`}
                         {d.pincode && ` · ${d.pincode}`}
-                        {` · ${d.vendorName ?? "Unassigned"}`}
+                        {(board.partners || d.vendorName) && ` · ${d.vendorName ?? "Unassigned"}`}
                       </span>
                       <span className="text-a-meta text-a-faint">
                         Customer sees:{" "}
@@ -410,6 +408,15 @@ export default async function DeliveryBoard({
                       <Icon name="chevronRight" size={15} className="shrink-0 text-a-ghost" />
                     </span>
                   </Link>
+                  {d.customerPhone && (
+                    <a
+                      href={`tel:${d.customerPhone.replace(/[^\d+]/g, "")}`}
+                      aria-label={`Call ${d.customerName ?? "the customer"}`}
+                      className="mr-3 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-a-accent-ink hover:bg-a-sunken sm:mr-4"
+                    >
+                      <Icon name="phone" size={18} />
+                    </a>
+                  )}
                 </li>
               ))}
             </ul>

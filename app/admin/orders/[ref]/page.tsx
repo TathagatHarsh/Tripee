@@ -352,7 +352,8 @@ export default async function OrderDetail({
         </div>
 
         {/* ═════════════════════════════════════════════ the right column */}
-        <div className="flex min-w-0 flex-col gap-4">
+        {/* First on a phone, where the owner needs Call and the buttons, not the price lines. */}
+        <div className="order-first flex min-w-0 flex-col gap-4 xl:order-none">
           {/* ── §8: customer ───────────────────────────────────────────── */}
           <Card>
             <h2 className={aEyebrow}>Customer</h2>
@@ -403,6 +404,9 @@ export default async function OrderDetail({
                   {order.status === "delivered"
                     ? "Delivered. Nothing further to do on this one."
                     : "Cancelled. A cancelled order does not reopen — take a new one."}
+                  {order.status === "cancelled" && order.cancellationReason && (
+                    <span className="mt-2 block text-a-ink">Cancelled because: {order.cancellationReason}</span>
+                  )}
                 </p>
               ) : (
                 <>
@@ -413,8 +417,7 @@ export default async function OrderDetail({
                     paid={order.paymentStatus === "paid"}
                   />
                   <p className="mt-3 text-a-meta leading-relaxed text-a-muted">
-                    The bakery holding this order moves it from here: preparing,
-                    out for delivery and delivered. You will see each step as it happens.
+                    Each button moves the order one step and updates what the customer sees.
                   </p>
                 </>
               )}

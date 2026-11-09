@@ -83,11 +83,12 @@ export default async function AdminOrders({
   }
 
   const { q, status, days, slot, due, production: rawProduction } = await searchParams;
-  /* A bare /admin/orders is the work queue: orders still needing a bakery.
-     Any filter (or the "All statuses" chip, `production=all`) shows the book. */
+  /* A bare /admin/orders is the work queue: every order not yet delivered or
+     cancelled, new ones included. Any filter (or "All statuses",
+     `production=all`) shows the book. */
   const production = rawProduction === "all"
     ? undefined
-    : rawProduction ?? (q || status || days || slot || due ? undefined : "unassigned");
+    : rawProduction ?? (q || status || days || slot || due ? undefined : "open");
 
   const filter = STATUSES.includes(status as OrderStatus) ? (status as OrderStatus) : null;
   const window = days === "7" || days === "30" || days === "90" ? Number(days) : null;
@@ -109,7 +110,8 @@ export default async function AdminOrders({
 
   const where: Prisma.OrderWhereInput = {};
   if (filter) where.status = filter;
-  if (production === 'unassigned') { where.currentAssignmentId = null; where.status = { in: ['confirmed', 'in_kitchen'] }; }
+  if (production === 'open') where.status = { in: ['draft', 'confirmed', 'in_kitchen', 'out_for_delivery'] };
+  else if (production === 'unassigned') { where.currentAssignmentId = null; where.status = { in: ['confirmed', 'in_kitchen'] }; }
   else if (['assigned', 'accepted', 'in_preparation', 'ready', 'handed_over'].includes(production ?? '')) {
     where.currentAssignment = { status: production as 'assigned' | 'accepted' | 'in_preparation' | 'ready' | 'handed_over' };
     where.status = { in: ['confirmed', 'in_kitchen', 'out_for_delivery'] };
@@ -191,6 +193,7 @@ export default async function AdminOrders({
   };
 
   const statusChips: Chip[] = [
+    { label: "Open orders", href: qs({ status: undefined, due: undefined, production: "open" }), active: production === "open" },
     {
       label: "All statuses",
       href: qs({ status: undefined, due: undefined, production: "all" }),
@@ -227,7 +230,7 @@ export default async function AdminOrders({
   ];
 
   const filtered = Boolean(q?.trim() || filter || window || slotFilter || late || production);
-  const queue = production === "unassigned" && !q?.trim() && !filter && !window && !slotFilter && !late;
+  const queue = production === "open" && !q?.trim() && !filter && !window && !slotFilter && !late;
   const canAssign = (o: (typeof orders)[number]) =>
     !o.currentAssignmentId && (o.status === "confirmed" || o.status === "in_kitchen");
   const photoOf = (o: (typeof orders)[number]) => o.cakeImageUrl ?? o.cakes[0]?.cakeImageUrl ?? null;
@@ -282,8 +285,8 @@ export default async function AdminOrders({
           queue ? (
             <EmptyState
               icon="check"
-              title="Every order has a bakery."
-              blurb="New orders that need one will appear here."
+              title="No open orders."
+              blurb="New orders appear here the moment they are placed."
             >
               <Link href="/admin/orders?production=all" className={aBtn("secondary", "md")}>
                 See all orders
