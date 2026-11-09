@@ -1,4 +1,5 @@
 import "server-only";
+import { cakePhotoUrl } from "./cakePhotoUrl";
 import { unstable_cache, updateTag } from "next/cache";
 import type { CakeCategory, Prisma } from "@prisma/client";
 import type { CakeProductView } from "./cakes";
@@ -113,9 +114,9 @@ function toView(r: Row, admin = false): CakeProductView {
       pricePaise: v.pricePaise,
       isAvailable: v.isAvailable,
     })),
-    imageUrl: r.primaryImageUrl,
+    imageUrl: r.primaryImageUrl ? cakePhotoUrl(r.primaryImageUrl) : null,
     imageAlt: r.primaryImageAlt,
-    gallery: r.images.map((i) => ({ id: i.id, url: i.url, alt: i.alt })),
+    gallery: r.images.map((i) => ({ id: i.id, url: cakePhotoUrl(i.url), alt: i.alt })),
     config: migrateConfig(r.config),
     productionSpec: parseProductionSpec(r.productionSpec),
     ...(admin ? { productionIssues: (() => {
@@ -155,7 +156,7 @@ const loadAvailable = unstable_cache(
     });
     return rows.map(row => toView(row));
   },
-  ["cakes-available"],
+  ["cakes-available", "filling-photos-1"],
   { tags: [CAKES_TAG] },
 );
 
