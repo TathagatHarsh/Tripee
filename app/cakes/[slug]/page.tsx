@@ -1,4 +1,3 @@
-import { allergensForVariant } from "@/lib/productionSpec";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -8,7 +7,7 @@ import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
 import { allergenLineForOffer } from "@/lib/allergens";
 import { cakeBySlug, listCakes } from "@/lib/cakeData";
-import { cheapestVariant, eggTypesOffered, hasBothEggTypes, sellable } from "@/lib/cakes";
+import { allergenStatement, cheapestVariant, eggTypesOffered, hasBothEggTypes, sellable } from "@/lib/cakes";
 import { FILLINGS, FINISHES, FROSTINGS, SPONGES } from "@/lib/catalog";
 import { getCatalogSnapshot } from "@/lib/catalogData";
 import { formatINR } from "@/lib/format";
@@ -226,7 +225,7 @@ export default async function CakePage({
                       recipe — see `allergenLineForOffer`. A cake sold both ways
                       must not print "EGGLESS" above a picker offering egg. */}
                   {product.productionSpec ? (
-                    <p className="mt-4 text-sm leading-relaxed text-s-bark">Allergens: {[...new Set(sellable(product).flatMap(v=>allergensForVariant(product.productionSpec!,v.eggType)))].join(", ") || "None declared"}. Prepared in a kitchen that handles allergens; contact the bakery before ordering for a food allergy.</p>
+                    <p className="mt-4 text-sm leading-relaxed text-s-bark">Allergens: {allergenStatement(product)}. Prepared in a kitchen that handles allergens; contact the bakery before ordering for a food allergy.</p>
                   ) : c && (
                     <p className="mt-4 text-[0.875rem] leading-relaxed text-s-bark">
                       {allergenLineForOffer(c, eggTypesOffered(product))}
@@ -268,3 +267,4 @@ export default async function CakePage({
     </div>
   );
 }
+

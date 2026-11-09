@@ -3,7 +3,7 @@ import type { CakeCategory, EggType } from "@prisma/client";
 import { SIZES } from "./catalog";
 import { WEIGHT_KG } from "./servings";
 import { type CakeConfig, type DeliverySlot, type SizeBand } from "./schema";
-import type { ProductionSpec } from "./productionSpec";
+import { allergensForVariant, type ProductionSpec } from "./productionSpec";
 
 /**
  * What a cake the shop sells *is*, away from the database.
@@ -195,6 +195,25 @@ export const EGG_LABEL: Record<EggType, string> = {
 export function sellable(product: CakeProductView): CakeVariantView[] {
   if (!product.isAvailable) return [];
   return product.variants.filter((v) => v.isAvailable);
+}
+
+/**
+ * The product page's allergen line, across every version on sale. When the cake
+ * is sold both with and without egg and the eggless version has no egg, egg is
+ * named as the with-egg version's rather than listed as if every cake had it.
+ */
+export function allergenStatement(product: CakeProductView): string {
+  const spec = product.productionSpec;
+  if (!spec) return "None declared";
+  const versions = sellable(product);
+  const all = [...new Set(versions.flatMap((v) => allergensForVariant(spec, v.eggType)))];
+  const eggOnlyInEggVersion =
+    versions.some((v) => v.eggType === "egg")
+    && versions.some((v) => v.eggType === "eggless")
+    && !allergensForVariant(spec, "eggless").includes("Egg");
+  if (!eggOnlyInEggVersion) return all.join(", ") || "None declared";
+  const rest = all.filter((a) => a !== "Egg");
+  return `${rest.length ? `${rest.join(", ")}. ` : ""}Egg only in the with-egg version`;
 }
 
 /** Whether there is anything to sell. A cake with no priced variant is not. */
