@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { adminNumbers, normalizePhone, photoSignature, photoUrl, sendWhatsApp, siteUrl, verifyPhotoSignature, verifySignature, whatsappConfigured } from '../lib/whatsapp';
+import { adminNumbers, indianMobile, normalizePhone, photoSignature, photoUrl, sendWhatsApp, siteUrl, verifyPhotoSignature, verifySignature, whatsappConfigured } from '../lib/whatsapp';
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
@@ -9,8 +9,20 @@ describe('normalizePhone', () => {
   it.each([
     ['98765 43210', '919876543210'], ['+91-98765-43210', '919876543210'], ['09876543210', '919876543210'],
     ['919876543210', '919876543210'], ['040 2345 6789', '914023456789'], ['+44 7700 900123', '447700900123'],
+    ['+91 0 98765 43210', '919876543210'], ['0091 98765 43210', '919876543210'],
   ])('%s → %s', (raw, want) => expect(normalizePhone(raw)).toBe(want));
   it.each([null, undefined, '', '12345', 'abc'])('%s → null', raw => expect(normalizePhone(raw)).toBeNull());
+});
+
+describe('indianMobile', () => {
+  it('accepts a mobile however it is typed', () => {
+    for (const raw of ['9876543210', '+91 98765 43210', '09876543210', '+91 0 98765 43210', '919876543210'])
+      expect(indianMobile(raw), raw).toBe('919876543210');
+  });
+  it('refuses a landline, a short number, a foreign number and a doubled code', () => {
+    for (const raw of ['040 2345 6789', '987654321', '+44 7700 900123', '91 91 98765 43210', '', null])
+      expect(indianMobile(raw), String(raw)).toBeNull();
+  });
 });
 it('adminNumbers normalises, drops junk and dedupes', () => {
   vi.stubEnv('WHATSAPP_ADMIN_NUMBERS', '98765 43210, +919876543210,xx, 9000000001');
