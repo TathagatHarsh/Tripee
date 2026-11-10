@@ -79,10 +79,12 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
     expect(now.status).toBe('delivered');
     expect(vendorNext(now.currentAssignment!.status, now.status)).toEqual([]);
 
-    // The customer heard about both steps, and about nothing the bakery did.
+    // The customer heard about baking, sending out and delivery — the same
+    // updates as when staff move the order.
     const kinds = await db.notificationOutbox.findMany({ where: { orderId: order.id, kind: 'status_changed' }, select: { dedupeKey: true } });
     expect(kinds.map((k) => k.dedupeKey).sort()).toEqual([
       `order:${order.id}:status:delivered`,
+      `order:${order.id}:status:in_kitchen`,
       `order:${order.id}:status:out_for_delivery`,
     ]);
     // The offer to the bakery is still sent.

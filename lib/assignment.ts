@@ -21,7 +21,7 @@ import { canTransition } from "./orders";
 import { inventoryForOrder, requireOrderAvailability, InventoryConflict } from './inventory';
 import { meetsDeadline } from './inventoryRules';
 import { portalEvent } from './portalNotifications';
-import { whatsappAssignmentEvent, whatsappNoBakery } from './whatsappEvents';
+import { whatsappAssignmentEvent, whatsappNoBakery, whatsappOrderStatus } from './whatsappEvents';
 type Tx = Prisma.TransactionClient;
 export class AssignmentConflict extends Error {}
 // Short DB-only critical section. Serializes capacity reservation across orders.
@@ -321,7 +321,7 @@ export async function respondToAssignment(
       });
       await tx.order.update({
         where: { id: order.id },
-        data: { assignmentState: "ASSIGNED" },
+        data: { assignmentState: "ASSIGNED", assignmentNote: null },
       });
       await closeWaiting(tx, order.id);
       await event(
@@ -559,6 +559,17 @@ export async function moveFulfillment(
       await tx.orderEvent.create({
         data: { orderId: order.id, fromStatus: order.status, toStatus: next },
       });
+      /* The customer's update, exactly as lib/orderTransition queues it when
+         staff make the same move — same kinds, same dedupe keys. */
+      await tx.notificationOutbox.create({
+        data: outboxCreate({
+          orderId: order.id,
+          kind: "status_changed",
+          dedupeKey: `order:${order.id}:status:${next}`,
+          payload: { ref, from: order.status, to: next, dueAt: null },
+        }),
+      });
+      await whatsappOrderStatus(tx, { orderId: order.id, to: next, vendorId });
     }
     return true;
   }, ASSIGNMENT_TX);

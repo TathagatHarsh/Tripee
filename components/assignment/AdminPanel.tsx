@@ -70,7 +70,7 @@ export function AdminAssignmentPanel({
                   ? "Awaiting vendor response"
                   : "Awaiting admin vendor selection"}
           </h2>
-          {note && <p className="mt-2 text-sm text-a-warn-ink">{note}</p>}
+          {note && !accepted && <p className="mt-2 text-sm text-a-warn-ink">{note}</p>}
         </div>
         <span className="rounded-full bg-a-accent-wash px-3 py-1 text-xs font-semibold text-a-accent-ink">
           {state}

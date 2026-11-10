@@ -395,6 +395,18 @@ export const VENDOR_COLUMNS: {
   },
 ];
 
+/**
+ * Handed over but not yet delivered. Not one of VENDOR_COLUMNS because
+ * `handed_over` is terminal on VENDOR_NEXT — the moves left here are the
+ * customer's order (VENDOR_DELIVERY_NEXT): send out, then mark delivered.
+ */
+export const VENDOR_SENT_OUT_COLUMN: (typeof VENDOR_COLUMNS)[number] = {
+  status: "handed_over",
+  label: "Sent out",
+  note: "On the way. Mark delivered at the door.",
+  empty: "Nothing on the road.",
+};
+
 /* ─────────────────────────────────────────────────────────── why they said no */
 
 /**
