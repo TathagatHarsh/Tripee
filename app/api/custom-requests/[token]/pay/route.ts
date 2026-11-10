@@ -39,6 +39,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     log("error", "custom_payment_failed", { id: r.id, paymentId: payment.razorpayPaymentId, error: String(error) });
     return fail("Something went wrong on our side. Your payment is safe; please press Pay again to finish.", 500, { retry: true });
   }
+  if (result.kind === "refund_failed")
+    return fail(`This quote is no longer available and we couldn't refund your payment automatically. Contact us with payment ${payment.razorpayPaymentId}.`, 503);
   if (result.kind === "refunded") return fail("This quote is no longer available, so your payment is being refunded.", 409, { refunded: true });
   if (result.kind === "unmatched") return fail(`This payment cannot be used for this quote. Contact us with payment ${payment.razorpayPaymentId}.`, 409);
 

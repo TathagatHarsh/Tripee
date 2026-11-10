@@ -197,7 +197,7 @@ export async function runCustomRequestWorker(): Promise<{ offers: number; quotes
   return { offers, quotes };
 }
 
-export type CustomPayment = { kind: "paid"; orderRef: string } | { kind: "refunded" | "already_paid" | "unmatched" };
+export type CustomPayment = { kind: "paid"; orderRef: string } | { kind: "refunded" | "refund_failed" | "already_paid" | "unmatched" };
 
 /**
  * A verified payment for a quote becomes an ordinary order, already accepted by
@@ -212,6 +212,7 @@ export type CustomPayment = { kind: "paid"; orderRef: string } | { kind: "refund
  * `unmatched`: the payment is real but was not taken for this quote's Razorpay
  * order (or its binding was already cleared by a refund). It buys nothing and is
  * not refunded here, since it may belong to some other checkout.
+ * `refund_failed`: the refund was asked for but not confirmed; the caller must retry or tell the customer.
  */
 export async function payCustomRequest(requestId: string, proof: PaymentProof): Promise<CustomPayment> {
   const key = `custom:${requestId}`;
@@ -290,6 +291,7 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
   if (outcome.kind === "unmatched") log("warn", "custom_payment_unmatched", { requestId, paymentId: proof.razorpayPaymentId });
   if (outcome.kind !== "refund") return outcome;
   const { outcome: refund } = await refundPayment(proof);
-  if (refund === "failed") log("error", "custom_payment_refund_failed", { requestId, paymentId: proof.razorpayPaymentId });
-  return { kind: "refunded" };
+  if (refund !== "failed") return { kind: "refunded" };
+  log("error", "custom_payment_refund_failed", { requestId, paymentId: proof.razorpayPaymentId });
+  return { kind: "refund_failed" };
 }

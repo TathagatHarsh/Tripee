@@ -260,7 +260,8 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
   const fetchMock = vi.fn();
   const gatewayOrders = new Map<string, { receipt: string; amount: number }>();
   const paymentOrder = new Map<string, string>();
-  const refundCalls = () => fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/refund')).length;
+  const refundCalls = (paymentId = '') => fetchMock.mock.calls.filter(([u]) => String(u).endsWith(`${paymentId}/refund`)).length;
+  let refundStatus = 200;
   const sign = (o: string, p: string) => createHmac('sha256', 'secret').update(`${o}|${p}`).digest('hex');
   beforeAll(() => { process.env.DATABASE_URL = url!; });
   beforeEach(() => {
@@ -268,6 +269,7 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
     vi.stubEnv('WHATSAPP_APP_SECRET', 'secret'); vi.stubEnv('WHATSAPP_ADMIN_NUMBERS', '9000000001');
     vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_abc'); vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
     vi.mocked(refundPayment).mockClear();
+    refundStatus = 200;
     fetchMock.mockReset();
     fetchMock.mockImplementation(async (input: unknown, init?: { body?: string }) => {
       const target = String(input);
@@ -279,7 +281,7 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
       }
       if (target.endsWith('/refund')) {
         const pay = target.split('/').at(-2)!;
-        return Response.json({ id: `rfnd_${pay}`, payment_id: pay, status: 'processed' });
+        return Response.json({ id: `rfnd_${pay}`, payment_id: pay, status: 'processed' }, { status: refundStatus });
       }
       const order = /\/orders\/(order_\w+)$/.exec(target)?.[1];
       if (order) return Response.json({ id: order, receipt: gatewayOrders.get(order)!.receipt, amount: gatewayOrders.get(order)!.amount, currency: 'INR' });
@@ -424,5 +426,59 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
     const { orderRef } = await res.json();
     expect(await db.order.findUnique({ where: { razorpayPaymentId: proof.razorpayPaymentId }, select: { ref: true } })).toEqual({ ref: orderRef });
     expect((await call(openQuoteIntent, request.token)).status).toBe(409); // paid: no second intent
+  });
+  /** Another payment captured on the same Razorpay order (a second tab, a late UPI authorisation). */
+  const secondPayment = (proof: { razorpayOrderId: string; razorpayPaymentId: string }) => {
+    const razorpayPaymentId = `${proof.razorpayPaymentId}b`;
+    paymentOrder.set(razorpayPaymentId, proof.razorpayOrderId);
+    return { razorpayOrderId: proof.razorpayOrderId, razorpayPaymentId, razorpaySignature: sign(proof.razorpayOrderId, razorpayPaymentId) };
+  };
+  for (const status of ['declined', 'cancelled'] as const)
+    it(`a payment for a ${status} request is refunded and makes no order`, async () => {
+      const { request, proof } = await paidQuote();
+      await db.customRequest.update({ where: { id: request.id }, data: { status } });
+      expect(await payCustomRequest(request.id, proof)).toEqual({ kind: 'refunded' });
+      expect(await ordersFor(proof.razorpayPaymentId)).toBe(0);
+      expect((await reload(request.id)).status).toBe(status);
+      expect(refundCalls(proof.razorpayPaymentId)).toBe(1);
+    });
+  it('a second payment after the first bought the order is refunded, the order untouched', async () => {
+    const { request, proof } = await paidQuote();
+    const first = await payCustomRequest(request.id, proof);
+    expect(first.kind).toBe('paid');
+    const p2 = secondPayment(proof);
+    expect(await payCustomRequest(request.id, p2)).toEqual({ kind: 'refunded' });
+    expect(refundCalls(p2.razorpayPaymentId)).toBe(1);
+    expect(refundCalls(proof.razorpayPaymentId)).toBe(0);
+    expect(await db.order.findUniqueOrThrow({ where: { razorpayPaymentId: proof.razorpayPaymentId } })).toMatchObject({ paymentStatus: 'paid', status: 'confirmed' });
+    expect(await ordersFor(p2.razorpayPaymentId)).toBe(0);
+    expect((await reload(request.id)).status).toBe('paid');
+  });
+  it('the webhook refunds a payment on this quote\'s Razorpay order after a refund cleared the binding', async () => {
+    const { request, proof } = await paidQuote({ expired: true });
+    expect(await payCustomRequest(request.id, proof)).toEqual({ kind: 'refunded' }); // clears the binding
+    const p2 = secondPayment(proof);
+    expect(await payCustomRequest(request.id, p2)).toEqual({ kind: 'unmatched' }); // the pay route alone can't tell it is ours
+    await recoverPayment(p2.razorpayPaymentId);
+    expect(refundPayment).toHaveBeenLastCalledWith(expect.objectContaining({ razorpayOrderId: p2.razorpayOrderId, razorpayPaymentId: p2.razorpayPaymentId }));
+    expect(refundCalls(p2.razorpayPaymentId)).toBe(1);
+    expect(await ordersFor(p2.razorpayPaymentId)).toBe(0);
+  });
+  it('a refund that fails is reported, the webhook asks to be redelivered, and the pay route says contact us', async () => {
+    const { request, proof } = await paidQuote({ expired: true });
+    refundStatus = 500;
+    const res = await call(payQuote, request.token, proof);
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain('Contact us');
+    await expect(recoverPayment(proof.razorpayPaymentId)).rejects.toThrow('refund failed');
+    refundStatus = 200;
+    await recoverPayment(proof.razorpayPaymentId); // Razorpay redelivers once we're back
+    expect(await db.refundOperation.findUnique({ where: { paymentId: proof.razorpayPaymentId } })).toMatchObject({ status: 'processed' });
+    expect(await ordersFor(proof.razorpayPaymentId)).toBe(0);
+  });
+  it('payCustomRequest itself reports a failed refund as refund_failed', async () => {
+    const { request, proof } = await paidQuote({ expired: true });
+    refundStatus = 500;
+    expect(await payCustomRequest(request.id, proof)).toEqual({ kind: 'refund_failed' });
   });
 });

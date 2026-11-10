@@ -17,7 +17,12 @@ export async function recoverPayment(paymentId: string) {
   if (gatewayOrder.id !== payment.order_id || gatewayOrder.amount !== payment.amount || gatewayOrder.currency !== "INR") throw new Error("Payment order mismatch");
   const proof = { razorpayOrderId: payment.order_id, razorpayPaymentId: payment.id, razorpaySignature: "" };
   if (gatewayOrder.receipt.startsWith("custom:")) {
-    await payCustomRequest(gatewayOrder.receipt.slice("custom:".length), proof);
+    const result = await payCustomRequest(gatewayOrder.receipt.slice("custom:".length), proof);
+    // The receipt proves this Razorpay order was made for that quote, so a payment it can't use
+    // (a late or second one after a refund cleared the binding) goes back; `held` protects one an order owns.
+    const refund = result.kind === "unmatched" ? (await refundPayment(proof)).outcome : null;
+    // Throwing makes the webhook answer 503, so Razorpay redelivers and the refund is tried again.
+    if (result.kind === "refund_failed" || refund === "failed") throw new Error("Custom payment refund failed; retry required");
     return;
   }
   const recovery = await db.paymentRecovery.findUnique({ where: { id: gatewayOrder.receipt } });
