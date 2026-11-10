@@ -42,4 +42,4 @@ The public URL goes through Railway's proxy in the same region. It costs a few m
 - **Deploys:** every push to `main` deploys. A deploy goes live only once `/icon.svg` responds, so a build that fails to start never replaces the running site.
 - **Logs:** web → Deployments → View logs.
 - **Database migrations:** never run automatically. Run them by hand with `DATABASE_URL=<public url> npx prisma migrate deploy`, after testing against a scratch database.
-- **Backups:** see [BACKUPS.md](BACKUPS.md). Railway Pro also keeps its own volume backups on the Postgres service (Backups tab).
+- **Backups:** see [BACKUPS.md](BACKUPS.md). Railway can also take its own scheduled backups of the Postgres volume (Postgres service → Backups).
