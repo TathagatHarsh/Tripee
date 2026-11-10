@@ -132,7 +132,8 @@ export function textMessage(body: string): WhatsAppMessage {
 export async function queueWhatsApp(
   tx: Prisma.TransactionClient,
   input: {
-    orderId: string;
+    orderId?: string | null;
+    customRequestId?: string | null;
     vendorId?: string | null;
     kind: NotificationKind;
     to: (string | null | undefined)[];
@@ -149,6 +150,7 @@ export async function queueWhatsApp(
       update: {},
       create: outboxCreate({
         orderId: input.orderId,
+        customRequestId: input.customRequestId,
         vendorId: input.vendorId,
         kind: input.kind,
         channel: "whatsapp",
