@@ -49,6 +49,16 @@ export function earnings(
     vendorEarningPaise: subtotal - commissionPaise - fee,
   };
 }
+/** The delivery radius a bakery may choose for itself, and the one it starts with. */
+export const RADIUS_KM = { min: 1, max: 25, default: 10 } as const;
+
+/** A radius from a form, or null when it is missing, not a number or out of range. */
+export function parseRadiusKm(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const km = Number(value);
+  return Number.isFinite(km) && km >= RADIUS_KM.min && km <= RADIUS_KM.max ? km : null;
+}
+
 export function vendorEligible(
   v: Vendor,
   products: (string | null)[],
@@ -59,6 +69,8 @@ export function vendorEligible(
   return (
     v.isActive &&
     v.isAcceptingOrders &&
+    /* The bakery must have placed its own pin once, pickup orders included. */
+    !!v.locationSetAt &&
     (!requireLocation || !!pointFrom(v)) &&
     (!v.unavailableUntil || v.unavailableUntil <= now) &&
     load < v.maxConcurrentOrders &&

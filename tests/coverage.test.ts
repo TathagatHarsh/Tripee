@@ -3,10 +3,11 @@ import { coversPoint, serviceAreaCovers, type CoverageVendor } from '@/lib/cover
 import { haversine } from '@/lib/assignmentRules';
 
 const pin = { lat: 17.431, lng: 78.401 };
-const near: CoverageVendor = { latitude: 17.43, longitude: 78.4, serviceRadiusKm: 10, isActive: true, isAcceptingOrders: true };
+const near: CoverageVendor = { latitude: 17.43, longitude: 78.4, serviceRadiusKm: 10, isActive: true, isAcceptingOrders: true, locationSetAt: new Date() };
 
 describe('whether any bakery covers a delivery pin', () => {
   it('covers a pin inside a radius', () => expect(coversPoint([near], pin)).toBe(true));
+  it('ignores a bakery that has not set its own pin', () => expect(coversPoint([{ ...near, locationSetAt: null }], pin)).toBe(false));
 
   it('covers a pin exactly on the radius', () => {
     const edge = haversine({ lat: near.latitude!, lng: near.longitude! }, pin);

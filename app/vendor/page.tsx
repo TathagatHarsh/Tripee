@@ -30,6 +30,12 @@ export default async function KitchenBoard({
   ).length;
   return (
     <div className="flex flex-col gap-6"><AssignmentRefresh/>
+      {!vendor.locationSetAt && (
+        <Notice tone="warn">
+          Set your bakery location to start getting orders.{" "}
+          <Link href="/vendor/profile#location" className="font-semibold underline">Set location</Link>
+        </Notice>
+      )}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <span className="text-a-meta font-semibold uppercase tracking-[.14em] text-a-accent-ink">

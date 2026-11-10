@@ -35,7 +35,7 @@ describe.skipIf(!url)('inventory and assignment transactions on isolated Postgre
     const product = await db.cakeProduct.create({ data: { slug: `availability-test-${Date.now()}-${++serial}`, name: 'Chocolate Truffle', description: 'Test', category: 'chocolate', pricePaise: 189900, sizeBand: '2kg' } }); productIds.push(product.id);
     const vendors = [];
     for (let i = 0; i < count; i++) {
-      const v = await db.vendor.create({ data: { name: `Test Bakery ${i}`, isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43 + i * 0.001, longitude: 78.4, serviceRadiusKm: 20 } }); vendorIds.push(v.id); vendors.push(v);
+      const v = await db.vendor.create({ data: { name: `Test Bakery ${i}`, locationSetAt: new Date(), isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43 + i * 0.001, longitude: 78.4, serviceRadiusKm: 20 } }); vendorIds.push(v.id); vendors.push(v);
       await db.vendorInventory.create({ data: { vendorId: v.id, productId: product.id, productName: product.name, sizeBand: '2kg', eggType: 'eggless', isAvailable: available } });
     }
     return { product, vendors, order: await newOrder(product.id) };

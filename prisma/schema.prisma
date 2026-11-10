@@ -322,6 +322,10 @@ model Vendor {
   isActive Boolean @default(true)
   latitude Float?
   longitude Float?
+  /// When the bakery itself last saved its pin on the map. Null means it never
+  /// has, and it gets no orders (lib/assignmentRules' vendorEligible). Admin
+  /// corrections to latitude/longitude never set this.
+  locationSetAt DateTime?
   isAcceptingOrders Boolean @default(false)
   preparationMinutes Int @default(120)
   isBusy Boolean @default(false)
