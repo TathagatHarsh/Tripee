@@ -6,7 +6,7 @@ vi.mock('@clerk/nextjs/server', () => ({ clerkClient: vi.fn() }));
 vi.mock('../lib/mapping', () => ({ getDistanceMatrix: async (origins: unknown[]) => origins.map(() => ({ distanceKm: 2, estimatedMinutes: 10, source: 'test' })) }));
 import { db } from '../lib/db';
 import { manualAssignment, respondToAssignment, moveFulfillment } from '../lib/assignment';
-import { handOver } from '../lib/vendorTransition';
+import { handOver, vendorDeliveryMove } from '../lib/vendorTransition';
 import { vendorBoard, vendorHistory, vendorOrder } from '../app/vendor/data';
 import { VENDOR_COLUMNS, VENDOR_SENT_OUT_COLUMN, vendorNext } from '../lib/vendors';
 import { setVendorActive } from '../app/admin/actions';
@@ -53,6 +53,21 @@ describe.skipIf(!url)('admin and vendor panels on isolated PostgreSQL', () => {
       expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).status).toBe('in_kitchen');
       expect(await db.notificationOutbox.count({ where: { orderId: f.order.id, dedupeKey: { contains: ':in_kitchen:customer' } } })).toBe(1);
       expect(await db.notificationOutbox.count({ where: { orderId: f.order.id, dedupeKey: `order:${f.order.id}:status:in_kitchen` } })).toBe(1);
+    } finally {
+      delete process.env.WHATSAPP_ACCESS_TOKEN; delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+    }
+  });
+
+  it('the customer gets a WhatsApp update when the bakery marks it delivered', async () => {
+    const f = await fixture();
+    process.env.WHATSAPP_ACCESS_TOKEN = 'test-no-network'; process.env.WHATSAPP_PHONE_NUMBER_ID = 'test';
+    try {
+      await moveFulfillment(f.vendor.id, f.order.ref, 'in_preparation', f.assignment);
+      await moveFulfillment(f.vendor.id, f.order.ref, 'ready', f.assignment);
+      await handOver(f.vendor.id, f.order.ref, f.assignment, null);
+      expect(await vendorDeliveryMove(f.vendor.id, f.order.ref, f.assignment, 'delivered', null)).toBe(true);
+      const sent = await db.notificationOutbox.findMany({ where: { orderId: f.order.id, dedupeKey: { contains: ':customer' } }, select: { dedupeKey: true } });
+      expect(sent.map((s) => /:(\w+):customer/.exec(s.dedupeKey)?.[1]).sort()).toEqual(['delivered', 'in_kitchen', 'out_for_delivery']);
     } finally {
       delete process.env.WHATSAPP_ACCESS_TOKEN; delete process.env.WHATSAPP_PHONE_NUMBER_ID;
     }
