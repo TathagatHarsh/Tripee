@@ -1,5 +1,7 @@
 // Pure rules for WhatsApp-quoted custom cakes. Browser-safe: no node:crypto, no DB.
 import type { CustomRequestStatus } from "@prisma/client";
+import { z } from "zod";
+import { inHyderabad } from "./location";
 
 export const CUSTOM_SIZES_KG: readonly number[] = [0.5, 1, 1.5, 2, 3, 4, 5];
 export const MAX_BAKERIES = 3;
@@ -60,3 +62,23 @@ export function newCustomToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_");
 }
+
+// Light phone check for the browser; the server stores the number via indianMobile (lib/whatsapp.ts), which is authoritative.
+const mobileLike = (raw: string) => /^[6-9]\d{9}$/.test(raw.replace(/\D/g, "").replace(/^(?:0{0,2}91|0)(?=\d{10}$)/, ""));
+
+export const CustomRequestInput = z.object({
+  name: z.string().trim().min(1).max(80),
+  phone: z.string().refine(mobileLike, "Enter a 10-digit mobile number"),
+  sizeKg: z.number().refine((n) => CUSTOM_SIZES_KG.includes(n), "Choose a size"),
+  budgetRupees: z.number().int().min(100).max(100_000).optional(),
+  flavour: z.string().trim().min(1).max(60),
+  cakeMessage: z.string().trim().max(60).optional(),
+  dueAt: z.iso.datetime({ offset: true }),
+  address: z.object({
+    lat: z.number(), lng: z.number(), address: z.string(), locality: z.string().optional(),
+    source: z.enum(["map", "current_location"]).optional(),
+    city: z.string(), state: z.string(), pincode: z.string().regex(/^\d{6}$/), placeId: z.string(),
+  }).refine(inHyderabad, "We only deliver in Hyderabad"),
+  consent: z.literal(true),
+});
+export type CustomRequestInput = z.infer<typeof CustomRequestInput>;

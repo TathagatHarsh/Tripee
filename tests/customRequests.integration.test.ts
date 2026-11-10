@@ -1,7 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
+const afterCallbacks: (() => unknown)[] = [];
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => { afterCallbacks.push(fn); } }));
+vi.mock('../lib/storage', () => ({ optimize: async (b: Buffer) => b, store: async (_b: Buffer, _c: string, ref: string) => `https://blob.test/${ref}.webp` }));
 import { db } from '../lib/db';
-import { cancelCustomRequest, nextBakery, offerNext, runCustomRequestWorker } from '../lib/customRequests';
+import { cancelCustomRequest, createCustomRequest, nextBakery, offerNext, runCustomRequestWorker } from '../lib/customRequests';
 import { handleInbound } from '../lib/whatsappInbound';
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
 const vendorIds: string[] = [], requestIds: string[] = [];
@@ -219,5 +222,23 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
     expect((await reload(request.id)).status).toBe('cancelled');
     expect(textOf((await rows(request.id)).at(-1)!)).toContain('cancelled');
     expect(await cancelCustomRequest(request.id)).toBe(false);
+  });
+});
+
+describe.skipIf(!url)('createCustomRequest on isolated PostgreSQL', () => {
+  const made: string[] = [];
+  beforeAll(() => { process.env.DATABASE_URL = url!; });
+  afterEach(async () => { await db.customRequest.deleteMany({ where: { ref: { in: made } } }); made.length = 0; afterCallbacks.length = 0; });
+  const input = { name: 'Asha', phone: '98765 43210', sizeKg: 1.5, budgetRupees: 2000, flavour: 'Chocolate', dueAt: new Date(Date.now() + 3 * 86400000).toISOString(), consent: true as const,
+    address: { lat: 17.4, lng: 78.45, address: 'Road 1', locality: 'Banjara Hills', city: 'Hyderabad', state: 'Telangana', pincode: '500034', placeId: 'p' } };
+  it('stores the row with a CR- ref and a normalized phone, and offers it after the response', async () => {
+    const { ref } = await createCustomRequest(input, Buffer.from('img')); made.push(ref);
+    expect(ref).toMatch(/^CR-[A-Z2-7]{6}$/);
+    const row = await db.customRequest.findUniqueOrThrow({ where: { ref } });
+    expect(row).toMatchObject({ status: 'awaiting_quote', phone: '919876543210', budgetPaise: 200000, photoUrl: `https://blob.test/${ref}.webp`, flavour: 'Chocolate' });
+    expect(row.sizeKg.toString()).toBe('1.5');
+    expect(afterCallbacks).toHaveLength(1); // offerNext is scheduled, not yet run
+    await afterCallbacks[0]();
+    expect((await db.customRequest.findUniqueOrThrow({ where: { ref } })).offerExpiresAt !== null || (await db.customRequest.findUniqueOrThrow({ where: { ref } })).status === 'no_bakery').toBe(true);
   });
 });

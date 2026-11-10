@@ -1,12 +1,14 @@
 import "server-only";
-import type { CustomRequest, Prisma, Vendor } from "@prisma/client";
+import { Prisma, type CustomRequest, type Vendor } from "@prisma/client";
+import { after } from "next/server";
 import { ASSIGNMENT_TX, vendorBlockers } from "./assignment";
 import { haversine, pointFrom } from "./assignmentRules";
-import { canMoveCustom, customerPricePaise, customOfferMinutes, MAX_BAKERIES, quoteExpiresAt } from "./customRules";
+import { canMoveCustom, customerPricePaise, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, quoteExpiresAt, type CustomRequestInput } from "./customRules";
 import { db } from "./db";
 import { meetsDeadline } from "./inventoryRules";
 import { log } from "./log";
-import { adminNumbers, normalizePhone } from "./whatsapp";
+import { optimize, store } from "./storage";
+import { adminNumbers, indianMobile, normalizePhone } from "./whatsapp";
 import { customOfferMessage, customQuoteMessage, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
 
 type Tx = Prisma.TransactionClient;
@@ -28,6 +30,32 @@ export async function nextBakery(tx: Prisma.TransactionClient, request: CustomRe
     best = { vendor, distanceKm };
   }
   return best;
+}
+
+/** Stores the photo and the request, then offers it to the nearest bakery after the response. */
+export async function createCustomRequest(input: CustomRequestInput, photo: Buffer): Promise<{ ref: string }> {
+  const phone = indianMobile(input.phone);
+  if (!phone) throw new Error("Invalid phone number");
+  for (let attempt = 0; ; attempt++) {
+    const ref = newCustomRef();
+    const photoUrl = await store(await optimize(photo), "custom", ref);
+    try {
+      const { id } = await db.customRequest.create({
+        data: {
+          ref, token: newCustomToken(), name: input.name, phone, photoUrl, sizeKg: input.sizeKg,
+          budgetPaise: input.budgetRupees ? input.budgetRupees * 100 : null, flavour: input.flavour,
+          cakeMessage: input.cakeMessage || null, dueAt: new Date(input.dueAt), address: input.address,
+        },
+        select: { id: true },
+      });
+      // A failure here is safe: runCustomRequestWorker offers requests that were never offered.
+      after(() => offerNext(id).catch((error) => log("error", "custom_offer_failed", { id, error: String(error) })));
+      return { ref };
+    } catch (error) {
+      // ref collision: try a fresh one
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") || attempt >= 4) throw error;
+    }
+  }
 }
 
 export const NOT_WAITING = "That request isn't waiting on you any more.";
