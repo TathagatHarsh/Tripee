@@ -39,6 +39,8 @@ const PATHS: Record<string, React.ReactNode> = {
 
   /* ── controls ───────────────────────────────────────────────────────── */
   search: <><circle cx="10.5" cy="10.5" r="6" /><path d="M15 15l5 5" /></>,
+  volume: <><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" /><path d="M15.5 9a4 4 0 0 1 0 6" /><path d="M18 6.5a7.5 7.5 0 0 1 0 11" /></>,
+  volumeOff: <><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" /><path d="M16 9.5l5 5" /><path d="M21 9.5l-5 5" /></>,
   bell: <><path d="M6.5 9.5a5.5 5.5 0 0 1 11 0c0 4 1.5 5.5 1.5 5.5H5s1.5-1.5 1.5-5.5Z" /><path d="M10 18.5a2.2 2.2 0 0 0 4 0" /></>,
   menu: <><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></>,
   close: <><path d="M6 6l12 12" /><path d="M18 6 6 18" /></>,
