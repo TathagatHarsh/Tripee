@@ -8,6 +8,7 @@ import { getDistanceMatrix } from '../lib/mapping';
 import { POST as updateInventory } from '../app/api/inventory/route';
 import { ASSIGNMENT_TX, assignmentCandidates, expireAndAdvance, manualAssignment, moveFulfillment, respondToAssignment, startAssignment, correctDeliveryPin, runAssignmentWorker } from '../lib/assignment';
 import { applyStatusTransition } from '../lib/orderTransition';
+import { UNDELIVERABLE } from '../lib/orders';
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
 const vendorIds: string[] = [], orderIds: string[] = [], orderRefs: string[] = [], productIds: string[] = [];
 let serial = 0;
@@ -58,10 +59,52 @@ describe.skipIf(!url)('inventory and assignment transactions on isolated Postgre
     await db.vendorInventory.updateMany({ where: { vendorId: vendors[2].id }, data: { isAvailable: false } });
     await startAssignment(order.ref); expect((await current(order.id)).vendorId).toBe(vendors[1].id);
   });
-  it('auto start with no eligible bakery hands the order to the admin', async () => {
-    auto(); const { order } = await fixture(false); await startAssignment(order.ref);
-    expect(await db.order.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ assignmentState: 'MANUAL', assignmentNote: 'No eligible bakery for this order. Main bakery intervention required.' });
-    expect(await db.vendorOrder.count({ where: { orderId: order.id } })).toBe(0);
+  /* Automatic mode has no main bakery: an order no bakery can take is cancelled
+     and the customer told we can't deliver it, instead of waiting for the admin. */
+  const whatsapp = () => { process.env.WHATSAPP_ACCESS_TOKEN = 'test-no-network'; process.env.WHATSAPP_PHONE_NUMBER_ID = 'test'; };
+  const undeliverable = async (orderId: string) => {
+    expect(await db.order.findUniqueOrThrow({ where: { id: orderId } })).toMatchObject({ status: 'cancelled', cancellationReason: UNDELIVERABLE, currentAssignmentId: null });
+    const sent = await db.notificationOutbox.findMany({ where: { orderId }, select: { dedupeKey: true, payload: true } });
+    const text = (key: string) => JSON.stringify(sent.find((n) => n.dedupeKey.includes(key))?.payload ?? '');
+    expect(text(':cancelled:customer')).toContain("Sorry, we can't deliver this order");
+    expect(sent.some((n) => JSON.stringify(n.payload).includes('No vendor can take this order'))).toBe(false);
+  };
+  it('auto start with no eligible bakery cancels and tells the customer', async () => {
+    auto(); whatsapp();
+    try {
+      const { order } = await fixture(false);
+      await db.order.update({ where: { id: order.id }, data: { customerPhone: '+919876543210' } });
+      await startAssignment(order.ref);
+      await undeliverable(order.id);
+      expect(await db.vendorOrder.count({ where: { orderId: order.id } })).toBe(0);
+    } finally { delete process.env.WHATSAPP_ACCESS_TOKEN; delete process.env.WHATSAPP_PHONE_NUMBER_ID; }
+  });
+  it('auto mode: a decline moves to the next nearest, and the last decline cancels', async () => {
+    auto(); whatsapp(); nearerByIndex();
+    try {
+      const { order, vendors } = await fixture(true, 2);
+      await db.order.update({ where: { id: order.id }, data: { customerPhone: '+919876543210' } });
+      await startAssignment(order.ref);
+      const first = await current(order.id);
+      expect(first.vendorId).toBe(vendors[1].id);
+      await respondToAssignment(first.vendorId, order.ref, first.id, 'REJECTED', 'Too busy');
+      const second = await current(order.id);
+      expect(second.vendorId).toBe(vendors[0].id);
+      expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('confirmed');
+      await respondToAssignment(second.vendorId, order.ref, second.id, 'REJECTED', 'Too busy');
+      await undeliverable(order.id);
+    } finally { delete process.env.WHATSAPP_ACCESS_TOKEN; delete process.env.WHATSAPP_PHONE_NUMBER_ID; }
+  });
+  it('auto mode: the last offer timing out cancels the order', async () => {
+    auto(); whatsapp();
+    try {
+      const { order } = await fixture(true, 1);
+      await db.order.update({ where: { id: order.id }, data: { customerPhone: '+919876543210' } });
+      await startAssignment(order.ref);
+      await db.vendorOrder.update({ where: { id: (await current(order.id)).id }, data: { expiresAt: new Date(0) } });
+      await runAssignmentWorker();
+      await undeliverable(order.id);
+    } finally { delete process.env.WHATSAPP_ACCESS_TOKEN; delete process.env.WHATSAPP_PHONE_NUMBER_ID; }
   });
   it('concurrent auto starts create exactly one offer', async () => {
     auto(); const { order } = await fixture(true, 3);

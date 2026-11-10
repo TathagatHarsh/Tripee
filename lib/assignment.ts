@@ -16,7 +16,7 @@ import {
 import { getDistanceMatrix } from "./mapping";
 import { outboxCreate } from "./notifications";
 import { canVendorTransition, ORDER_STATUS_FOR_VENDOR, STAMP } from "./vendors";
-import { canTransition } from "./orders";
+import { canTransition, UNDELIVERABLE } from "./orders";
 
 import { inventoryForOrder, requireOrderAvailability, InventoryConflict } from './inventory';
 import { meetsDeadline } from './inventoryRules';
@@ -43,7 +43,7 @@ async function lockedOrder(tx: Tx, ref: string) {
   if (!order) throw new AssignmentConflict("Order not found");
   return order;
 }
-const openOrder = (order: Order) =>
+const openOrder = (order: Pick<Order, "status">) =>
   order.status === "confirmed" || order.status === "in_kitchen";
 const productsFor = (o: {
   cakes: { cakeProductId: string | null }[];
@@ -174,6 +174,9 @@ async function advance(tx: Tx, order: Awaited<ReturnType<typeof lockedOrder>>) {
         "No eligible bakery remains. Main bakery intervention required.",
     },
   });
+  /* Automatic mode: cancelIfUndeliverable cancels it once this commits, and the
+     customer and admin hear about the cancellation instead. */
+  if (process.env.ASSIGNMENT_AUTO_START === "true") return;
   await tx.notificationOutbox.upsert({
     where: { dedupeKey: `manual:${order.id}:${rows.at(-1)?.id ?? "none"}` },
     update: {},
@@ -235,6 +238,23 @@ export async function assignmentCandidates(ref: string) {
 export async function findEligibleBakeries(ref: string) {
   return (await assignmentCandidates(ref)).filter(row => row.eligible);
 }
+/**
+ * Automatic mode has no main bakery to fall back on: an open order that has run
+ * out of bakeries is cancelled, and the customer is told we can't deliver it
+ * (lib/orders' UNDELIVERABLE). Runs after the assignment transaction commits,
+ * because applyStatusTransition opens its own. Manual mode leaves it to the admin.
+ *
+ * ponytail: "ran out" is read from the note advance()/startAssignment write;
+ * an AssignmentState value of its own if a third path ever needs it.
+ */
+export async function cancelIfUndeliverable(ref: string) {
+  if (process.env.ASSIGNMENT_AUTO_START !== "true") return;
+  const order = await db.order.findUnique({ where: { ref }, select: { status: true, currentAssignmentId: true, assignmentState: true, assignmentNote: true } });
+  if (!order || !openOrder(order) || order.currentAssignmentId || order.assignmentState !== "MANUAL" || !order.assignmentNote?.startsWith("No eligible bakery")) return;
+  const { applyStatusTransition } = await import("./orderTransition");
+  await applyStatusTransition(ref, "cancelled", null, UNDELIVERABLE);
+}
+
 /** Idempotent; the worker also discovers PENDING/ASSIGNING orders after crashes. */
 export async function startAssignment(ref: string) {
   if (process.env.ASSIGNMENT_AUTO_START === 'true') {
@@ -248,8 +268,8 @@ export async function startAssignment(ref: string) {
         if ((await db.order.findUnique({ where: { ref }, select: { currentAssignmentId: true } }))?.currentAssignmentId) return;
       }
     }
-    const handed = await db.order.updateMany({ where: { ref, currentAssignmentId: null, assignmentState: { in: ['PENDING', 'ASSIGNING'] } }, data: { assignmentState: 'MANUAL', assignmentNote: 'No eligible bakery for this order. Main bakery intervention required.' } });
-    if (handed.count === 1) await whatsappNoBakery(db, order.id, `wa:manual:${order.id}:start`);
+    await db.order.updateMany({ where: { ref, currentAssignmentId: null, assignmentState: { in: ['PENDING', 'ASSIGNING'] } }, data: { assignmentState: 'MANUAL', assignmentNote: 'No eligible bakery for this order. Main bakery intervention required.' } });
+    await cancelIfUndeliverable(ref);
     return;
   }
   // Checkout creates demand; only the admin chooses the first bakery.
@@ -265,6 +285,18 @@ export async function respondToAssignment(
   actorId?: string,
 ) {
   if (response === 'REJECTED' && !reason?.trim()) throw new AssignmentConflict('A rejection reason is required.');
+  const result = await respondInTransaction(vendorId, ref, id, response, reason, actorId);
+  if (response === "REJECTED") await cancelIfUndeliverable(ref);
+  return result;
+}
+function respondInTransaction(
+  vendorId: string,
+  ref: string,
+  id: string,
+  response: "ACCEPTED" | "REJECTED",
+  reason?: string,
+  actorId?: string,
+) {
   return db.$transaction(async (tx) => {
     const order = await lockedOrder(tx, ref);
     const row = await tx.vendorOrder.findFirst({
@@ -403,6 +435,7 @@ export async function expireAndAdvance(ref: string) {
     else if (!row && order.assignmentState === "ASSIGNING")
       await advance(tx, order);
   }, ASSIGNMENT_TX);
+  await cancelIfUndeliverable(ref);
 }
 export async function manualAssignment(
   ref: string,

@@ -109,7 +109,7 @@ test("mobile checkout blocks an unserviceable address and preserves details afte
   await page.unroute("**/api/location");
   await page.unroute("**/api/serviceability");
   await pinAddress(page, { ...MADHAPUR, address: "Connaught Place", pincode: "110001" }, false);
-  await expect(page.getByText(/We don.t deliver here yet/)).toBeVisible();
+  await expect(page.getByText(/Sorry, we can.t deliver here yet/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm location", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Close", exact: true }).click();
   // A hand-edited pincode outside the zones is refused by the slot rules.

@@ -108,7 +108,7 @@ export default async function TrackOrder({
   const pickup = order.deliverySlot === "pickup";
   const phase = PHASE[order.status];
   const steps = buildProgress(order, order.events);
-  const now = customerStatus(order.status, pickup);
+  const now = customerStatus(order.status, pickup, order.cancellationReason);
 
   /* The recorded arrival, if the move was written down. Beats any estimate, and
      is why the delivery panel takes it as an argument rather than guessing. */
