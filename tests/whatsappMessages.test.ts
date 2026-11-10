@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('../lib/log', () => ({ log: vi.fn() }));
 vi.mock('../lib/db', () => ({ db: {} }));
 import type { WhatsAppMessage } from '../lib/whatsapp';
-import { acceptedMessage, handedOverMessage, adminNewOrderMessage, cleanParam, formatDue, offerMessage, queueWhatsApp, rupees, textMessage, updateMessage } from '../lib/whatsappMessages';
+import { acceptedMessage, handedOverMessage, adminNewOrderMessage, cleanParam, customOfferMessage, customQuoteMessage, formatDue, offerMessage, queueWhatsApp, rupees, textMessage, updateMessage } from '../lib/whatsappMessages';
 
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks(); });
 
@@ -73,5 +73,28 @@ describe('queueWhatsApp', () => {
     expect(tx.notificationOutbox.upsert).toHaveBeenCalledTimes(1);
     expect(tx.notificationOutbox.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { dedupeKey: 'k:919876543210' }, update: {},
       create: expect.objectContaining({ channel: 'whatsapp', destination: '919876543210', dedupeKey: 'k:919876543210' }) }));
+  });
+});
+
+describe('custom cake builders', () => {
+  const dueAt = new Date('2026-10-10T10:30:00Z');
+  it('customOfferMessage: exact components, message flattened', () => {
+    const m = customOfferMessage({ id: 'cr1', ref: 'CR-ABC234', photoUrl: 'https://x/p.jpg', sizeKg: '1.5', flavour: 'Mango', cakeMessage: 'Happy\nBirthday', dueAt, area: 'Jubilee Hills', budgetPaise: 180000 });
+    expect(m).toEqual({ type: 'template', name: 'custom_offer', components: [
+      { type: 'header', parameters: [{ type: 'image', image: { link: 'https://x/p.jpg' } }] },
+      { type: 'body', parameters: ['CR-ABC234', '1.5 kg', 'Mango', 'Happy Birthday', 'Sat 10 Oct, 4:00 pm', 'Jubilee Hills', '1,800'].map((text) => ({ type: 'text', text })) },
+      { type: 'button', sub_type: 'quick_reply', index: '0', parameters: [{ type: 'payload', payload: 'cq_no:cr1' }] },
+    ] });
+    const n = customOfferMessage({ id: 'cr1', ref: 'R', photoUrl: 'u', sizeKg: '1', flavour: 'f', cakeMessage: null, dueAt, area: 'a', budgetPaise: null });
+    expect(bodyTexts(n).slice(3).filter((_: string, i: number) => i !== 1)).toEqual(['-', 'a', 'no budget given']);
+  });
+  it('customQuoteMessage: exact components', () => {
+    const m = customQuoteMessage({ id: 'cr1', ref: 'CR-ABC234', token: 'tok', photoUrl: 'https://x/p.jpg', sizeKg: '2', dueAt, quotePaise: 207000 });
+    expect(m).toEqual({ type: 'template', name: 'custom_quote', components: [
+      { type: 'header', parameters: [{ type: 'image', image: { link: 'https://x/p.jpg' } }] },
+      { type: 'body', parameters: ['CR-ABC234', '2 kg', 'Sat 10 Oct, 4:00 pm', '2,070'].map((text) => ({ type: 'text', text })) },
+      { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'tok' }] },
+      { type: 'button', sub_type: 'quick_reply', index: '1', parameters: [{ type: 'payload', payload: 'cq_decline:cr1' }] },
+    ] });
   });
 });

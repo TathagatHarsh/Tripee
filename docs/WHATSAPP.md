@@ -73,13 +73,15 @@ Business verification is not needed to start. The unverified limit (250 recipien
 
 ### Templates
 
-All three: category **Utility**, language **English** (`en`). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
+All five: category **Utility**, language **English** (`en`). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
 
 | Name | Header | Body | Buttons |
 |---|---|---|---|
 | `order_offer` | Image | `New cake order {{1}} 🎂 {{2}}. This order is due on {{3}}. It needs to be delivered to {{4}}, which is about {{5}} km from your bakery. If you accept it, your earning will be ₹{{6}}. Please accept or reject it within {{7}} minutes, or it will be offered to another bakery.` | Quick reply **Accept**, quick reply **Reject** |
 | `admin_new_order` | Image | `A new cake order {{1}} has been placed for a total of ₹{{2}}. Cake details: {{3}}. It is due on {{4}} and will be delivered to {{5}}. We will send you an update here at every step of this order.` | none |
 | `order_update` | none | `Update on cake order {{1}}: {{2}}. If you have any questions about this order, please contact the MakeYourCakes team.` | none |
+| `custom_offer` | Image (customer's reference photo) | `A customer wants a custom cake, request {{1}} 🎂 Size: {{2}}. Flavour: {{3}}. Message on the cake: {{4}}. It is needed by {{5}} and will be delivered to {{6}}. Their budget: {{7}}. The photo above shows the design they like. If you can make it, reply to this message with your price in rupees, or tap the button if you cannot.` Footer: `Reply with your price, e.g. 1800` | Quick reply **Can't do it** |
+| `custom_quote` | Image (customer's reference photo) | `Good news, we can make your custom cake, request {{1}} 🎂 Size: {{2}}. It will be ready for {{3}}. The price is ₹{{4}}, delivery included. Tap the button below to see the details and pay. Your cake is confirmed only once you have paid.` | URL **Pay now** → `https://makeyourcakes.com/c/{{1}}` (the one variable is the quote token), quick reply **Not for me** |
 
 Variables:
 
@@ -88,6 +90,8 @@ Variables:
 | `order_offer` | order ref (MC-XXXX) | cake, size, egg type | due time | delivery area | distance in km | bakery's earning | reply window in minutes |
 | `admin_new_order` | order ref | order total | cake | due time | delivery area | | |
 | `order_update` | order ref | what happened | | | | | |
+| `custom_offer` | request ref (CR-XXXXXX) | size, e.g. "1.5 kg" | flavour | message on the cake ("-" if none) | needed-by time | delivery area only (never name, phone or street) | budget, or "no budget given" |
+| `custom_quote` | request ref | size | due time | price to pay | | | |
 
 Parameters never contain line breaks. These are the texts Meta approved (the first draft was shorter, and Meta refused it with "too many variables for its length", so the fixed wording around the variables was lengthened; the variables and their order did not change). If a template is ever edited or rejected, change the matching builder in `lib/whatsappMessages.ts`.
 
