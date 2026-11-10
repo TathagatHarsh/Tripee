@@ -6,7 +6,7 @@ import { canMoveCustom, customerPricePaise, customOfferMinutes, MAX_BAKERIES, qu
 import { db } from "./db";
 import { meetsDeadline } from "./inventoryRules";
 import { log } from "./log";
-import { adminNumbers } from "./whatsapp";
+import { adminNumbers, normalizePhone } from "./whatsapp";
 import { customOfferMessage, customQuoteMessage, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
 
 type Tx = Prisma.TransactionClient;
@@ -20,7 +20,7 @@ export async function nextBakery(tx: Prisma.TransactionClient, request: CustomRe
   let best: { vendor: Vendor; distanceKm: number } | null = null;
   for (const vendor of await tx.vendor.findMany({ where: { id: { notIn: request.triedVendorIds } } })) {
     const origin = pointFrom(vendor);
-    if (!origin) continue;
+    if (!origin || !normalizePhone(vendor.phone)) continue; // an offer nobody can read only burns the window
     const distanceKm = haversine(origin, dest);
     if (distanceKm > vendor.serviceRadiusKm || (best && distanceKm >= best.distanceKm)) continue;
     if ((await vendorBlockers(tx, vendor, now)).length) continue;
@@ -149,7 +149,9 @@ export async function cancelCustomRequest(requestId: string): Promise<boolean> {
 export async function runCustomRequestWorker(): Promise<{ offers: number; quotes: number }> {
   const now = new Date();
   const due = await db.customRequest.findMany({
-    where: { status: "awaiting_quote", offerExpiresAt: { lte: now } }, select: { id: true }, take: 20, orderBy: { offerExpiresAt: "asc" },
+    // Expired offers, plus requests whose first offer never went out (a minute's grace so a new request isn't raced).
+    where: { status: "awaiting_quote", OR: [{ offerExpiresAt: { lte: now } }, { offerExpiresAt: null, createdAt: { lte: new Date(now.getTime() - 60_000) } }] },
+    select: { id: true }, take: 20, orderBy: { createdAt: "asc" },
   });
   let offers = 0;
   for (const { id } of due)

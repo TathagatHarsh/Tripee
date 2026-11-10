@@ -19,7 +19,7 @@ describe.skipIf(!url)('nextBakery on isolated PostgreSQL', () => {
   async function fixture(opts: { prep?: number; dueInHours?: number; tried?: number[]; unset?: number } = {}) {
     const vendors: Awaited<ReturnType<typeof db.vendor.create>>[] = [];
     for (const [i, d] of [0.1, 1, 30].entries()) {
-      const v = await db.vendor.create({ data: { name: `CR Bakery ${i}`, locationSetAt: opts.unset === i ? null : new Date(), isAcceptingOrders: true, fulfillsAllProducts: true, latitude: km(d), longitude: 77.6, serviceRadiusKm: 20, preparationMinutes: opts.prep ?? 60 } });
+      const v = await db.vendor.create({ data: { name: `CR Bakery ${i}`, phone: `91983330000${i}`, locationSetAt: opts.unset === i ? null : new Date(), isAcceptingOrders: true, fulfillsAllProducts: true, latitude: km(d), longitude: 77.6, serviceRadiusKm: 20, preparationMinutes: opts.prep ?? 60 } });
       vendorIds.push(v.id); vendors.push(v);
     }
     const n = ++serial;
@@ -198,6 +198,20 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
     await db.customRequest.update({ where: { id: request.id }, data: { quoteExpiresAt: new Date(Date.now() - 1000) } });
     expect((await runCustomRequestWorker()).quotes).toBeGreaterThanOrEqual(1);
     expect((await reload(request.id)).status).toBe('expired');
+  });
+  it('skips a nearest bakery with no WhatsApp number', async () => {
+    const { vendors, request } = await fixture();
+    await db.vendor.update({ where: { id: vendors[0].id }, data: { phone: null } });
+    await offerNext(request.id);
+    expect((await reload(request.id)).vendorId).toBe(vendors[1].id);
+  });
+  it('the worker offers a request whose first offer never went out', async () => {
+    const { vendors, request } = await fixture();
+    await runCustomRequestWorker();
+    expect((await reload(request.id)).vendorId).toBeNull(); // a just-created request is not raced
+    await db.customRequest.update({ where: { id: request.id }, data: { createdAt: new Date(Date.now() - 2 * 60000) } });
+    await runCustomRequestWorker();
+    expect((await reload(request.id)).vendorId).toBe(vendors[0].id);
   });
   it('cancel stops an open offer and tells the bakery', async () => {
     const { request } = await fixture(); await offerNext(request.id);
