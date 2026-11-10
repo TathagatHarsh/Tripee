@@ -1,12 +1,14 @@
 import "server-only";
 import type { AssignmentStatus, OrderStatus, VendorOrderStatus } from "@prisma/client";
 import { AssignmentConflict, moveFulfillment, respondToAssignment } from "./assignment";
+import { customerReply, declineOffer, NOT_WAITING, recordQuote } from "./customRequests";
+import { parseQuoteReply } from "./customRules";
 import { db } from "./db";
 import { log } from "./log";
 import { handOver, vendorDeliveryMove } from "./vendorTransition";
 import { VENDOR_STATUS_LABEL } from "./vendors";
 import { adminNumbers, normalizePhone, sendWhatsApp } from "./whatsapp";
-import { acceptedMessage, handedOverMessage, queueWhatsApp, textMessage } from "./whatsappMessages";
+import { acceptedMessage, handedOverMessage, queueWhatsApp, rupees, textMessage } from "./whatsappMessages";
 
 export type InboundAction = "accept" | "reject" | "start" | "ready" | "handover" | "deliver";
 export interface ParsedInbound { action: InboundAction; assignmentId?: string; ref?: string }
@@ -60,11 +62,62 @@ async function say(to: string, body: string) {
   }
 }
 
+const CR_REF = /\bcr-[a-z0-9]+\b/i;
+
+/** A bakery's price, or its "Can't do it", for a custom request. False when the message is not about one. */
+async function customVendorReply(msg: InboundMessage, from: string, vendorId: string): Promise<boolean> {
+  const declineId = /^cq_no:(\S+)$/.exec(msg.payload ?? "")?.[1];
+  const text = (msg.text ?? "").toLowerCase();
+  const typedRef = CR_REF.exec(text)?.[0].toUpperCase();
+  const typedDecline = typedRef && ["cant do it", "no"].includes(text.replace(CR_REF, " ").replace(/[^a-z ]/g, "").replace(/\s+/g, " ").trim());
+  const quote = declineId || typedDecline ? null : parseQuoteReply(msg.text ?? "");
+  if (!declineId && !typedDecline && !quote) return false;
+  const action = quote ? "quote" : "cq_no";
+  const commandKey = `${msg.id}:${from}`;
+  const saved = await db.whatsAppCommand.findUnique({ where: { key: commandKey } });
+  if (saved && saved.vendorId !== vendorId) return true;
+
+  let target: { id: string; ref: string } | null = null;
+  if (saved?.orderRef && saved.action === action) target = await db.customRequest.findUnique({ where: { ref: saved.orderRef }, select: { id: true, ref: true } });
+  else if (!quote) target = await db.customRequest.findUnique({ where: declineId ? { id: declineId } : { ref: typedRef! }, select: { id: true, ref: true } });
+  else {
+    const ref = quote.kind === "quote" ? quote.ref : undefined;
+    const open = await db.customRequest.findMany({ where: { status: "awaiting_quote", vendorId, ...(ref ? { ref } : {}) }, select: { id: true, ref: true }, orderBy: { ref: "asc" } });
+    if (open.length === 0) {
+      // A bakery this request already moved on from is told so; any other number falls through to orders.
+      const late = quote.kind === "quote" && await db.customRequest.findFirst({ where: { triedVendorIds: { has: vendorId }, ...(ref ? { ref } : {}) }, select: { id: true, ref: true }, orderBy: { createdAt: "desc" } });
+      if (!late) return false;
+      target = late;
+    } else if (quote.kind === "out_of_range") {
+      await say(from, "Please send the price in rupees, e.g. 1800.");
+      return true;
+    } else if (open.length > 1) {
+      await say(from, `Which request? Reply *${rupees(quote.paise)} ${open[0].ref}*. Open: ${open.map((r) => r.ref).join(", ")}`);
+      return true;
+    } else target = open[0];
+  }
+  if (!target) {
+    await say(from, NOT_WAITING);
+    return true;
+  }
+  if (!saved)
+    await db.whatsAppCommand.upsert({ where: { key: commandKey }, update: {}, create: { key: commandKey, vendorId, orderRef: target.ref, action, pickup: false } });
+
+  let body: string;
+  if (quote?.kind === "quote") {
+    const res = await recordQuote(vendorId, target.id, quote.paise);
+    body = res.ok ? `✅ Quote ₹${rupees(quote.paise)} sent for ${target.ref}. We'll tell you if the customer pays.` : res.message;
+  } else body = (await declineOffer(vendorId, target.id)).message;
+  await queueWhatsApp(db, { customRequestId: target.id, vendorId, kind: "custom_request", to: [from], dedupeKey: `wa-reply:${msg.id}`, message: textMessage(body) });
+  return true;
+}
+
 export async function handleInbound(msg: InboundMessage): Promise<void> {
   const from = normalizePhone(msg.from);
   if (!from) return;
   const vendors = (await db.vendor.findMany({ where: { isActive: true, phone: { not: null } }, select: { id: true, phone: true } }))
     .filter((v) => normalizePhone(v.phone) === from);
+  if (vendors.length === 0 && (await customerReply(from, msg.text ?? null, msg.payload ?? null, msg.id))) return;
   if (vendors.length === 0)
     return say(from, adminNumbers().includes(from)
       ? "This number only sends updates. Use the admin page to act on orders."
@@ -73,6 +126,9 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
   const vendorId = vendors[0].id;
   // A re-delivered webhook (same message id) was already answered: no action, no second reply.
   if (await db.notificationOutbox.findUnique({ where: { dedupeKey: `wa-reply:${msg.id}:${from}` }, select: { id: true } })) return;
+  if (await customVendorReply(msg, from, vendorId)) return;
+  // A bakery's own custom cake: its "Not for me" button is unambiguous.
+  if (msg.payload?.startsWith("cq_decline:") && (await customerReply(from, msg.text ?? null, msg.payload, msg.id))) return;
 
   const parsed = parseInbound(msg);
   if (!parsed) return say(from, "Reply with: accept, reject, started, ready or handed over. Add the order number if you have more than one, e.g. started MC-1234.");
