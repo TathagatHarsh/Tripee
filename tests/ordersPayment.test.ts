@@ -44,11 +44,12 @@ describe('POST /api/orders payment gate', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('payments off: a body without proof is not 402', async () => {
+  it('a missing key fails closed with 503', async () => {
     vi.stubEnv('RAZORPAY_KEY_SECRET', '');
 
     const res = await post({});
 
-    expect(res.status).not.toBe(402);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ code: 'payment_unavailable' });
   });
 });

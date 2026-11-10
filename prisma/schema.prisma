@@ -1226,3 +1226,38 @@ model NotificationRead {
   userId String
   @@id([notificationId, userId])
 }
+
+model WhatsAppCommand {
+  key String @id
+  vendorId String
+  assignmentId String?
+  orderId String?
+  orderRef String?
+  action String
+  reply String?
+  pickup Boolean
+  createdAt DateTime @default(now())
+}
+
+model PaymentRecovery {
+  id String @id
+  request Json
+  userId String?
+  payloadHash String
+  status String @default("pending")
+  lastError String?
+  nextCheckAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, nextCheckAt])
+}
+model RefundOperation {
+  paymentId String @id
+  refundId String?
+  status String @default("pending")
+  lastError String?
+  nextCheckAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, nextCheckAt])
+}

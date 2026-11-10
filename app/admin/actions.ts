@@ -1,4 +1,6 @@
 "use server";
+
+import { validSlotWindow } from "@/lib/scheduling";
 import { lockAssignments } from "@/lib/assignment";
 
 import { revalidatePath } from "next/cache";
@@ -454,7 +456,7 @@ const SlotEdit = z.object({
     .refine((s) => /^\d+$/.test(s), "Lead time is a whole number of hours.")
     .transform(Number)
     .refine((h) => h <= 24 * 90, "That is more than three months."),
-  slotWindow: z.string().trim().min(1, "Say when it arrives.").max(120),
+  slotWindow: z.string().trim().min(1, "Say when it arrives.").max(120).refine(validSlotWindow, "Use a delivery window such as 10:00–20:00."),
   slotNote: z.string().trim().max(200),
   // Blank saves as null, which is what the seed writes and what the form shows
   // for it: no daily limit (api/orders and api/price skip a capacity of 0), and

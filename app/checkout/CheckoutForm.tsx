@@ -115,7 +115,7 @@ type Props = {
   designSlug?: string;
   catalog: CatalogSnapshot;
   cakes: CakeProductView[];
-  payments: { enabled: boolean; testMode: boolean };
+  payments: { enabled: boolean; testMode: boolean; available?: boolean };
 };
 const ATTEMPT_KEY = "makemycake.checkoutAttempt";
 /** The in-flight checkout: its idempotency key, and the payment once Razorpay has taken it. */
@@ -449,7 +449,7 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
               : "We couldn't place the order. Nothing has been charged.",
           );
           // A refund answer, or a proof the server refuses, ends this payment: the next press pays afresh.
-          if (typeof data.refunded === "boolean" || PROOF_REJECTED.includes(String(data.code)))
+          if (data.refunded === true || PROOF_REJECTED.includes(String(data.code)))
             keepProof(undefined);
           return;
         }
@@ -505,7 +505,7 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
   const finishing =
     paidSignature !== null &&
     recovering;
-  const buttonLabel = recovering && !placing ? "Finish placing order" : !payments.enabled
+  const buttonLabel = payments.available === false && !recovering ? "Checkout temporarily unavailable" : recovering && !placing ? "Finish placing order" : !payments.enabled
     ? placing
       ? "Placing your order…"
       : quote
@@ -789,7 +789,7 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
                     : s.slot !== "pickup",
                 )
                 .map((s) => {
-                  const schedule = scheduleVerdict(draft.requestedDate, s);
+                  const schedule = scheduleVerdict(draft.requestedDate, resolveSlot(s.slot, draft.pincode, catalog));
                   const allowed =
                     schedule.ok &&
                     (draft.method === "pickup" ||
@@ -943,7 +943,7 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
         )}
         <button
           type="submit"
-          disabled={placing}
+          disabled={placing || (payments.available === false && !recovering)}
           aria-disabled={!ready}
           aria-busy={placing}
           className={sBtn("primary", "lg", "w-full")}

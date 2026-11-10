@@ -1,0 +1,20 @@
+
+> makemycake@0.1.0 postinstall
+> prisma generate && node -e "require('fs').copyFileSync('node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs', 'public/maplibre-gl-worker.mjs')"
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+
+✔ Generated Prisma Client (v7.10.0) to ./node_modules/@prisma/client in 183ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+
+added 660 packages, and audited 661 packages in 12s
+
+191 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities

@@ -1,0 +1,82 @@
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": PostgreSQL database "tripee_fix_verified", schema "public" at "127.0.0.1:55439"
+
+23 migrations found in prisma/migrations
+
+Applying migration `0_init`
+Applying migration `1_enable_rls`
+Applying migration `2_drop_catalog_item`
+Applying migration `20260913214136_init_cake_product`
+Applying migration `20261109090000_whatsapp_command_binding`
+Applying migration `20261109091000_payment_recovery`
+Applying migration `3_catalog_options`
+Applying migration `4_delivery_and_bakery`
+Applying migration `5_user_profile`
+Applying migration `6_order_event`
+Applying migration `7_catalog_photos_and_price_history`
+Applying migration `8_vendor_fulfilment`
+Applying migration `9_cake_products`
+Applying migration `9a_cake_variants`
+Applying migration `9b_production_hardening`
+Applying migration `9c_checkout_contact_location`
+Applying migration `9d_smart_assignment`
+Applying migration `9e_vendor_inventory`
+Applying migration `9f_binary_cake_availability`
+Applying migration `9g_razorpay_payment_ids`
+Applying migration `9h_razorpay_payment_id_unique`
+Applying migration `9i_order_cake_details`
+Applying migration `9j_enable_rls_inventory_portal`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 0_init/
+    └─ migration.sql
+  └─ 1_enable_rls/
+    └─ migration.sql
+  └─ 2_drop_catalog_item/
+    └─ migration.sql
+  └─ 20260913214136_init_cake_product/
+    └─ migration.sql
+  └─ 20261109090000_whatsapp_command_binding/
+    └─ migration.sql
+  └─ 20261109091000_payment_recovery/
+    └─ migration.sql
+  └─ 3_catalog_options/
+    └─ migration.sql
+  └─ 4_delivery_and_bakery/
+    └─ migration.sql
+  └─ 5_user_profile/
+    └─ migration.sql
+  └─ 6_order_event/
+    └─ migration.sql
+  └─ 7_catalog_photos_and_price_history/
+    └─ migration.sql
+  └─ 8_vendor_fulfilment/
+    └─ migration.sql
+  └─ 9_cake_products/
+    └─ migration.sql
+  └─ 9a_cake_variants/
+    └─ migration.sql
+  └─ 9b_production_hardening/
+    └─ migration.sql
+  └─ 9c_checkout_contact_location/
+    └─ migration.sql
+  └─ 9d_smart_assignment/
+    └─ migration.sql
+  └─ 9e_vendor_inventory/
+    └─ migration.sql
+  └─ 9f_binary_cake_availability/
+    └─ migration.sql
+  └─ 9g_razorpay_payment_ids/
+    └─ migration.sql
+  └─ 9h_razorpay_payment_id_unique/
+    └─ migration.sql
+  └─ 9i_order_cake_details/
+    └─ migration.sql
+  └─ 9j_enable_rls_inventory_portal/
+    └─ migration.sql
+
+All migrations have been successfully applied.

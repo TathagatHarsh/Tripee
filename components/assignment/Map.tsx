@@ -60,11 +60,13 @@ export function AssignmentMap({
   mode = "pins",
   center,
   onCenter,
+  onMoving,
 }: {
   pins?: MapPin[];
   mode?: "pins" | "center";
   center?: Point | null;
   onCenter?: (point: Point) => void;
+  onMoving?: (moving: boolean) => void;
 }) {
   const node = useRef<HTMLDivElement>(null);
   const live = useRef<MapLibreMap | null>(null);
@@ -73,11 +75,13 @@ export function AssignmentMap({
      changing height would look the same point up for ever. */
   const reported = useRef<Point | null>(null);
   const settle = useRef(onCenter);
+  const moving = useRef(onMoving);
   const start = useRef(center);
   const [error, setError] = useState(false);
   useEffect(() => {
     settle.current = onCenter;
-  }, [onCenter]);
+    moving.current = onMoving;
+  }, [onCenter, onMoving]);
   const serialized = JSON.stringify(pins);
   useEffect(() => {
     let map: MapLibreMap | undefined,
@@ -98,6 +102,8 @@ export function AssignmentMap({
           center: [at.lng, at.lat],
           zoom: mode === "center" ? (c ? 16 : 11) : 12,
           scrollZoom: mode === "center",
+          // A delivery pin should stop where the customer releases the map.
+          reduceMotion: mode === "center" ? true : undefined,
           /* OSM's raster tiles stop at 19 (map zoom 18 at 256px); past that they only blur. */
           maxZoom: OLA_KEY ? undefined : 18,
           attributionControl: {
@@ -111,7 +117,9 @@ export function AssignmentMap({
         live.current = map;
         if (mode === "center") {
           reported.current = at;
+          map.on("movestart", () => moving.current?.(true));
           map.on("moveend", () => {
+            moving.current?.(false);
             const p = map!.getCenter(), last = reported.current;
             if (last && Math.abs(last.lat - p.lat) < 1e-7 && Math.abs(last.lng - p.lng) < 1e-7) return;
             reported.current = { lat: p.lat, lng: p.lng };

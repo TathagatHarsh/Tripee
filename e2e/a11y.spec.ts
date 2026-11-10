@@ -1,3 +1,4 @@
+import { deliveryDetails } from "./helpers/delivery";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { BUILDER_ENABLED, BUILDER_HELD } from "./flags";
@@ -135,10 +136,7 @@ test.describe("accessibility", () => {
     await page.goto("/cakes/pineapple-delight");
     await page.getByRole("button", { name: "Add to cart", exact: true }).click();
     await page.goto("/checkout");
-    await page.getByLabel("Name", { exact: true }).fill("E2E Accessibility Guest");
-    await page.getByLabel("Phone", { exact: true }).fill("9876543210");
-    await page.getByRole("radio", { name: /^pickup$/i }).check();
-    await expect(page.getByText(/Pickup available/)).toBeVisible();
+    await deliveryDetails(page);
     await page.getByRole("button", { name: /^Place order/ }).click();
     const heading = page.getByRole("heading", { name: "Order Confirmed!" });
     await expect(heading).toBeVisible();

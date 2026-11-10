@@ -26,6 +26,7 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
     await db.order.deleteMany({ where: { id: { in: orderIds } } });
     await db.vendorInventory.deleteMany({ where: { vendorId: { in: vendorIds } } });
     await db.portalNotification.deleteMany({ where: { OR: [{ vendorId: { in: vendorIds } }, { orderRef: { in: orderRefs } }] } });
+    await db.whatsAppCommand.deleteMany({ where: { vendorId: { in: vendorIds } } });
     await db.vendor.deleteMany({ where: { id: { in: vendorIds } } });
     await db.cakeProduct.deleteMany({ where: { id: { in: productIds } } });
     orderIds.length = orderRefs.length = vendorIds.length = productIds.length = 0;
@@ -50,6 +51,35 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
   const adminTexts = async (orderId: string) => (await wa(orderId)).filter(r => r.destination === ADMIN).map(r => bodyText(r)[1]);
   const cakeRow = (orderId: string, position: number, cakeName: string, sizeBand: string, eggType: 'egg' | 'eggless', message?: string) =>
     db.orderCake.create({ data: { orderId, position, cakeName, sizeBand, eggType, message, config: {}, priceBreakdown: {}, totalPaise: 100, allergens: [], servesMin: 1, servesMax: 2, productionSpec: {} } });
+
+  it('a message with no matching order stays non-actionable when an order arrives later', async () => {
+    const { order, vendors } = await fixture(true, 1);
+    const fetchMock = vi.fn().mockImplementation(async () => Response.json({}));
+    vi.stubGlobal('fetch', fetchMock);
+    const message = { id: 'wamid.no-target', from: '919876543210', text: 'accept' };
+    await handleInbound(message);
+    await manualAssignment(order.ref, vendors[0].id, null);
+    await handleInbound(message);
+    expect((await current(order.id)).assignmentStatus).toBe('OFFERED');
+  });
+  it('a retry after reply-write failure never acts on a different order', async () => {
+    const { order, vendors, product } = await fixture(true, 1);
+    await manualAssignment(order.ref, vendors[0].id, null);
+    const original = db.notificationOutbox.upsert.bind(db.notificationOutbox);
+    const spy = vi.spyOn(db.notificationOutbox, 'upsert').mockImplementation((args) => {
+      if (args.where.dedupeKey?.startsWith('wa-reply:audit-replayed:')) throw new Error('simulated reply database failure');
+      return original(args);
+    });
+    const message = { id: 'audit-replayed', from: '919876543210', text: 'accept' };
+    await expect(handleInbound(message)).rejects.toThrow('simulated reply database failure');
+    spy.mockRestore();
+    expect((await current(order.id)).assignmentStatus).toBe('ACCEPTED');
+    const second = await db.order.create({ data: { ref: `AUDIT-${Date.now()}`, cakeProductId: product.id, config: {size:'2kg',eggless:true}, cakeName:'Test', status:'confirmed', totalPaise:189900, productSubtotalPaise:180000, payablePaise:189900, priceBreakdown:{}, deliverySlot:'standard', leadHours:24, dueAt:new Date(Date.now()+86400000), deliveryLocation:{latitude:17.43,longitude:78.4} } });
+    orderIds.push(second.id); orderRefs.push(second.ref);
+    await manualAssignment(second.ref, vendors[0].id, null);
+    await handleInbound(message);
+    expect((await current(second.id)).assignmentStatus).toBe('OFFERED');
+  });
 
   it('an offer queues the vendor template and an admin update', async () => {
     const { order, vendors } = await fixture(); await manualAssignment(order.ref, vendors[0].id, null);

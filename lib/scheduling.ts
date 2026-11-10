@@ -80,3 +80,7 @@ export function requestedDayRange(requestedFor: Date): { gte: Date; lt: Date } {
 export function blackoutKey(date: Date, method: FulfillmentMethod): string {
   return `${new Date(date.getTime() + IST_OFFSET).toISOString().slice(0, 10)}:${method}`;
 }
+
+export function validSlotWindow(window: string): boolean {
+  return /\b([01]\d|2[0-3]):[0-5]\d\s*[–—-]\s*([01]\d|2[0-3]):[0-5]\d/.test(window);
+}

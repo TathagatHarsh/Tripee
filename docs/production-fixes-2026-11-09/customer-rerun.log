@@ -1,0 +1,13 @@
+
+Running 6 tests using 1 worker
+
+(node:78383) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › e2e/shop.spec.ts:53:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track (12.8s)
+  ✓  2 [chromium] › e2e/shop.spec.ts:102:5 › mobile checkout blocks an unserviceable address and preserves details after network failure (7.4s)
+  ✓  3 [chromium] › e2e/shop.spec.ts:140:5 › Map pin survives completing the address and reaches server assignment (6.7s)
+  ✓  4 [chromium] › e2e/shop.spec.ts:161:5 › assignment, earnings and worker APIs reject anonymous or cross-site requests (49ms)
+  ✓  5 [chromium] › e2e/shop.spec.ts:170:5 › pressing Enter in the location search never places the order (5.3s)
+  ✓  6 [chromium] › e2e/shop.spec.ts:186:5 › Change reopens the sheet at the confirmed pin, not the last search (7.2s)
+
+  6 passed (41.1s)

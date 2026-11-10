@@ -1,3 +1,4 @@
+import { DEFAULT_CAKE } from "../lib/schema";
 import { createHmac, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
@@ -10,6 +11,7 @@ const deferred = vi.hoisted(() => [] as Promise<unknown>[]);
 vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/server')>()), after: (cb: () => unknown) => { deferred.push(Promise.resolve().then(cb)); } }));
 import { db } from '../lib/db';
 import { formatINR } from '../lib/format';
+import { recoverPayment } from '../lib/paymentRecovery';
 import { paymentMatches } from '../lib/razorpay';
 import { POST as placeOrder } from '../app/api/orders/route';
 import { POST as openIntent } from '../app/api/payments/intent/route';
@@ -39,7 +41,9 @@ const post = (route: typeof placeOrder, body: unknown) =>
 
 describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
   const fetchMock = vi.fn();
-  const razorpay = { orderId: '', refundStatus: 200 };
+  const razorpay = { orderId: '', refundStatus: 200, paymentStatus: 'captured', amountDelta: 0, currency: 'INR', refunded: 0 };
+  const amounts = new Map<string, number>();
+  const receipts = new Map<string, string>();
   const refunds = (paymentId: string) =>
     fetchMock.mock.calls.filter(([u]) => String(u).endsWith(`/payments/${paymentId}/refund`)).length;
   let variantId = '';
@@ -60,7 +64,9 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     razorpay.orderId = razorpayOrderId;
     const res = await post(openIntent, body);
     expect(res.status).toBe(200);
-    return (await res.json()) as { amountPaise: number };
+    const result = (await res.json()) as { amountPaise: number };
+    amounts.set(razorpayOrderId, result.amountPaise); receipts.set(razorpayOrderId, body.idempotencyKey);
+    return result;
   };
 
   beforeAll(async () => {
@@ -90,11 +96,20 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
 
   beforeEach(() => {
     fetchMock.mockReset();
-    razorpay.refundStatus = 200;
+    razorpay.refundStatus = 200; razorpay.paymentStatus = 'captured'; razorpay.amountDelta = 0; razorpay.currency = 'INR'; razorpay.refunded = 0;
     fetchMock.mockImplementation(async (input: unknown) => {
       const target = String(input);
       if (target.endsWith('/orders')) return new Response(JSON.stringify({ id: razorpay.orderId }), { status: 200 });
-      if (target.endsWith('/refund')) return new Response('{}', { status: razorpay.refundStatus });
+      if (target.endsWith('/refund')) return Response.json({ id: 'rfnd_' + target.split('/').at(-2), payment_id: target.split('/').at(-2), status: 'processed' }, { status: razorpay.refundStatus });
+      if (/\/orders\/order_/.test(target)) {
+        const attempt = await db.checkoutAttempt.findFirst({ where: { response: { path: ['razorpayOrderId'], equals: razorpay.orderId } } });
+        return Response.json({ id: razorpay.orderId, receipt: receipts.get(razorpay.orderId) ?? attempt?.id, amount: amounts.get(razorpay.orderId), currency: 'INR' });
+      }
+      if (/\/payments\/pay_/.test(target)) {
+        const stored = await db.checkoutAttempt.findFirst({ where: { response: { path: ['razorpayOrderId'], equals: razorpay.orderId } } });
+        const amount = amounts.get(razorpay.orderId) ?? (stored?.response as { amountPaise?: number } | null)?.amountPaise ?? 189900;
+        return Response.json({ id: target.split('/').at(-1), order_id: razorpay.orderId, status: razorpay.paymentStatus, amount: amount + razorpay.amountDelta, amount_refunded: razorpay.refunded, currency: razorpay.currency });
+      }
       throw new Error(`unexpected fetch ${target}`);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -115,11 +130,72 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
       where: { OR: [{ razorpayPaymentId: { startsWith: `pay_RT${run}` } }, { checkoutAttempt: { id: { in: keys } } }] },
     });
     await db.checkoutAttempt.deleteMany({ where: { id: { in: keys } } });
+    await db.paymentRecovery.deleteMany({ where: { id: { in: keys } } });
+    await db.refundOperation.deleteMany({ where: { paymentId: { startsWith: `pay_RT${run}` } } });
     await db.fulfillmentBlackout.deleteMany({ where: { reason: `pay-route-${run}` } });
     await db.cakeProduct.deleteMany({ where: { slug } });
     await db.$disconnect();
   });
 
+  it('recovers a captured payment after the browser disappears, and duplicate recovery creates no second order', async () => {
+    const body = basket(day(36)); const paid = proof('lostbrowser');
+    await intent(body, paid.razorpayOrderId);
+    expect(await db.paymentRecovery.findUnique({ where: { id: body.idempotencyKey } })).toMatchObject({ status: 'pending', payloadHash: expect.any(String) });
+    await recoverPayment(paid.razorpayPaymentId);
+    await recoverPayment(paid.razorpayPaymentId);
+    expect(await db.order.count({ where: { razorpayPaymentId: paid.razorpayPaymentId } })).toBe(1);
+    expect(await db.paymentRecovery.findUnique({ where: { id: body.idempotencyKey } })).toMatchObject({ status: 'completed' });
+    expect(refunds(paid.razorpayPaymentId)).toBe(0);
+  });
+  it('recovers when the process died before saving the gateway order ID', async () => {
+    const body = basket(day(36)); const paid = proof('lostintent');
+    await intent(body, paid.razorpayOrderId);
+    await db.checkoutAttempt.delete({ where: { id: body.idempotencyKey } });
+    await recoverPayment(paid.razorpayPaymentId);
+    expect(await db.order.count({ where: { razorpayPaymentId: paid.razorpayPaymentId } })).toBe(1);
+  });
+  it('recovery refunds an authoritative captured amount that differs from the intent', async () => {
+    const body = basket(day(36)); const paid = proof('recoveryamount');
+    await intent(body, paid.razorpayOrderId);
+    amounts.set(paid.razorpayOrderId, 1);
+    await recoverPayment(paid.razorpayPaymentId);
+    expect(await db.order.count({ where: { razorpayPaymentId: paid.razorpayPaymentId } })).toBe(0);
+    expect(refunds(paid.razorpayPaymentId)).toBe(1);
+  });
+  it('rejects disabled builder configurations before opening a payment intent', async () => {
+    const body = basket(day(35));
+    const res = await post(openIntent, { ...body, items: [{ config: { ...DEFAULT_CAKE, pincode: '500081' }, qty: 1 }] });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ code: 'builder_unavailable' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('lets the browser clear proof only once the gateway confirms a full refund', async () => {
+    const body = basket(day(35)); const paid = proof('fullrefund');
+    const { amountPaise } = await intent(body, paid.razorpayOrderId);
+    razorpay.refunded = amountPaise; razorpay.paymentStatus = 'refunded';
+    const res = await post(placeOrder, { ...body, payment: paid });
+    expect(await res.json()).toMatchObject({ code: 'payment_refunded', refunded: true });
+    expect(await db.order.count({ where: { razorpayPaymentId: paid.razorpayPaymentId } })).toBe(0);
+  });
+  it.each(['authorized', 'created', 'failed'])('does not fulfill a signed but %s payment', async (status) => {
+    const body = basket(day(35)); const paid = proof(status);
+    await intent(body, paid.razorpayOrderId); razorpay.paymentStatus = status;
+    const res = await post(placeOrder, { ...body, payment: paid });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ code: 'payment_pending' });
+    expect(await db.order.count({ where: { razorpayPaymentId: paid.razorpayPaymentId } })).toBe(0);
+    expect(refunds(paid.razorpayPaymentId)).toBe(0);
+  });
+  it.each(['amount', 'currency', 'refunded'])('rejects a captured payment with invalid %s', async (field) => {
+    const body = basket(day(35)); const paid = proof(field);
+    await intent(body, paid.razorpayOrderId);
+    if (field === 'amount') razorpay.amountDelta = 1;
+    if (field === 'currency') razorpay.currency = 'USD';
+    if (field === 'refunded') razorpay.refunded = 1;
+    const res = await post(placeOrder, { ...body, payment: paid });
+    expect(res.status).toBe(409);
+    expect(await db.order.count({ where: { razorpayPaymentId: paid.razorpayPaymentId } })).toBe(0);
+  });
   it('places a paid order, and a replay with the same payment refunds nothing', async () => {
     const body = basket(day(40));
     const paid = proof('A');
@@ -153,6 +229,7 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     const created = await post(placeOrder, { ...body, payment: first });
     expect(created.status).toBe(201);
 
+    razorpay.orderId = second.razorpayOrderId;
     const again = await post(placeOrder, { ...body, payment: second });
 
     expect(again.status).toBe(200);
@@ -187,6 +264,7 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     const body = basket(day(43));
     const paid = proof('D');
     await intent(body, paid.razorpayOrderId);
+    amounts.set(paid.razorpayOrderId, 12345);
     await db.checkoutAttempt.update({
       where: { id: body.idempotencyKey },
       data: { response: { razorpayOrderId: paid.razorpayOrderId, amountPaise: 12345 } },
@@ -288,7 +366,8 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     expect(refunds(paid.razorpayPaymentId)).toBe(0);
   });
 
-  it('payments off: places the order unpaid and never calls Razorpay', async () => {
+  it('explicit offline mode places an unpaid order without Razorpay', async () => {
+    vi.stubEnv('PAYMENT_MODE', 'offline');
     vi.stubEnv('RAZORPAY_KEY_ID', '');
     vi.stubEnv('RAZORPAY_KEY_SECRET', '');
 

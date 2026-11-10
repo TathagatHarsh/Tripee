@@ -55,6 +55,7 @@ export function LocationSheet({
   const source = useRef<"map" | "current_location">("map");
 
   const [shown, setShown] = useState(false);
+  const [moving, setMoving] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<LocatedAddress[]>([]);
   const [target, setTarget] = useState<Point | null>(initial);
@@ -159,13 +160,14 @@ export function LocationSheet({
     : true;
   const settledHere = lookup === "ready" || lookup === "failed";
   const refused = settledHere && (covered === false || !zoneOk);
-  const canConfirm = settledHere && !refused && point !== null;
+  const canConfirm = !moving && settledHere && !refused && point !== null;
 
   return (
     <dialog
       ref={dialog}
       onClose={() => {
         setShown(false);
+        setMoving(false);
         onClose();
       }}
       aria-labelledby="location-sheet-title"
@@ -213,7 +215,7 @@ export function LocationSheet({
         </div>
 
         <div className="relative mt-3 min-h-72 flex-1 border-y border-s-line">
-          {shown && <AssignmentMap mode="center" center={target} onCenter={settled} />}
+          {shown && <AssignmentMap mode="center" center={target} onCenter={settled} onMoving={setMoving} />}
         </div>
 
         <div className="flex flex-col gap-3 p-4" aria-live="polite">
@@ -242,7 +244,7 @@ export function LocationSheet({
             type="button"
             disabled={!canConfirm}
             onClick={() => {
-              if (!point) return;
+              if (!canConfirm || !point) return;
               onConfirm({
                 ...(here ?? { address: "", city: "", state: "", pincode: "", placeId: "" }),
                 lat: point.lat,

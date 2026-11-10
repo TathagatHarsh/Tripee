@@ -1,3 +1,4 @@
+import { validSlotWindow } from "./scheduling";
 import type {
   CatalogSnapshot, DeliverySlotInfo, DeliveryZoneInfo,
 } from "./catalogSnapshot";
@@ -57,6 +58,10 @@ export function resolveSlot(
   catalog: CatalogSnapshot,
 ): ResolvedSlot {
   const base = catalog.slots[slot];
+  if (!validSlotWindow(base.window)) return {
+    ...base, available: false, effectiveLeadHours: base.leadHours, zoneName: null, zoneId: null,
+    unavailableReason: "This delivery window is temporarily unavailable. Choose another slot.",
+  };
   if (slot === "pickup") {
     return {
       ...base,
@@ -105,6 +110,7 @@ export function resolveSlot(
     // Pickup is collected from the counter, so no rider crosses the city for it
     // and the zone's travel time does not apply.
     effectiveLeadHours: base.leadHours + zone.extraHours,
+    cutoffHours: base.cutoffHours + zone.extraHours,
     zoneName: zone.name,
     zoneId: zone.id,
     unavailableReason: available

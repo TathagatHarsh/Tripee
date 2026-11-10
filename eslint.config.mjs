@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "public/maplibre-gl-worker.mjs", // generated dependency asset
     // A vendored reference implementation of the cake renderer, with its own
     // package.json and its own node_modules. It is gitignored, nothing in the
     // app imports it, and it is not written to this project's rules — linting

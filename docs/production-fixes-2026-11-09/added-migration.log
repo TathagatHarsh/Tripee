@@ -1,0 +1,16 @@
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": PostgreSQL database "tripee_fix_verified", schema "public" at "127.0.0.1:55439"
+
+24 migrations found in prisma/migrations
+
+Applying migration `20261109092000_whatsapp_non_actionable_messages`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261109092000_whatsapp_non_actionable_messages/
+    └─ migration.sql
+
+All migrations have been successfully applied.

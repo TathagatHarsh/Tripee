@@ -8,8 +8,7 @@ import { log } from "./log";
  * Razorpay over plain fetch: create an order, check a payment signature, refund.
  *
  * The secret is read here and nowhere else, and each function reads the
- * environment when it is called rather than at import, so a deployment without
- * keys simply takes no payment instead of failing to start.
+ * environment when it is called rather than at import, so missing keys can fail checkout closed without preventing startup.
  */
 
 const API = "https://api.razorpay.com/v1";
@@ -23,6 +22,31 @@ export type IntentRecord = z.infer<typeof IntentRecord>;
 
 export function paymentsEnabled(): boolean {
   return Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
+}
+
+/** Unpaid checkout must be an explicit operator decision. */
+export function offlinePaymentsEnabled(): boolean {
+  return process.env.PAYMENT_MODE === "offline" && !process.env.RAZORPAY_KEY_ID && !process.env.RAZORPAY_KEY_SECRET;
+}
+
+export async function fetchPayment(paymentId: string) {
+  try {
+    const auth = Buffer.from(`${keyId()}:${process.env.RAZORPAY_KEY_SECRET ?? ""}`).toString("base64");
+    const res = await fetch(`${API}/payments/${encodeURIComponent(paymentId)}`, {
+      headers: { Authorization: `Basic ${auth}` }, cache: "no-store", signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const parsed = z.object({ id: z.string(), order_id: z.string(), status: z.string(),
+      amount: z.number().int().positive(), currency: z.string(), amount_refunded: z.number().int().nonnegative(),
+    }).safeParse(await res.json());
+    return parsed.success ? parsed.data : null;
+  } catch { return null; }
+}
+
+/** New production charges require the recovery endpoints' secrets as well. */
+export function paymentCheckoutAvailable(): boolean {
+  return paymentsEnabled() && (process.env.NODE_ENV !== "production" ||
+    Boolean(process.env.RAZORPAY_WEBHOOK_SECRET && process.env.PAYMENT_WORKER_SECRET));
 }
 
 export function keyId(): string {
@@ -91,14 +115,29 @@ export async function createRazorpayOrder(
   }
 }
 
-/** Full refund of one payment. */
-export async function refund(paymentId: string): Promise<boolean> {
-  try {
-    const res = await post(`/payments/${paymentId}/refund`, {});
-    if (res.ok) return true;
-    log("error", "refund_failed", { status: res.status, paymentId });
-  } catch (error) {
-    log("error", "refund_failed", { error: String(error), paymentId });
+export async function gatewayGet(path: string): Promise<unknown> {
+  const auth = Buffer.from(`${keyId()}:${process.env.RAZORPAY_KEY_SECRET ?? ""}`).toString("base64");
+  const response = await fetch(`${API}${path}`, {
+    headers: { Authorization: `Basic ${auth}` }, cache: "no-store", signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`Razorpay HTTP ${response.status}`);
+  return response.json();
+}
+
+export async function requestRefund(paymentId: string, refundId: string | null) {
+  const schema = z.object({ id: z.string().startsWith("rfnd_"), payment_id: z.string(), status: z.enum(["pending", "processed", "failed"]) });
+  let body: unknown;
+  if (refundId) body = await gatewayGet(`/refunds/${encodeURIComponent(refundId)}`);
+  else {
+    const auth = Buffer.from(`${keyId()}:${process.env.RAZORPAY_KEY_SECRET ?? ""}`).toString("base64");
+    const response = await fetch(`${API}/payments/${encodeURIComponent(paymentId)}/refund`, {
+      method: "POST", headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json", "X-Refund-Idempotency": `tripee-full-${paymentId}` },
+      body: JSON.stringify({ speed: "normal" }), signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`Razorpay refund HTTP ${response.status}`);
+    body = await response.json();
   }
-  return false;
+  const result = schema.parse(body);
+  if (result.payment_id !== paymentId) throw new Error("Refund payment mismatch");
+  return result;
 }

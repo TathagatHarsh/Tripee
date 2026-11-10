@@ -76,7 +76,11 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
 
   const parsed = parseInbound(msg);
   if (!parsed) return say(from, "Reply with: accept, reject, started, ready or handed over. Add the order number if you have more than one, e.g. started MC-1234.");
-  const { action, assignmentId, ref } = parsed;
+  let { action } = parsed;
+  const { assignmentId, ref } = parsed;
+  const commandKey = `${msg.id}:${from}`;
+  const saved = await db.whatsAppCommand.findUnique({ where: { key: commandKey } });
+  if (saved && saved.vendorId !== vendorId) return;
 
   // out_for_delivery too: after the handover the bakery still marks the cake delivered.
   const rows: OpenRow[] = (await db.vendorOrder.findMany({
@@ -84,14 +88,22 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
     select: { id: true, orderId: true, status: true, assignmentStatus: true, order: { select: { ref: true, status: true, fulfillmentMethod: true } } },
   })).map(({ order, ...r }) => ({ ...r, ref: order.ref, orderStatus: order.status, pickup: order.fulfillmentMethod === "pickup" }))
     .sort((a, b) => a.ref.localeCompare(b.ref));
-  if (assignmentId && !rows.some((r) => r.id === assignmentId)) return say(from, "That order isn't waiting on you any more.");
-
   const target = pickTarget(action, assignmentId ? rows.filter((r) => r.id === assignmentId) : rows, ref);
-  if (target.kind === "none") return say(from, `Nothing to mark ${DONE_WORD[action]} right now.`);
-  if (target.kind === "many")
-    return say(from, `Which order? Reply *${REPLY_WORD[action]} ${target.refs[0]}* or tap the button on that order. Open: ${target.refs.join(", ")}`);
-
-  const { id, orderId, ref: orderRef, pickup } = target.row;
+  const unavailable = assignmentId && !rows.some(r => r.id === assignmentId)
+    ? "That order isn't waiting on you any more."
+    : target.kind === "none" ? `Nothing to mark ${DONE_WORD[action]} right now.`
+    : target.kind === "many" ? `Which order? Reply *${REPLY_WORD[action]} ${target.refs[0]}* or tap the button on that order. Open: ${target.refs.join(", ")}`
+    : null;
+  const row = target.kind === "one" && !unavailable ? target.row : null;
+  const command = saved ?? await db.whatsAppCommand.upsert({
+    where: { key: commandKey }, update: {},
+    create: { key: commandKey, vendorId, assignmentId: row?.id ?? null, orderId: row?.orderId ?? null,
+      orderRef: row?.ref ?? null, pickup: row?.pickup ?? false, action, reply: unavailable },
+  });
+  if (command.vendorId !== vendorId) return;
+  if (!command.assignmentId || !command.orderId || !command.orderRef) return say(from, command.reply ?? "That message has already been handled. Send a new message to act on an order.");
+  action = command.action as InboundAction;
+  const { assignmentId: id, orderId, orderRef, pickup } = command;
   let message;
   try {
     if (action === "accept" || action === "reject") {

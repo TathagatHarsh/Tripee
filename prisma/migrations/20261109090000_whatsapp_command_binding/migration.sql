@@ -1,0 +1,5 @@
+CREATE TABLE "WhatsAppCommand" (
+ "key" TEXT NOT NULL PRIMARY KEY, "vendorId" TEXT NOT NULL,
+ "assignmentId" TEXT NOT NULL, "orderId" TEXT NOT NULL, "orderRef" TEXT NOT NULL,
+ "action" TEXT NOT NULL, "pickup" BOOLEAN NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

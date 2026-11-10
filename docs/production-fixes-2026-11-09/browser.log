@@ -1,0 +1,78 @@
+
+Running 70 tests using 1 worker
+
+(node:64414) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › e2e/a11y.spec.ts:76:9 › accessibility › shop front has no WCAG A/AA violations (2.5s)
+  ✓   2 [chromium] › e2e/a11y.spec.ts:76:9 › accessibility › collection has no WCAG A/AA violations (2.2s)
+  ✓   3 [chromium] › e2e/a11y.spec.ts:76:9 › accessibility › a filtered collection has no WCAG A/AA violations (2.0s)
+  ✓   4 [chromium] › e2e/a11y.spec.ts:76:9 › accessibility › the empty collection has no WCAG A/AA violations (2.0s)
+  ✓   5 [chromium] › e2e/a11y.spec.ts:76:9 › accessibility › a cake has no WCAG A/AA violations (2.3s)
+  ✓   6 [chromium] › e2e/a11y.spec.ts:76:9 › accessibility › the empty cart has no WCAG A/AA violations (2.2s)
+  ✓   7 [chromium] › e2e/a11y.spec.ts:76:9 › accessibility › the empty checkout has no WCAG A/AA violations (2.2s)
+  ✓   8 [chromium] › e2e/a11y.spec.ts:76:9 › accessibility › the builder's coming-soon page has no WCAG A/AA violations (2.0s)
+  ✓   9 [chromium] › e2e/a11y.spec.ts:76:9 › accessibility › sign in has no WCAG A/AA violations (1.9s)
+  ✓  10 [chromium] › e2e/a11y.spec.ts:76:9 › accessibility › create an account has no WCAG A/AA violations (1.9s)
+  -  11 [chromium] › e2e/a11y.spec.ts:87:9 › accessibility › shape step has no WCAG A/AA violations
+  -  12 [chromium] › e2e/a11y.spec.ts:87:9 › accessibility › size and tiers has no WCAG A/AA violations
+  -  13 [chromium] › e2e/a11y.spec.ts:87:9 › accessibility › frosting step has no WCAG A/AA violations
+  -  14 [chromium] › e2e/a11y.spec.ts:87:9 › accessibility › colour and finish has no WCAG A/AA violations
+  -  15 [chromium] › e2e/a11y.spec.ts:87:9 › accessibility › toppings step has no WCAG A/AA violations
+  -  16 [chromium] › e2e/a11y.spec.ts:87:9 › accessibility › message step has no WCAG A/AA violations
+  -  17 [chromium] › e2e/a11y.spec.ts:87:9 › accessibility › review has no WCAG A/AA violations
+  ✓  18 [chromium] › e2e/a11y.spec.ts:121:7 › accessibility › the variant sheet has no WCAG A/AA violations (955ms)
+  ✓  19 [chromium] › e2e/a11y.spec.ts:135:7 › accessibility › the order confirmation has no WCAG A/AA violations (6.2s)
+  -  20 [chromium] › e2e/a11y.spec.ts:155:7 › accessibility › the topping bar on the render has no WCAG A/AA violations
+  ✓  21 [chromium] › e2e/a11y.spec.ts:176:7 › accessibility › the account panel has no WCAG A/AA violations (644ms)
+  ✓  22 [chromium] › e2e/a11y.spec.ts:190:7 › accessibility › the account menu opens, closes and stays inside the viewport (1.2s)
+  ✓  23 [chromium] › e2e/a11y.spec.ts:265:9 › accessibility › the account panel fits a desktop viewport (257ms)
+  ✓  24 [chromium] › e2e/a11y.spec.ts:265:9 › accessibility › the account panel fits a laptop viewport (240ms)
+  ✓  25 [chromium] › e2e/a11y.spec.ts:265:9 › accessibility › the account panel fits a tablet viewport (238ms)
+  ✓  26 [chromium] › e2e/a11y.spec.ts:265:9 › accessibility › the account panel fits a mobile viewport (233ms)
+  ✓  27 [chromium] › e2e/a11y.spec.ts:265:9 › accessibility › the account panel fits a small mobile viewport (221ms)
+  -  28 [chromium] › e2e/a11y.spec.ts:288:7 › accessibility › the builder can be driven with the keyboard alone
+  ✓  29 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the admin portal (59ms)
+  ✓  30 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the catalogue editor (54ms)
+  ✓  31 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the order book (53ms)
+  ✓  32 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the payment follow-up (53ms)
+  ✓  33 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the order detail (53ms)
+  ✓  34 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the printable docket (52ms)
+  ✓  35 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the delivery board (52ms)
+  ✓  36 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the filtered delivery board (52ms)
+  ✓  37 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the kitchen board (53ms)
+  ✓  38 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the account page (52ms)
+  ✓  39 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the profile and security page (53ms)
+  ✓  40 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the orders page (52ms)
+  ✓  41 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the order tracking page (54ms)
+  ✓  42 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the bakery portal (54ms)
+  ✓  43 [chromium] › e2e/auth.spec.ts:67:7 › a stranger cannot open the bakery order detail (52ms)
+  ✓  44 [chromium] › e2e/auth.spec.ts:96:5 › shopping and a guest order are untouched by any of this (402ms)
+  ✓  45 [chromium] › e2e/auth.spec.ts:121:5 › the 3D builder is held back on every one of its URLs (341ms)
+  ✓  46 [chromium] › e2e/auth.spec.ts:133:5 › the sign-in page is ours around Clerk's, and does not demand an account (141ms)
+  ✓  47 [chromium] › e2e/auth.spec.ts:175:5 › the sign-up page matches it, and still says an account is optional (126ms)
+  -  48 [chromium] › e2e/auth.spec.ts:211:7 › /sign-in declares autocomplete="username" on identifier
+  -  49 [chromium] › e2e/auth.spec.ts:211:7 › /sign-in declares autocomplete="current-password" on password
+  -  50 [chromium] › e2e/auth.spec.ts:211:7 › /sign-up declares autocomplete="email" on emailAddress
+  -  51 [chromium] › e2e/auth.spec.ts:211:7 › /sign-up declares autocomplete="new-password" on password
+  -  52 [chromium] › e2e/auth.spec.ts:234:5 › no development-mode chrome reaches the customer
+  ✓  53 [chromium] › e2e/checkout.spec.ts:62:5 › concurrent retries create one frozen order with two cakes and one shipping charge (44ms)
+  ✓  54 [chromium] › e2e/checkout.spec.ts:100:5 › a committed attempt survives later blackout and quote changes (20ms)
+  ✓  55 [chromium] › e2e/checkout.spec.ts:133:5 › a reused attempt cannot change customer or cake details (16ms)
+  ✓  56 [chromium] › e2e/checkout.spec.ts:146:5 › tampered totals, impossible dates, missing addresses and unserviceable pins are refused (11ms)
+  ✓  57 [chromium] › e2e/checkout.spec.ts:176:5 › cross-site writes and malformed requests fail closed (7ms)
+  -  58 [chromium] › e2e/happy-path.spec.ts:21:5 › a stranger can build a cake, be corrected, and get an order reference
+  -  59 [chromium] › e2e/happy-path.spec.ts:97:5 › undo puts back a choice the customer changed their mind about
+  -  60 [chromium] › e2e/happy-path.spec.ts:111:5 › a refresh does not lose the work
+  -  61 [chromium] › e2e/happy-path.spec.ts:122:5 › a saved design comes back from its short link
+  -  62 [chromium] › e2e/happy-path.spec.ts:136:5 › cutting a slice exposes the inside and leaves the price alone
+  -  63 [chromium] › e2e/happy-path.spec.ts:169:5 › the message plaque lifts while typing and settles when done
+  -  64 [chromium] › e2e/happy-path.spec.ts:196:5 › a preset opens where the customer still has a choice to make
+  ✓  65 [chromium] › e2e/shop.spec.ts:53:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track (8.1s)
+  ✓  66 [chromium] › e2e/shop.spec.ts:102:5 › mobile checkout blocks an unserviceable address and preserves details after network failure (6.0s)
+  ✓  67 [chromium] › e2e/shop.spec.ts:140:5 › Map pin survives completing the address and reaches server assignment (5.9s)
+  ✓  68 [chromium] › e2e/shop.spec.ts:161:5 › assignment, earnings and worker APIs reject anonymous or cross-site requests (27ms)
+  ✓  69 [chromium] › e2e/shop.spec.ts:170:5 › pressing Enter in the location search never places the order (5.0s)
+  ✓  70 [chromium] › e2e/shop.spec.ts:186:5 › Change reopens the sheet at the confirmed pin, not the last search (5.8s)
+
+  21 skipped
+  49 passed (1.1m)
