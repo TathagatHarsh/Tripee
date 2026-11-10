@@ -79,6 +79,7 @@ export const NAV: NavSection[] = [
     label: "Operations",
     items: [
       { href: "/admin/orders", label: "Orders", icon: "orders", nested: true },
+      { href: "/admin/payments", label: "Payment follow-up", icon: "pricing", nested: true },
       /*
        * Operations rather than Business, and beside Orders rather than beside
        * Staff. A vendor is not a person the shop employs and not a setting

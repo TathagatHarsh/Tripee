@@ -1,22 +1,19 @@
 # MakeYourCakes
 
-A website where someone builds their own cake and watches it appear in 3D as they
-build it. Pick a shape and a cake shows up. Choose ganache and it gets covered in
-ganache. Add a strawberry border and strawberries appear around the base. The
-price updates every time you touch something, and it shows you why.
+A cake shop with customer checkout and tracking, vendor fulfillment, an admin
+portal, Clerk authentication, Razorpay payments and WhatsApp order updates.
+The 3D custom-cake builder is currently disabled.
 
-At the end you get an order docket — a spec sheet a real kitchen could work from,
-with the itemised price, allergens, serving count and storage instructions.
-
-No payments, no login, no admin panel. Those come later; the hooks are already in
-the schema.
+Before deploying, follow [the production fix and rollout report](docs/PRODUCTION-FIXES-2026-11-09.md).
+Missing payment keys disable checkout. Production payments also require the
+Razorpay webhook and payment worker to be configured; see `.env.example`.
 
 ---
 
 ## Running it
 
 ```bash
-npm install
+npm ci
 ```
 
 Point `DATABASE_URL` at a Postgres database:
@@ -28,7 +25,7 @@ echo 'DATABASE_URL="postgresql://you@localhost:5432/makemycake?schema=public"' >
 Create the schema and seed the catalogue:
 
 ```bash
-npm run db:push && npm run db:seed
+npm run db:deploy && npm run db:seed
 ```
 
 ```bash
@@ -41,7 +38,7 @@ npm run dev
 |---|---|
 | `npm run dev` | Development server |
 | `npm test` | Vitest — pricing, rules, allergens, delivery, share links, docket |
-| `npm run e2e` | Playwright — builds a cake end to end against a production build |
+| `npm run e2e` | Playwright — customer checkout and access guards on a scratch database |
 | `npm run visual` | Pixel baselines for the render; fails on any unintended change |
 | `npm run visual:update` | Re-baseline, for changes that were on purpose |
 | `npm run a11y` | axe-core WCAG 2.1 AA sweep over every route |

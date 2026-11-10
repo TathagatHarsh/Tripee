@@ -1,0 +1,12 @@
+
+> makemycake@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.12 /Users/tathagatharsh/Desktop/Tripee.nosync
+
+
+ Test Files  63 passed | 5 skipped (68)
+      Tests  856 passed | 105 skipped (961)
+   Start at  23:27:12
+   Duration  6.41s (transform 2.61s, setup 0ms, import 11.00s, tests 9.61s, environment 4ms)

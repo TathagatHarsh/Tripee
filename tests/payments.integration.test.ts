@@ -1,3 +1,4 @@
+import { reconcileRefunds } from "../lib/refunds";
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
@@ -102,52 +103,28 @@ describe.skipIf(!url)('payment intent on isolated PostgreSQL', () => {
     expect(await attempt(done)).toMatchObject({ status: 'completed', response: { orderId: 'MC-DONE' } });
   });
 
-  it('does not overwrite an attempt that completed meanwhile', async () => {
+  it('serializes simultaneous intents for the same checkout', async () => {
     const racing = freshKey();
-    await db.checkoutAttempt.create({
-      data: { id: racing, payloadHash: 'h1', status: 'processing', expiresAt: later() },
-    });
-    // The order lands while Razorpay is still answering.
+    const before = fetchMock.mock.calls.length;
     fetchMock.mockImplementationOnce(async () => {
-      await db.checkoutAttempt.update({
-        where: { id: racing },
-        data: { status: 'completed', response: { orderId: 'MC-RACE' } },
-      });
-      return orderReply('order_X');
-    });
-
-    expect(await openPaymentIntent(racing, 'h1', 124900)).toEqual({ kind: 'completed' });
-    expect(await attempt(racing)).toMatchObject({ status: 'completed', response: { orderId: 'MC-RACE' } });
-  });
-
-  it('keeps the first row when another intent creates it while Razorpay answers', async () => {
-    const racing = freshKey();
-    fetchMock.mockImplementationOnce(async () => {
-      await db.checkoutAttempt.create({
-        data: { id: racing, payloadHash: 'h1', status: 'processing', expiresAt: later() },
-      });
+      await new Promise(resolve => setTimeout(resolve, 30));
       return orderReply('order_R');
     });
-
-    expect(await openPaymentIntent(racing, 'h1', 124900)).toEqual({
-      kind: 'ok',
-      record: { razorpayOrderId: 'order_R', amountPaise: 124900 },
-    });
-    expect((await attempt(racing))?.response).toEqual({ razorpayOrderId: 'order_R', amountPaise: 124900 });
+    const results = await Promise.all([openPaymentIntent(racing, 'h1', 124900), openPaymentIntent(racing, 'h1', 124900)]);
+    expect(results).toEqual([
+      { kind: 'ok', record: { razorpayOrderId: 'order_R', amountPaise: 124900 } },
+      { kind: 'ok', record: { razorpayOrderId: 'order_R', amountPaise: 124900 } },
+    ]);
+    expect(fetchMock.mock.calls.length - before).toBe(1);
   });
-
-  it('refuses when a different basket creates the row while Razorpay answers', async () => {
+  it('refuses a competing different basket under the same lock', async () => {
     const racing = freshKey();
-    fetchMock.mockImplementationOnce(async () => {
-      await db.checkoutAttempt.create({
-        data: { id: racing, payloadHash: 'other', status: 'processing', expiresAt: later() },
-      });
-      return orderReply('order_S');
-    });
-
-    expect(await openPaymentIntent(racing, 'h1', 124900)).toEqual({ kind: 'conflict' });
-    expect(await attempt(racing)).toMatchObject({ payloadHash: 'other', response: null });
+    fetchMock.mockResolvedValueOnce(orderReply('order_S'));
+    const results = await Promise.all([openPaymentIntent(racing, 'h1', 124900), openPaymentIntent(racing, 'h2', 124900)]);
+    expect(results.filter(r => r.kind === 'ok')).toHaveLength(1);
+    expect(results.filter(r => r.kind === 'conflict')).toHaveLength(1);
   });
+
 });
 
 describe.skipIf(!url)('refundUnlessOk', () => {
@@ -155,7 +132,7 @@ describe.skipIf(!url)('refundUnlessOk', () => {
   const refundCalls = () => fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/payments/pay_B/refund'));
   const failure = (code: string, error: string) => Response.json({ error, code }, { status: 409 });
   const capacity = () => failure('capacity_unavailable', 'That slot has reached its cake capacity.');
-  const refunded = () => new Response('{}', { status: 200 });
+  const refunded = () => Response.json({ id: 'rfnd_test', payment_id: 'pay_B', status: 'processed' });
   const proofFor = (razorpayOrderId: string) => ({ razorpayOrderId, razorpayPaymentId: 'pay_B', razorpaySignature: '0'.repeat(64) });
 
   /** An attempt holding the Razorpay order the customer paid, as the intent route leaves it. */
@@ -181,6 +158,8 @@ describe.skipIf(!url)('refundUnlessOk', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     await db.order.deleteMany({ where: { ref: { startsWith: 'PAY-' } } });
+    await db.refundOperation.deleteMany({ where: { paymentId: 'pay_C' } });
+    await db.refundOperation.deleteMany({ where: { paymentId: 'pay_B' } });
     // Every case reuses pay_B, which Razorpay never does; a leftover marker would answer for the next case.
     await db.checkoutAttempt.deleteMany({ where: { id: { in: keys } } });
   });
@@ -199,6 +178,27 @@ describe.skipIf(!url)('refundUnlessOk', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('persists a pending refund and polls it without a second refund request', async () => {
+    const { proof } = await seeded();
+    fetchMock.mockResolvedValueOnce(Response.json({ id: 'rfnd_pending', payment_id: 'pay_B', status: 'pending' }));
+    const first = await refundUnlessOk(capacity(), proof);
+    expect(await first.json()).toMatchObject({ refunded: false, refundPending: true });
+    expect(await db.refundOperation.findUnique({ where: { paymentId: 'pay_B' } })).toMatchObject({ refundId: 'rfnd_pending', status: 'pending' });
+    fetchMock.mockResolvedValueOnce(refunded());
+    expect(await (await refundUnlessOk(capacity(), proof)).json()).toMatchObject({ refunded: true });
+    expect(refundCalls()).toHaveLength(1);
+    expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('/refunds/rfnd_pending');
+  });
+  it('retries an ambiguous timeout using exactly the same gateway idempotency key', async () => {
+    const { proof } = await seeded();
+    fetchMock.mockRejectedValueOnce(new Error('response lost after refund accepted'));
+    expect(await (await refundUnlessOk(capacity(), proof)).json()).toMatchObject({ refunded: false });
+    fetchMock.mockResolvedValueOnce(refunded());
+    expect(await (await refundUnlessOk(capacity(), proof)).json()).toMatchObject({ refunded: true });
+    const calls = refundCalls(); expect(calls).toHaveLength(2);
+    expect(calls[0][1].headers['X-Refund-Idempotency']).toBe('tripee-full-pay_B');
+    expect(calls[1][1].headers['X-Refund-Idempotency']).toBe(calls[0][1].headers['X-Refund-Idempotency']);
+  });
   it('refunds a failure and clears the attempt', async () => {
     const { key, proof } = await seeded();
     fetchMock.mockResolvedValueOnce(refunded());
@@ -411,12 +411,21 @@ describe.skipIf(!url)('refund on cancel', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     await db.portalNotification.deleteMany({ where: { orderRef: { startsWith: 'PAY-' } } });
-    await db.order.deleteMany({ where: { ref: { startsWith: 'PAY-' } } }); // events and outbox rows cascade
+    await db.order.deleteMany({ where: { ref: { startsWith: 'PAY-' } } });
+    await db.refundOperation.deleteMany({ where: { paymentId: 'pay_C' } }); // events and outbox rows cascade
   });
 
+  it('the worker recovers a cancellation committed before the refund was recorded', async () => {
+    const ref = await placed('paid', 'pay_C');
+    await db.order.update({ where: { ref }, data: { status: 'cancelled' } });
+    fetchMock.mockResolvedValue(Response.json({ id: 'rfnd_cancel', payment_id: 'pay_C', status: 'processed' }));
+    await reconcileRefunds();
+    expect(await row(ref)).toMatchObject({ status: 'cancelled', paymentStatus: 'refunded' });
+    expect(await db.refundOperation.findUnique({ where: { paymentId: 'pay_C' } })).toMatchObject({ status: 'processed' });
+  });
   it('cancelling a paid order refunds it', async () => {
     const ref = await placed('paid', 'pay_C');
-    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    fetchMock.mockResolvedValueOnce(Response.json({ id: 'rfnd_cancel', payment_id: 'pay_C', status: 'processed' }));
 
     expect(await applyStatusTransition(ref, 'cancelled', null, 'Customer asked')).toBe(true);
 
@@ -453,7 +462,7 @@ describe.skipIf(!url)('refund on cancel', () => {
 
   it('a cancel that does not move the order refunds nothing', async () => {
     const ref = await placed('paid', 'pay_C');
-    fetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
+    fetchMock.mockResolvedValue(Response.json({ id: 'rfnd_cancel', payment_id: 'pay_C', status: 'processed' }));
     expect(await applyStatusTransition(ref, 'cancelled', null)).toBe(true);
 
     expect(await applyStatusTransition(ref, 'cancelled', null)).toBe(false); // already cancelled

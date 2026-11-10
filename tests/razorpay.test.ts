@@ -6,7 +6,8 @@ import {
   isTestKey,
   paymentMatches,
   paymentsEnabled,
-  refund,
+  paymentCheckoutAvailable,
+  requestRefund,
   verifySignature,
 } from '../lib/razorpay';
 
@@ -102,16 +103,20 @@ describe('createRazorpayOrder', () => {
   });
 });
 
-describe('refund', () => {
-  it('reports success and failure', async () => {
-    const ok = reply(200, { id: 'rfnd_1' });
-    vi.stubGlobal('fetch', ok);
-    await expect(refund('pay_B')).resolves.toBe(true);
-    expect(ok.mock.calls[0][0]).toMatch(/\/payments\/pay_B\/refund$/);
-    expect(JSON.parse(ok.mock.calls[0][1].body)).toEqual({});
-
-    vi.stubGlobal('fetch', reply(400, { error: 'nope' }));
-    await expect(refund('pay_B')).resolves.toBe(false);
+describe('refund requests', () => {
+  it('validates the gateway refund and sends the stable idempotency key', async () => {
+    const fetchMock = reply(200, { id: 'rfnd_1', payment_id: 'pay_B', status: 'pending' });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(requestRefund('pay_B', null)).resolves.toMatchObject({ status: 'pending', id: 'rfnd_1' });
+    expect(fetchMock.mock.calls[0][1].headers['X-Refund-Idempotency']).toBe('tripee-full-pay_B');
+  });
+  it('does not accept a success HTTP response without a refund entity', async () => {
+    vi.stubGlobal('fetch', reply(200, {}));
+    await expect(requestRefund('pay_B', null)).rejects.toThrow();
+  });
+  it('rejects a refund belonging to another payment', async () => {
+    vi.stubGlobal('fetch', reply(200, { id: 'rfnd_1', payment_id: 'pay_other', status: 'processed' }));
+    await expect(requestRefund('pay_B', null)).rejects.toThrow('Refund payment mismatch');
   });
 });
 
@@ -129,8 +134,18 @@ describe('timeouts', () => {
     vi.stubGlobal('fetch', hung);
     timeout.mockImplementation(() => AbortSignal.abort(new DOMException('timed out', 'TimeoutError')));
 
-    await expect(refund('pay_B')).resolves.toBe(false);
+    await expect(requestRefund('pay_B', null)).rejects.toThrow();
     await expect(createRazorpayOrder(124900, 'MC-ABC123')).resolves.toBeNull();
     expect(timeout).toHaveBeenCalledWith(10_000);
+  });
+});
+
+describe('production charge readiness', () => {
+  it('blocks new production charges until recovery secrets are configured', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('RAZORPAY_WEBHOOK_SECRET', ''); vi.stubEnv('PAYMENT_WORKER_SECRET', '');
+    expect(paymentCheckoutAvailable()).toBe(false);
+    vi.stubEnv('RAZORPAY_WEBHOOK_SECRET', 'webhook'); vi.stubEnv('PAYMENT_WORKER_SECRET', 'worker');
+    expect(paymentCheckoutAvailable()).toBe(true);
   });
 });

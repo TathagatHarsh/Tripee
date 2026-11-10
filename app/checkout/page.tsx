@@ -8,7 +8,7 @@ import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
 import { listCakes } from "@/lib/cakeData";
 import { getCatalogSnapshot } from "@/lib/catalogData";
-import { isTestKey, paymentsEnabled } from "@/lib/razorpay";
+import { isTestKey, paymentsEnabled, offlinePaymentsEnabled, paymentCheckoutAvailable } from "@/lib/razorpay";
 
 export const metadata: Metadata = {
   title: "Checkout · MakeYourCakes",
@@ -62,7 +62,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
             designSlug={builder ? query.design : undefined}
             catalog={catalog}
             cakes={cakes}
-            payments={{ enabled: paymentsEnabled(), testMode: isTestKey() }}
+            payments={{ enabled: paymentsEnabled(), available: paymentCheckoutAvailable() || offlinePaymentsEnabled(), testMode: isTestKey() }}
           />
         </div>
       </main>

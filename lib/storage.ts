@@ -1,5 +1,5 @@
 import "server-only";
-import { del, put } from "@vercel/blob";
+import { put } from "@vercel/blob";
 import sharp, { type Sharp, type Metadata } from "sharp";
 import { type Crop, IMAGE_ASPECT, MAX_UPLOAD_BYTES, pixelBox } from "./imageSpec";
 
@@ -206,8 +206,7 @@ export const NO_IMAGE_STORE_MESSAGE =
  * bytes would sit behind a CDN entry for the old ones, and the owner who just
  * uploaded a photograph would be shown the previous one and reasonably conclude
  * the upload had failed. A random suffix makes every version its own immutable
- * URL, and the old one is deleted explicitly by the caller once the new URL is
- * committed to the database.
+ * URL. Published versions are retained because order snapshots reference them.
  *
  * The readable prefix survives anyway, which is worth keeping: somebody looking
  * at the store in the Vercel dashboard can tell what these files are.
@@ -226,24 +225,10 @@ export async function store(bytes: Buffer, category: string, value: string): Pro
   return url;
 }
 
-/**
- * Delete a stored photograph, and never fail the caller for it.
- *
- * Called after the database has already been updated — a replaced photo's old
- * URL, or a removed one's. By that point the operation the owner asked for has
- * succeeded, and the only thing left is housekeeping: telling them "the photo
- * was removed but the file wasn't deleted" gives them a problem they cannot act
- * on and no reason to care. An orphaned blob costs a fraction of a cent.
- *
- * The guard is not cosmetic. This is only ever handed a URL that was in the
- * database, and rows predating the Blob store could in principle hold something
- * else; `del` on a foreign URL is a request that should not be made.
- */
+/** Retain published assets: order snapshots can outlive catalogue entries. */
 export async function discard(url: string | null | undefined): Promise<void> {
-  if (!url || !url.includes(".blob.vercel-storage.com")) return;
-  try {
-    await del(url);
-  } catch (e) {
-    console.error("blob_delete_failed", url, e);
-  }
+  if (!url) return;
+  // Order snapshots can reference any previously published URL, including a
+  // checkout racing a catalogue edit. Retain immutable images; garbage collection
+  // requires a separate retention-aware job, never a catalogue mutation.
 }

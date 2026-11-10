@@ -1,3 +1,6 @@
+import { db } from "@/lib/db";
+import { getViewer } from "@/lib/auth";
+import { asJson } from "@/lib/checkoutValidate";
 import {
   callerKey,
   CROSS_SITE_MESSAGE,
@@ -14,7 +17,7 @@ import {
 } from "@/lib/checkoutValidate";
 import { rememberGuestOrders } from "@/lib/guestOrders";
 import { log, requestId } from "@/lib/log";
-import { keyId, paymentsEnabled } from "@/lib/razorpay";
+import { keyId, paymentsEnabled, paymentCheckoutAvailable } from "@/lib/razorpay";
 
 async function replayResponse(order: CreatedOrder, traceId: string) {
   await rememberGuestOrders([order.ref]);
@@ -57,6 +60,8 @@ export async function POST(req: Request) {
     );
   }
 
+  if (!paymentCheckoutAvailable()) return unavailable();
+
   const traceId = requestId(req);
   if (crossSite(req)) {
     return Response.json(
@@ -82,6 +87,12 @@ export async function POST(req: Request) {
   const { body, hash, review } = validated.checked;
   let intent: Awaited<ReturnType<typeof openPaymentIntent>>;
   try {
+    const viewer = await getViewer();
+    const recovery = await db.paymentRecovery.upsert({
+      where: { id: body.idempotencyKey }, update: {},
+      create: { id: body.idempotencyKey, request: asJson(body), payloadHash: hash, userId: viewer?.profile.id ?? null },
+    });
+    if (recovery.payloadHash !== hash) return conflict();
     intent = await openPaymentIntent(body.idempotencyKey, hash, review.totalPaise);
   } catch (error) {
     log("error", "payment_intent_failed", { traceId, error: String(error) });

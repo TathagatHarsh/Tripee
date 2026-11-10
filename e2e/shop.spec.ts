@@ -1,3 +1,4 @@
+import { deliveryDetails, pinAddress, MADHAPUR } from "./helpers/delivery";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
@@ -21,8 +22,6 @@ async function configuredBasket(page: Page) {
   await page
     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
     .click();
-  await page.getByRole("radio", { name: /^1\.5 kg/ }).click();
-  await page.getByRole("radio", { name: /^Eggless/ }).click();
   await page
     .getByLabel("Message on the cake (optional)")
     .fill("Happy Birthday Amma");
@@ -49,33 +48,7 @@ async function configuredBasket(page: Page) {
  * the order still needs a bakery covering this pin in the scratch database
  * (the orders route checks coverage itself).
  */
-const MADHAPUR = { lat: 17.4486, lng: 78.3908, address: "Road No 36, Madhapur", locality: "Madhapur", city: "Hyderabad", state: "Telangana", pincode: "500081", placeId: "N1" };
-async function pinAddress(page: Page, place = MADHAPUR, covered = true) {
-  await page.route("**/api/location", (route) => route.fulfill({ json: { results: [place] } }));
-  await page.route("**/api/serviceability", (route) => route.fulfill({ json: { covered } }));
-  await page.getByRole("button", { name: /Add delivery address|Change/ }).click();
-  await page.getByLabel("Search for your area, street or building").fill("Madhapur");
-  await page.getByRole("button", { name: place.address, exact: true }).click();
-}
-async function deliveryDetails(page: Page) {
-  await page.getByLabel("Name", { exact: true }).fill("E2E Guest Customer");
-  await page.getByLabel("Phone", { exact: true }).fill("9876543210");
-  await page
-    .getByLabel("Email (optional)", { exact: true })
-    .fill("guest@example.invalid");
-  await pinAddress(page);
-  await page.getByRole("button", { name: "Confirm location", exact: true }).click();
-  await page
-    .getByLabel("Flat / house no. and floor", { exact: true })
-    .fill("12 Synthetic Test Street");
-  await page
-    .getByLabel("Requested date")
-    .fill(new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10));
-  await expect(page.getByText(/We deliver here/)).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /^Place order/ }),
-  ).toBeEnabled();
-}
+
 
 test("guest can configure, edit, confirm delivery, order, refresh receipt and track", async ({
   page,
@@ -136,7 +109,7 @@ test("mobile checkout blocks an unserviceable address and preserves details afte
   await page.unroute("**/api/location");
   await page.unroute("**/api/serviceability");
   await pinAddress(page, { ...MADHAPUR, address: "Connaught Place", pincode: "110001" }, false);
-  await expect(page.getByText("We don't deliver here yet")).toBeVisible();
+  await expect(page.getByText(/We don.t deliver here yet/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm location", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Close", exact: true }).click();
   // A hand-edited pincode outside the zones is refused by the slot rules.
@@ -167,7 +140,7 @@ test("mobile checkout blocks an unserviceable address and preserves details afte
 test("Map pin survives completing the address and reaches server assignment", async ({ page }, testInfo) => {
   await configuredBasket(page);
   await page.getByLabel("Name", { exact: true }).fill("Assignment Demo Customer");
-  await page.getByLabel("Phone", { exact: true }).fill("9876543210");
+  await page.getByLabel(/^Phone/).fill("9876543210");
   await pinAddress(page);
   const map = page.getByRole("region", { name: "Move the map to put the pin on your door" });
   await expect(map.locator(".maplibregl-canvas")).toBeVisible();
@@ -190,6 +163,7 @@ test("assignment, earnings and worker APIs reject anonymous or cross-site reques
   expect((await request.get("/api/vendor/earnings")).status()).toBe(403);
   expect((await request.get("/api/orders/MC-UNKNOWN/assignment")).status()).toBe(404);
   expect((await request.post("/api/internal/assignments")).status()).toBe(401);
+  expect((await request.post("/api/internal/payments")).status()).toBe(401);
   expect((await request.post("/api/assignments/MC-UNKNOWN", { headers: { origin: "https://unrelated.invalid" }, data: { action: "start" } })).status()).toBe(403);
 });
 
@@ -216,12 +190,14 @@ test("Change reopens the sheet at the confirmed pin, not the last search", async
   await page.getByRole("button", { name: /Change/ }).click();
   const region = page.getByRole("region", { name: "Move the map to put the pin on your door" });
   await expect(region.locator(".maplibregl-canvas")).toBeVisible();
+  const confirm = page.getByRole("button", { name: "Confirm location", exact: true });
+  await expect(confirm).toBeEnabled();
   const box = (await region.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 - 120, box.y + box.height / 2 - 80, { steps: 8 });
+  await expect(confirm).toBeDisabled();
   await page.mouse.up();
-  const confirm = page.getByRole("button", { name: "Confirm location", exact: true });
   await expect(confirm).toBeEnabled();
   await confirm.click();
   const pinned = await page.evaluate(() => JSON.parse(sessionStorage.getItem("makemycake.checkoutDraft.v2")!).location);

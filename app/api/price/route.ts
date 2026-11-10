@@ -1,3 +1,5 @@
+import { resolveSlot } from "@/lib/delivery";
+import { BUILDER_ENABLED } from "@/lib/flags";
 import {
   callerKey,
   CROSS_SITE_MESSAGE,
@@ -84,10 +86,13 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+    if (!BUILDER_ENABLED && parsed.data.items.some(item => item.config)) {
+      return Response.json({ error: "Custom cakes are not available yet.", code: "builder_unavailable" }, { status: 422 });
+    }
     const fulfillment = parsed.data.fulfillment;
     const schedule = scheduleVerdict(
       fulfillment.requestedDate,
-      catalog.slots[fulfillment.slot],
+      resolveSlot(fulfillment.slot, fulfillment.pincode, catalog),
     );
     if (!schedule.ok) {
       return Response.json(
@@ -230,6 +235,7 @@ export async function POST(req: Request) {
   }
 
   /* ── A cake from the builder ──────────────────────────────────────────── */
+  if (!BUILDER_ENABLED) return Response.json({ error: "Custom cakes are not available yet.", code: "builder_unavailable" }, { status: 422 });
   const parsed = CakeConfig.safeParse(b.config);
   if (!parsed.success) {
     return Response.json(

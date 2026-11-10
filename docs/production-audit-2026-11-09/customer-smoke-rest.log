@@ -1,0 +1,50 @@
+
+Running 5 tests using 1 worker
+
+(node:58808) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › e2e/auditTemporary.spec.ts:127:5 › mobile checkout blocks an unserviceable address and preserves details after network failure (20.5s)
+(node:59029) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [chromium] › e2e/auditTemporary.spec.ts:165:5 › Map pin survives completing the address and reaches server assignment (6.2s)
+  ✓  3 [chromium] › e2e/auditTemporary.spec.ts:186:5 › assignment, earnings and worker APIs reject anonymous or cross-site requests (49ms)
+  ✓  4 [chromium] › e2e/auditTemporary.spec.ts:194:5 › pressing Enter in the location search never places the order (5.6s)
+  ✓  5 [chromium] › e2e/auditTemporary.spec.ts:210:5 › Change reopens the sheet at the confirmed pin, not the last search (5.9s)
+
+
+  1) [chromium] › e2e/auditTemporary.spec.ts:127:5 › mobile checkout blocks an unserviceable address and preserves details after network failure
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('We don\'t deliver here yet')
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('We don\'t deliver here yet')
+
+
+      135 |   await page.unroute("**/api/serviceability");
+      136 |   await pinAddress(page, { ...MADHAPUR, address: "Connaught Place", pincode: "110001" }, false);
+    > 137 |   await expect(page.getByText("We don't deliver here yet")).toBeVisible();
+          |                                                             ^
+      138 |   await expect(page.getByRole("button", { name: "Confirm location", exact: true })).toBeDisabled();
+      139 |   await page.getByRole("button", { name: "Close", exact: true }).click();
+      140 |   // A hand-edited pincode outside the zones is refused by the slot rules.
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/auditTemporary.spec.ts:137:61
+
+    Error Context: test-results/auditTemporary-mobile-chec-40fd4-tails-after-network-failure-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/auditTemporary-mobile-chec-40fd4-tails-after-network-failure-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/auditTemporary-mobile-chec-40fd4-tails-after-network-failure-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/auditTemporary.spec.ts:127:5 › mobile checkout blocks an unserviceable address and preserves details after network failure
+  4 passed (40.6s)

@@ -1,3 +1,4 @@
+import { resolveSlot } from "@/lib/delivery";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SNAPSHOT } from "@/lib/catalogDefaults";
 import {
@@ -67,4 +68,16 @@ describe("promised delivery date", () => {
     expect(dueAt(order)).toEqual(fixed);
     expect(dueAt({ ...order, dueAt: null })).toEqual(requestedFor);
   });
+});
+
+it("adds zone travel hours to the actual scheduling cutoff", () => {
+  const catalog = { ...DEFAULT_SNAPSHOT, zones: [{ ...DEFAULT_SNAPSHOT.zones[0], pincodeFrom: 500000, pincodeTo: 500999, extraHours: 12 }] };
+  const slot = resolveSlot('standard', '500081', catalog);
+  const now = new Date('2026-09-29T04:30:00Z');
+  expect(scheduleVerdict('2026-10-01', catalog.slots.standard, now).ok).toBe(true);
+  expect(scheduleVerdict('2026-10-01', slot, now).ok).toBe(false);
+  expect(scheduleVerdict('2026-10-02', slot, now).ok).toBe(true);
+});
+it("does not offer rolling express prose as a calendar window", () => {
+  expect(resolveSlot('express-4hr', '500081', DEFAULT_SNAPSHOT).available).toBe(false);
 });

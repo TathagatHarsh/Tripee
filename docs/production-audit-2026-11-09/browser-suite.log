@@ -1,0 +1,163 @@
+
+Running 62 tests using 1 worker
+
+(node:57739) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › shop front has no WCAG A/AA violations (2.5s)
+  ✓   2 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › collection has no WCAG A/AA violations (2.2s)
+  ✓   3 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › a filtered collection has no WCAG A/AA violations (2.1s)
+  ✓   4 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › the empty collection has no WCAG A/AA violations (2.0s)
+  ✓   5 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › a cake has no WCAG A/AA violations (2.4s)
+  ✓   6 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › the empty cart has no WCAG A/AA violations (2.3s)
+  ✓   7 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › the empty checkout has no WCAG A/AA violations (2.4s)
+  ✓   8 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › the builder's coming-soon page has no WCAG A/AA violations (2.1s)
+  ✓   9 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › sign in has no WCAG A/AA violations (2.4s)
+  ✓  10 [chromium] › e2e/a11y.spec.ts:75:9 › accessibility › create an account has no WCAG A/AA violations (2.2s)
+  -  11 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › shape step has no WCAG A/AA violations
+  -  12 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › size and tiers has no WCAG A/AA violations
+  -  13 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › frosting step has no WCAG A/AA violations
+  -  14 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › colour and finish has no WCAG A/AA violations
+  -  15 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › toppings step has no WCAG A/AA violations
+  -  16 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › message step has no WCAG A/AA violations
+  -  17 [chromium] › e2e/a11y.spec.ts:86:9 › accessibility › review has no WCAG A/AA violations
+  ✓  18 [chromium] › e2e/a11y.spec.ts:120:7 › accessibility › the variant sheet has no WCAG A/AA violations (1.4s)
+  ✘  19 [chromium] › e2e/a11y.spec.ts:134:7 › accessibility › the order confirmation has no WCAG A/AA violations (1.5m)
+(node:58159) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -  20 [chromium] › e2e/a11y.spec.ts:157:7 › accessibility › the topping bar on the render has no WCAG A/AA violations
+  ✓  21 [chromium] › e2e/a11y.spec.ts:178:7 › accessibility › the account panel has no WCAG A/AA violations (850ms)
+  ✓  22 [chromium] › e2e/a11y.spec.ts:192:7 › accessibility › the account menu opens, closes and stays inside the viewport (1.2s)
+  ✓  23 [chromium] › e2e/a11y.spec.ts:267:9 › accessibility › the account panel fits a desktop viewport (302ms)
+  ✓  24 [chromium] › e2e/a11y.spec.ts:267:9 › accessibility › the account panel fits a laptop viewport (280ms)
+  ✓  25 [chromium] › e2e/a11y.spec.ts:267:9 › accessibility › the account panel fits a tablet viewport (248ms)
+  ✓  26 [chromium] › e2e/a11y.spec.ts:267:9 › accessibility › the account panel fits a mobile viewport (234ms)
+  ✓  27 [chromium] › e2e/a11y.spec.ts:267:9 › accessibility › the account panel fits a small mobile viewport (248ms)
+  -  28 [chromium] › e2e/a11y.spec.ts:290:7 › accessibility › the builder can be driven with the keyboard alone
+  ✓  29 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the admin portal (59ms)
+  ✓  30 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the catalogue editor (54ms)
+  ✓  31 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the order book (54ms)
+  ✓  32 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the order detail (54ms)
+  ✓  33 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the printable docket (55ms)
+  ✓  34 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the delivery board (54ms)
+  ✓  35 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the filtered delivery board (53ms)
+  ✓  36 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the kitchen board (53ms)
+  ✓  37 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the account page (53ms)
+  ✓  38 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the profile and security page (53ms)
+  ✓  39 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the orders page (53ms)
+  ✓  40 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the order tracking page (53ms)
+  ✓  41 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the bakery portal (53ms)
+  ✓  42 [chromium] › e2e/auth.spec.ts:66:7 › a stranger cannot open the bakery order detail (53ms)
+  ✓  43 [chromium] › e2e/auth.spec.ts:95:5 › shopping and a guest order are untouched by any of this (474ms)
+  ✓  44 [chromium] › e2e/auth.spec.ts:120:5 › the 3D builder is held back on every one of its URLs (362ms)
+  ✓  45 [chromium] › e2e/auth.spec.ts:132:5 › the sign-in page is ours around Clerk's, and does not demand an account (126ms)
+  ✓  46 [chromium] › e2e/auth.spec.ts:174:5 › the sign-up page matches it, and still says an account is optional (124ms)
+  -  47 [chromium] › e2e/auth.spec.ts:210:7 › /sign-in declares autocomplete="username" on identifier
+  -  48 [chromium] › e2e/auth.spec.ts:210:7 › /sign-in declares autocomplete="current-password" on password
+  -  49 [chromium] › e2e/auth.spec.ts:210:7 › /sign-up declares autocomplete="email" on emailAddress
+  -  50 [chromium] › e2e/auth.spec.ts:210:7 › /sign-up declares autocomplete="new-password" on password
+  -  51 [chromium] › e2e/auth.spec.ts:233:5 › no development-mode chrome reaches the customer
+  ✓  52 [chromium] › e2e/checkout.spec.ts:62:5 › concurrent retries create one frozen order with two cakes and one shipping charge (59ms)
+  ✓  53 [chromium] › e2e/checkout.spec.ts:100:5 › a committed attempt survives later blackout and quote changes (25ms)
+  ✓  54 [chromium] › e2e/checkout.spec.ts:133:5 › a reused attempt cannot change customer or cake details (20ms)
+  ✓  55 [chromium] › e2e/checkout.spec.ts:146:5 › tampered totals, impossible dates, missing addresses and unserviceable pins are refused (10ms)
+  ✓  56 [chromium] › e2e/checkout.spec.ts:176:5 › cross-site writes and malformed requests fail closed (8ms)
+  ✘  57 [chromium] › e2e/shop.spec.ts:80:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track (1.5m)
+(node:58360) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  58 [chromium] › e2e/shop.spec.ts:129:5 › mobile checkout blocks an unserviceable address and preserves details after network failure (29.8s)
+
+
+  1) [chromium] › e2e/a11y.spec.ts:134:7 › accessibility › the order confirmation has no WCAG A/AA violations
+
+    Test timeout of 90000ms exceeded.
+
+    Error: locator.fill: Test timeout of 90000ms exceeded.
+    Call log:
+      - waiting for getByLabel('Phone', { exact: true })
+
+
+      137 |     await page.goto("/checkout");
+      138 |     await page.getByLabel("Name", { exact: true }).fill("E2E Accessibility Guest");
+    > 139 |     await page.getByLabel("Phone", { exact: true }).fill("9876543210");
+          |                                                     ^
+      140 |     await page.getByRole("radio", { name: /^pickup$/i }).check();
+      141 |     await expect(page.getByText(/Pickup available/)).toBeVisible();
+      142 |     await page.getByRole("button", { name: /^Place order/ }).click();
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/a11y.spec.ts:139:53
+
+    Error Context: test-results/a11y-accessibility-the-ord-73c40-has-no-WCAG-A-AA-violations-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/a11y-accessibility-the-ord-73c40-has-no-WCAG-A-AA-violations-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/a11y-accessibility-the-ord-73c40-has-no-WCAG-A-AA-violations-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/shop.spec.ts:80:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track
+
+    Test timeout of 90000ms exceeded.
+
+    Error: locator.click: Test timeout of 90000ms exceeded.
+    Call log:
+      - waiting for getByRole('radio', { name: /^1\.5 kg/ })
+
+
+      22 |     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
+      23 |     .click();
+    > 24 |   await page.getByRole("radio", { name: /^1\.5 kg/ }).click();
+         |                                                       ^
+      25 |   await page.getByRole("radio", { name: /^Eggless/ }).click();
+      26 |   await page
+      27 |     .getByLabel("Message on the cake (optional)")
+        at configuredBasket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:24:55)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:84:3
+
+    Error Context: test-results/shop-guest-can-configure-e-a8ac7-r-refresh-receipt-and-track-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/shop-guest-can-configure-e-a8ac7-r-refresh-receipt-and-track-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/shop-guest-can-configure-e-a8ac7-r-refresh-receipt-and-track-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › e2e/shop.spec.ts:129:5 › mobile checkout blocks an unserviceable address and preserves details after network failure
+
+    Test was interrupted.
+
+    Error: locator.click: Test ended.
+    Call log:
+      - waiting for getByRole('radio', { name: /^1\.5 kg/ })
+
+
+      22 |     .getByRole("button", { name: /Add to cart , Pineapple Delight/ })
+      23 |     .click();
+    > 24 |   await page.getByRole("radio", { name: /^1\.5 kg/ }).click();
+         |                                                       ^
+      25 |   await page.getByRole("radio", { name: /^Eggless/ }).click();
+      26 |   await page
+      27 |     .getByLabel("Message on the cake (optional)")
+        at configuredBasket (/Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:24:55)
+        at /Users/tathagatharsh/Desktop/Tripee.nosync/e2e/shop.spec.ts:133:3
+
+    Error Context: test-results/shop-mobile-checkout-block-b5f21-tails-after-network-failure-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/shop-mobile-checkout-block-b5f21-tails-after-network-failure-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/shop-mobile-checkout-block-b5f21-tails-after-network-failure-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [chromium] › e2e/a11y.spec.ts:134:7 › accessibility › the order confirmation has no WCAG A/AA violations
+    [chromium] › e2e/shop.spec.ts:80:5 › guest can configure, edit, confirm delivery, order, refresh receipt and track
+  1 interrupted
+    [chromium] › e2e/shop.spec.ts:129:5 › mobile checkout blocks an unserviceable address and preserves details after network failure
+  14 skipped
+  4 did not run
+  41 passed (4.2m)

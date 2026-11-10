@@ -17,6 +17,7 @@ for (const [path, what] of [
   ["/admin", "admin portal"],
   ["/admin/catalog", "catalogue editor"],
   ["/admin/orders", "order book"],
+  ["/admin/payments", "payment follow-up"],
   /*
    * Both nested order routes, with a reference that need not exist: the layout's
    * requireAdmin() refuses before anything queries an order, so what is being

@@ -20,7 +20,8 @@ import {
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { log } from "@/lib/log";
 import { scheduleVerdict } from "@/lib/scheduling";
-import { PICKUP_OPEN } from "@/lib/delivery";
+import { BUILDER_ENABLED } from "@/lib/flags";
+import { PICKUP_OPEN, resolveSlot } from "@/lib/delivery";
 
 /**
  * Everything a checkout request has to get past before money or an order is
@@ -150,6 +151,9 @@ export async function validateCheckout(
   }
 
   const body = parsed.data;
+  if (!BUILDER_ENABLED && body.items.some(item => item.config)) {
+    return problem(Response.json({ error: "Custom cakes are not available yet. Choose a cake from the shop.", code: "builder_unavailable" }, { status: 422 }));
+  }
   const customerName = normalizeName(body.customerName);
   const customerPhone = normalizePhone(body.customerPhone);
   if (!nameOk(customerName)) {
@@ -231,7 +235,7 @@ export async function validateCheckout(
     );
   }
 
-  const slotInfo = catalog.slots[body.fulfillment.slot];
+  const slotInfo = resolveSlot(body.fulfillment.slot, body.fulfillment.pincode, catalog);
   const schedule = scheduleVerdict(body.fulfillment.requestedDate, slotInfo);
   if (!schedule.ok) {
     return problem(
