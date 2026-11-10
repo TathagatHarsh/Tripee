@@ -1196,12 +1196,10 @@ export async function saveVendor(
  * than trusting this — the foreign keys on VendorOrder and UserProfile are
  * RESTRICT, so there is no delete action here to write.
  *
- * Deactivating does **not** touch the orders they are already holding. A bakery
- * halfway through a cake is still halfway through it, and silently withdrawing
- * live assignments would tell the office an order was unassigned while somebody
- * was baking it. What it does is take them out of the picker and shut their
- * dashboard — see lib/auth's `requireVendor` — which is the office's cue to
- * reassign whatever they still hold, deliberately and one at a time.
+ * Deactivating takes them out of the picker and shuts their dashboard — see
+ * lib/auth's `requireVendor`. It is refused while they still hold accepted
+ * orders: an inactive bakery cannot move them, and neither can the office, so
+ * they would be stranded. Pause new work with "not accepting orders" instead.
  */
 export async function setVendorActive(
   _prev: ActionResult | undefined,
@@ -1214,17 +1212,39 @@ export async function setVendorActive(
   const isActive = form.get("isActive") === "true";
   if (!id) return { ok: false, message: "That form is missing a vendor." };
 
-  const vendor = await db.$transaction(async tx => {
+  const result = await db.$transaction(async tx => {
     await lockAssignments(tx);
-    return tx.vendor.update({ where: { id }, data: { isActive }, select: { name: true } });
+    /* An inactive bakery can't move its accepted orders and nobody else can
+       either, so refuse while it still holds any. "Not accepting orders" pauses
+       new work while these finish. */
+    if (!isActive) {
+      const held = await tx.vendorOrder.findMany({
+        where: {
+          vendorId: id,
+          assignmentStatus: "ACCEPTED",
+          currentFor: { status: { in: ["confirmed", "in_kitchen", "out_for_delivery"] } },
+        },
+        select: { order: { select: { ref: true } } },
+        take: 10,
+      });
+      if (held.length) return { held: held.map((h) => h.order.ref) };
+    }
+    return { vendor: await tx.vendor.update({ where: { id }, data: { isActive }, select: { name: true } }) };
   });
+  if (result.held) {
+    return {
+      ok: false,
+      message: `This bakery still holds ${result.held.join(", ")}. Let them finish or reassign them first, and switch off "accepting orders" to stop new work.`,
+    };
+  }
+  const { vendor } = result;
 
   revalidateVendors(id);
   return {
     ok: true,
     message: isActive
       ? `${vendor.name} can be given orders again.`
-      : `${vendor.name} deactivated. Orders they already hold are untouched.`,
+      : `${vendor.name} deactivated.`,
   };
 }
 

@@ -99,7 +99,7 @@ export const NAV: NavSection[] = [
        */
       { href: "/admin/orders/today", label: "Deliveries", icon: "delivery" },
       { href: "/admin/inventory", label: "Cake Availability", icon: "cake", nested: true, partnersOnly: true },
-      { href: "/admin/vendors", label: "Vendors", icon: "vendor", nested: true, partnersOnly: true },
+      { href: "/admin/vendors", label: "Vendors", icon: "vendor", nested: true },
       /* Renamed from "Delivery", which read as though it were the board above.
          The route is untouched — §5's "do not unnecessarily restructure backend
          routes" is about addresses, and this is a word on a sidebar. */

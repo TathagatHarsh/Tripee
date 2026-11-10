@@ -2,7 +2,7 @@ import type { EarningSnapshot } from "@/components/assignment/Earnings";
 import type { OrderStatus, VendorOrderStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { migrateConfig, type CakeConfig } from "@/lib/schema";
-import { VENDOR_OPEN } from "@/lib/vendors";
+import { VENDOR_OPEN, VENDOR_STATUS_LABEL } from "@/lib/vendors";
 
 const ORDER_FOR_VENDOR = {
   ref: true,
@@ -132,14 +132,62 @@ function toCard(
   return { ...row, order, config: migrateConfig(config) };
 }
 
+export const HISTORY_PAGE = 60;
+
+/**
+ * One page of history, newest first, with search, status and due date applied
+ * in the database before the limit — so an old order is findable by reference
+ * however many came after it. Priority is relative to now and stays in
+ * filterQueue, which also re-checks the date against the computed due time.
+ */
 export async function vendorHistory(
   vendorId: string,
-  take = 60,
-): Promise<VendorCard[]> {
+  query: { q?: string; status?: string; date?: string } = {},
+  page = 0,
+): Promise<{ cards: VendorCard[]; more: boolean }> {
+  const q = query.q?.trim();
+  const status =
+    query.status && query.status in VENDOR_STATUS_LABEL
+      ? (query.status as VendorOrderStatus)
+      : undefined;
+  const contains = (v: string) => ({ contains: v, mode: "insensitive" as const });
+  /* Due date is an IST calendar day (QueueFilters adds +05:30). */
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(query.date ?? "")
+    ? new Date(`${query.date}T00:00:00+05:30`)
+    : null;
+  const range = day && { gte: day, lt: new Date(day.getTime() + 86_400_000) };
   const rows = await db.vendorOrder.findMany({
-    where: { vendorId, offeredAt: { not: null } },
+    where: {
+      vendorId,
+      offeredAt: { not: null },
+      ...(status ? { status } : {}),
+      order: {
+        ...(q
+          ? {
+              OR: [
+                { ref: contains(q) },
+                { customerName: contains(q) },
+                { cakeName: contains(q) },
+                { cakes: { some: { cakeName: contains(q) } } },
+              ],
+            }
+          : {}),
+        ...(range
+          ? {
+              AND: {
+                OR: [
+                  { dueAt: range },
+                  { dueAt: null, requestedFor: range },
+                  { dueAt: null, requestedFor: null },
+                ],
+              },
+            }
+          : {}),
+      },
+    },
     orderBy: { assignedAt: "desc" },
-    take,
+    skip: page * HISTORY_PAGE,
+    take: HISTORY_PAGE + 1,
     select: {
       id: true,
       status: true,
@@ -155,7 +203,10 @@ export async function vendorHistory(
       order: { select: ORDER_FOR_VENDOR },
     },
   });
-  return rows.map(toCard);
+  return {
+    cards: rows.slice(0, HISTORY_PAGE).map(toCard),
+    more: rows.length > HISTORY_PAGE,
+  };
 }
 
 export async function vendorOrder(vendorId: string, ref: string) {

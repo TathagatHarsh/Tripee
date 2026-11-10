@@ -5,7 +5,8 @@ import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { vendorNext } from "@/lib/vendors";
 import { Notice } from "@/components/admin/ui";
 import { Icon } from "@/components/admin/icons";
-import { vendorHistory, type VendorCard } from "../data";
+import Link from "next/link";
+import { vendorBoard, vendorHistory, type VendorCard } from "../data";
 import { OrderTicket } from "../OrderTicket";
 
 /**
@@ -45,9 +46,21 @@ export default async function VendorOrders({
   if (!hasDatabase()) return <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>;
 
   const query = await searchParams;
-  const all = filterQueue(await vendorHistory(vendor.id), query, new Date());
-  const open = all.filter((c) => vendorNext(c.status, c.order.status).length > 0);
-  const done = all.filter((c) => vendorNext(c.status, c.order.status).length === 0);
+  const page = Math.max(0, Math.floor(Number(query.page)) || 0);
+  const now = new Date();
+  /* Open work comes from the board's own query, so history volume can never
+     push an active order off this page. */
+  const [board, history] = await Promise.all([
+    page === 0 ? vendorBoard(vendor.id) : Promise.resolve([]),
+    vendorHistory(vendor.id, query, page),
+  ]);
+  const open = filterQueue(board, query, now);
+  const done = filterQueue(history.cards, query, now).filter(
+    (c) => vendorNext(c.status, c.order.status).length === 0,
+  );
+  const all = [...open, ...done];
+  const pageHref = (n: number) =>
+    `/vendor/orders?${new URLSearchParams({ ...query, page: String(n) })}`;
 
   return (
     <div className="flex flex-col gap-5">
@@ -91,6 +104,12 @@ export default async function VendorOrders({
             />
           )}
         </>
+      )}
+      {(page > 0 || history.more) && (
+        <nav className="flex justify-between text-a-body font-semibold text-a-accent-ink">
+          {page > 0 ? <Link href={pageHref(page - 1)}>← Newer</Link> : <span />}
+          {history.more && <Link href={pageHref(page + 1)}>Older →</Link>}
+        </nav>
       )}
     </div>
   );

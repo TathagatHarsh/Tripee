@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireVendor } from "@/lib/auth";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { dueAt } from "@/lib/orders";
-import { dueUrgency, VENDOR_COLUMNS } from "@/lib/vendors";
+import { dueUrgency, VENDOR_COLUMNS, VENDOR_SENT_OUT_COLUMN } from "@/lib/vendors";
 import { Notice, StatCard } from "@/components/admin/ui";
 import { vendorBoard } from "./data";
 import { OrderTicket } from "./OrderTicket";
@@ -98,8 +98,8 @@ export default async function KitchenBoard({
           </p>
         </div>
       ) : (
-        <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {VENDOR_COLUMNS.map((column) => {
+        <div className="grid items-start gap-5 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+          {[...VENDOR_COLUMNS, VENDOR_SENT_OUT_COLUMN].map((column) => {
             const cards = board.filter((c) => c.status === column.status);
             return (
               <section

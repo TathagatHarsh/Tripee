@@ -8,6 +8,7 @@ export type QueueQuery = {
   status?: string;
   date?: string;
   priority?: string;
+  page?: string;
 };
 export function filterQueue(cards: VendorCard[], query: QueueQuery, now: Date) {
   const needle = (query.q ?? "").trim().toLowerCase();
