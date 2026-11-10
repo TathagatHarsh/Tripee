@@ -1,5 +1,6 @@
 import "server-only";
 import type { OrderStatus, Prisma } from "@prisma/client";
+import { UNDELIVERABLE, UNDELIVERABLE_TEXT } from "./orders";
 import { adminNumbers, normalizePhone, siteUrl, whatsappConfigured } from "./whatsapp";
 import { adminNewOrderMessage, offerMessage, queueWhatsApp, updateMessage, type OrderFacts } from "./whatsappMessages";
 
@@ -112,7 +113,7 @@ export async function whatsappOrderStatus(tx: Tx, e: { orderId: string; to: Orde
       await queueWhatsApp(tx, { orderId: e.orderId, vendorId: e.vendorId, kind: "order_cancelled", to: [e.vendorPhone], dedupeKey: `${key}:vendor`, message: updateMessage(r, "Cancelled. Please stop work on this order.") });
   }
   /* The customer's own update. The staff cancel reason is internal, so it stays out of this one. */
-  const text = customerUpdateText(e.to, o.fulfillmentMethod === "pickup");
+  const text = cancelled && e.reason === UNDELIVERABLE ? UNDELIVERABLE_TEXT : customerUpdateText(e.to, o.fulfillmentMethod === "pickup");
   if (text)
     await queueWhatsApp(tx, { orderId: e.orderId, vendorId: e.vendorId, kind, to: [o.customerPhone], dedupeKey: `${key}:customer`, message: updateMessage(r, text) });
 }

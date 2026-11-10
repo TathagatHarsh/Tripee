@@ -196,10 +196,22 @@ const PICKUP_STATUS: Partial<Record<OrderStatus, { label: string; note: string }
   },
 };
 
+/**
+ * The cancellation reason recorded when no bakery can take an order in
+ * automatic mode (lib/assignment's cancelIfUndeliverable). The customer is told
+ * UNDELIVERABLE_TEXT instead of the generic "cancelled" wording.
+ */
+export const UNDELIVERABLE = "No bakery near you can make this order in time";
+export const UNDELIVERABLE_TEXT =
+  "Sorry, we can't deliver this order. No bakery near you can make it in time. If you paid anything, the full amount will be refunded";
+
 export function customerStatus(
   status: OrderStatus,
   pickup = false,
+  cancellationReason?: string | null,
 ): { label: string; note: string } {
+  if (status === "cancelled" && cancellationReason === UNDELIVERABLE)
+    return { label: "Sorry, we can't deliver", note: `${UNDELIVERABLE_TEXT}.` };
   return (pickup ? PICKUP_STATUS[status] : undefined) ?? CUSTOMER_STATUS[status];
 }
 

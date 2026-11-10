@@ -125,10 +125,10 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
     expect(rows.filter(r => r.destination === '919876543210' && r.kind === 'status_changed').map(r => bodyText(r)[1])).toContain('Taken back by MakeYourCakes. Please stop work on this order.');
     expect(await adminTexts(order.id)).toContain('Taken from Test Bakery 0 and reassigned');
   });
-  it('no bakery left alerts the admin with the order link', async () => {
+  it('no bakery left: the order is cancelled and the admin told once, for information', async () => {
     process.env.ASSIGNMENT_AUTO_START = 'true'; const { order } = await fixture(false); await startAssignment(order.ref);
     const [text] = await adminTexts(order.id);
-    expect(text).toContain(`/admin/orders/${order.ref}`); expect(text?.startsWith('⚠️')).toBe(true);
+    expect(text).toContain('Cancelled: No bakery near you'); expect(text).not.toContain('Assign it');
     await startAssignment(order.ref); expect(await adminTexts(order.id)).toHaveLength(1);
   });
   it('new order: admin template with the signed photo link and every cake named', async () => {

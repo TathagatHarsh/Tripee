@@ -3,7 +3,7 @@ import type { OrderStatus } from "@prisma/client";
 import {
   ACTION_LABEL, buildProgress, buildTimeline, canTransition, CUSTOMER_STATUS,
   customerStatus, dueAt, HAPPY_PATH, isClosed, NEXT_STATUS, PHASE, STATUS_LABEL,
-  trackingPlan,
+  trackingPlan, UNDELIVERABLE,
 } from "@/lib/orders";
 
 const ALL = Object.keys(NEXT_STATUS) as OrderStatus[];
@@ -135,6 +135,13 @@ describe("what the customer is told a status is", () => {
     // The board's voice is an instruction to staff — "Awaiting our call" is not
     // a sentence to print at the person being called.
     expect(CUSTOMER_STATUS.draft.label).not.toBe(STATUS_LABEL.draft);
+  });
+
+  it("says sorry, we can't deliver, only for an order no bakery could take", () => {
+    expect(customerStatus("cancelled", false, UNDELIVERABLE).label).toBe("Sorry, we can't deliver");
+    expect(customerStatus("cancelled", false, UNDELIVERABLE).note).toContain("No bakery near you");
+    expect(customerStatus("cancelled", false, "Customer changed their mind")).toEqual(CUSTOMER_STATUS.cancelled);
+    expect(customerStatus("confirmed", false, UNDELIVERABLE)).toEqual(CUSTOMER_STATUS.confirmed);
   });
 
   it("does not tell somebody collecting from the counter their cake is out for delivery", () => {

@@ -232,7 +232,7 @@ export function LocationSheet({
           )}
           {refused && (
             <div role="alert" className="rounded-s border border-s-stop/40 bg-s-berry-wash p-3 text-sm">
-              <p className="font-semibold text-s-stop">We don&rsquo;t deliver here yet</p>
+              <p className="font-semibold text-s-stop">Sorry, we can&rsquo;t deliver here yet</p>
               {onPickup && (
                 <button type="button" onClick={onPickup} className={sBtn("outline", "sm", "mt-2")}>
                   Switch to pickup
