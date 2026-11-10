@@ -29,6 +29,14 @@ export async function durableRefund(paymentId: string): Promise<boolean> {
   }
 }
 
+/**
+ * Null when no refund of this payment was ever recorded. A row that is not `failed`
+ * (pending, or a request that errored) is retried by reconcileRefunds, so the money is on its way.
+ */
+export async function refundOperationStatus(paymentId: string): Promise<string | null> {
+  return (await db.refundOperation.findUnique({ where: { paymentId }, select: { status: true } }))?.status ?? null;
+}
+
 export async function reconcileRefunds() {
   // Also recover a crash between the cancellation commit and the first refund call.
   const cancelled = await db.$queryRaw<{ razorpayPaymentId: string }[]>`

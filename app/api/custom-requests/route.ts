@@ -4,6 +4,7 @@ import { createCustomRequest } from "@/lib/customRequests";
 import { CustomRequestInput } from "@/lib/customRules";
 import { checkDeliveryServiceability, resolveSlot, zoneForPincode } from "@/lib/delivery";
 import { log } from "@/lib/log";
+import { paymentCheckoutAvailable } from "@/lib/razorpay";
 import { ACCEPTED_TYPES, hasImageStore, MAX_UPLOAD_BYTES } from "@/lib/storage";
 import { indianMobile, whatsappConfigured } from "@/lib/whatsapp";
 
@@ -13,7 +14,7 @@ export async function POST(req: Request) {
   if (crossSite(req)) return fail(CROSS_SITE_MESSAGE, 403);
   const limit = rateLimit("custom-requests", callerKey(req), { max: 5, windowSeconds: 3600 });
   if (!limit.ok) return tooMany(limit, "custom cake requests");
-  if (!whatsappConfigured() || !hasImageStore()) return fail("Custom cake requests aren't available right now.", 503);
+  if (!whatsappConfigured() || !hasImageStore() || !paymentCheckoutAvailable()) return fail("Custom cake requests aren't available right now.", 503);
 
   // Refuse before buffering: formData() reads the whole body. The allowance covers the other form fields.
   const length = Number(req.headers.get("content-length"));

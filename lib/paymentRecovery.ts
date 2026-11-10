@@ -4,6 +4,7 @@ import { db } from "./db";
 import { fetchPayment, gatewayGet, IntentRecord } from "./razorpay";
 import { placeCheckout } from "./placeOrder";
 import { refundPayment } from "./checkoutPayment";
+import { refundOperationStatus } from "./refunds";
 import { startAssignment } from "./assignment";
 import { payCustomRequest } from "./customRequests";
 import { log } from "./log";
@@ -21,8 +22,10 @@ export async function recoverPayment(paymentId: string) {
     // The receipt proves this Razorpay order was made for that quote, so a payment it can't use
     // (a late or second one after a refund cleared the binding) goes back; `held` protects one an order owns.
     const refund = result.kind === "unmatched" ? (await refundPayment(proof)).outcome : null;
-    // Throwing makes the webhook answer 503, so Razorpay redelivers and the refund is tried again.
-    if (result.kind === "refund_failed" || refund === "failed") throw new Error("Custom payment refund failed; retry required");
+    // Throwing makes the webhook answer 503 so Razorpay redelivers, but only when nothing durable was recorded:
+    // a RefundOperation row is retried by reconcileRefunds, and a webhook that keeps failing can be disabled for every order.
+    if ((result.kind === "refund_failed" || refund === "failed") && !(await refundOperationStatus(payment.id)))
+      throw new Error("Custom payment refund failed; retry required");
     return;
   }
   const recovery = await db.paymentRecovery.findUnique({ where: { id: gatewayOrder.receipt } });

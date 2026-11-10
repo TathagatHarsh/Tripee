@@ -3,6 +3,7 @@ import { CustomCakeTile } from "@/components/shop/CustomCakeTile";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
 import { getBakeryInfo, getCatalogSnapshot } from "@/lib/catalogData";
+import { paymentCheckoutAvailable } from "@/lib/razorpay";
 import { CUSTOM_CAKES, CUSTOM_GROUPS, whatsappTo } from "@/lib/customCakes";
 import { CustomEnquiry } from "@/components/shop/CustomEnquiry";
 import { CustomRequestSheet } from "@/components/shop/CustomRequestSheet";
@@ -30,8 +31,9 @@ const SIZES = "(min-width:1024px) 22vw, (min-width:640px) 30vw, 46vw";
 export default async function CustomCakesPage() {
   const bakery = await getBakeryInfo();
   const to = whatsappTo(bakery.phone);
-  // With WhatsApp configured the photo goes through our own request form; gallery "Ask" tiles stay on CustomEnquiry.
-  const catalog = whatsappConfigured() && hasImageStore() ? await getCatalogSnapshot() : null;
+  // With WhatsApp, an image store and online payment the photo goes through our own request form (a quote must be
+  // payable); otherwise the wa.me button. Gallery "Ask" tiles stay on CustomEnquiry.
+  const catalog = whatsappConfigured() && hasImageStore() && paymentCheckoutAvailable() ? await getCatalogSnapshot() : null;
 
   const sendPhoto = (extra = "") =>
     catalog ? (

@@ -13,9 +13,11 @@ import { db } from '../lib/db';
 import { openPaymentIntent, refundPayment } from '../lib/checkoutPayment';
 import { cancelCustomRequest, createCustomRequest, nextBakery, offerNext, payCustomRequest, runCustomRequestWorker } from '../lib/customRequests';
 import { recoverPayment } from '../lib/paymentRecovery';
+import { durableRefund } from '../lib/refunds';
 import { POST as openQuoteIntent } from '../app/api/custom-requests/[token]/intent/route';
 import { POST as payQuote } from '../app/api/custom-requests/[token]/pay/route';
 import { handleInbound } from '../lib/whatsappInbound';
+import { vendorOrder } from '../app/vendor/data';
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
 const vendorIds: string[] = [], requestIds: string[] = [];
 let serial = 0;
@@ -81,14 +83,14 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
     await db.vendor.deleteMany({ where: { id: { in: vIds } } });
     ids.length = vIds.length = 0;
   });
-  async function fixture(opts: { phone?: string } = {}) {
+  async function fixture(opts: { phone?: string; locality?: string } = {}) {
     const vendors: Awaited<ReturnType<typeof db.vendor.create>>[] = [];
     for (const [i, d] of [0.1, 1, 2, 3].entries()) {
       const v = await db.vendor.create({ data: { name: `CR Life ${i}`, phone: phoneOf(i), locationSetAt: new Date(), isAcceptingOrders: true, fulfillsAllProducts: true, latitude: lat(d), longitude: 77.6, serviceRadiusKm: 20, preparationMinutes: 60 } });
       vIds.push(v.id); vendors.push(v);
     }
     const n = ++serial;
-    const request = await db.customRequest.create({ data: { ref: `CR-L${Date.now()}${n}`, token: `tokl-${Date.now()}-${n}`, name: 'Asha', phone: opts.phone ?? CUSTOMER, photoUrl: 'https://x.test/p.jpg', sizeKg: 1.5, flavour: 'Chocolate', dueAt: new Date(Date.now() + 48 * 3600000), address: { lat: 13.6, lng: 77.6, address: '12 Secret Street', locality: 'Kondapur', city: 'Hyderabad', state: 's', pincode: '500001', placeId: 'p' } } });
+    const request = await db.customRequest.create({ data: { ref: `CR-L${Date.now()}${n}`, token: `tokl-${Date.now()}-${n}`, name: 'Asha', phone: opts.phone ?? CUSTOMER, photoUrl: 'https://x.test/p.jpg', sizeKg: 1.5, flavour: 'Chocolate', dueAt: new Date(Date.now() + 48 * 3600000), address: { lat: 13.6, lng: 77.6, address: '12 Secret Street', locality: opts.locality ?? 'Kondapur', city: 'Hyderabad', state: 's', pincode: '500001', placeId: 'p' } } });
     ids.push(request.id);
     return { vendors, request };
   }
@@ -112,6 +114,15 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
     expect(offer).toMatchObject({ destination: phoneOf(0), kind: 'custom_request', dedupeKey: `cr:${request.id}:offer:${vendors[0].id}:${phoneOf(0)}` });
     expect(offer.payload).toMatchObject({ type: 'template', name: 'custom_offer' });
     expect(textOf(offer)).toContain('Kondapur'); expect(textOf(offer)).not.toContain('Secret'); expect(textOf(offer)).not.toContain('Asha');
+    // The stored photo is WebP; WhatsApp gets it through the signed JPEG converter, never the blob URL.
+    const link = (offer.payload as { components: { type: string; parameters: { image?: { link: string } }[] }[] }).components[0].parameters[0].image!.link;
+    expect(link).toContain(`/api/whatsapp/photo/${request.id}?s=`); expect(textOf(offer)).not.toContain('x.test/p.jpg');
+  });
+  it('a blank locality falls back to the city for the offer area', async () => {
+    const { request } = await fixture({ locality: '' });
+    await offerNext(request.id);
+    const [offer] = await rows(request.id);
+    expect(textOf(offer)).toContain('"text":"Hyderabad"');
   });
   it('a typed "1800" quotes: customer price with margin, customer template, bakery reply', async () => {
     const { request } = await quoted();
@@ -273,6 +284,7 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
   const paymentOrder = new Map<string, string>();
   const refundCalls = (paymentId = '') => fetchMock.mock.calls.filter(([u]) => String(u).endsWith(`${paymentId}/refund`)).length;
   let refundStatus = 200;
+  let refundState = 'processed';
   const sign = (o: string, p: string) => createHmac('sha256', 'secret').update(`${o}|${p}`).digest('hex');
   beforeAll(() => { process.env.DATABASE_URL = url!; });
   beforeEach(() => {
@@ -280,7 +292,7 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
     vi.stubEnv('WHATSAPP_APP_SECRET', 'secret'); vi.stubEnv('WHATSAPP_ADMIN_NUMBERS', '9000000001');
     vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_abc'); vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
     vi.mocked(refundPayment).mockClear();
-    refundStatus = 200;
+    refundStatus = 200; refundState = 'processed';
     fetchMock.mockReset();
     fetchMock.mockImplementation(async (input: unknown, init?: { body?: string }) => {
       const target = String(input);
@@ -292,7 +304,7 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
       }
       if (target.endsWith('/refund')) {
         const pay = target.split('/').at(-2)!;
-        return Response.json({ id: `rfnd_${pay}`, payment_id: pay, status: 'processed' }, { status: refundStatus });
+        return Response.json({ id: `rfnd_${pay}`, payment_id: pay, status: refundState }, { status: refundStatus });
       }
       const order = /\/orders\/(order_\w+)$/.exec(target)?.[1];
       if (order) return Response.json({ id: order, receipt: gatewayOrders.get(order)!.receipt, amount: gatewayOrders.get(order)!.amount, currency: 'INR' });
@@ -350,14 +362,16 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
     expect(order).toMatchObject({
       totalPaise: 207000, payablePaise: 207000, productSubtotalPaise: 207000, status: 'confirmed', paymentStatus: 'paid',
       razorpayOrderId: proof.razorpayOrderId, razorpayPaymentId: proof.razorpayPaymentId, assignmentState: 'ASSIGNED',
-      cakeName: 'Custom cake · 1.5 kg', cakeImageUrl: 'https://x.test/p.jpg', customerName: 'Asha', customerPhone: CUSTOMER,
+      cakeName: 'Custom cake · 1.5 kg · Chocolate', cakeImageUrl: 'https://x.test/p.jpg', customerName: 'Asha', customerPhone: CUSTOMER,
       addressLine1: '12 Secret Street', city: 'Hyderabad', state: 'Telangana', pincode: '500084', customerNotes: 'Happy 30th',
       deliverySlot: 'custom', leadHours: 50, dueAt: request.dueAt, requestedFor: request.dueAt,
     });
     expect(order.config).toEqual({ custom: true, sizeKg: 1.5, flavour: 'Chocolate', cakeMessage: 'Happy 30th', budgetPaise: 200000 });
     expect(order.priceBreakdown).toEqual({ custom: { vendorQuotePaise: 180000, quotePaise: 207000 } });
     expect(order.deliveryLocation).toEqual({ latitude: 14.2, longitude: 77.6 });
-    expect(order.items).toMatchObject([{ label: 'Custom cake · 1.5 kg', amountPaise: 207000 }]);
+    expect(order.items).toMatchObject([{ label: 'Custom cake · 1.5 kg · Chocolate', amountPaise: 207000 }]);
+    // The bakery portal: no designer config, but flagged custom so it doesn't say "Specification unavailable".
+    expect(await vendorOrder(vendor.id, ref)).toMatchObject({ config: null, custom: true, order: { cakeName: 'Custom cake · 1.5 kg · Chocolate', customerNotes: 'Happy 30th' } });
     expect(order.events).toMatchObject([{ fromStatus: 'draft', toStatus: 'confirmed' }]);
     expect(order.assignments).toHaveLength(1);
     const [assignment] = order.assignments;
@@ -475,21 +489,42 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
     expect(refundCalls(p2.razorpayPaymentId)).toBe(1);
     expect(await ordersFor(p2.razorpayPaymentId)).toBe(0);
   });
-  it('a refund that fails is reported, the webhook asks to be redelivered, and the pay route says contact us', async () => {
+  it('a refund that errors but is recorded is "being refunded": the webhook acknowledges and reconcileRefunds finishes it', async () => {
     const { request, proof } = await paidQuote({ expired: true });
     refundStatus = 500;
     const res = await call(payQuote, request.token, proof);
-    expect(res.status).toBe(503);
-    expect((await res.json()).error).toContain('Contact us');
-    await expect(recoverPayment(proof.razorpayPaymentId)).rejects.toThrow('refund failed');
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ refunded: true, error: expect.stringContaining('being refunded') });
+    await expect(recoverPayment(proof.razorpayPaymentId)).resolves.toBeUndefined(); // no 503 storm
+    expect(await db.refundOperation.findUnique({ where: { paymentId: proof.razorpayPaymentId } })).toMatchObject({ status: 'pending', lastError: expect.stringContaining('500') });
     refundStatus = 200;
-    await recoverPayment(proof.razorpayPaymentId); // Razorpay redelivers once we're back
+    await durableRefund(proof.razorpayPaymentId); // what reconcileRefunds runs for a due row
     expect(await db.refundOperation.findUnique({ where: { paymentId: proof.razorpayPaymentId } })).toMatchObject({ status: 'processed' });
     expect(await ordersFor(proof.razorpayPaymentId)).toBe(0);
   });
-  it('payCustomRequest itself reports a failed refund as refund_failed', async () => {
+  it('a Razorpay refund still pending is reported as refunded, not refund_failed', async () => {
     const { request, proof } = await paidQuote({ expired: true });
-    refundStatus = 500;
-    expect(await payCustomRequest(request.id, proof)).toEqual({ kind: 'refund_failed' });
+    refundState = 'pending';
+    expect(await payCustomRequest(request.id, proof)).toEqual({ kind: 'refunded' });
+    expect(await db.refundOperation.findUnique({ where: { paymentId: proof.razorpayPaymentId } })).toMatchObject({ status: 'pending', refundId: `rfnd_${proof.razorpayPaymentId}` });
+  });
+  it('a refund Razorpay failed is refund_failed for the customer, but the webhook acknowledges it', async () => {
+    const { request, proof } = await paidQuote({ expired: true });
+    refundState = 'failed';
+    const res = await call(payQuote, request.token, proof);
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain('Contact us');
+    await expect(recoverPayment(proof.razorpayPaymentId)).resolves.toBeUndefined();
+  });
+  it('with no refund on record, the pay route says contact us and the webhook asks to be redelivered', async () => {
+    const { request, proof } = await paidQuote({ expired: true });
+    const upsert = vi.spyOn(db.refundOperation, 'upsert').mockRejectedValue(new Error('db blip'));
+    try {
+      expect(await payCustomRequest(request.id, proof)).toEqual({ kind: 'refund_failed' });
+      await expect(recoverPayment(proof.razorpayPaymentId)).rejects.toThrow('refund failed');
+    } finally { upsert.mockRestore(); }
+    await recoverPayment(proof.razorpayPaymentId); // Razorpay redelivers once we're back
+    expect(await db.refundOperation.findUnique({ where: { paymentId: proof.razorpayPaymentId } })).toMatchObject({ status: 'processed' });
+    expect(await ordersFor(proof.razorpayPaymentId)).toBe(0);
   });
 });

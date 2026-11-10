@@ -242,5 +242,7 @@ export async function vendorOrder(vendorId: string, ref: string) {
      lib/schema's migrateConfig returns null for one, and the page says so in
      words. Everything operational is a column and survives it. */
   const { config, ...order } = assignment.order;
-  return { ...assignment, order, config: migrateConfig(config) };
+  // A custom-cake order has no designer config; its size and flavour are in cakeName, its message in customerNotes.
+  const custom = (config as { custom?: unknown } | null)?.custom === true;
+  return { ...assignment, order, config: migrateConfig(config), custom };
 }

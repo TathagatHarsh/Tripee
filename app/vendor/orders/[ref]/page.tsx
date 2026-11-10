@@ -93,7 +93,7 @@ export default async function VendorOrderDetail({
 
   if (!assignment) notFound();
 
-  const { order, config, status } = assignment;
+  const { order, config, status, custom } = assignment;
   const due = dueAt(order);
   const next = vendorNext(status, order.status);
   const pickup = order.fulfillmentMethod === "pickup";
@@ -210,7 +210,9 @@ export default async function VendorOrderDetail({
             <p className="mt-2 text-a-body">
               {config
                 ? `${sizeName(config.size)} · ${config.eggless ? "Eggless" : "With egg"}`
-                : "Specification unavailable — contact the shop."}
+                : custom
+                  ? "Made to the customer's photo. Size and flavour are in the name; any message is under Customer notes."
+                  : "Specification unavailable — contact the shop."}
             </p>
             {message && <p className="mt-2">Pipe: “{message}”</p>}
           </div>

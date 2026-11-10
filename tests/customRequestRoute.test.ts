@@ -28,6 +28,7 @@ async function send(data: object, photo: File | null = new File([new Uint8Array(
 describe("POST /api/custom-requests", () => {
   beforeEach(() => {
     vi.stubEnv("WHATSAPP_ACCESS_TOKEN", "tok"); vi.stubEnv("WHATSAPP_PHONE_NUMBER_ID", "id"); vi.stubEnv("BLOB_READ_WRITE_TOKEN", "blob");
+    vi.stubEnv("RAZORPAY_KEY_ID", "rzp_test_x"); vi.stubEnv("RAZORPAY_KEY_SECRET", "s");
     serviceable.mockReturnValue({ serviceable: true });
     createCustomRequest.mockClear();
   });
@@ -57,6 +58,11 @@ describe("POST /api/custom-requests", () => {
   });
   it("503 when WhatsApp is off", async () => {
     vi.stubEnv("WHATSAPP_ACCESS_TOKEN", "");
+    expect((await send(valid())).status).toBe(503);
+    expect(createCustomRequest).not.toHaveBeenCalled();
+  });
+  it("503 when online payment is off, so no one is quoted a cake they cannot pay for", async () => {
+    vi.stubEnv("RAZORPAY_KEY_ID", "");
     expect((await send(valid())).status).toBe(503);
     expect(createCustomRequest).not.toHaveBeenCalled();
   });

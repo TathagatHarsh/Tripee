@@ -5,6 +5,7 @@ import { ASSIGNMENT_TX, vendorBlockers } from "./assignment";
 import { haversine, pointFrom } from "./assignmentRules";
 import { refForAttempt, type PaymentProof } from "./checkout";
 import { refundPayment } from "./checkoutPayment";
+import { refundOperationStatus } from "./refunds";
 import { canMoveCustom, customerPricePaise, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, quoteExpiresAt, type CustomRequestInput } from "./customRules";
 import { db } from "./db";
 import { meetsDeadline } from "./inventoryRules";
@@ -95,8 +96,8 @@ export async function offerNext(requestId: string): Promise<void> {
     });
     const address = r.address as { locality?: string; city?: string };
     await send(tx, r, [vendor.phone], `cr:${r.id}:offer:${vendor.id}`, customOfferMessage({
-      id: r.id, ref: r.ref, photoUrl: r.photoUrl, sizeKg: r.sizeKg.toString(), flavour: r.flavour, cakeMessage: r.cakeMessage,
-      dueAt: r.dueAt, area: address.locality ?? address.city ?? "", budgetPaise: r.budgetPaise,
+      id: r.id, ref: r.ref, sizeKg: r.sizeKg.toString(), flavour: r.flavour, cakeMessage: r.cakeMessage,
+      dueAt: r.dueAt, area: address.locality || address.city || "", budgetPaise: r.budgetPaise,
     }), vendor.id);
   }, ASSIGNMENT_TX);
 }
@@ -123,7 +124,7 @@ export async function recordQuote(vendorId: string, requestId: string, vendorPai
       where: { id: r.id },
       data: { status: "quoted", vendorQuotePaise: vendorPaise, quotePaise, quoteExpiresAt: expiresAt, offerExpiresAt: null },
     });
-    await send(tx, r, [r.phone], `cr:${r.id}:quote`, customQuoteMessage({ id: r.id, ref: r.ref, token: r.token, photoUrl: r.photoUrl, sizeKg: r.sizeKg.toString(), dueAt: r.dueAt, quotePaise }));
+    await send(tx, r, [r.phone], `cr:${r.id}:quote`, customQuoteMessage({ id: r.id, ref: r.ref, token: r.token, sizeKg: r.sizeKg.toString(), dueAt: r.dueAt, quotePaise }));
     await send(tx, r, adminNumbers(), `cr:${r.id}:quote:admin`, updateMessage(r.ref, `${vendor.name} quoted ₹${rupees(vendorPaise)}; customer price ₹${rupees(quotePaise)}`));
     return { ok: true, quotePaise };
   }, ASSIGNMENT_TX);
@@ -212,7 +213,8 @@ export type CustomPayment = { kind: "paid"; orderRef: string } | { kind: "refund
  * `unmatched`: the payment is real but was not taken for this quote's Razorpay
  * order (or its binding was already cleared by a refund). It buys nothing and is
  * not refunded here, since it may belong to some other checkout.
- * `refund_failed`: the refund was asked for but not confirmed; the caller must retry or tell the customer.
+ * `refunded` includes a refund Razorpay has not finished but that is durably recorded and retried.
+ * `refund_failed`: no retried refund is on record (none was recorded, or Razorpay failed it); the caller must retry or tell the customer.
  */
 export async function payCustomRequest(requestId: string, proof: PaymentProof): Promise<CustomPayment> {
   const key = `custom:${requestId}`;
@@ -243,7 +245,7 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
     }
     if (!ref) throw new Error("No free order reference");
     const sizeKg = r.sizeKg.toNumber();
-    const cakeName = `Custom cake · ${r.sizeKg.toString()} kg`;
+    const cakeName = `Custom cake · ${r.sizeKg.toString()} kg · ${r.flavour}`; // the flavour must survive: Order.config reads back null
     const address = r.address as { lat: number; lng: number; address: string; city: string; state: string; pincode: string };
     const now = new Date();
     const order = await tx.order.create({
@@ -292,6 +294,9 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
   if (outcome.kind !== "refund") return outcome;
   const { outcome: refund } = await refundPayment(proof);
   if (refund !== "failed") return { kind: "refunded" };
+  // Recorded and not failed by Razorpay (e.g. its refund is `pending`): reconcileRefunds finishes it, so it is on its way.
+  const recorded = await refundOperationStatus(proof.razorpayPaymentId).catch(() => null);
+  if (recorded && recorded !== "failed") return { kind: "refunded" };
   log("error", "custom_payment_refund_failed", { requestId, paymentId: proof.razorpayPaymentId });
   return { kind: "refund_failed" };
 }
