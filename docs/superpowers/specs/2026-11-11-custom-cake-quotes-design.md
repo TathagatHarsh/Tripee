@@ -221,7 +221,11 @@ manual follow-up happens on the admin's own WhatsApp.
 - **Payment after expiry, cancellation, or a second payment:** refund through
   existing code; the page shows "This quote is no longer available".
 - **The customer's number isn't on WhatsApp:** the outbox row ends `failed`; the
-  admin list shows "message failed" so the admin can call.
+  admin list shows "message failed" so the admin can call. Only failures at send time
+  are shown this way. Meta reports most delivery failures later, through the status
+  webhook (a number not on WhatsApp, a media error), and those are only logged, not yet
+  shown on the admin list. Follow-up: keep the WhatsApp message id on the outbox row
+  and mark the row failed from the status webhook.
 - **The bakery that quoted is deactivated before the customer pays:** the payment
   transaction checks the bakery is still active. If not, the payment is refunded,
   the request is marked `cancelled` and the admin is alerted.
