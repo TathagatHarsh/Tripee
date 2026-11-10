@@ -36,7 +36,7 @@ async function main() {
     // Share the lock used by assignment and inventory changes.
     await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(7142026)`;
     for (const bakery of bakeries) {
-      const data = { ...bakery, isActive: true, isAcceptingOrders: true, isBusy: false, unavailableUntil: null, fulfillsAllProducts: true, serviceRadiusKm: 30, maxConcurrentOrders: 20 };
+      const data = { ...bakery, isActive: true, isAcceptingOrders: true, isBusy: false, unavailableUntil: null, fulfillsAllProducts: true, serviceRadiusKm: 25, locationSetAt: new Date(), maxConcurrentOrders: 20 };
       await tx.vendor.upsert({ where: { id: bakery.id }, update: data, create: data });
     }
     if (existingVendorId) await tx.vendor.update({ where: { id: existingVendorId }, data: { fulfillsAllProducts: true } });

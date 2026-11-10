@@ -9,7 +9,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
    refuses to run against anything but a scratch database. */
 test.beforeAll(async () => {
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
-  const bakery = { name: "E2E Madhapur Bakery", isActive: true, isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43, longitude: 78.4, serviceRadiusKm: 10 };
+  const bakery = { name: "E2E Madhapur Bakery", isActive: true, isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43, longitude: 78.4, serviceRadiusKm: 10, locationSetAt: new Date() };
   await db.vendor.upsert({ where: { id: "e2e-madhapur-bakery" }, update: bakery, create: { id: "e2e-madhapur-bakery", ...bakery } });
   await db.$disconnect();
 });

@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 import {
   earnings,
   haversine,
+  parseRadiusKm,
   pointFrom,
   sortCandidates,
   vendorEligible,
@@ -12,6 +13,7 @@ import { getDistanceMatrix } from "../lib/mapping";
 const v = {
   isActive: true,
   isAcceptingOrders: true,
+  locationSetAt: new Date(),
   latitude: 17.43,
   longitude: 78.4,
   maxConcurrentOrders: 2,
@@ -19,6 +21,16 @@ const v = {
   fulfillsAllProducts: false,
   supportedProductIds: ["cake"],
 } as Vendor;
+describe("a bakery's own delivery radius", () => {
+  it("accepts 1 to 25 km and nothing else", () => {
+    for (const ok of [1, "1", 10, "12.5", 25]) expect(parseRadiusKm(ok), String(ok)).toBe(Number(ok));
+    for (const bad of [0, 0.5, 25.1, 50, -3, "", null, undefined, "ten", NaN, Infinity])
+      expect(parseRadiusKm(bad), String(bad)).toBeNull();
+  });
+  it("needs its own pin even for a pickup order", () => {
+    expect(vendorEligible({ ...v, locationSetAt: null }, ["cake"], 0, new Date(), false)).toBe(false);
+  });
+});
 describe("assignment ranking and eligibility", () => {
   it("prefers road distance or configured travel time with stable ties", () => {
     const rows = [
@@ -35,6 +47,7 @@ describe("assignment ranking and eligibility", () => {
       { isActive: false },
       { isAcceptingOrders: false },
       { latitude: null },
+      { locationSetAt: null },
       { unavailableUntil: new Date(Date.now() + 100000) },
     ])
       expect(vendorEligible({ ...v, ...overrides }, ["cake"], 0)).toBe(false);

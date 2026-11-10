@@ -16,7 +16,7 @@ const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
 let serial = Date.now();
 async function fixture() {
   const product = await db.cakeProduct.create({ data: { slug: `panel-${++serial}`, name: 'Panel cake', description: 'Panel', category: 'chocolate', pricePaise: 100000, sizeBand: '1kg' } });
-  const vendor = await db.vendor.create({ data: { name: `Panel bakery ${serial}`, isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43, longitude: 78.4, serviceRadiusKm: 20 } });
+  const vendor = await db.vendor.create({ data: { name: `Panel bakery ${serial}`, locationSetAt: new Date(), isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43, longitude: 78.4, serviceRadiusKm: 20 } });
   await db.vendorInventory.create({ data: { vendorId: vendor.id, productId: product.id, productName: product.name, sizeBand: '1kg', eggType: 'eggless', isAvailable: true } });
   const order = await db.order.create({ data: { ref: `PANELS-${serial}`, cakeProductId: product.id, config: { size: '1kg', eggless: true }, cakeName: product.name, status: 'confirmed', totalPaise: 100000, productSubtotalPaise: 100000, payablePaise: 100000, priceBreakdown: {}, deliverySlot: 'standard', leadHours: 24, dueAt: new Date(Date.now() + 86400000), deliveryLocation: { latitude: 17.43, longitude: 78.4 }, customerPhone: '+919876543210' } });
   await manualAssignment(order.ref, vendor.id, null, null);

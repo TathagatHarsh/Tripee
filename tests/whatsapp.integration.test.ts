@@ -36,7 +36,7 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
     const product = await db.cakeProduct.create({ data: { slug: `wa-test-${Date.now()}-${++serial}`, name: 'Chocolate Truffle', description: 'Test', category: 'chocolate', pricePaise: 189900, sizeBand: '2kg' } }); productIds.push(product.id);
     const vendors = [];
     for (let i = 0; i < count; i++) {
-      const v = await db.vendor.create({ data: { name: `Test Bakery ${i}`, phone: `98765 4321${i}`, isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43 + i * 0.001, longitude: 78.4, serviceRadiusKm: 20 } }); vendorIds.push(v.id); vendors.push(v);
+      const v = await db.vendor.create({ data: { name: `Test Bakery ${i}`, locationSetAt: new Date(), phone: `98765 4321${i}`, isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43 + i * 0.001, longitude: 78.4, serviceRadiusKm: 20 } }); vendorIds.push(v.id); vendors.push(v);
       await db.vendorInventory.create({ data: { vendorId: v.id, productId: product.id, productName: product.name, sizeBand: '2kg', eggType: 'eggless', isAvailable: available } });
     }
     const order = await db.order.create({ data: { ref: `WA-${Date.now()}-${++serial}`, cakeProductId: product.id, config: { size: '2kg', eggless: true }, cakeName: 'Chocolate Truffle', status: 'confirmed', totalPaise: 189900, productSubtotalPaise: 180000, payablePaise: 189900, priceBreakdown: {}, deliverySlot: 'standard', leadHours: 24, dueAt: new Date(Date.now() + 86400000), deliveryLocation: { latitude: 17.43, longitude: 78.4 } } });

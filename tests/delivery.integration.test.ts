@@ -37,7 +37,7 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
   async function setup(opts: { pickup?: boolean; located?: boolean; vendorLat?: number } = {}) {
     const tag = `${Date.now()}-${++serial}`;
     const product = await db.cakeProduct.create({ data: { slug: `delivery-test-${tag}`, name: 'Chocolate Truffle', description: 'Test', category: 'chocolate', pricePaise: 189900, sizeBand: '2kg' } });
-    const vendor = await db.vendor.create({ data: { name: `Delivery Bakery ${tag}`, isAcceptingOrders: true, fulfillsAllProducts: true, latitude: opts.vendorLat ?? 17.43, longitude: 78.4, serviceRadiusKm: 10 } });
+    const vendor = await db.vendor.create({ data: { name: `Delivery Bakery ${tag}`, locationSetAt: new Date(), isAcceptingOrders: true, fulfillsAllProducts: true, latitude: opts.vendorLat ?? 17.43, longitude: 78.4, serviceRadiusKm: 10 } });
     await db.vendorInventory.create({ data: { vendorId: vendor.id, productId: product.id, productName: product.name, sizeBand: '2kg', eggType: 'eggless', isAvailable: true } });
     const order = await db.order.create({ data: {
       ref: `DLV-${tag}`, cakeProductId: product.id, config: { size: '2kg', eggless: true }, cakeName: 'Chocolate Truffle',

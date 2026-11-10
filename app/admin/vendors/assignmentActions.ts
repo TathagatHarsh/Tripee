@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { lockAssignments } from "@/lib/assignment";
+import { RADIUS_KM } from "@/lib/assignmentRules";
 const Rules = z.object({
   id: z.string().min(1),
   latitude: z.coerce.number().min(-90).max(90),
   longitude: z.coerce.number().min(-180).max(180),
-  serviceRadiusKm: z.coerce.number().positive().max(500),
+  serviceRadiusKm: z.coerce.number().min(RADIUS_KM.min).max(RADIUS_KM.max),
   maxConcurrentOrders: z.coerce.number().int().min(0).max(10000),
   commissionBps: z.coerce.number().int().min(0).max(10000),
   assignmentFeePaise: z.coerce.number().int().min(0).max(10000000),

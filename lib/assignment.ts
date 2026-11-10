@@ -198,6 +198,7 @@ export async function assignmentCandidates(ref: string) {
     const reasons: string[] = [];
     const currentLoad = await load(db, vendor.id);
     if (!vendor.isActive) reasons.push('Inactive bakery');
+    if (!vendor.locationSetAt) reasons.push("Bakery hasn't set its location");
     if (!vendor.isAcceptingOrders) reasons.push('Not accepting orders');
     if (vendor.unavailableUntil && vendor.unavailableUntil > new Date()) reasons.push('Bakery unavailable');
     if (currentLoad >= vendor.maxConcurrentOrders) reasons.push('At capacity');

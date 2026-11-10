@@ -3,6 +3,7 @@ import { useActionState } from "react";
 import type { Vendor } from "@prisma/client";
 import { saveAssignmentRules } from "./assignmentActions";
 import { aBtn, aField } from "@/components/admin/ui";
+import { RADIUS_KM } from "@/lib/assignmentRules";
 export function AssignmentRulesForm({ vendor: v }: { vendor: Vendor }) {
   const [result, action, pending] = useActionState(
     saveAssignmentRules,
@@ -11,7 +12,7 @@ export function AssignmentRulesForm({ vendor: v }: { vendor: Vendor }) {
   const fields = [
     ["latitude", "Latitude", v.latitude],
     ["longitude", "Longitude", v.longitude],
-    ["serviceRadiusKm", "Service radius (road km)", v.serviceRadiusKm],
+    ["serviceRadiusKm", "Delivery radius (1–25 km)", v.serviceRadiusKm],
     [
       "maxConcurrentOrders",
       "Concurrent orders (0 pauses offers)",
@@ -26,6 +27,11 @@ export function AssignmentRulesForm({ vendor: v }: { vendor: Vendor }) {
       className="space-y-4 rounded-xl border border-a-line bg-a-surface p-5"
     >
       <h2 className="text-lg font-semibold">Smart assignment</h2>
+      <p className="text-sm text-a-muted">
+        {v.locationSetAt
+          ? `Location set by the bakery on ${v.locationSetAt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}. You can correct it here.`
+          : "The bakery hasn't set its location yet, so it gets no orders. Coordinates typed here don't count until it does."}
+      </p>
       <input type="hidden" name="id" value={v.id} />
       <div className="grid gap-4 sm:grid-cols-2">
         {fields.map(([name, label, value]) => (
@@ -43,6 +49,7 @@ export function AssignmentRulesForm({ vendor: v }: { vendor: Vendor }) {
                   : "1"
               }
               required
+              {...(name === "serviceRadiusKm" ? { min: RADIUS_KM.min, max: RADIUS_KM.max } : {})}
               defaultValue={value ?? ""}
             />
           </label>

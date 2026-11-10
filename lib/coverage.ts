@@ -7,6 +7,7 @@ export type CoverageVendor = {
   serviceRadiusKm: number;
   isActive: boolean;
   isAcceptingOrders: boolean;
+  locationSetAt: Date | null;
 };
 
 /**
@@ -20,6 +21,7 @@ export function coversPoint(vendors: CoverageVendor[], point: Point): boolean {
     (v) =>
       v.isActive &&
       v.isAcceptingOrders &&
+      v.locationSetAt !== null &&
       v.latitude !== null &&
       v.longitude !== null &&
       haversine({ lat: v.latitude, lng: v.longitude }, point) <= v.serviceRadiusKm,
@@ -43,8 +45,8 @@ export async function isCovered(point: Point): Promise<boolean> {
   if (serviceAreaCovers(point, process.env.SERVICE_AREA)) return true;
   const { db } = await import("./db");
   const vendors = await db.vendor.findMany({
-    where: { isActive: true, isAcceptingOrders: true },
-    select: { latitude: true, longitude: true, serviceRadiusKm: true, isActive: true, isAcceptingOrders: true },
+    where: { isActive: true, isAcceptingOrders: true, locationSetAt: { not: null } },
+    select: { latitude: true, longitude: true, serviceRadiusKm: true, isActive: true, isAcceptingOrders: true, locationSetAt: true },
   });
   return coversPoint(vendors, point);
 }
