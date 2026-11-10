@@ -172,8 +172,8 @@ export async function cancelCustomRequest(requestId: string): Promise<boolean> {
     const r = await locked(tx, requestId);
     if (!r || !canMoveCustom(r.status, "cancelled")) return false;
     await tx.customRequest.update({ where: { id: r.id }, data: { status: "cancelled", offerExpiresAt: null } });
-    if (r.status === "awaiting_quote" && r.vendorId)
-      await send(tx, r, [await vendorPhone(tx, r.vendorId)], `cr:${r.id}:cancelled`, updateMessage(r.ref, `${r.ref} has been cancelled. Please ignore it.`), r.vendorId);
+    if (r.vendorId)
+      await send(tx, r, [await vendorPhone(tx, r.vendorId)], `cr:${r.id}:cancelled`, updateMessage(r.ref, `${r.ref} was cancelled. Please ignore it.`), r.vendorId);
     return true;
   }, ASSIGNMENT_TX);
 }

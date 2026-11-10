@@ -233,6 +233,17 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
     expect(textOf((await rows(request.id)).at(-1)!)).toContain('cancelled');
     expect(await cancelCustomRequest(request.id)).toBe(false);
   });
+  it('cancel on a quoted request tells the bakery; a paid one is left alone', async () => {
+    const { request } = await quoted();
+    expect(await cancelCustomRequest(request.id)).toBe(true);
+    expect((await reload(request.id)).status).toBe('cancelled');
+    expect(textOf((await rows(request.id)).at(-1)!)).toContain(`${request.ref} was cancelled`);
+    await db.customRequest.update({ where: { id: request.id }, data: { status: 'paid' } });
+    const n = (await rows(request.id)).length;
+    expect(await cancelCustomRequest(request.id)).toBe(false);
+    expect((await reload(request.id)).status).toBe('paid');
+    expect((await rows(request.id)).length).toBe(n);
+  });
 });
 
 describe.skipIf(!url)('createCustomRequest on isolated PostgreSQL', () => {
