@@ -65,3 +65,7 @@ ALTER TABLE "CustomRequest" ADD CONSTRAINT "CustomRequest_vendorId_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "CustomRequest" ADD CONSTRAINT "CustomRequest_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- Every table has RLS on (see 1_enable_rls): no policies, so Supabase's anon and
+-- authenticated roles get nothing; Prisma connects as the table owner.
+ALTER TABLE "CustomRequest" ENABLE ROW LEVEL SECURITY;
