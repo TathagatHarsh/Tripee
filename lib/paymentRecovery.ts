@@ -5,6 +5,7 @@ import { fetchPayment, gatewayGet, IntentRecord } from "./razorpay";
 import { placeCheckout } from "./placeOrder";
 import { refundPayment } from "./checkoutPayment";
 import { startAssignment } from "./assignment";
+import { payCustomRequest } from "./customRequests";
 import { log } from "./log";
 
 /** Both webhooks and polling fetch authoritative payment data before fulfilling. */
@@ -14,6 +15,11 @@ export async function recoverPayment(paymentId: string) {
   if (payment.status !== "captured" || payment.amount_refunded !== 0 || payment.currency !== "INR") return;
   const gatewayOrder = z.object({ id: z.string(), receipt: z.string(), amount: z.number(), currency: z.string() }).parse(await gatewayGet(`/orders/${encodeURIComponent(payment.order_id)}`));
   if (gatewayOrder.id !== payment.order_id || gatewayOrder.amount !== payment.amount || gatewayOrder.currency !== "INR") throw new Error("Payment order mismatch");
+  const proof = { razorpayOrderId: payment.order_id, razorpayPaymentId: payment.id, razorpaySignature: "" };
+  if (gatewayOrder.receipt.startsWith("custom:")) {
+    await payCustomRequest(gatewayOrder.receipt.slice("custom:".length), proof);
+    return;
+  }
   const recovery = await db.paymentRecovery.findUnique({ where: { id: gatewayOrder.receipt } });
   if (!recovery) throw new Error("Payment has no saved checkout; manual reconciliation required");
   // Covers a process dying after Razorpay creates the order but before its ID is saved.
@@ -21,7 +27,6 @@ export async function recoverPayment(paymentId: string) {
     id: recovery.id, payloadHash: recovery.payloadHash, expiresAt: new Date(Date.now() + 30 * 86400000),
     response: { razorpayOrderId: payment.order_id, amountPaise: payment.amount },
   } });
-  const proof = { razorpayOrderId: payment.order_id, razorpayPaymentId: payment.id, razorpaySignature: "" };
   const bound = await db.checkoutAttempt.findUnique({ where: { id: recovery.id } });
   const intent = IntentRecord.safeParse(bound?.response);
   if (intent.success && intent.data.razorpayOrderId === payment.order_id && intent.data.amountPaise !== payment.amount) {

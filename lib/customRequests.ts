@@ -3,13 +3,17 @@ import { Prisma, type CustomRequest, type Vendor } from "@prisma/client";
 import { after } from "next/server";
 import { ASSIGNMENT_TX, vendorBlockers } from "./assignment";
 import { haversine, pointFrom } from "./assignmentRules";
+import { refForAttempt, type PaymentProof } from "./checkout";
+import { refundPayment } from "./checkoutPayment";
 import { canMoveCustom, customerPricePaise, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, quoteExpiresAt, type CustomRequestInput } from "./customRules";
 import { db } from "./db";
 import { meetsDeadline } from "./inventoryRules";
 import { log } from "./log";
+import { IntentRecord } from "./razorpay";
 import { optimize, store } from "./storage";
 import { adminNumbers, indianMobile, normalizePhone } from "./whatsapp";
-import { customOfferMessage, customQuoteMessage, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
+import { whatsappNewOrder } from "./whatsappEvents";
+import { acceptedMessage, customOfferMessage, customQuoteMessage, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
 
 type Tx = Prisma.TransactionClient;
 type Message = Parameters<typeof queueWhatsApp>[1]["message"];
@@ -191,4 +195,101 @@ export async function runCustomRequestWorker(): Promise<{ offers: number; quotes
     }
   const { count: quotes } = await db.customRequest.updateMany({ where: { status: "quoted", quoteExpiresAt: { lte: now } }, data: { status: "expired" } });
   return { offers, quotes };
+}
+
+export type CustomPayment = { kind: "paid"; orderRef: string } | { kind: "refunded" | "already_paid" | "unmatched" };
+
+/**
+ * A verified payment for a quote becomes an ordinary order, already accepted by
+ * the quoting bakery, or goes back to the customer. Call it only with a proof
+ * whose signature was checked (or that Razorpay itself reported).
+ *
+ * Runs under the advisory lock openPaymentIntent and refundPayment take for
+ * `custom:<id>`, so the client callback and the webhook cannot both make an
+ * order, and a refund cannot clear the binding halfway through. The refund
+ * itself happens after the commit, as refundPayment requires.
+ *
+ * `unmatched`: the payment is real but was not taken for this quote's Razorpay
+ * order (or its binding was already cleared by a refund). It buys nothing and is
+ * not refunded here, since it may belong to some other checkout.
+ */
+export async function payCustomRequest(requestId: string, proof: PaymentProof): Promise<CustomPayment> {
+  const key = `custom:${requestId}`;
+  const outcome = await db.$transaction(async (tx): Promise<CustomPayment | { kind: "refund" }> => {
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${`checkout:${key}`}))`;
+    const r = await locked(tx, requestId);
+    const holder = await tx.order.findUnique({ where: { razorpayPaymentId: proof.razorpayPaymentId }, select: { id: true } });
+    if (holder) return holder.id === r?.orderId ? { kind: "already_paid" } : { kind: "unmatched" };
+    const intent = IntentRecord.safeParse((await tx.checkoutAttempt.findUnique({ where: { id: key } }))?.response);
+    if (!intent.success || intent.data.razorpayOrderId !== proof.razorpayOrderId) return { kind: "unmatched" };
+    if (!r || r.status !== "quoted" || intent.data.amountPaise !== r.quotePaise) return { kind: "refund" };
+    if (!r.quoteExpiresAt || r.quoteExpiresAt <= new Date()) {
+      await tx.customRequest.update({ where: { id: r.id }, data: { status: "expired" } });
+      return { kind: "refund" };
+    }
+    const vendor = r.vendorId ? await tx.vendor.findUnique({ where: { id: r.vendorId } }) : null;
+    if (!vendor?.isActive) {
+      await tx.customRequest.update({ where: { id: r.id }, data: { status: "cancelled" } });
+      await send(tx, r, adminNumbers(), `cr:${r.id}:paid:inactive`, updateMessage(r.ref, `Customer paid, but the quoting bakery is no longer active, so the payment is being refunded. Customer: ${r.name} ${r.phone}`));
+      return { kind: "refund" };
+    }
+
+    const quotePaise = r.quotePaise!, vendorQuotePaise = r.vendorQuotePaise!;
+    let ref: string | null = null;
+    for (let attempt = 0; attempt < 8 && !ref; attempt++) {
+      const candidate = await refForAttempt(key, 0, attempt);
+      if (!(await tx.order.findUnique({ where: { ref: candidate }, select: { id: true } }))) ref = candidate;
+    }
+    if (!ref) throw new Error("No free order reference");
+    const sizeKg = r.sizeKg.toNumber();
+    const cakeName = `Custom cake · ${r.sizeKg.toString()} kg`;
+    const address = r.address as { lat: number; lng: number; address: string; city: string; state: string; pincode: string };
+    const now = new Date();
+    const order = await tx.order.create({
+      data: {
+        ref, cakeName, cakeImageUrl: r.photoUrl,
+        config: { custom: true, sizeKg, flavour: r.flavour, cakeMessage: r.cakeMessage, budgetPaise: r.budgetPaise },
+        priceBreakdown: { custom: { vendorQuotePaise, quotePaise } },
+        totalPaise: quotePaise, payablePaise: quotePaise, productSubtotalPaise: quotePaise,
+        status: "confirmed", paymentStatus: "paid", confirmedAt: now,
+        dueAt: r.dueAt, requestedFor: r.dueAt, deliverySlot: "custom",
+        leadHours: Math.round((r.dueAt.getTime() - r.createdAt.getTime()) / 3600_000),
+        customerName: r.name, customerPhone: r.phone,
+        deliveryLocation: { latitude: address.lat, longitude: address.lng },
+        addressLine1: address.address, city: address.city, state: address.state, pincode: address.pincode,
+        customerNotes: r.cakeMessage,
+        razorpayOrderId: proof.razorpayOrderId, razorpayPaymentId: proof.razorpayPaymentId,
+        assignmentState: "ASSIGNED",
+        items: { create: [{ label: cakeName, kind: "base", amountPaise: quotePaise, position: 0 }] },
+      },
+      select: { id: true, ref: true },
+    });
+    const assignment = await tx.vendorOrder.create({
+      data: {
+        orderId: order.id, vendorId: vendor.id, assignmentStatus: "ACCEPTED", status: "accepted", sequence: 0,
+        offeredAt: now, assignedAt: now, acceptedAt: now, respondedAt: now,
+        orderValuePaise: quotePaise, vendorEarningPaise: vendorQuotePaise, commissionPaise: quotePaise - vendorQuotePaise, feePaise: 0,
+      },
+      select: { id: true },
+    });
+    await tx.order.update({ where: { id: order.id }, data: { currentAssignmentId: assignment.id } });
+    await tx.orderEvent.create({ data: { orderId: order.id, fromStatus: "draft", toStatus: "confirmed" } });
+    await tx.checkoutAttempt.updateMany({ where: { id: key }, data: { status: "completed", orderId: order.id } });
+    await tx.customRequest.update({ where: { id: r.id }, data: { status: "paid", orderId: order.id } });
+
+    await whatsappNewOrder(tx, order.id);
+    // One message, not a text then the buttons: rows written in one transaction share createdAt, so the outbox could send them in either order.
+    const accepted = acceptedMessage(order.ref, assignment.id);
+    await queueWhatsApp(tx, {
+      orderId: order.id, vendorId: vendor.id, kind: "vendor_assigned", to: [vendor.phone], dedupeKey: `wa:order:${order.id}:custom:paid`,
+      message: { ...accepted, body: `✅ Customer paid — ${r.ref} is now order ${order.ref}. Tap each step as you go.` },
+    });
+    return { kind: "paid", orderRef: order.ref };
+  }, ASSIGNMENT_TX);
+
+  if (outcome.kind === "unmatched") log("warn", "custom_payment_unmatched", { requestId, paymentId: proof.razorpayPaymentId });
+  if (outcome.kind !== "refund") return outcome;
+  const { outcome: refund } = await refundPayment(proof);
+  if (refund === "failed") log("error", "custom_payment_refund_failed", { requestId, paymentId: proof.razorpayPaymentId });
+  return { kind: "refunded" };
 }

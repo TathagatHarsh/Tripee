@@ -3,8 +3,18 @@ vi.mock('server-only', () => ({}));
 const afterCallbacks: (() => unknown)[] = [];
 vi.mock('next/server', () => ({ after: (fn: () => unknown) => { afterCallbacks.push(fn); } }));
 vi.mock('../lib/storage', () => ({ optimize: async (b: Buffer) => b, store: async (_b: Buffer, _c: string, ref: string) => `https://blob.test/${ref}.webp` }));
+// The real refund, watched: the concurrency test must see it is never asked for.
+vi.mock('../lib/checkoutPayment', async (orig) => {
+  const actual = await orig<typeof import('../lib/checkoutPayment')>();
+  return { ...actual, refundPayment: vi.fn(actual.refundPayment) };
+});
+import { createHmac } from 'node:crypto';
 import { db } from '../lib/db';
-import { cancelCustomRequest, createCustomRequest, nextBakery, offerNext, runCustomRequestWorker } from '../lib/customRequests';
+import { openPaymentIntent, refundPayment } from '../lib/checkoutPayment';
+import { cancelCustomRequest, createCustomRequest, nextBakery, offerNext, payCustomRequest, runCustomRequestWorker } from '../lib/customRequests';
+import { recoverPayment } from '../lib/paymentRecovery';
+import { POST as openQuoteIntent } from '../app/api/custom-requests/[token]/intent/route';
+import { POST as payQuote } from '../app/api/custom-requests/[token]/pay/route';
 import { handleInbound } from '../lib/whatsappInbound';
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
 const vendorIds: string[] = [], requestIds: string[] = [];
@@ -240,5 +250,179 @@ describe.skipIf(!url)('createCustomRequest on isolated PostgreSQL', () => {
     expect(afterCallbacks).toHaveLength(1); // offerNext is scheduled, not yet run
     await afterCallbacks[0]();
     expect((await db.customRequest.findUniqueOrThrow({ where: { ref } })).offerExpiresAt !== null || (await db.customRequest.findUniqueOrThrow({ where: { ref } })).status === 'no_bakery').toBe(true);
+  });
+});
+
+describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
+  const ADMIN = '919000000001', CUSTOMER = '919833300000';
+  const run = `${Date.now()}`;
+  const ids: string[] = [], vIds: string[] = [];
+  const fetchMock = vi.fn();
+  const gatewayOrders = new Map<string, { receipt: string; amount: number }>();
+  const paymentOrder = new Map<string, string>();
+  const refundCalls = () => fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/refund')).length;
+  const sign = (o: string, p: string) => createHmac('sha256', 'secret').update(`${o}|${p}`).digest('hex');
+  beforeAll(() => { process.env.DATABASE_URL = url!; });
+  beforeEach(() => {
+    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'tok'); vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', 'PNID');
+    vi.stubEnv('WHATSAPP_APP_SECRET', 'secret'); vi.stubEnv('WHATSAPP_ADMIN_NUMBERS', '9000000001');
+    vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_abc'); vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
+    vi.mocked(refundPayment).mockClear();
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async (input: unknown, init?: { body?: string }) => {
+      const target = String(input);
+      if (target.endsWith('/v1/orders')) {
+        const { receipt, amount } = JSON.parse(init!.body!);
+        const id = `order_CP${run}${gatewayOrders.size}`;
+        gatewayOrders.set(id, { receipt, amount });
+        return Response.json({ id });
+      }
+      if (target.endsWith('/refund')) {
+        const pay = target.split('/').at(-2)!;
+        return Response.json({ id: `rfnd_${pay}`, payment_id: pay, status: 'processed' });
+      }
+      const order = /\/orders\/(order_\w+)$/.exec(target)?.[1];
+      if (order) return Response.json({ id: order, receipt: gatewayOrders.get(order)!.receipt, amount: gatewayOrders.get(order)!.amount, currency: 'INR' });
+      const pay = /\/payments\/(pay_\w+)$/.exec(target)?.[1];
+      if (pay) {
+        const o = paymentOrder.get(pay)!;
+        return Response.json({ id: pay, order_id: o, status: 'captured', amount: gatewayOrders.get(o)!.amount, amount_refunded: 0, currency: 'INR' });
+      }
+      throw new Error(`unexpected fetch ${target}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(async () => {
+    vi.unstubAllEnvs(); vi.unstubAllGlobals();
+    await db.order.deleteMany({ where: { razorpayPaymentId: { startsWith: `pay_CP${run}` } } });
+    await db.customRequest.deleteMany({ where: { id: { in: ids } } });
+    await db.checkoutAttempt.deleteMany({ where: { id: { in: ids.map((id) => `custom:${id}`) } } });
+    await db.refundOperation.deleteMany({ where: { paymentId: { startsWith: `pay_CP${run}` } } });
+    await db.vendor.deleteMany({ where: { id: { in: vIds } } });
+    ids.length = vIds.length = 0;
+  });
+
+  /** A request quoted ₹1,800 by one bakery (₹2,070 to the customer), its intent opened, and a signed payment for it. */
+  async function paidQuote(opts: { expired?: boolean; inactive?: boolean } = {}) {
+    const n = ++serial;
+    const vendorPhone = `9198555${String(n).padStart(5, '0')}`;
+    const vendor = await db.vendor.create({ data: { name: `CR Pay ${n}`, phone: vendorPhone, isActive: !opts.inactive, locationSetAt: new Date(), latitude: 14.2, longitude: 77.6, serviceRadiusKm: 20, preparationMinutes: 60 } });
+    vIds.push(vendor.id);
+    const request = await db.customRequest.create({ data: {
+      ref: `CR-P${run}${n}`, token: `tokp-${run}-${n}`, status: 'quoted', name: 'Asha', phone: CUSTOMER, photoUrl: 'https://x.test/p.jpg',
+      sizeKg: 1.5, flavour: 'Chocolate', cakeMessage: 'Happy 30th', budgetPaise: 200000,
+      dueAt: new Date(Date.now() + 48 * 3600000), createdAt: new Date(Date.now() - 2 * 3600000),
+      address: { lat: 14.2, lng: 77.6, address: '12 Secret Street', locality: 'Kondapur', city: 'Hyderabad', state: 'Telangana', pincode: '500084', placeId: 'p' },
+      vendorId: vendor.id, triedVendorIds: [vendor.id], vendorQuotePaise: 180000, quotePaise: 207000,
+      quoteExpiresAt: new Date(Date.now() + (opts.expired ? -1 : 1) * 3600000),
+    } });
+    ids.push(request.id);
+    const intent = await openPaymentIntent(`custom:${request.id}`, `custom:${request.id}`, 207000);
+    if (intent.kind !== 'ok') throw new Error('no intent');
+    const razorpayPaymentId = `pay_CP${run}${n}`;
+    paymentOrder.set(razorpayPaymentId, intent.record.razorpayOrderId);
+    const proof = { razorpayOrderId: intent.record.razorpayOrderId, razorpayPaymentId, razorpaySignature: sign(intent.record.razorpayOrderId, razorpayPaymentId) };
+    return { vendor, vendorPhone, request, proof };
+  }
+  const reload = (id: string) => db.customRequest.findUniqueOrThrow({ where: { id } });
+  const ordersFor = (paymentId: string) => db.order.count({ where: { razorpayPaymentId: paymentId } });
+
+  it('turns a paid quote into a confirmed order accepted by the quoting bakery', async () => {
+    const { vendor, vendorPhone, request, proof } = await paidQuote();
+    const result = await payCustomRequest(request.id, proof);
+    expect(result).toMatchObject({ kind: 'paid', orderRef: expect.stringMatching(/^MC-/) });
+    const ref = (result as { orderRef: string }).orderRef;
+    const order = await db.order.findUniqueOrThrow({ where: { ref }, include: { assignments: true, items: true, events: true } });
+    expect(order).toMatchObject({
+      totalPaise: 207000, payablePaise: 207000, productSubtotalPaise: 207000, status: 'confirmed', paymentStatus: 'paid',
+      razorpayOrderId: proof.razorpayOrderId, razorpayPaymentId: proof.razorpayPaymentId, assignmentState: 'ASSIGNED',
+      cakeName: 'Custom cake · 1.5 kg', cakeImageUrl: 'https://x.test/p.jpg', customerName: 'Asha', customerPhone: CUSTOMER,
+      addressLine1: '12 Secret Street', city: 'Hyderabad', state: 'Telangana', pincode: '500084', customerNotes: 'Happy 30th',
+      deliverySlot: 'custom', leadHours: 50, dueAt: request.dueAt, requestedFor: request.dueAt,
+    });
+    expect(order.config).toEqual({ custom: true, sizeKg: 1.5, flavour: 'Chocolate', cakeMessage: 'Happy 30th', budgetPaise: 200000 });
+    expect(order.priceBreakdown).toEqual({ custom: { vendorQuotePaise: 180000, quotePaise: 207000 } });
+    expect(order.deliveryLocation).toEqual({ latitude: 14.2, longitude: 77.6 });
+    expect(order.items).toMatchObject([{ label: 'Custom cake · 1.5 kg', amountPaise: 207000 }]);
+    expect(order.events).toMatchObject([{ fromStatus: 'draft', toStatus: 'confirmed' }]);
+    expect(order.assignments).toHaveLength(1);
+    const [assignment] = order.assignments;
+    expect(order.currentAssignmentId).toBe(assignment.id);
+    expect(assignment).toMatchObject({ vendorId: vendor.id, assignmentStatus: 'ACCEPTED', status: 'accepted', sequence: 0,
+      orderValuePaise: 207000, vendorEarningPaise: 180000, commissionPaise: 27000, feePaise: 0 });
+    expect(await reload(request.id)).toMatchObject({ status: 'paid', orderId: order.id });
+    expect(await db.checkoutAttempt.findUnique({ where: { id: `custom:${request.id}` } })).toMatchObject({ status: 'completed', orderId: order.id });
+    const rows = await db.notificationOutbox.findMany({ where: { orderId: order.id }, orderBy: { createdAt: 'asc' } });
+    expect(rows.some((r) => r.destination === CUSTOMER)).toBe(true);
+    expect(rows.some((r) => r.destination === ADMIN)).toBe(true);
+    const toBakery = rows.filter((r) => r.destination === vendorPhone).map((r) => r.payload);
+    expect(toBakery).toEqual([expect.objectContaining({
+      type: 'buttons', body: `✅ Customer paid — ${request.ref} is now order ${ref}. Tap each step as you go.`,
+      buttons: expect.arrayContaining([{ id: `start:${assignment.id}`, title: 'Started' }]),
+    })]);
+    expect(refundPayment).not.toHaveBeenCalled();
+  });
+  it('the same payment again is already paid, still one order', async () => {
+    const { request, proof } = await paidQuote();
+    expect((await payCustomRequest(request.id, proof)).kind).toBe('paid');
+    expect(await payCustomRequest(request.id, proof)).toEqual({ kind: 'already_paid' });
+    expect(await ordersFor(proof.razorpayPaymentId)).toBe(1);
+    expect(refundPayment).not.toHaveBeenCalled();
+  });
+  it('two simultaneous confirmations make exactly one order and refund nothing', async () => {
+    const { request, proof } = await paidQuote();
+    const results = await Promise.all([payCustomRequest(request.id, proof), payCustomRequest(request.id, proof)]);
+    expect(results.map((r) => r.kind).sort()).toEqual(['already_paid', 'paid']);
+    expect(await ordersFor(proof.razorpayPaymentId)).toBe(1);
+    expect(refundPayment).not.toHaveBeenCalled();
+    expect(refundCalls()).toBe(0);
+  });
+  it('a payment after the quote expired is refunded and makes no order', async () => {
+    const { request, proof } = await paidQuote({ expired: true });
+    expect(await payCustomRequest(request.id, proof)).toEqual({ kind: 'refunded' });
+    expect(await ordersFor(proof.razorpayPaymentId)).toBe(0);
+    expect((await reload(request.id)).status).toBe('expired');
+    expect(refundCalls()).toBe(1);
+  });
+  it('a payment after the quoting bakery was deactivated is refunded, cancelled and the admin told', async () => {
+    const { request, proof } = await paidQuote({ inactive: true });
+    expect(await payCustomRequest(request.id, proof)).toEqual({ kind: 'refunded' });
+    expect(await ordersFor(proof.razorpayPaymentId)).toBe(0);
+    expect((await reload(request.id)).status).toBe('cancelled');
+    expect(refundCalls()).toBe(1);
+    const alerts = await db.notificationOutbox.findMany({ where: { customRequestId: request.id, destination: ADMIN } });
+    expect(JSON.stringify(alerts.map((a) => a.payload))).toContain('refunded');
+  });
+  it('a genuine payment for some other Razorpay order buys nothing and is not refunded', async () => {
+    const { request, proof } = await paidQuote();
+    const foreign = { ...proof, razorpayOrderId: `order_CP${run}elsewhere`, razorpaySignature: sign(`order_CP${run}elsewhere`, proof.razorpayPaymentId) };
+    expect(await payCustomRequest(request.id, foreign)).toEqual({ kind: 'unmatched' });
+    expect(await ordersFor(proof.razorpayPaymentId)).toBe(0);
+    expect((await reload(request.id)).status).toBe('quoted');
+    expect(refundPayment).not.toHaveBeenCalled();
+  });
+  it('the Razorpay webhook recovery routes a custom: receipt to the custom payment', async () => {
+    const { request, proof } = await paidQuote();
+    await recoverPayment(proof.razorpayPaymentId);
+    expect(await ordersFor(proof.razorpayPaymentId)).toBe(1);
+    expect((await reload(request.id)).status).toBe('paid');
+    await recoverPayment(proof.razorpayPaymentId); // a redelivered webhook
+    expect(await ordersFor(proof.razorpayPaymentId)).toBe(1);
+    expect(refundCalls()).toBe(0);
+  });
+  const call = (route: typeof payQuote, token: string, body?: unknown) =>
+    route(new Request(`http://localhost/api/custom-requests/${token}/x`, { method: 'POST', body: JSON.stringify(body ?? {}) }), { params: Promise.resolve({ token }) });
+  it('the routes: intent for a live quote, 400 for a forged proof, the order for a real one even after the webhook made it', async () => {
+    const { request, proof } = await paidQuote();
+    const intent = await call(openQuoteIntent, request.token);
+    expect(await intent.json()).toEqual({ razorpayOrderId: proof.razorpayOrderId, amountPaise: 207000, keyId: 'rzp_test_abc' });
+    expect((await call(payQuote, request.token, { ...proof, razorpaySignature: 'f'.repeat(64) })).status).toBe(400);
+    await recoverPayment(proof.razorpayPaymentId); // the webhook wins the race
+    const res = await call(payQuote, request.token, proof);
+    expect(res.status).toBe(200);
+    const { orderRef } = await res.json();
+    expect(await db.order.findUnique({ where: { razorpayPaymentId: proof.razorpayPaymentId }, select: { ref: true } })).toEqual({ ref: orderRef });
+    expect((await call(openQuoteIntent, request.token)).status).toBe(409); // paid: no second intent
   });
 });
