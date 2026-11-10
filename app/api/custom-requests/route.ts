@@ -15,6 +15,10 @@ export async function POST(req: Request) {
   if (!limit.ok) return tooMany(limit, "custom cake requests");
   if (!whatsappConfigured() || !hasImageStore()) return fail("Custom cake requests aren't available right now.", 503);
 
+  // Refuse before buffering: formData() reads the whole body. The allowance covers the other form fields.
+  const length = Number(req.headers.get("content-length"));
+  if (!Number.isFinite(length) || length <= 0 || length > MAX_UPLOAD_BYTES + 64 * 1024) return fail("That photo is too large.", 413);
+
   let form: FormData;
   try {
     form = await req.formData();

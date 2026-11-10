@@ -6,6 +6,7 @@ import { getBakeryInfo, getCatalogSnapshot } from "@/lib/catalogData";
 import { CUSTOM_CAKES, CUSTOM_GROUPS, whatsappTo } from "@/lib/customCakes";
 import { CustomEnquiry } from "@/components/shop/CustomEnquiry";
 import { CustomRequestSheet } from "@/components/shop/CustomRequestSheet";
+import { hasImageStore } from "@/lib/storage";
 import { whatsappConfigured } from "@/lib/whatsapp";
 import { sBtn, sEyebrow } from "@/lib/shopUi";
 
@@ -30,7 +31,7 @@ export default async function CustomCakesPage() {
   const bakery = await getBakeryInfo();
   const to = whatsappTo(bakery.phone);
   // With WhatsApp configured the photo goes through our own request form; gallery "Ask" tiles stay on CustomEnquiry.
-  const catalog = whatsappConfigured() ? await getCatalogSnapshot() : null;
+  const catalog = whatsappConfigured() && hasImageStore() ? await getCatalogSnapshot() : null;
 
   const sendPhoto = (extra = "") =>
     catalog ? (

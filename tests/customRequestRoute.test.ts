@@ -14,11 +14,15 @@ const { POST } = await import("@/app/api/custom-requests/route");
 const address = { lat: 17.4, lng: 78.45, address: "Road 1", locality: "Banjara Hills", city: "Hyderabad", state: "Telangana", pincode: "500034", placeId: "p" };
 const valid = () => ({ name: "Asha", phone: "9876543210", sizeKg: 1, flavour: "Chocolate", dueAt: new Date(Date.now() + 3 * 86400_000).toISOString(), address, consent: true });
 let n = 0;
-function send(data: object, photo: File | null = new File([new Uint8Array(10)], "c.jpg", { type: "image/jpeg" })) {
+async function send(data: object, photo: File | null = new File([new Uint8Array(10)], "c.jpg", { type: "image/jpeg" })) {
   const form = new FormData();
   form.set("data", JSON.stringify(data));
   if (photo) form.set("photo", photo);
-  return POST(new Request("http://localhost/api/custom-requests", { method: "POST", body: form, headers: { "x-forwarded-for": `10.0.0.${++n}` } }));
+  // Serialise once so the request carries the content-length a real browser sends.
+  const encoded = new Response(form);
+  const headers = { "content-type": encoded.headers.get("content-type")!, "x-forwarded-for": `10.0.0.${++n}` };
+  const body = await encoded.arrayBuffer();
+  return POST(new Request("http://localhost/api/custom-requests", { method: "POST", body, headers: { ...headers, "content-length": String(body.byteLength) } }));
 }
 
 describe("POST /api/custom-requests", () => {
@@ -45,6 +49,12 @@ describe("POST /api/custom-requests", () => {
     expect((await send(valid())).status).toBe(422);
   });
   it("422 when the date is inside the lead time", async () => expect((await send({ ...valid(), dueAt: new Date(Date.now() + 3600_000).toISOString() })).status).toBe(422));
+  it("413 when content-length is over the limit or missing", async () => {
+    const big = new Request("http://localhost/api/custom-requests", { method: "POST", body: "x", headers: { "content-length": String(10 * 1024 * 1024), "x-forwarded-for": "10.9.9.1" } });
+    expect((await POST(big)).status).toBe(413);
+    const none = new Request("http://localhost/api/custom-requests", { method: "POST", headers: { "x-forwarded-for": "10.9.9.2" } });
+    expect((await POST(none)).status).toBe(413);
+  });
   it("503 when WhatsApp is off", async () => {
     vi.stubEnv("WHATSAPP_ACCESS_TOKEN", "");
     expect((await send(valid())).status).toBe(503);
