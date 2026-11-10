@@ -60,7 +60,7 @@ customer form ─► CustomRequest(awaiting_quote) ─► custom_offer template 
   - name and WhatsApp number (must pass `indianMobile`)
   - a consent tick box: "OK to message me on WhatsApp about this cake" (required)
 - `POST /api/custom-requests` (multipart):
-  - rate-limited per IP with the existing `RateLimitBucket`
+  - rate-limited per IP with the existing `rateLimit` from `lib/apiGuard`
   - validates with zod
   - checks the address is deliverable (the same serviceability check as checkout) and the date respects the lead time
   - stores the photo through `lib/storage.ts`
@@ -78,7 +78,7 @@ hasn't already been tried. This uses the same distance and eligibility rules as
 copy.
 
 **The offer message.** New template `custom_offer`:
-- header: the cake photo, via a signed link like `photoUrl`, keyed to the request id
+- header: the cake photo, using the stored image link (already a public link nobody can guess)
 - body: ref, size, flavour, message on the cake, delivery date and time, area (locality only), and the budget or "no budget given"
 - quick-reply button: **Can't do it**, payload `cq_no:<requestId>`
 - footer text: "Reply with your price, e.g. 1800"
@@ -137,7 +137,8 @@ copy.
 - Payment reuses `openPaymentIntent` with the key `custom:<requestId>` and the
   Razorpay checkout script already used by `CheckoutForm`.
 - On a verified payment (client callback **or** the existing Razorpay webhook,
-  whichever comes first), one transaction, guarded by an advisory lock on the
+  whichever comes first; `recoverPayment` sends receipts starting `custom:` here
+  instead of to checkout recovery), one transaction, guarded by an advisory lock on the
   request:
   1. Re-read the request. If it is not `quoted`, or the quote has expired → mark the payment
      for refund through the existing `refundPayment` and stop.
