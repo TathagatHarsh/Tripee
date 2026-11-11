@@ -10,7 +10,7 @@ Design: `docs/superpowers/specs/2026-10-09-whatsapp-order-desk-design.md`. No da
 2. The bakery gets the `order_offer` template with the cake photo and Accept / Reject buttons. The admin gets `admin_new_order` and an update saying who was offered.
 3. Accept: the bakery gets "yours" with Started / Ready / Handed over buttons. Reject, or no answer within `ASSIGNMENT_RESPONSE_SECONDS` (default 15 minutes): the next-nearest eligible bakery is offered (needs `ASSIGNMENT_AUTO_REASSIGN=true`). The admin is told each time. With `ASSIGNMENT_AUTO_START=true`, an order no bakery can take (none eligible at checkout, or every bakery declined or timed out) is cancelled and the customer told "Sorry, we can't deliver this order"; the admin gets a "Cancelled" note, not an "assign it" alert.
 4. No bakery left: the order goes to MANUAL and the admin gets a message with the admin order link.
-5. The bakery delivers the cake, so it moves the customer's order to the end, exactly as the vendor portal does. **Started** puts the order In the kitchen. **Handed over** sends it out for delivery (for a pickup, the customer sees "Ready to collect"), and the reply carries one more button, **Delivered** (or **Collected**), which closes the order. The customer's tracker and notifications move with each step. Cancellation stays on the website. The admin gets every step on WhatsApp, and a cancellation also tells the bakery that held the order.
+5. The bakery delivers the cake, so it moves the customer's order to the end, exactly as the vendor portal does. **Started** puts the order In the kitchen. **Handed over** sends it out for delivery (for a pickup, the customer sees "Ready to collect"), and the reply carries one more button, **Delivered** (or **Collected**), which closes the order. The customer's tracker moves with each step. On WhatsApp the customer hears only four things: confirmed, out for delivery, delivered and, if it happens, cancelled (see Customer templates below). Nothing is sent while the cake is being baked. Cancellation stays on the website. The admin gets every step on WhatsApp, and a cancellation also tells the bakery that held the order.
 
 If Meta is down, offers still expire and move on. Messages wait in the outbox and retry (up to 8 attempts).
 
@@ -67,13 +67,13 @@ The admin does these. Code can't.
 5. Business settings, System users: create one. Assign it the app and the WhatsApp account. Generate a non-expiring token with `whatsapp_business_messaging` and `whatsapp_business_management`. This is `WHATSAPP_ACCESS_TOKEN`.
 6. App, Basic: copy the App secret into `WHATSAPP_APP_SECRET`. Add the site's privacy policy URL. Switch the app to **Live**.
 7. WhatsApp, Configuration, Webhook: callback URL `https://<site>/api/whatsapp/webhook`, the verify token (`WHATSAPP_VERIFY_TOKEN`), and subscribe to **messages**.
-8. WhatsApp Manager, Message templates: create the five templates below.
+8. WhatsApp Manager, Message templates: create the nine templates below (five for bakeries and the admin, four for customers).
 
 Business verification is not needed to start. The unverified limit (250 recipients a day) is far above a few bakeries plus the admin.
 
 ### Templates
 
-All five: category **Utility**, language **English** (`en`). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
+All nine: category **Utility**, language **English** (`en`). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
 
 | Name | Header | Body | Buttons |
 |---|---|---|---|
@@ -92,6 +92,70 @@ Variables:
 | `order_update` | order ref | what happened | | | | | |
 | `custom_offer` | request ref (CR-XXXXXX) | size, e.g. "1.5 kg" | flavour | message on the cake ("-" if none) | needed-by time | delivery area only (never name, phone or street) | budget with the rupee sign, e.g. "₹1,800", or "no budget given" |
 | `custom_quote` | request ref | size | due time | price to pay | | | |
+
+### Customer templates
+
+The customer gets these four and nothing else. The line breaks below are part of the approved text; parameters themselves never contain one. The footer is fixed text. `{{1}}` is always the customer's first name, or "there" when we don't have one.
+
+**`customer_order_confirmed`**: sent once, when the order is confirmed (at checkout, since orders are created confirmed). Header: image (the cake photo).
+
+```
+Hi {{1}}, your cake order is confirmed! 🎉
+
+🎂 {{2}}
+📅 {{3}}
+📍 {{4}}
+🧾 Order {{5}} · ₹{{6}}
+
+Our partner bakery will bake it fresh for you. We'll message you here when it's on its way.
+```
+Footer: `MakeYourCakes · Freshly baked in Hyderabad`
+
+**`customer_out_for_delivery`**: sent when the bakery taps Handed over. Not sent for pickup orders. Header: image.
+
+```
+Your cake is on its way, {{1}}! 🚚
+
+🎂 {{2}}
+📍 Arriving at {{3}} by {{4}}
+🧾 Order {{5}}
+
+Please keep your phone close. The delivery partner may call you when they arrive.
+```
+Footer: `MakeYourCakes`
+
+**`customer_order_delivered`**: sent when the order is marked delivered (or collected). Header: image.
+
+```
+Delivered! Enjoy your cake, {{1}} 🎂
+
+Your order {{2}} has been handed over. Thank you for choosing MakeYourCakes, we hope it makes the day special 💛
+
+Tip: keep it in the fridge and let it rest for 20 minutes before serving.
+```
+Footer: `MakeYourCakes · Freshly baked in Hyderabad`
+
+**`customer_order_cancelled`**: sent only if the order is cancelled. No header.
+
+```
+Hi {{1}}, we're sorry, your cake order {{2}} has been cancelled.
+
+{{3}}
+
+If you already paid for it, we will refund the full amount to you.
+```
+Footer: `MakeYourCakes`
+
+| Template | {{1}} | {{2}} | {{3}} | {{4}} | {{5}} | {{6}} |
+|---|---|---|---|---|---|---|
+| `customer_order_confirmed` | first name | cake, size, egg type (and the message on the cake) | due time | delivery area | order ref | order total |
+| `customer_out_for_delivery` | first name | cake | delivery area | due time | order ref | |
+| `customer_order_delivered` | first name | order ref | | | | |
+| `customer_order_cancelled` | first name | order ref | why: "No partner bakery near you could make it in time." when no bakery could take it, otherwise "If you didn't ask for this, please write to hello@makeyourcakes.com and we'll sort it out." The staff cancel reason never goes to the customer. | | | |
+
+Sample values for Meta: `Asha`, `Chocolate Truffle · 1kg · eggless`, `Sat 10 Oct, 4:00 pm`, `Jubilee Hills, Hyderabad, 500033`, `MC-AB12CD`, `1,250`.
+
+**Deploy order:** merge the code that sends these only after all four are **Active** in WABA 985694517174842. Before that, every customer message fails with `132001` (template not found) and retries until it gives up; the old `order_update` customer messages keep working until then.
 
 Parameters never contain line breaks. The first three are the texts Meta approved (the first draft was shorter, and Meta refused it with "too many variables for its length", so the fixed wording around the variables was lengthened; the variables and their order did not change). If a template is ever edited or rejected, change the matching builder in `lib/whatsappMessages.ts`.
 
