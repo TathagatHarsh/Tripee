@@ -12,9 +12,11 @@ Code: `lib/orderEmail.ts` (content, queueing), `lib/email.ts` (Resend),
 
 1. Zoho admin → Users → hello@ → add email alias `orders@makeyourcakes.com`.
 2. Resend → create account → Domains → add `makeyourcakes.com` (region closest to India).
-3. GoDaddy DNS → add exactly the records Resend shows: TXT `resend._domainkey`,
-   MX `send` (priority 10), TXT `send` SPF. Do **not** edit the root MX or the
-   root SPF — those are Zoho's and carry hello@'s mail.
+3. GoDaddy DNS → add exactly the records Resend shows (manual setup, not
+   "Auto configure"): TXT `resend._domainkey` (DKIM), CNAME `rsend` →
+   `rsend-apne1.forge.rmta.net`, CNAME `send` → `send.forge.rmta.net`. Leave
+   "Enable receiving" off. Do **not** edit the root MX or the root SPF — those
+   are Zoho's and carry hello@'s mail. (Done 2026-11-11, region Tokyo.)
 4. Resend → Verify domain; create an API key with sending access to this domain only.
 5. Production env → set `RESEND_API_KEY` and
    `EMAIL_FROM="MakeYourCakes <orders@makeyourcakes.com>"`; redeploy.
