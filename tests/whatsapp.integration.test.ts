@@ -148,24 +148,29 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
     const offer = offerMessage(facts, { assignmentId: 'a1', distanceKm: 1, earningPaise: 100, replyMinutes: 15 });
     expect(JSON.stringify(offer)).toContain('message \\"Happy birthday Asha\\"');
   });
-  it('the customer gets an update when the order is placed and at every later step, without the staff cancel reason', async () => {
+  /* The customer hears from us only when the order is confirmed, sent out and delivered, or cancelled. */
+  const customerTemplates = async (orderId: string) =>
+    (await wa(orderId)).filter(r => r.destination === '919988776655').map(r => (r.payload as { name: string }).name);
+  it('the customer gets confirmed, out for delivery and delivered, and nothing while it is baked', async () => {
     const { order } = await fixture();
-    await db.order.update({ where: { id: order.id }, data: { customerPhone: '99887 76655' } });
-    const toCustomer = async () => (await wa(order.id)).filter(r => r.destination === '919988776655');
+    await db.order.update({ where: { id: order.id }, data: { customerPhone: '99887 76655', customerName: 'Asha Rao' } });
     await db.$transaction(tx => whatsappNewOrder(tx, order.id));
-    let rows = await toCustomer();
-    expect(rows).toHaveLength(1);
-    expect(rows[0].payload).toMatchObject({ type: 'template', name: 'order_update' });
-    expect(bodyText(rows[0])).toEqual([order.ref, expect.stringContaining('We have received your order for Chocolate Truffle')]);
+    const [confirmed] = (await wa(order.id)).filter(r => r.destination === '919988776655');
+    expect(confirmed.payload).toMatchObject({ type: 'template', name: 'customer_order_confirmed' });
+    expect(bodyText(confirmed)[0]).toBe('Asha'); expect(bodyText(confirmed)[1]).toContain('Chocolate Truffle');
     await applyStatusTransition(order.ref, 'in_kitchen', null);
+    await applyStatusTransition(order.ref, 'out_for_delivery', null);
+    await applyStatusTransition(order.ref, 'delivered', null);
+    expect(await customerTemplates(order.id)).toEqual(['customer_order_confirmed', 'customer_out_for_delivery', 'customer_order_delivered']);
+  });
+  it('a cancelled customer is told, without the staff cancel reason', async () => {
+    const { order } = await fixture();
+    await db.order.update({ where: { id: order.id }, data: { customerPhone: '99887 76655', customerName: null } });
     await applyStatusTransition(order.ref, 'cancelled', null, 'Internal: supplier ran out');
-    rows = await toCustomer();
-    expect(rows.map(r => bodyText(r)[1])).toEqual([
-      expect.stringContaining('We have received your order'),
-      'Your cake is being baked now',
-      'Your order has been cancelled. If you paid anything for it, the full amount will be refunded',
-    ]);
-    expect(JSON.stringify(rows.map(r => r.payload))).not.toContain('supplier');
+    const rows = (await wa(order.id)).filter(r => r.destination === '919988776655');
+    expect(rows.map(r => (r.payload as { name: string }).name)).toEqual(['customer_order_cancelled']);
+    expect(bodyText(rows[0])[0]).toBe('there');
+    expect(JSON.stringify(rows[0].payload)).not.toContain('supplier');
   });
   it('nothing is queued when WhatsApp is not configured', async () => {
     vi.unstubAllEnvs(); const { order, vendors } = await fixture(); await manualAssignment(order.ref, vendors[0].id, null);

@@ -10,6 +10,7 @@ export interface OrderFacts {
   dueAt: Date | null;
   area: string;
   cake: string;
+  customerName?: string | null;
 }
 
 /** Meta rejects template parameters that are empty or contain newlines, tabs or runs of spaces. */
@@ -95,6 +96,40 @@ export function adminNewOrderMessage(f: OrderFacts): WhatsAppMessage {
       body(cleanParam(f.ref), cleanParam(rupees(f.totalPaise)), cleanParam(f.cake), cleanParam(formatDue(f.dueAt)), cleanParam(f.area)),
     ],
   };
+}
+
+/* The customer's four messages: confirmed, out for delivery, delivered and, only if it happens, cancelled. Wording in docs/WHATSAPP.md. */
+const firstName = (name: string | null | undefined) => name?.trim().split(/\s+/)[0] || "there";
+
+export function customerConfirmedMessage(f: OrderFacts): WhatsAppMessage {
+  return {
+    type: "template",
+    name: "customer_order_confirmed",
+    components: [
+      header(f.orderId),
+      body(cleanParam(firstName(f.customerName)), cleanParam(f.cake), cleanParam(formatDue(f.dueAt)), cleanParam(f.area), cleanParam(f.ref), cleanParam(rupees(f.totalPaise))),
+    ],
+  };
+}
+
+export function customerOutForDeliveryMessage(f: OrderFacts): WhatsAppMessage {
+  return {
+    type: "template",
+    name: "customer_out_for_delivery",
+    components: [header(f.orderId), body(cleanParam(firstName(f.customerName)), cleanParam(f.cake), cleanParam(f.area), cleanParam(formatDue(f.dueAt)), cleanParam(f.ref))],
+  };
+}
+
+export function customerDeliveredMessage(f: OrderFacts): WhatsAppMessage {
+  return { type: "template", name: "customer_order_delivered", components: [header(f.orderId), body(cleanParam(firstName(f.customerName)), cleanParam(f.ref))] };
+}
+
+/** No photo: a cancelled cake isn't one to show. The staff reason never reaches the customer. */
+export function customerCancelledMessage(o: { ref: string; customerName?: string | null }, noBakery: boolean): WhatsAppMessage {
+  const why = noBakery
+    ? "No partner bakery near you could make it in time."
+    : "If you didn't ask for this, please write to hello@makeyourcakes.com and we'll sort it out.";
+  return { type: "template", name: "customer_order_cancelled", components: [body(cleanParam(firstName(o.customerName)), cleanParam(o.ref), why)] };
 }
 
 export function updateMessage(ref: string, text: string): WhatsAppMessage {

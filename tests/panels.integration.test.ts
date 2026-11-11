@@ -45,13 +45,13 @@ describe.skipIf(!url)('admin and vendor panels on isolated PostgreSQL', () => {
     expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).assignmentNote).toBeNull();
   });
 
-  it('vendor preparation queues the customer baking update', async () => {
+  it('vendor preparation sends the customer nothing (only confirmed, out for delivery and delivered do)', async () => {
     const f = await fixture();
     process.env.WHATSAPP_ACCESS_TOKEN = 'test-no-network'; process.env.WHATSAPP_PHONE_NUMBER_ID = 'test';
     try {
       await moveFulfillment(f.vendor.id, f.order.ref, 'in_preparation', f.assignment);
       expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).status).toBe('in_kitchen');
-      expect(await db.notificationOutbox.count({ where: { orderId: f.order.id, dedupeKey: { contains: ':in_kitchen:customer' } } })).toBe(1);
+      expect(await db.notificationOutbox.count({ where: { orderId: f.order.id, dedupeKey: { contains: ':in_kitchen:customer' } } })).toBe(0);
       expect(await db.notificationOutbox.count({ where: { orderId: f.order.id, dedupeKey: `order:${f.order.id}:status:in_kitchen` } })).toBe(1);
     } finally {
       delete process.env.WHATSAPP_ACCESS_TOKEN; delete process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -67,7 +67,7 @@ describe.skipIf(!url)('admin and vendor panels on isolated PostgreSQL', () => {
       await handOver(f.vendor.id, f.order.ref, f.assignment, null);
       expect(await vendorDeliveryMove(f.vendor.id, f.order.ref, f.assignment, 'delivered', null)).toBe(true);
       const sent = await db.notificationOutbox.findMany({ where: { orderId: f.order.id, dedupeKey: { contains: ':customer' } }, select: { dedupeKey: true } });
-      expect(sent.map((s) => /:(\w+):customer/.exec(s.dedupeKey)?.[1]).sort()).toEqual(['delivered', 'in_kitchen', 'out_for_delivery']);
+      expect(sent.map((s) => /:(\w+):customer/.exec(s.dedupeKey)?.[1]).sort()).toEqual(['delivered', 'out_for_delivery']);
     } finally {
       delete process.env.WHATSAPP_ACCESS_TOKEN; delete process.env.WHATSAPP_PHONE_NUMBER_ID;
     }

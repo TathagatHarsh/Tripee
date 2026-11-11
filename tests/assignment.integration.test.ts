@@ -66,7 +66,7 @@ describe.skipIf(!url)('inventory and assignment transactions on isolated Postgre
     expect(await db.order.findUniqueOrThrow({ where: { id: orderId } })).toMatchObject({ status: 'cancelled', cancellationReason: UNDELIVERABLE, currentAssignmentId: null });
     const sent = await db.notificationOutbox.findMany({ where: { orderId }, select: { dedupeKey: true, payload: true } });
     const text = (key: string) => JSON.stringify(sent.find((n) => n.dedupeKey.includes(key))?.payload ?? '');
-    expect(text(':cancelled:customer')).toContain("Sorry, we can't deliver this order");
+    expect(text(':cancelled:customer')).toContain('No partner bakery near you could make it in time');
     expect(sent.some((n) => JSON.stringify(n.payload).includes('No vendor can take this order'))).toBe(false);
   };
   it('auto start with no eligible bakery cancels and tells the customer', async () => {

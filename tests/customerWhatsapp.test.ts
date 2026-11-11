@@ -1,32 +1,61 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test fixtures poke at the message union */
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-const { customerUpdateText } = await import('../lib/whatsappEvents');
-const { cleanParam } = await import('../lib/whatsappMessages');
+vi.mock('../lib/log', () => ({ log: vi.fn() }));
+vi.mock('../lib/db', () => ({ db: {} }));
+const { cleanParam, customerCancelledMessage, customerConfirmedMessage, customerDeliveredMessage, customerOutForDeliveryMessage } = await import('../lib/whatsappMessages');
 
 /*
- * The customer's WhatsApp updates go in the approved `order_update` template:
- * "Update on cake order {{1}}: {{2}}. If you have any questions…". {{2}} must
- * survive Meta's parameter rules unchanged and must not end in its own full stop.
+ * The customer hears from us four times at most: confirmed, out for delivery,
+ * delivered, and (only if it happens) cancelled. Each is its own approved Meta
+ * template, so the parameter order below is the contract with Meta.
  */
-describe("the customer's WhatsApp update at each step", () => {
-  const steps = ['placed', 'confirmed', 'in_kitchen', 'out_for_delivery', 'delivered', 'cancelled'] as const;
+const facts = {
+  orderId: 'ord1', ref: 'MC-AB12CD', totalPaise: 125000, dueAt: new Date('2026-10-10T10:30:00Z'),
+  area: 'Jubilee Hills, Hyderabad, 500033', cake: 'Chocolate Truffle · 1kg · eggless', customerName: '  Asha   Rao ',
+};
+const comp = (m: any, type: string) => m.components.find((c: any) => c.type === type);
+const body = (m: any) => comp(m, 'body').parameters.map((p: any) => p.text);
 
-  it('has a message for every step a customer cares about, and none for a draft', () => {
-    for (const s of steps) expect(customerUpdateText(s, false), s).toBeTruthy();
-    expect(customerUpdateText('draft', false)).toBeNull();
+describe("the customer's WhatsApp messages", () => {
+  it('confirmed: cake photo, then [first name, cake, due, area, ref, total]', () => {
+    const m = customerConfirmedMessage(facts);
+    expect(m).toMatchObject({ type: 'template', name: 'customer_order_confirmed' });
+    expect(comp(m, 'header').parameters[0].image.link).toContain('/api/whatsapp/photo/ord1');
+    expect(body(m)).toEqual(['Asha', 'Chocolate Truffle · 1kg · eggless', 'Sat 10 Oct, 4:00 pm', 'Jubilee Hills, Hyderabad, 500033', 'MC-AB12CD', '1,250']);
   });
 
-  it('fits the template: one line, no trailing full stop, unchanged by cleanParam', () => {
-    for (const s of steps) for (const pickup of [false, true]) {
-      const t = customerUpdateText(s, pickup, 'Pineapple Delight · 1kg · eggless')!;
-      expect(t.endsWith('.')).toBe(false);
-      expect(cleanParam(t, 400)).toBe(t);
-    }
+  it('out for delivery: cake photo, then [first name, cake, area, due, ref]', () => {
+    const m = customerOutForDeliveryMessage(facts);
+    expect(m).toMatchObject({ type: 'template', name: 'customer_out_for_delivery' });
+    expect(comp(m, 'header').parameters[0].image.link).toContain('/api/whatsapp/photo/ord1');
+    expect(body(m)).toEqual(['Asha', 'Chocolate Truffle · 1kg · eggless', 'Jubilee Hills, Hyderabad, 500033', 'Sat 10 Oct, 4:00 pm', 'MC-AB12CD']);
   });
 
-  it('names the cake when the order is placed, and says it is on its way when sent out', () => {
-    expect(customerUpdateText('placed', false, 'Pineapple Delight · 1kg')).toContain('for Pineapple Delight · 1kg');
-    expect(customerUpdateText('out_for_delivery', false)).toContain('on its way');
-    expect(customerUpdateText('out_for_delivery', true)).toContain('ready to collect');
+  it('delivered: cake photo, then [first name, ref]', () => {
+    const m = customerDeliveredMessage(facts);
+    expect(m).toMatchObject({ type: 'template', name: 'customer_order_delivered' });
+    expect(comp(m, 'header').parameters[0].image.link).toContain('/api/whatsapp/photo/ord1');
+    expect(body(m)).toEqual(['Asha', 'MC-AB12CD']);
+  });
+
+  it('cancelled: no photo; says why when no bakery could take it, never a staff reason', () => {
+    const none = customerCancelledMessage({ ref: 'MC-AB12CD', customerName: 'Asha' }, true);
+    expect(none).toMatchObject({ type: 'template', name: 'customer_order_cancelled' });
+    expect(comp(none, 'header')).toBeUndefined();
+    expect(body(none)).toEqual(['Asha', 'MC-AB12CD', expect.stringContaining('No partner bakery near you')]);
+    const other = body(customerCancelledMessage({ ref: 'MC-AB12CD', customerName: 'Asha' }, false));
+    expect(other[2]).toContain('hello@makeyourcakes.com');
+  });
+
+  it('greets "there" when the name is missing', () => {
+    for (const customerName of [null, undefined, '', '   '])
+      expect(body(customerDeliveredMessage({ ...facts, customerName }))[0]).toBe('there');
+  });
+
+  it('every parameter is already Meta-clean: one line, not empty, unchanged by cleanParam', () => {
+    const all = [customerConfirmedMessage(facts), customerOutForDeliveryMessage(facts), customerDeliveredMessage(facts),
+      customerCancelledMessage(facts, true), customerCancelledMessage(facts, false)];
+    for (const m of all) for (const t of body(m)) expect(cleanParam(t, 400)).toBe(t);
   });
 });
