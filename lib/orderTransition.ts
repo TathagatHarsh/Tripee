@@ -6,6 +6,7 @@ import { db } from "./db";
 import { outboxCreate } from "./notifications";
 import { canTransition } from "./orders";
 import { whatsappOrderStatus } from "./whatsappEvents";
+import { queueOrderConfirmationEmail } from "./orderEmail";
 
 /**
  * The authoritative aggregate transition. Customer status, due-time freezing,
@@ -121,6 +122,7 @@ export async function applyStatusTransition(
       }),
     });
 
+    if (to === "confirmed") await queueOrderConfirmationEmail(tx, order.id);
     await whatsappOrderStatus(tx, { orderId: order.id, to, vendorId: order.currentAssignment?.vendorId, vendorPhone: order.currentAssignment?.vendor.phone, reason: reason?.trim() || null });
 
     await portalEvent(tx, { key: `order:${order.id}:${to}`, vendorId: order.currentAssignment?.vendorId, orderRef: ref, title: to.replaceAll('_', ' '), message: `${ref}: ${to.replaceAll('_', ' ')}` });

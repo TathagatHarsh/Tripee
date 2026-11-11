@@ -383,4 +383,26 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+  it('queues one confirmation email for a paid delivery order with an email, and none on replay', async () => {
+    vi.stubEnv('RESEND_API_KEY', 're_test');
+    const base = basket(day(41));
+    const body = { ...base, fulfillment: { ...base.fulfillment, contactEmail: 'asha@example.com' } };
+    const paid = proof('email');
+    await intent(body, paid.razorpayOrderId);
+    const res = await post(placeOrder, { ...body, payment: paid });
+    expect(res.status).toBe(201);
+    const order = await db.order.findUniqueOrThrow({ where: { ref: (await res.json()).orderId } });
+    const emails = () => db.notificationOutbox.findMany({ where: { orderId: order.id, channel: 'email' } });
+    expect(await emails()).toMatchObject([{ destination: 'asha@example.com', dedupeKey: `email:order:${order.id}:confirmed` }]);
+    await post(placeOrder, { ...body, payment: paid });
+    expect(await emails()).toHaveLength(1);
+  });
+  it('queues no email when the customer gave none', async () => {
+    vi.stubEnv('RESEND_API_KEY', 're_test');
+    const body = basket(day(42)); const paid = proof('noemail');
+    await intent(body, paid.razorpayOrderId);
+    const res = await post(placeOrder, { ...body, payment: paid });
+    const order = await db.order.findUniqueOrThrow({ where: { ref: (await res.json()).orderId } });
+    expect(await db.notificationOutbox.count({ where: { orderId: order.id, channel: 'email' } })).toBe(0);
+  });
 });
