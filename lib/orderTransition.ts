@@ -6,6 +6,7 @@ import { db } from "./db";
 import { outboxCreate } from "./notifications";
 import { canTransition } from "./orders";
 import { whatsappOrderStatus } from "./whatsappEvents";
+import { queueOrderConfirmationEmail } from "./orderEmail";
 
 /**
  * The authoritative aggregate transition. Customer status, due-time freezing,
@@ -71,6 +72,13 @@ export async function applyStatusTransition(
       },
     });
 
+    /* A "your order is confirmed" email still waiting in the outbox would now be
+       wrong (e.g. auto-assignment found no bakery and cancelled it moments later). */
+    if (to === "cancelled")
+      await tx.notificationOutbox.updateMany({
+        where: { orderId: order.id, channel: "email", status: { in: ["pending", "failed"] } },
+        data: { status: "failed", attempts: 8, lastError: "order_cancelled" },
+      });
     if (to === "cancelled")
       await tx.vendorOrder.updateMany({
         where: { orderId: order.id, assignmentStatus: "PENDING" },
@@ -121,6 +129,7 @@ export async function applyStatusTransition(
       }),
     });
 
+    if (to === "confirmed") await queueOrderConfirmationEmail(tx, order.id);
     await whatsappOrderStatus(tx, { orderId: order.id, to, vendorId: order.currentAssignment?.vendorId, vendorPhone: order.currentAssignment?.vendor.phone, reason: reason?.trim() || null });
 
     await portalEvent(tx, { key: `order:${order.id}:${to}`, vendorId: order.currentAssignment?.vendorId, orderRef: ref, title: to.replaceAll('_', ' '), message: `${ref}: ${to.replaceAll('_', ' ')}` });

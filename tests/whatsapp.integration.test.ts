@@ -249,4 +249,21 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
       expect(directTexts()).toEqual(['This number is for MakeYourCakes bakery partners. For your order, use the link in your confirmation.']);
     });
   });
+  it('queues the confirmation email when a pickup order is confirmed', async () => {
+    vi.stubEnv('RESEND_API_KEY', 're_test');
+    const { order } = await fixture(true, 1);
+    await db.order.update({ where: { id: order.id }, data: { status: 'draft', fulfillmentMethod: 'pickup', customerEmail: 'asha@example.com' } });
+    expect(await applyStatusTransition(order.ref, 'confirmed', null)).toBe(true);
+    const rows = await db.notificationOutbox.findMany({ where: { orderId: order.id, channel: 'email' } });
+    expect(rows).toMatchObject([{ destination: 'asha@example.com', dedupeKey: `email:order:${order.id}:confirmed` }]);
+  });
+  it('retires an unsent confirmation email when the order is cancelled', async () => {
+    vi.stubEnv('RESEND_API_KEY', 're_test');
+    const { order } = await fixture(true, 1);
+    await db.order.update({ where: { id: order.id }, data: { status: 'draft', fulfillmentMethod: 'pickup', customerEmail: 'asha@example.com' } });
+    await applyStatusTransition(order.ref, 'confirmed', null);
+    expect(await applyStatusTransition(order.ref, 'cancelled', null, 'Customer asked')).toBe(true);
+    const [row] = await db.notificationOutbox.findMany({ where: { orderId: order.id, channel: 'email' } });
+    expect(row).toMatchObject({ status: 'failed', attempts: 8, lastError: 'order_cancelled' });
+  });
 });

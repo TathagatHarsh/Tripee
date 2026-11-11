@@ -29,6 +29,7 @@ import { paymentMatches } from "@/lib/razorpay";
 import { slotWindow } from "@/lib/scheduling";
 import { deriveServings, servingsForSize } from "@/lib/servings";
 import { whatsappNewOrder } from "@/lib/whatsappEvents";
+import { queueOrderConfirmationEmail } from "@/lib/orderEmail";
 
 class PayloadMismatch extends Error {}
 class PaymentMismatch extends Error {}
@@ -459,6 +460,7 @@ async function createOrder(
         }),
       });
       await whatsappNewOrder(tx, order.id);
+      if (input.fulfillment.method === "delivery") await queueOrderConfirmationEmail(tx, order.id);
 
       return { order, replay: false };
     },

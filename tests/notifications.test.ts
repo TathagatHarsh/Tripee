@@ -108,3 +108,20 @@ describe('whatsapp outbox rows', () => {
     expect(JSON.stringify(vi.mocked(log).mock.calls)).not.toMatch(/919876543210|private words/);
   });
 });
+
+describe('email channel', () => {
+  beforeEach(() => {
+    row.channel = 'email'; row.destination = 'asha@example.com'; row.payload = { subject: 'S', text: 'T', html: 'H' };
+    vi.stubEnv('RESEND_API_KEY', 're_test'); vi.stubEnv('EMAIL_FROM', 'MakeYourCakes <orders@makeyourcakes.com>');
+  });
+  it('routes email rows to Resend', async () => {
+    expect(await dispatchPendingNotifications()).toEqual({ sent: 1, failed: 0 });
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.resend.com/emails');
+    expect(row.status).toBe('sent');
+  });
+  it('marks a Resend 503 as failed for retry', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 503 });
+    expect(await dispatchPendingNotifications()).toEqual({ sent: 0, failed: 1 });
+    expect(row.lastError).toBe('email_provider_503');
+  });
+});
