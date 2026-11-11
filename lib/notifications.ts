@@ -9,7 +9,7 @@ export interface OutboxInput {
   customRequestId?: string | null;
   vendorId?: string | null;
   kind: NotificationKind;
-  channel?: "webhook" | "whatsapp";
+  channel?: "webhook" | "whatsapp" | "email";
   destination?: string | null;
   payload: Prisma.InputJsonValue;
   dedupeKey: string;
