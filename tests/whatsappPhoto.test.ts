@@ -3,7 +3,8 @@ import sharp from "sharp";
 
 vi.mock("server-only", () => ({}));
 const findUnique = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/db", () => ({ db: { order: { findUnique } } }));
+const findCustom = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/db", () => ({ db: { order: { findUnique }, customRequest: { findUnique: findCustom } } }));
 
 import { GET } from "@/app/api/whatsapp/photo/[orderId]/route";
 import { photoSignature } from "@/lib/whatsapp";
@@ -114,8 +115,25 @@ describe("GET /api/whatsapp/photo/[orderId]", () => {
     await expectJpeg200(await call("ord1", photoSignature("ord1")));
   });
 
-  it("404s an unknown order", async () => {
+  it("404s an id that is neither an order nor a custom request", async () => {
     findUnique.mockResolvedValue(null);
+    findCustom.mockResolvedValue(null);
     expect((await call("ord1", photoSignature("ord1"))).status).toBe(404);
+  });
+
+  it("converts a custom request's stored WebP photo to JPEG", async () => {
+    findUnique.mockResolvedValue(null);
+    findCustom.mockResolvedValue({ photoUrl: "https://abc.public.blob.vercel-storage.com/custom/CR-1.webp" });
+    fetchMock.mockResolvedValue({ ok: true, arrayBuffer: async () => webp });
+    const res = await call("cr1", photoSignature("cr1"));
+    await expectJpeg200(res);
+    expect(res.headers.get("cache-control")).toBe("public, max-age=86400");
+    expect(findCustom).toHaveBeenCalledWith({ where: { id: "cr1" }, select: { photoUrl: true } });
+    expect(fetchMock.mock.calls[0][0].toString()).toBe("https://abc.public.blob.vercel-storage.com/custom/CR-1.webp");
+  });
+
+  it("checks the signature before looking up a custom request", async () => {
+    expect((await call("cr1", photoSignature("ord1"))).status).toBe(404);
+    expect(findCustom).not.toHaveBeenCalled();
   });
 });

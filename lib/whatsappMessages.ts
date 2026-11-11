@@ -43,10 +43,12 @@ export function formatDue(at: Date | null): string {
   return `${p.weekday} ${p.day} ${p.month}, ${p.hour}:${p.minute} ${String(p.dayPeriod).toLowerCase()}`;
 }
 
-const header = (orderId: string): TemplateComponent => ({
+const imageHeader = (link: string): TemplateComponent => ({
   type: "header",
-  parameters: [{ type: "image", image: { link: photoUrl(orderId) } }],
+  parameters: [{ type: "image", image: { link } }],
 });
+
+const header = (orderId: string): TemplateComponent => imageHeader(photoUrl(orderId));
 
 const body = (...texts: string[]): TemplateComponent => ({
   type: "body",
@@ -99,6 +101,57 @@ export function updateMessage(ref: string, text: string): WhatsAppMessage {
   return { type: "template", name: "order_update", components: [body(cleanParam(ref), cleanParam(text, 400))] };
 }
 
+/** To a bakery: the customer's reference photo and spec, area only, asking for a price. */
+export function customOfferMessage(r: {
+  id: string;
+  ref: string;
+  sizeKg: string;
+  flavour: string;
+  cakeMessage: string | null;
+  dueAt: Date;
+  area: string;
+  budgetPaise: number | null;
+}): WhatsAppMessage {
+  return {
+    type: "template",
+    name: "custom_offer",
+    components: [
+      header(r.id),
+      body(
+        cleanParam(r.ref),
+        cleanParam(`${r.sizeKg} kg`),
+        cleanParam(r.flavour),
+        cleanParam(r.cakeMessage),
+        cleanParam(formatDue(r.dueAt)),
+        cleanParam(r.area),
+        cleanParam(r.budgetPaise === null ? "no budget given" : `₹${rupees(r.budgetPaise)}`),
+      ),
+      quickReply(0, `cq_no:${r.id}`),
+    ],
+  };
+}
+
+/** To the customer: the quoted price and a pay link; the bakery is never named. */
+export function customQuoteMessage(r: {
+  id: string;
+  ref: string;
+  token: string;
+  sizeKg: string;
+  dueAt: Date;
+  quotePaise: number;
+}): WhatsAppMessage {
+  return {
+    type: "template",
+    name: "custom_quote",
+    components: [
+      header(r.id),
+      body(cleanParam(r.ref), cleanParam(`${r.sizeKg} kg`), cleanParam(formatDue(r.dueAt)), cleanParam(rupees(r.quotePaise))),
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: r.token }] },
+      quickReply(1, `cq_decline:${r.id}`),
+    ],
+  };
+}
+
 type ButtonsMessage = Extract<WhatsAppMessage, { type: "buttons" }>;
 
 /** The portal's wording: for a pickup, handing over is the cake waiting at the counter. */
@@ -132,7 +185,8 @@ export function textMessage(body: string): WhatsAppMessage {
 export async function queueWhatsApp(
   tx: Prisma.TransactionClient,
   input: {
-    orderId: string;
+    orderId?: string | null;
+    customRequestId?: string | null;
     vendorId?: string | null;
     kind: NotificationKind;
     to: (string | null | undefined)[];
@@ -149,6 +203,7 @@ export async function queueWhatsApp(
       update: {},
       create: outboxCreate({
         orderId: input.orderId,
+        customRequestId: input.customRequestId,
         vendorId: input.vendorId,
         kind: input.kind,
         channel: "whatsapp",

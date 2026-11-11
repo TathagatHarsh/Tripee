@@ -60,11 +60,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ orderId: string
       cakes: { select: { cakeName: true, cakeImageUrl: true }, orderBy: { position: "asc" } },
     },
   });
-  if (!order) return new Response("Not found", { status: 404 });
+  // Custom-cake offers and quotes sign a CustomRequest id instead of an order id.
+  const custom = order ? null : await db.customRequest.findUnique({ where: { id: orderId }, select: { photoUrl: true } });
+  if (!order && !custom) return new Response("Not found", { status: 404 });
 
-  const src = order.cakes.find((c) => c.cakeImageUrl)?.cakeImageUrl ?? order.cakeImageUrl;
+  const src = order ? (order.cakes.find((c) => c.cakeImageUrl)?.cakeImageUrl ?? order.cakeImageUrl) : custom!.photoUrl;
   const photo = src ? await convert(src) : null;
-  const jpeg = photo ?? (await nameCard(order.cakes[0]?.cakeName ?? order.cakeName ?? "Custom cake"));
+  const jpeg = photo ?? (await nameCard(order?.cakes[0]?.cakeName ?? order?.cakeName ?? "Custom cake"));
   // A fallback must not be cached: the real photo may be fixed (or the fetch succeed) a minute later.
   return new Response(new Uint8Array(jpeg), { headers: jpegHeaders(photo ? "public, max-age=86400" : "no-store") });
 }

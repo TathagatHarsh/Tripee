@@ -3,6 +3,7 @@ import {
   Prisma,
   type AssignmentStatus,
   type Order,
+  type Vendor,
   type VendorOrderStatus,
 } from "@prisma/client";
 import { db } from "./db";
@@ -50,7 +51,7 @@ const productsFor = (o: {
   cakeProductId: string | null;
 }) =>
   o.cakes.length ? o.cakes.map((c) => c.cakeProductId) : [o.cakeProductId];
-async function load(tx: Tx, vendorId: string) {
+async function load(tx: Tx | typeof db, vendorId: string) {
   return tx.vendorOrder.count({
     where: {
       vendorId,
@@ -189,6 +190,16 @@ async function advance(tx: Tx, order: Awaited<ReturnType<typeof lockedOrder>>) {
   });
   await whatsappNoBakery(tx, order.id, `wa:manual:${order.id}:${rows.at(-1)?.id ?? "none"}`);
 }
+/** Vendor-level reasons a bakery cannot take work right now (empty = free). */
+export async function vendorBlockers(tx: Tx | typeof db, vendor: Vendor, now: Date, currentLoad?: number): Promise<string[]> {
+  const reasons: string[] = [];
+  if (!vendor.isActive) reasons.push('Inactive bakery');
+  if (!vendor.locationSetAt) reasons.push("Bakery hasn't set its location");
+  if (!vendor.isAcceptingOrders) reasons.push('Not accepting orders');
+  if (vendor.unavailableUntil && vendor.unavailableUntil > now) reasons.push('Bakery unavailable');
+  if ((currentLoad ?? await load(tx, vendor.id)) >= vendor.maxConcurrentOrders) reasons.push('At capacity');
+  return reasons;
+}
 export async function assignmentCandidates(ref: string) {
   const order = await db.order.findUnique({ where: { ref }, include: { cakeProduct: { select: { name: true } }, cakes: { select: { cakeProductId: true, sizeBand: true, eggType: true, cakeName: true, cakeProduct: { select: { name: true } }, config: true } } } });
   if (!order) throw new AssignmentConflict('Order not found');
@@ -198,13 +209,8 @@ export async function assignmentCandidates(ref: string) {
   const productNames = new Map((order.cakes.length ? order.cakes : [order]).map(cake => [cake.cakeProductId, cake.cakeName ?? cake.cakeProduct?.name ?? 'Cake']));
   const rows = [];
   for (const vendor of vendors) {
-    const reasons: string[] = [];
     const currentLoad = await load(db, vendor.id);
-    if (!vendor.isActive) reasons.push('Inactive bakery');
-    if (!vendor.locationSetAt) reasons.push("Bakery hasn't set its location");
-    if (!vendor.isAcceptingOrders) reasons.push('Not accepting orders');
-    if (vendor.unavailableUntil && vendor.unavailableUntil > new Date()) reasons.push('Bakery unavailable');
-    if (currentLoad >= vendor.maxConcurrentOrders) reasons.push('At capacity');
+    const reasons = await vendorBlockers(db, vendor, new Date(), currentLoad);
     if (!vendor.fulfillsAllProducts && !productsFor(order).every(id => id && vendor.supportedProductIds.includes(id))) reasons.push('Product not supported');
     let inventory: { product: string; isAvailable: boolean }[] = [];
     try {

@@ -5,7 +5,8 @@ import { log } from "./log";
 import { sendWhatsApp, type WhatsAppMessage } from "./whatsapp";
 
 export interface OutboxInput {
-  orderId: string;
+  orderId?: string | null;
+  customRequestId?: string | null;
   vendorId?: string | null;
   kind: NotificationKind;
   channel?: "webhook" | "whatsapp";
@@ -16,7 +17,8 @@ export interface OutboxInput {
 
 export function outboxCreate(input: OutboxInput): Prisma.NotificationOutboxCreateArgs["data"] {
   return {
-    orderId: input.orderId,
+    orderId: input.orderId ?? null,
+    customRequestId: input.customRequestId ?? null,
     vendorId: input.vendorId ?? null,
     kind: input.kind,
     channel: input.channel ?? "webhook",

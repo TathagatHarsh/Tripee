@@ -66,6 +66,7 @@ enum NotificationKind {
   order_cancelled
   vendor_assigned
   status_changed
+  custom_request
 }
 
 /// How far a vendor has got with an order that was handed to them.
@@ -132,9 +133,10 @@ model Design {
 }
 
 model Order {
-  id  String @id @default(cuid())
+  id            String         @id @default(cuid())
+  customRequest CustomRequest?
   /// Human-facing reference, e.g. MC-4471.
-  ref String @unique
+  ref           String         @unique
 
   /// Legacy single-cake snapshots. New orders store cakes in OrderCake.
   config               Json?
@@ -243,10 +245,10 @@ model Order {
   /// Cleared when an assignment is rejected or withdrawn, and *kept* when one is
   /// handed over: a finished order still has a vendor, and showing "Unassigned"
   /// the moment the cake is collected would lose the only record of who made it.
-  assignmentState AssignmentState @default(PENDING)
-  assignmentNote String?
-  currentAssignmentId String?      @unique
-  currentAssignment   VendorOrder? @relation("CurrentAssignment", fields: [currentAssignmentId], references: [id], onDelete: SetNull)
+  assignmentState     AssignmentState @default(PENDING)
+  assignmentNote      String?
+  currentAssignmentId String?         @unique
+  currentAssignment   VendorOrder?    @relation("CurrentAssignment", fields: [currentAssignmentId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -310,7 +312,8 @@ model CheckoutAttempt {
 
 /// A partner bakery. Location is stored here once; orders retain customer snapshots.
 model Vendor {
-  id String @id @default(cuid())
+  id             String          @id @default(cuid())
+  customRequests CustomRequest[]
 
   name    String
   /// The three ways to reach them. Nullable because a partner may genuinely
@@ -319,25 +322,25 @@ model Vendor {
   email   String?
   address String?
 
-  isActive Boolean @default(true)
-  latitude Float?
-  longitude Float?
+  isActive            Boolean           @default(true)
+  latitude            Float?
+  longitude           Float?
   /// When the bakery itself last saved its pin on the map. Null means it never
   /// has, and it gets no orders (lib/assignmentRules' vendorEligible). Admin
   /// corrections to latitude/longitude never set this.
-  locationSetAt DateTime?
-  isAcceptingOrders Boolean @default(false)
-  preparationMinutes Int @default(120)
-  isBusy Boolean @default(false)
-  inventory VendorInventory[]
-  serviceRadiusKm Float @default(10)
-  maxConcurrentOrders Int @default(10)
-  unavailableUntil DateTime?
+  locationSetAt       DateTime?
+  isAcceptingOrders   Boolean           @default(false)
+  preparationMinutes  Int               @default(120)
+  isBusy              Boolean           @default(false)
+  inventory           VendorInventory[]
+  serviceRadiusKm     Float             @default(10)
+  maxConcurrentOrders Int               @default(10)
+  unavailableUntil    DateTime?
   // Empty list means no supported products; explicit all-products opt-in.
-  fulfillsAllProducts Boolean @default(false)
-  supportedProductIds String[] @default([])
-  commissionBps Int @default(2000)
-  assignmentFeePaise Int @default(0)
+  fulfillsAllProducts Boolean           @default(false)
+  supportedProductIds String[]          @default([])
+  commissionBps       Int               @default(2000)
+  assignmentFeePaise  Int               @default(0)
 
   /// The people who sign in as this vendor. Usually one.
   users       UserProfile[]
@@ -365,21 +368,21 @@ model VendorOrder {
   /// nowhere. The constraint is what makes `isActive` the only route.
   vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
 
-  status VendorOrderStatus @default(assigned)
-  assignmentStatus AssignmentStatus @default(OFFERED)
-  capacityOverride Boolean @default(false)
-  sequence Int @default(0)
-  distanceKm Float?
-  estimatedMinutes Float?
-  routeSource String?
-  orderValuePaise Int?
-  commissionPaise Int?
-  feePaise Int?
+  status             VendorOrderStatus @default(assigned)
+  assignmentStatus   AssignmentStatus  @default(OFFERED)
+  capacityOverride   Boolean           @default(false)
+  sequence           Int               @default(0)
+  distanceKm         Float?
+  estimatedMinutes   Float?
+  routeSource        String?
+  orderValuePaise    Int?
+  commissionPaise    Int?
+  feePaise           Int?
   vendorEarningPaise Int?
-  offeredAt DateTime?
-  expiresAt DateTime?
-  respondedAt DateTime?
-  createdAt DateTime @default(now())
+  offeredAt          DateTime?
+  expiresAt          DateTime?
+  respondedAt        DateTime?
+  createdAt          DateTime          @default(now())
 
   /// One timestamp per state this row can reach, all nullable except the first.
   ///
@@ -415,9 +418,9 @@ model VendorOrder {
 
   updatedAt DateTime @updatedAt
 
+  @@unique([orderId, sequence])
   /// The vendor dashboard's only query: "my assignments, in this state".
   @@index([assignmentStatus, expiresAt])
-  @@unique([orderId, sequence])
   @@index([vendorId, status])
   /// The admin order page's: "everything this order has ever been offered to".
   @@index([orderId, assignedAt])
@@ -752,7 +755,8 @@ model FulfillmentBlackout {
 /// and lies about the arithmetic behind it. When there is a second currency
 /// there will be a real conversion to go with it.
 model BakerySettings {
-  id String @id @default("singleton")
+  id              String @id @default("singleton")
+  customMarginPct Int    @default(15)
 
   name    String
   phone   String
@@ -1031,25 +1035,28 @@ model CakeProduct {
 /// Transactional notification queue. Business writes enqueue a unique event;
 /// a provider worker claims and delivers it with retries.
 model NotificationOutbox {
-  id          String             @id @default(cuid())
-  orderId     String
-  order       Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  vendorId    String?
-  kind        NotificationKind
-  channel     String
-  destination String?
-  payload     Json
-  dedupeKey   String             @unique
-  status      NotificationStatus @default(pending)
-  attempts    Int                @default(0)
-  availableAt DateTime           @default(now())
-  sentAt      DateTime?
-  lastError   String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id              String             @id @default(cuid())
+  orderId         String?
+  order           Order?             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customRequestId String?
+  customRequest   CustomRequest?     @relation(fields: [customRequestId], references: [id], onDelete: Cascade)
+  vendorId        String?
+  kind            NotificationKind
+  channel         String
+  destination     String?
+  payload         Json
+  dedupeKey       String             @unique
+  status          NotificationStatus @default(pending)
+  attempts        Int                @default(0)
+  availableAt     DateTime           @default(now())
+  sentAt          DateTime?
+  lastError       String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   @@index([status, availableAt])
   @@index([orderId, createdAt])
+  @@index([customRequestId])
 }
 
 /// Shared fixed-window counters for serverless rate limiting.
@@ -1184,84 +1191,132 @@ model CakeImage {
 
 // Natural variant keys preserve stock identity when catalogue variants are replaced.
 model VendorInventory {
-  id String @id @default(cuid())
-  vendorId String
-  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  productId String
-  productName String
-  sizeBand String
-  eggType EggType
+  id                  String                        @id @default(cuid())
+  vendorId            String
+  vendor              Vendor                        @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  productId           String
+  productName         String
+  sizeBand            String
+  eggType             EggType
   /// Legacy quantities and reservation/history tables remain in the DB, unmapped.
-  isAvailable Boolean @default(false)
-  updatedAt DateTime @updatedAt
+  isAvailable         Boolean                       @default(false)
+  updatedAt           DateTime                      @updatedAt
   availabilityChanges InventoryAvailabilityChange[]
+
   @@unique([vendorId, productId, sizeBand, eggType])
   @@index([vendorId, isAvailable])
 }
 
 model InventoryAvailabilityChange {
-  id String @id @default(cuid())
-  inventoryId String
-  inventory VendorInventory @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
+  id                String          @id @default(cuid())
+  inventoryId       String
+  inventory         VendorInventory @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
   /// Null means this variant was first added to the bakery.
   previousAvailable Boolean?
-  newAvailable Boolean
-  userId String
-  createdAt DateTime @default(now())
+  newAvailable      Boolean
+  userId            String
+  createdAt         DateTime        @default(now())
+
   @@index([inventoryId, createdAt])
 }
 
 // Browser events are independent of external webhook delivery and its retries.
 model PortalNotification {
-  id String @id @default(cuid())
-  vendorId String?
-  title String
-  message String
-  orderRef String?
-  dedupeKey String @unique
-  createdAt DateTime @default(now())
-  reads NotificationRead[]
+  id        String             @id @default(cuid())
+  vendorId  String?
+  title     String
+  message   String
+  orderRef  String?
+  dedupeKey String             @unique
+  createdAt DateTime           @default(now())
+  reads     NotificationRead[]
+
   @@index([vendorId, createdAt])
 }
 
 model NotificationRead {
   notificationId String
-  notification PortalNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  userId String
+  notification   PortalNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId         String
+
   @@id([notificationId, userId])
 }
 
 model WhatsAppCommand {
-  key String @id
-  vendorId String
+  key          String   @id
+  vendorId     String
   assignmentId String?
-  orderId String?
-  orderRef String?
-  action String
-  reply String?
-  pickup Boolean
-  createdAt DateTime @default(now())
+  orderId      String?
+  orderRef     String?
+  action       String
+  reply        String?
+  pickup       Boolean
+  createdAt    DateTime @default(now())
 }
 
 model PaymentRecovery {
-  id String @id
-  request Json
-  userId String?
+  id          String   @id
+  request     Json
+  userId      String?
   payloadHash String
-  status String @default("pending")
-  lastError String?
+  status      String   @default("pending")
+  lastError   String?
   nextCheckAt DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   @@index([status, nextCheckAt])
 }
+
 model RefundOperation {
-  paymentId String @id
-  refundId String?
-  status String @default("pending")
-  lastError String?
+  paymentId   String   @id
+  refundId    String?
+  status      String   @default("pending")
+  lastError   String?
   nextCheckAt DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   @@index([status, nextCheckAt])
+}
+
+enum CustomRequestStatus {
+  awaiting_quote
+  quoted
+  paid
+  declined
+  expired
+  no_bakery
+  cancelled
+}
+
+model CustomRequest {
+  id               String               @id @default(cuid())
+  ref              String               @unique // CR-1234
+  token            String               @unique // /c/<token>
+  status           CustomRequestStatus  @default(awaiting_quote)
+  name             String
+  phone            String // normalized, 91XXXXXXXXXX
+  photoUrl         String
+  sizeKg           Decimal              @db.Decimal(4, 1)
+  budgetPaise      Int?
+  flavour          String
+  cakeMessage      String?
+  dueAt            DateTime
+  address          Json // LocatedAddress
+  vendorId         String? // bakery currently offered / that quoted
+  vendor           Vendor?              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  triedVendorIds   String[]
+  offerExpiresAt   DateTime?
+  vendorQuotePaise Int?
+  quotePaise       Int?
+  quoteExpiresAt   DateTime?
+  orderId          String?              @unique
+  order            Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  notifications    NotificationOutbox[]
+
+  @@index([status, offerExpiresAt])
+  @@index([phone, status])
 }

@@ -67,19 +67,21 @@ The admin does these. Code can't.
 5. Business settings, System users: create one. Assign it the app and the WhatsApp account. Generate a non-expiring token with `whatsapp_business_messaging` and `whatsapp_business_management`. This is `WHATSAPP_ACCESS_TOKEN`.
 6. App, Basic: copy the App secret into `WHATSAPP_APP_SECRET`. Add the site's privacy policy URL. Switch the app to **Live**.
 7. WhatsApp, Configuration, Webhook: callback URL `https://<site>/api/whatsapp/webhook`, the verify token (`WHATSAPP_VERIFY_TOKEN`), and subscribe to **messages**.
-8. WhatsApp Manager, Message templates: create the three templates below.
+8. WhatsApp Manager, Message templates: create the five templates below.
 
 Business verification is not needed to start. The unverified limit (250 recipients a day) is far above a few bakeries plus the admin.
 
 ### Templates
 
-All three: category **Utility**, language **English** (`en`). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
+All five: category **Utility**, language **English** (`en`). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
 
 | Name | Header | Body | Buttons |
 |---|---|---|---|
 | `order_offer` | Image | `New cake order {{1}} 🎂 {{2}}. This order is due on {{3}}. It needs to be delivered to {{4}}, which is about {{5}} km from your bakery. If you accept it, your earning will be ₹{{6}}. Please accept or reject it within {{7}} minutes, or it will be offered to another bakery.` | Quick reply **Accept**, quick reply **Reject** |
 | `admin_new_order` | Image | `A new cake order {{1}} has been placed for a total of ₹{{2}}. Cake details: {{3}}. It is due on {{4}} and will be delivered to {{5}}. We will send you an update here at every step of this order.` | none |
 | `order_update` | none | `Update on cake order {{1}}: {{2}}. If you have any questions about this order, please contact the MakeYourCakes team.` | none |
+| `custom_offer` | Image (customer's reference photo) | `A customer wants a custom cake, request {{1}} 🎂 Size: {{2}}. Flavour: {{3}}. Message on the cake: {{4}}. It is needed by {{5}} and will be delivered to {{6}}. Their budget: {{7}}. The photo above shows the design they like. If you can make it, reply to this message with your price in rupees, or tap the button if you cannot.` Footer: `Reply with your price, e.g. 1800` | Quick reply **Can't do it** |
+| `custom_quote` | Image (customer's reference photo) | `Good news, we can make your custom cake, request {{1}} 🎂 Size: {{2}}. It will be ready for {{3}}. The price is ₹{{4}}, delivery included. Tap the button below to see the details and pay. Your cake is confirmed only once you have paid.` | URL **Pay now** → `https://makeyourcakes.com/c/{{1}}` (the one variable is the quote token), quick reply **Not for me** |
 
 Variables:
 
@@ -88,8 +90,14 @@ Variables:
 | `order_offer` | order ref (MC-XXXX) | cake, size, egg type | due time | delivery area | distance in km | bakery's earning | reply window in minutes |
 | `admin_new_order` | order ref | order total | cake | due time | delivery area | | |
 | `order_update` | order ref | what happened | | | | | |
+| `custom_offer` | request ref (CR-XXXXXX) | size, e.g. "1.5 kg" | flavour | message on the cake ("-" if none) | needed-by time | delivery area only (never name, phone or street) | budget with the rupee sign, e.g. "₹1,800", or "no budget given" |
+| `custom_quote` | request ref | size | due time | price to pay | | | |
 
-Parameters never contain line breaks. These are the texts Meta approved (the first draft was shorter, and Meta refused it with "too many variables for its length", so the fixed wording around the variables was lengthened; the variables and their order did not change). If a template is ever edited or rejected, change the matching builder in `lib/whatsappMessages.ts`.
+Parameters never contain line breaks. The first three are the texts Meta approved (the first draft was shorter, and Meta refused it with "too many variables for its length", so the fixed wording around the variables was lengthened; the variables and their order did not change). If a template is ever edited or rejected, change the matching builder in `lib/whatsappMessages.ts`.
+
+`custom_offer` and `custom_quote` have **not been submitted to Meta yet**. Submit them with the wording above. If Meta asks for changes, change the matching builder in `lib/whatsappMessages.ts` before the branch ships.
+
+**Deploy order for custom cakes:** run the `9l_custom_requests` migration on production (`prisma migrate deploy` on the Supabase session pooler, port 5432) *before* deploying the code that uses it. The outbox code writes `NotificationOutbox.customRequestId` on every insert, so code deployed ahead of the migration breaks checkout and every notification. The migration is safe for the code already running. Also, the custom-cake form only appears once WhatsApp, an image store and online payment are all configured.
 
 ## Pinger (every-minute timer)
 

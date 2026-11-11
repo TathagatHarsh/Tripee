@@ -2,9 +2,13 @@ import type { Metadata } from "next";
 import { CustomCakeTile } from "@/components/shop/CustomCakeTile";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
-import { getBakeryInfo } from "@/lib/catalogData";
+import { getBakeryInfo, getCatalogSnapshot } from "@/lib/catalogData";
+import { paymentCheckoutAvailable } from "@/lib/razorpay";
 import { CUSTOM_CAKES, CUSTOM_GROUPS, whatsappTo } from "@/lib/customCakes";
 import { CustomEnquiry } from "@/components/shop/CustomEnquiry";
+import { CustomRequestSheet } from "@/components/shop/CustomRequestSheet";
+import { hasImageStore } from "@/lib/storage";
+import { whatsappConfigured } from "@/lib/whatsapp";
 import { sBtn, sEyebrow } from "@/lib/shopUi";
 
 export const metadata: Metadata = {
@@ -27,9 +31,16 @@ const SIZES = "(min-width:1024px) 22vw, (min-width:640px) 30vw, 46vw";
 export default async function CustomCakesPage() {
   const bakery = await getBakeryInfo();
   const to = whatsappTo(bakery.phone);
+  // With WhatsApp, an image store and online payment the photo goes through our own request form (a quote must be
+  // payable); otherwise the wa.me button. Gallery "Ask" tiles stay on CustomEnquiry.
+  const catalog = whatsappConfigured() && hasImageStore() && paymentCheckoutAvailable() ? await getCatalogSnapshot() : null;
 
   const sendPhoto = (extra = "") =>
-    to ? (
+    catalog ? (
+      <CustomRequestSheet catalog={catalog} buttonClassName={sBtn("primary", "lg", extra)}>
+        Send us your cake photo <span aria-hidden>↗</span>
+      </CustomRequestSheet>
+    ) : to ? (
       <CustomEnquiry to={to} cakeLink={null} title="Your own cake design" buttonClassName={sBtn("primary", "lg", extra)}>
         Send us your cake photo <span aria-hidden>↗</span>
       </CustomEnquiry>
