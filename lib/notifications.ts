@@ -1,6 +1,7 @@
 import "server-only";
 import { Prisma, type NotificationKind } from "@prisma/client";
 import { db } from "./db";
+import { sendEmail } from "./email";
 import { log } from "./log";
 import { sendWhatsApp, type WhatsAppMessage } from "./whatsapp";
 
@@ -91,7 +92,11 @@ export async function dispatchPendingNotifications(limit = 20): Promise<{
     const claim = { id: candidate.id, status: "sending" as const, attempts: candidate.attempts + 1, availableAt: leaseUntil };
 
     try {
-      await (candidate.channel === "whatsapp" ? sendWhatsAppRow(candidate) : sendWebhook(candidate));
+      await (candidate.channel === "email"
+        ? sendEmail(candidate)
+        : candidate.channel === "whatsapp"
+          ? sendWhatsAppRow(candidate)
+          : sendWebhook(candidate));
       const completed = await db.notificationOutbox.updateMany({
         where: claim,
         data: { status: "sent", sentAt: new Date(), lastError: null },
