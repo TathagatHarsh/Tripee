@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { formatINR } from "./format";
 import { outboxCreate } from "./notifications";
+import { siteUrl } from "./whatsapp";
 import { formatDue } from "./whatsappMessages";
 
 /**
@@ -37,7 +38,7 @@ const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 export function orderConfirmationEmail(f: ConfirmationFacts): RenderedEmail {
-  const link = `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/orders/${f.ref}`;
+  const link = `${siteUrl()}/orders/${f.ref}`;
   const when = `${formatDue(f.dueAt)}${f.slot ? ` (${f.slot})` : ""}`;
   const rows: [string, string][] = [
     ["Order", f.ref],

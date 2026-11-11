@@ -79,3 +79,12 @@ describe('queueOrderConfirmationEmail', () => {
     expect(arg.create.payload.subject).toContain('is confirmed');
   });
 });
+
+describe('tracking link', () => {
+  it('is absolute even when NEXT_PUBLIC_SITE_URL is unset', () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', undefined as unknown as string);
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    const e = orderConfirmationEmail(facts);
+    expect(e.text).toContain('https://makeyourcakes.com/orders/MYC-ABC123');
+  });
+});

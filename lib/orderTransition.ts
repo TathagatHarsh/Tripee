@@ -72,6 +72,13 @@ export async function applyStatusTransition(
       },
     });
 
+    /* A "your order is confirmed" email still waiting in the outbox would now be
+       wrong (e.g. auto-assignment found no bakery and cancelled it moments later). */
+    if (to === "cancelled")
+      await tx.notificationOutbox.updateMany({
+        where: { orderId: order.id, channel: "email", status: { in: ["pending", "failed"] } },
+        data: { status: "failed", attempts: 8, lastError: "order_cancelled" },
+      });
     if (to === "cancelled")
       await tx.vendorOrder.updateMany({
         where: { orderId: order.id, assignmentStatus: "PENDING" },
