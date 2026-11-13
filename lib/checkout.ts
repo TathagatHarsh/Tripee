@@ -241,6 +241,8 @@ export const QuoteRequest = z
         slot: DeliverySlot,
         pincode: z.string().trim().optional(),
         requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        /** The scheduled window's label; checkout sends it, older clients may not. */
+        requestedWindow: z.string().trim().max(120).optional(),
       })
       .superRefine((f, ctx) => {
         if (f.method === "pickup" && f.slot !== "pickup") {
@@ -940,15 +942,19 @@ export async function refForAttempt(
   return "MC-" + slugFromBytes(new Uint8Array(digest)).toUpperCase();
 }
 
-/** Order identity excludes mutable quote estimates and server-owned window prose. */
+/**
+ * Order identity excludes mutable quote estimates and server-owned window prose.
+ * A scheduled window is the customer's choice, so it stays part of the identity.
+ */
 export function checkoutIntent(
   body: Pick<
     CheckoutRequest,
     "items" | "customerName" | "customerPhone" | "fulfillment"
   > & { designSlug?: string },
 ) {
-  const { requestedWindow: _window, ...fulfillment } = body.fulfillment;
-  void _window;
+  const { requestedWindow, ...rest } = body.fulfillment;
+  const fulfillment =
+    body.fulfillment.slot === "scheduled" ? { ...rest, requestedWindow } : rest;
   return {
     items: body.items.map(({ quotedTotalPaise: _quote, ...item }) => {
       void _quote;

@@ -132,3 +132,19 @@ export function checkChoice(
     return { ok: false, message: "That time has passed — choose a later window." };
   return { ok: true, requestedFor: w.start, dueAt: w.end, window: w.label };
 }
+
+/** A builder cake (any item with a config) takes the custom lead time for the whole order. */
+export function cakeKindOf(items: { config?: unknown }[]): CakeKind {
+  return items.some((i) => i.config) ? "custom" : "ready";
+}
+
+/** The checkout wire format as a choice; null for a legacy slot. */
+export function choiceFromFulfillment(f: {
+  slot: string;
+  requestedDate: string;
+  requestedWindow: string;
+}): DeliveryChoice | null {
+  if (f.slot === "asap") return { slot: "asap" };
+  if (f.slot === "scheduled") return { slot: "scheduled", date: f.requestedDate, window: f.requestedWindow };
+  return null;
+}

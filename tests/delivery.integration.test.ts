@@ -1,11 +1,21 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
+// Checkout, below, runs the real /api/orders route and payment recovery outside a Next request.
+vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn, revalidateTag: () => {}, revalidatePath: () => {}, updateTag: () => {} }));
+vi.mock('../lib/auth', () => ({ getViewer: async () => null }));
+vi.mock('../lib/guestOrders', () => ({ rememberGuestOrders: async () => {} }));
+vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/server')>()), after: () => {} }));
 vi.mock('../lib/mapping', () => ({ getDistanceMatrix: vi.fn(async (origins: unknown[]) => origins.map(() => ({ distanceKm: 2, estimatedMinutes: 10, source: 'test' }))) }));
 import { db } from '../lib/db';
 import { assignmentCandidates, manualAssignment, moveFulfillment, respondToAssignment } from '../lib/assignment';
 import { applyStatusTransition } from '../lib/orderTransition';
 import { vendorNext } from '../lib/vendors';
 import { isCovered } from '../lib/coverage';
+import { DEFAULT_ROWS } from '../lib/catalogDefaults';
+import { asJson, validateCheckout } from '../lib/checkoutValidate';
+import { recoverPayment } from '../lib/paymentRecovery';
+import { POST as placeOrder } from '../app/api/orders/route';
 
 /**
  * One order from confirmed to the customer's door, the way the portals drive it
@@ -128,5 +138,118 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
     const candidate = (await assignmentCandidates(order.ref)).find((c) => c.vendorId === vendor.id)!;
     expect(candidate.eligible).toBe(false);
     expect(candidate.reasons).toContain('Outside service area');
+  });
+
+  describe('checkout against the delivery rules', () => {
+    const keys: string[] = [];
+    const slug = `delivery-test-checkout-${randomUUID().slice(0, 8)}`;
+    let variantId = '';
+    let createdStandardRow = false;
+
+    const basket = (slot: string, requestedDate: string, requestedWindow: string) => {
+      const idempotencyKey = randomUUID();
+      keys.push(idempotencyKey);
+      return {
+        idempotencyKey, customerName: 'Rules Customer', customerPhone: '9876543210',
+        items: [{ cakeSlug: slug, variantId, qty: 1, choices: { delivery: slot } }],
+        fulfillment: { method: 'delivery', slot, recipientName: 'Rules Customer', addressLine1: '12 Test Street', city: 'Hyderabad', state: 'Telangana', pincode: '500081', requestedDate, requestedWindow, location: { lat: 17.44, lng: 78.38, placeId: '' } },
+      };
+    };
+    const offline = (body: unknown) => {
+      vi.stubEnv('PAYMENT_MODE', 'offline');
+      vi.stubEnv('RAZORPAY_KEY_ID', '');
+      vi.stubEnv('RAZORPAY_KEY_SECRET', '');
+      vi.stubEnv('SERVICE_AREA', 'hyderabad');
+      return placeOrder(new Request('http://localhost/api/orders', { method: 'POST', body: JSON.stringify(body) }));
+    };
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    });
+    afterAll(async () => {
+      await db.order.deleteMany({ where: { checkoutAttempt: { id: { in: keys } } } });
+      await db.checkoutAttempt.deleteMany({ where: { id: { in: keys } } });
+      await db.paymentRecovery.deleteMany({ where: { id: { in: keys } } });
+      await db.cakeProduct.deleteMany({ where: { slug } });
+      if (createdStandardRow) await db.catalogOption.deleteMany({ where: { category: 'delivery', value: 'standard' } });
+    });
+
+    beforeAll(async () => {
+      const product = await db.cakeProduct.create({
+        data: {
+          slug, name: 'Rules Test Cake', description: 'Test', category: 'chocolate', pricePaise: 189900, sizeBand: '2kg',
+          productionSpec: { version: 1, allergens: ['Egg', 'Milk'], ingredients: ['vanilla sponge'], dietaryClaims: [], preparationNotes: 'Test cake.', kitchenInstructions: 'Test cake.', allergenStatementReviewed: true },
+          variants: { create: { sizeBand: '2kg', eggType: 'eggless', pricePaise: 189900 } },
+        },
+        include: { variants: true },
+      });
+      variantId = product.variants[0].id;
+    });
+
+    it('an ASAP ready-made order stores dueAt = now+4h, its window label and fee 15000', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-20T11:00:00+05:30'));
+      const res = await offline(basket('asap', '2026-11-20', 'asap'));
+      const json = await res.json();
+      expect(res.status, JSON.stringify(json)).toBe(201);
+      const order = await db.order.findUniqueOrThrow({ where: { ref: json.orderId } });
+      expect(order.dueAt).toEqual(new Date('2026-11-20T15:00:00+05:30'));
+      expect(order.requestedFor).toEqual(new Date('2026-11-20T13:00:00+05:30'));
+      expect(order.requestedWindow).toBe('13:00–15:00');
+      expect(order.deliverySlot).toBe('asap');
+      expect(order.deliveryFeePaise).toBe(15000);
+    });
+
+    it('refuses an ASAP order arriving at 18:00:01', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-20T18:00:01+05:30'));
+      const res = await offline(basket('asap', '2026-11-20', 'asap'));
+      expect(res.status).toBe(422);
+      const json = await res.json();
+      expect(json).toMatchObject({ code: 'schedule_unavailable', field: 'requestedDate' });
+      expect(json.error).toMatch(/stopped taking orders/);
+    });
+
+    it('refuses a legacy slot on a new checkout', async () => {
+      const res = await offline(basket('standard', new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10), 'x'));
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({ code: 'slot_retired', error: 'That delivery option has changed. Choose a delivery time again.' });
+    });
+
+    it('recovery of a legacy-slot attempt is not refused', async () => {
+      // As on the live shop, where the standard row predates its withdrawal from the defaults.
+      if (!(await db.catalogOption.findFirst({ where: { category: 'delivery', value: 'standard' } }))) {
+        const row = DEFAULT_ROWS.find((r) => r.category === 'delivery' && r.value === 'standard')!;
+        await db.catalogOption.create({ data: { ...row, isAvailable: true } });
+        createdStandardRow = true;
+      }
+      vi.stubEnv('SERVICE_AREA', 'hyderabad');
+      const body = basket('standard', new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10), 'x');
+      const checked = await validateCheckout(body, 'test', true);
+      if (checked.kind !== 'checked') throw new Error(`legacy basket did not validate: ${checked.kind === 'problem' ? await checked.response.text() : checked.kind}`);
+      const amount = checked.checked.review.totalPaise;
+      // What /api/payments/intent saved before the slot was retired.
+      await db.paymentRecovery.create({ data: { id: body.idempotencyKey, request: asJson(checked.checked.body), payloadHash: checked.checked.hash } });
+
+      const tag = randomUUID().replaceAll('-', '').slice(0, 10);
+      const orderId = `order_DR${tag}`, paymentId = `pay_DR${tag}`;
+      vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_abc');
+      vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
+      vi.stubGlobal('fetch', vi.fn(async (input: unknown) => {
+        const target = String(input);
+        if (target.endsWith(`/payments/${paymentId}`)) return Response.json({ id: paymentId, order_id: orderId, status: 'captured', amount, amount_refunded: 0, currency: 'INR' });
+        if (target.endsWith(`/orders/${orderId}`)) return Response.json({ id: orderId, receipt: body.idempotencyKey, amount, currency: 'INR' });
+        throw new Error(`unexpected fetch ${target}`);
+      }));
+
+      await recoverPayment(paymentId);
+
+      const order = await db.order.findFirstOrThrow({ where: { razorpayPaymentId: paymentId } });
+      expect(order).toMatchObject({ deliverySlot: 'standard', paymentStatus: 'paid', requestedWindow: '10:00–20:00' });
+      expect(order.dueAt).toEqual(order.requestedFor);
+      expect(await db.paymentRecovery.findUnique({ where: { id: body.idempotencyKey } })).toMatchObject({ status: 'completed' });
+    });
   });
 });

@@ -26,7 +26,6 @@ import {
   productionSpecFromConfig,
 } from "@/lib/productionSpec";
 import { paymentMatches } from "@/lib/razorpay";
-import { slotWindow } from "@/lib/scheduling";
 import { deriveServings, servingsForSize } from "@/lib/servings";
 import { whatsappNewOrder } from "@/lib/whatsappEvents";
 import { queueOrderConfirmationEmail } from "@/lib/orderEmail";
@@ -70,7 +69,7 @@ export async function placeCheckout(
   traceId: string,
   userId: string | null,
 ): Promise<Response> {
-  const validated = await validateCheckout(raw, traceId);
+  const validated = await validateCheckout(raw, traceId, payment !== null);
   if (validated.kind === "problem") return validated.response;
   if (validated.kind === "replay") {
     await refundExtraPayment(validated.order, payment);
@@ -79,7 +78,7 @@ export async function placeCheckout(
       { headers: { "x-request-id": traceId } },
     );
   }
-  const { body, hash, customerName, customerPhone, review, requestedFor } =
+  const { body, hash, customerName, customerPhone, review, requestedFor, dueAt, requestedWindow } =
     validated.checked;
 
   const [design, bakery] = await Promise.all([
@@ -102,6 +101,8 @@ export async function placeCheckout(
       userId,
       designId: design?.id ?? null,
       requestedFor,
+      dueAt,
+      requestedWindow,
       notificationDestination: bakery?.orderNotifyEmail ?? null,
       payment,
     });
@@ -170,6 +171,8 @@ interface CreateInput {
   userId: string | null;
   designId: string | null;
   requestedFor: Date;
+  dueAt: Date;
+  requestedWindow: string;
   notificationDestination: string | null;
   payment: PaymentProof | null;
 }
@@ -346,7 +349,7 @@ async function createOrder(
           payablePaise: input.review.totalPaise,
           status: input.fulfillment.method === "delivery" ? "confirmed" : "draft",
           confirmedAt: input.fulfillment.method === "delivery" ? new Date() : null,
-          dueAt: input.fulfillment.method === "delivery" ? input.requestedFor : null,
+          dueAt: input.fulfillment.method === "delivery" ? input.dueAt : null,
           userId: input.userId,
           paymentStatus: input.payment ? "paid" : "none",
           razorpayOrderId: input.payment?.razorpayOrderId,
@@ -400,7 +403,7 @@ async function createOrder(
           deliverySlot: input.fulfillment.slot,
           leadHours: input.quotes[0].slot.effectiveLeadHours,
           requestedFor: input.requestedFor,
-          requestedWindow: slotWindow(input.quotes[0].slot),
+          requestedWindow: input.requestedWindow,
           deliveryInstructions: input.fulfillment.deliveryInstructions || null,
           customerNotes: input.fulfillment.customerNotes || null,
           occasion: input.fulfillment.occasion || null,

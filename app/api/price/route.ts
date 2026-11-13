@@ -25,6 +25,7 @@ import { validateCake } from "@/lib/rules";
 import { QuoteRequest, reviewBasket } from "@/lib/checkout";
 import { db, hasDatabase } from "@/lib/db";
 import { scheduleVerdict, requestedDayRange } from "@/lib/scheduling";
+import { cakeKindOf, checkChoice, choiceFromFulfillment } from "@/lib/deliveryRules";
 
 /**
  * The authoritative price. The client runs the same functions for the live
@@ -90,10 +91,14 @@ export async function POST(req: Request) {
       return Response.json({ error: "Custom cakes are not available yet.", code: "builder_unavailable" }, { status: 422 });
     }
     const fulfillment = parsed.data.fulfillment;
-    const schedule = scheduleVerdict(
-      fulfillment.requestedDate,
-      resolveSlot(fulfillment.slot, fulfillment.pincode, catalog),
-    );
+    // The same check placement runs (lib/checkoutValidate), so the preview and the order agree.
+    const choice = choiceFromFulfillment({ ...fulfillment, requestedWindow: fulfillment.requestedWindow ?? "" });
+    const schedule = choice
+      ? checkChoice(choice, new Date(), cakeKindOf(parsed.data.items), catalog.deliveryRules)
+      : scheduleVerdict(
+          fulfillment.requestedDate,
+          resolveSlot(fulfillment.slot, fulfillment.pincode, catalog),
+        );
     if (!schedule.ok) {
       return Response.json(
         { error: schedule.message, code: "schedule_unavailable" },

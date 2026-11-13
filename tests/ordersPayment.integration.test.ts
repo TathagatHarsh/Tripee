@@ -29,7 +29,8 @@ if (url) process.env.DATABASE_URL = url;
 const run = randomUUID().replaceAll('-', '').slice(0, 8);
 const slug = `pay-route-${run}`;
 const keys: string[] = [];
-const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+// Cases were written 35–50 days out for the retired standard slot; scheduled orders reach 14 days, so 35 is tomorrow.
+const day = (n: number) => new Date(Date.now() + (n - 34) * 86_400_000).toISOString().slice(0, 10);
 const sign = (order: string, pay: string) => createHmac('sha256', 'secret').update(`${order}|${pay}`).digest('hex');
 const proof = (name: string) => {
   const razorpayOrderId = `order_RT${run}${name}`;
@@ -56,8 +57,8 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
       idempotencyKey,
       customerName: 'Route Customer',
       customerPhone: '9876543210',
-      items: [{ cakeSlug: slug, variantId, qty: 1, choices: { delivery: 'standard' } }],
-      fulfillment: { method: 'delivery', slot: 'standard', recipientName: 'Route Customer', addressLine1: '12 Test Street', city: 'Hyderabad', state: 'Telangana', pincode: '500081', requestedDate: date, requestedWindow: 'x', location: { lat: 17.44, lng: 78.38, placeId: '' } },
+      items: [{ cakeSlug: slug, variantId, qty: 1, choices: { delivery: 'scheduled' } }],
+      fulfillment: { method: 'delivery', slot: 'scheduled', recipientName: 'Route Customer', addressLine1: '12 Test Street', city: 'Hyderabad', state: 'Telangana', pincode: '500081', requestedDate: date, requestedWindow: '12:00–14:00', location: { lat: 17.44, lng: 78.38, placeId: '' } },
     };
   };
   const intent = async (body: ReturnType<typeof basket>, razorpayOrderId: string) => {
@@ -164,7 +165,7 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
   });
   it('rejects disabled builder configurations before opening a payment intent', async () => {
     const body = basket(day(35));
-    const res = await post(openIntent, { ...body, items: [{ config: { ...DEFAULT_CAKE, pincode: '500081' }, qty: 1 }] });
+    const res = await post(openIntent, { ...body, items: [{ config: { ...DEFAULT_CAKE, delivery: 'scheduled', pincode: '500081' }, qty: 1 }] });
     expect(res.status).toBe(422);
     expect(await res.json()).toMatchObject({ code: 'builder_unavailable' });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -354,7 +355,7 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
   });
 
   it('a saved payment sent with changed details, after its order exists, is answered with that order', async () => {
-    const body = basket(day(49));
+    const body = basket(day(38));
     const paid = proof('I');
     await intent(body, paid.razorpayOrderId);
     const placed = await (await post(placeOrder, { ...body, payment: paid })).json();
@@ -371,7 +372,7 @@ describe.skipIf(!url)('paid /api/orders on isolated PostgreSQL', () => {
     vi.stubEnv('RAZORPAY_KEY_ID', '');
     vi.stubEnv('RAZORPAY_KEY_SECRET', '');
 
-    const res = await post(placeOrder, basket(day(50)));
+    const res = await post(placeOrder, basket(day(39)));
     const json = await res.json();
 
     expect(res.status).toBe(201);

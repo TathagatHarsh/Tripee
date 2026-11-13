@@ -19,7 +19,8 @@ import {
 } from "@/lib/checkout";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { log } from "@/lib/log";
-import { scheduleVerdict } from "@/lib/scheduling";
+import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
+import { cakeKindOf, checkChoice, choiceFromFulfillment, istDate } from "@/lib/deliveryRules";
 import { BUILDER_ENABLED } from "@/lib/flags";
 import { PICKUP_OPEN, resolveSlot } from "@/lib/delivery";
 
@@ -116,6 +117,8 @@ export type Checked = {
   customerPhone: string;
   review: SuccessfulReview;
   requestedFor: Date;
+  dueAt: Date;
+  requestedWindow: string;
 };
 
 export type Validation =
@@ -127,10 +130,14 @@ export type Validation =
  * `raw` is the parsed JSON body; the cross-site check, rate limit and JSON
  * parsing stay in each route. `traceId` only labels the 400 and the log line,
  * so a route that has one passes it and the response header does not change.
+ * `paid`: a payment proof came with the request (the browser's confirm or
+ * payment recovery), so its basket already passed the intent's check, possibly
+ * before the legacy slots were retired; those still complete.
  */
 export async function validateCheckout(
   raw: unknown,
   traceId: string = crypto.randomUUID(),
+  paid = false,
 ): Promise<Validation> {
   const problem = (response: Response): Validation => ({ kind: "problem", response });
 
@@ -235,19 +242,39 @@ export async function validateCheckout(
     );
   }
 
-  const slotInfo = resolveSlot(body.fulfillment.slot, body.fulfillment.pincode, catalog);
-  const schedule = scheduleVerdict(body.fulfillment.requestedDate, slotInfo);
-  if (!schedule.ok) {
+  const scheduleProblem = (error: string | null) =>
+    problem(
+      Response.json(
+        { error, code: "schedule_unavailable", field: "requestedDate" },
+        { status: 422 },
+      ),
+    );
+  let when: { requestedFor: Date; dueAt: Date; requestedWindow: string };
+  const choice = choiceFromFulfillment(body.fulfillment);
+  if (choice) {
+    const now = new Date();
+    const verdict = checkChoice(choice, now, cakeKindOf(body.items), catalog.deliveryRules);
+    if (!verdict.ok) return scheduleProblem(verdict.message);
+    // ASAP's date is not the customer's to pick; it must be today's, which is what the blackout check reads.
+    if (choice.slot === "asap" && body.fulfillment.requestedDate !== istDate(now))
+      return scheduleProblem("Choose a delivery time again.");
+    when = { requestedFor: verdict.requestedFor, dueAt: verdict.dueAt, requestedWindow: verdict.window };
+  } else if (body.fulfillment.method === "delivery" && !paid) {
     return problem(
       Response.json(
         {
-          error: schedule.message,
-          code: "schedule_unavailable",
-          field: "requestedDate",
+          error: "That delivery option has changed. Choose a delivery time again.",
+          code: "slot_retired",
+          field: "slot",
         },
         { status: 422 },
       ),
     );
+  } else {
+    const slotInfo = resolveSlot(body.fulfillment.slot, body.fulfillment.pincode, catalog);
+    const schedule = scheduleVerdict(body.fulfillment.requestedDate, slotInfo);
+    if (!schedule.ok) return scheduleProblem(schedule.message);
+    when = { requestedFor: schedule.requestedFor, dueAt: schedule.requestedFor, requestedWindow: slotWindow(slotInfo) };
   }
 
   const items = body.items.map((item) => {
@@ -338,7 +365,7 @@ export async function validateCheckout(
       customerName,
       customerPhone,
       review,
-      requestedFor: schedule.requestedFor,
+      ...when,
     },
   };
 }
