@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 export type TemplateComponent = Record<string, unknown>;
 export type WhatsAppMessage =
-  | { type: "template"; name: "order_offer" | "admin_new_order" | "order_update" | "custom_offer" | "custom_quote" | "customer_order_confirmed" | "customer_out_for_delivery" | "customer_order_delivered" | "customer_order_cancelled"; components: TemplateComponent[] }
+  | { type: "template"; name: "order_offer" | "admin_new_order" | "order_update" | "custom_offer" | "custom_quote" | "customer_order_confirmed" | "customer_out_for_delivery" | "customer_order_delivered" | "customer_order_cancelled" | "verify_code"; components: TemplateComponent[] }
   | { type: "text"; body: string }
   | { type: "buttons"; body: string; buttons: { id: string; title: string }[] };
 

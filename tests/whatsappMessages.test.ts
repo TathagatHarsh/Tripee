@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('../lib/log', () => ({ log: vi.fn() }));
 vi.mock('../lib/db', () => ({ db: {} }));
 import { photoUrl, type WhatsAppMessage } from '../lib/whatsapp';
-import { acceptedMessage, handedOverMessage, adminNewOrderMessage, cleanParam, customOfferMessage, customQuoteMessage, formatDue, offerMessage, queueWhatsApp, rupees, textMessage, updateMessage } from '../lib/whatsappMessages';
+import { acceptedMessage, handedOverMessage, adminNewOrderMessage, cleanParam, customOfferMessage, customQuoteMessage, formatDue, offerMessage, queueWhatsApp, rupees, textMessage, updateMessage, verifyCodeMessage } from '../lib/whatsappMessages';
 
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks(); });
 
@@ -59,6 +59,13 @@ describe('builders', () => {
       buttons: [{ id: 'deliver:as1', title: 'Collected' }] });
   });
   it('textMessage wraps the body', () => { expect(textMessage('hi')).toEqual({ type: 'text', body: 'hi' }); });
+  it('verifyCodeMessage: code in body and copy-code button 0', () => {
+    const m = verifyCodeMessage('042917');
+    expect(m).toEqual({ type: 'template', name: 'verify_code', components: [
+      { type: 'body', parameters: [{ type: 'text', text: '042917' }] },
+      { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: '042917' }] },
+    ] });
+  });
 });
 
 describe('queueWhatsApp', () => {
