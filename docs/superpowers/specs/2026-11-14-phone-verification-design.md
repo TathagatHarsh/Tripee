@@ -75,7 +75,7 @@ No code or token is stored server-side, so no migration is needed.
 1. `crossSite` → 403.
 2. `PHONE_VERIFICATION` not on → 404.
 3. `indianMobile(phone)` null → 400, `field: "customerPhone"`.
-4. `rateLimit("phone-send", callerKey(req), { max: 5, windowSeconds: 3600 })` and `rateLimit("phone-send-number", phone, { max: 3, windowSeconds: 3600 })` → `tooMany`.
+4. `rateLimit("phone-send", callerKey(req), { max: 20, windowSeconds: 3600 })` and `rateLimit("phone-send-number", phone, { max: 3, windowSeconds: 3600 })` → `tooMany`.
 5. `issueCode`, then `sendWhatsApp(phone, verifyCodeMessage(code))`. If it throws → 503 with the "couldn't send" message, and the error is logged (`phone_code_send_failed`, without the code).
 6. 200 `{ token }`.
 
@@ -95,7 +95,7 @@ Right after the existing `phoneOk` check, when `PHONE_VERIFICATION` is on **and*
 - read `myc_phone` with `cookies()` from `next/headers` (as `lib/guestOrders.ts` does)
 - if `provenPhone(cookie) !== indianMobile(customerPhone)` → 422 `{ error: "Verify your number on WhatsApp to continue.", code: "phone_unverified", field: "customerPhone" }`
 
-This covers `/api/payments/intent` (before any money moves) and `/api/orders` when online payment is off. A confirmation that already carries a payment (`paid = true`) is never refused, which keeps the existing rule that nothing but a malformed request is refused after payment. An idempotent replay of a completed attempt returns before this point, as it does today.
+This covers `/api/payments/intent` (before any money moves) and `/api/orders` when online payment is off. A confirmation that already carries a payment (`paid = true`) is never refused, which keeps the existing rule that nothing but a malformed request is refused after payment. The phone check runs before the idempotent-replay lookup, so an unpaid retry without a valid cookie is asked to verify again; a paid confirmation or recovery is never refused.
 
 The check sits in `validateCheckout`, so the two routes cannot disagree.
 

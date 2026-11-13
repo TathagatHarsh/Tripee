@@ -37,7 +37,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
     listCakes(),
   ]);
   const closedDays = await loadClosedDays(catalog.deliveryRules.preorderDays);
-  const verified = provenPhone((await cookies()).get(PHONE_COOKIE)?.value);
+  const verified = phoneVerificationOn() ? provenPhone((await cookies()).get(PHONE_COOKIE)?.value) : null;
 
   return (
     <div className="s-root flex min-h-dvh flex-col bg-s-cream">

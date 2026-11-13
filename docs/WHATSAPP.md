@@ -70,11 +70,11 @@ The admin does these. Code can't.
 7. WhatsApp, Configuration, Webhook: callback URL `https://<site>/api/whatsapp/webhook`, the verify token (`WHATSAPP_VERIFY_TOKEN`), and subscribe to **messages**.
 8. WhatsApp Manager, Message templates: create the ten templates below (five for bakeries and the admin, four for customers, and the verification code template).
 
-Business verification is not needed to start. The unverified limit (250 recipients a day) is far above a few bakeries plus the admin.
+Business verification is not needed to start, except that Meta may ask for it before allowing the `verify_code` Authentication template (see below). The unverified limit (250 recipients a day) is far above a few bakeries plus the admin.
 
 ### Templates
 
-The nine above: category **Utility**, language **English** (`en`). The verification code template is the exception (see below). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
+The nine bakery, admin and customer templates: category **Utility**, language **English** (`en`). The verification code template is the exception (see below). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
 
 | Name | Header | Body | Buttons |
 |---|---|---|---|
@@ -174,6 +174,11 @@ Used to confirm a customer's phone number. Name `verify_code`, category **Authen
 - Turn on **Add expiry time**, set to 10 minutes.
 
 Meta may ask for Business Verification before it allows Authentication templates. Turn on `PHONE_VERIFICATION` only once this template is **Active**.
+
+Before turning on `PHONE_VERIFICATION`:
+
+- On the production edge, confirm what `callerKey` resolves to. The per-caller send limit keys on the last `x-forwarded-for` entry, which behind Cloudflare/Railway may be a proxy IP shared by many customers.
+- On the preview, verify a real code and inspect the `Set-Cookie` from `/api/phone/verify` (`myc_phone; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`), then complete a test payment.
 
 ## Pinger (every-minute timer)
 

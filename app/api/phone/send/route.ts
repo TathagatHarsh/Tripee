@@ -19,10 +19,21 @@ export async function POST(req: Request) {
   const phone = typeof body?.phone === "string" ? indianMobile(body.phone) : null;
   if (!phone) return fail("Enter a 10-digit mobile number", 400, { field: "customerPhone" });
 
-  const byCaller = rateLimit("phone-send", callerKey(req), { max: 5, windowSeconds: 3600 });
+  const byCaller = rateLimit("phone-send", callerKey(req), { max: 20, windowSeconds: 3600 });
   if (!byCaller.ok) return tooMany(byCaller, "verification codes");
   const byNumber = rateLimit("phone-send-number", phone, { max: 3, windowSeconds: 3600 });
-  if (!byNumber.ok) return tooMany(byNumber, "verification codes for this number");
+  if (!byNumber.ok) {
+    const minutes = Math.max(1, Math.ceil(byNumber.retryAfter / 60));
+    return Response.json(
+      {
+        error:
+          `Too many codes sent to this number. Please wait ${minutes === 1 ? "a minute" : `about ${minutes} minutes`} `
+          + "and try again, or write to hello@makeyourcakes.com.",
+        code: "rate_limited",
+      },
+      { status: 429, headers: { "retry-after": String(byNumber.retryAfter) } },
+    );
+  }
 
   try {
     const { code, token } = issueCode(phone);

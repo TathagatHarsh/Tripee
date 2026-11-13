@@ -79,7 +79,10 @@ describe("phone routes", () => {
     });
     it("429 on the 4th send to one number in an hour, even from different IPs", async () => {
       for (let i = 0; i < 3; i++) expect((await sendTo("9876500006")).status).toBe(200);
-      expect((await sendTo("9876500006")).status).toBe(429);
+      const res = await sendTo("9876500006");
+      expect(res.status).toBe(429);
+      expect(res.headers.get("retry-after")).toBeTruthy();
+      expect((await res.json()).error).toMatch(/^Too many codes sent to this number\. Please wait (a minute|about \d+ minutes) and try again, or write to hello@makeyourcakes\.com\.$/);
     });
   });
 
