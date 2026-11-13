@@ -73,7 +73,8 @@ export const CustomRequestInput = z.object({
   budgetRupees: z.number().int().min(100).max(100_000).optional(),
   flavour: z.string().trim().min(1).max(60),
   cakeMessage: z.string().trim().max(60).optional(),
-  dueAt: z.iso.datetime({ offset: true }),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dueWindow: z.string().min(1).max(20),
   address: z.object({
     lat: z.number(), lng: z.number(), address: z.string(), locality: z.string().optional(),
     source: z.enum(["map", "current_location"]).optional(),
@@ -82,3 +83,5 @@ export const CustomRequestInput = z.object({
   consent: z.literal(true),
 });
 export type CustomRequestInput = z.infer<typeof CustomRequestInput>;
+/** What is stored: the picked window collapses to its end, `dueAt`. */
+export type NewCustomRequest = Omit<CustomRequestInput, "dueDate" | "dueWindow"> & { dueAt: string };

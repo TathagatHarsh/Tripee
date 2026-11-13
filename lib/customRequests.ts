@@ -6,7 +6,7 @@ import { haversine, pointFrom } from "./assignmentRules";
 import { refForAttempt, type PaymentProof } from "./checkout";
 import { refundPayment } from "./checkoutPayment";
 import { refundOperationStatus } from "./refunds";
-import { canMoveCustom, customerPricePaise, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, quoteExpiresAt, type CustomRequestInput } from "./customRules";
+import { canMoveCustom, customerPricePaise, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, quoteExpiresAt, type NewCustomRequest } from "./customRules";
 import { db } from "./db";
 import { meetsDeadline } from "./inventoryRules";
 import { log } from "./log";
@@ -38,7 +38,7 @@ export async function nextBakery(tx: Prisma.TransactionClient, request: CustomRe
 }
 
 /** Stores the photo and the request, then offers it to the nearest bakery after the response. */
-export async function createCustomRequest(input: CustomRequestInput, photo: Buffer): Promise<{ ref: string }> {
+export async function createCustomRequest(input: NewCustomRequest, photo: Buffer): Promise<{ ref: string }> {
   const phone = indianMobile(input.phone);
   if (!phone) throw new Error("Invalid phone number");
   for (let attempt = 0; ; attempt++) {

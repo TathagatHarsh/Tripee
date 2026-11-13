@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LocationSheet } from "@/components/shop/LocationSheet";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
 import { CUSTOM_SIZES_KG } from "@/lib/customRules";
-import { TIMES } from "@/lib/customEnquiry";
+import { deliveryChoices } from "@/lib/deliveryRules";
 import type { LocatedAddress } from "@/lib/location";
 import { sBtn, sField } from "@/lib/shopUi";
 
@@ -34,9 +34,6 @@ export function CustomRequestSheet({ catalog, buttonClassName, children }: { cat
 }
 
 const label = "flex flex-col gap-1.5 text-[0.875rem] font-semibold text-s-cocoa";
-const todayIST = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-// Start of each time window, hh:mm IST. Same order as TIMES.
-const TIME_START = ["12:00", "10:00", "13:00", "17:00", "23:30"];
 
 function Err({ errors, name }: { errors: Record<string, string[]>; name: string }) {
   return errors[name]?.length ? <span role="alert" className="text-[0.8125rem] font-normal text-s-berry">{errors[name][0]}</span> : null;
@@ -61,6 +58,11 @@ function Sheet({ catalog, onClose }: { catalog: CatalogSnapshot; onClose: () => 
   const [pickAddress, setPickAddress] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [problem, setProblem] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [dueWindow, setDueWindow] = useState("");
+  // Custom cakes need the longer lead time: the picker only offers windows the server will accept.
+  const days = useMemo(() => deliveryChoices(new Date(), "custom", catalog.deliveryRules).days, [catalog.deliveryRules]);
+  const pickedDay = days.find((d) => d.date === dueDate);
   const [busy, setBusy] = useState(false);
   const [ref, setRef] = useState<string | null>(null);
   useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.url); }, [photo]);
@@ -72,14 +74,15 @@ function Sheet({ catalog, onClose }: { catalog: CatalogSnapshot; onClose: () => 
     const local: Record<string, string[]> = {};
     if (!photo) local.photo = ["Add a photo of the cake you have in mind"];
     if (!address) local.address = ["Choose where to deliver"];
+    if (!pickedDay?.windows.some((w) => w.label === dueWindow)) local.dueAt = ["Choose a delivery date and window"];
     setErrors(local);
     setProblem("");
-    if (!photo || !address) return;
+    if (!photo || !address || local.dueAt) return;
     const data = {
       name: s("name"), phone: s("phone"), sizeKg: Number(s("sizeKg")), flavour: s("flavour"),
       ...(s("budget") ? { budgetRupees: Number(s("budget")) } : {}),
       ...(s("cakeMessage") ? { cakeMessage: s("cakeMessage") } : {}),
-      dueAt: `${s("date")}T${TIME_START[TIMES.indexOf(s("time"))] ?? "12:00"}:00+05:30`,
+      dueDate, dueWindow,
       address, consent: f.get("consent") === "on",
     };
     const body = new FormData();
@@ -181,18 +184,30 @@ function Sheet({ catalog, onClose }: { catalog: CatalogSnapshot; onClose: () => 
               <Err errors={errors} name="cakeMessage" />
             </label>
 
-            <div className="grid grid-cols-2 gap-3">
-              <label className={label}>
-                Delivery date
-                <input name="date" type="date" required min={todayIST()} className={sField()} />
-              </label>
-              <label className={label}>
-                Time
-                <select name="time" defaultValue={TIMES[0]} className={sField()}>
-                  {TIMES.map((t) => <option key={t}>{t}</option>)}
-                </select>
-              </label>
-            </div>
+            <label className={label}>
+              Delivery date
+              <input
+                name="date" type="date" required value={dueDate} className={sField()}
+                min={days[0]?.date} max={days[days.length - 1]?.date}
+                onChange={(e) => { setDueDate(e.target.value); setDueWindow(""); }}
+              />
+            </label>
+            {dueDate && (pickedDay?.windows.length ? (
+              <fieldset className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <legend className="mb-2 text-[0.875rem] font-semibold text-s-cocoa">Delivery window</legend>
+                {pickedDay.windows.map((w) => (
+                  <label
+                    key={w.label}
+                    className={`flex min-h-11 cursor-pointer items-center justify-center rounded-s-sm border px-3 text-sm tabular-nums has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-s-cocoa ${dueWindow === w.label ? "border-s-cocoa bg-s-cream-deep font-semibold" : "border-s-line"}`}
+                  >
+                    <input type="radio" name="window" value={w.label} checked={dueWindow === w.label} onChange={() => setDueWindow(w.label)} className="sr-only" />
+                    {w.label}
+                  </label>
+                ))}
+              </fieldset>
+            ) : (
+              <p role="status" className="text-[0.8125rem] text-s-bark">No windows left that day. Choose another date.</p>
+            ))}
             <Err errors={errors} name="dueAt" />
 
             <div className="flex flex-col gap-1.5">

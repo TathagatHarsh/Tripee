@@ -2,7 +2,8 @@ import { callerKey, CROSS_SITE_MESSAGE, crossSite, rateLimit, tooMany } from "@/
 import { getCatalogSnapshot } from "@/lib/catalogData";
 import { createCustomRequest } from "@/lib/customRequests";
 import { CustomRequestInput } from "@/lib/customRules";
-import { checkDeliveryServiceability, resolveSlot, zoneForPincode } from "@/lib/delivery";
+import { checkDeliveryServiceability } from "@/lib/delivery";
+import { checkChoice } from "@/lib/deliveryRules";
 import { log } from "@/lib/log";
 import { paymentCheckoutAvailable } from "@/lib/razorpay";
 import { ACCEPTED_TYPES, hasImageStore, MAX_UPLOAD_BYTES } from "@/lib/storage";
@@ -45,12 +46,12 @@ export async function POST(req: Request) {
   const catalog = await getCatalogSnapshot();
   if (!checkDeliveryServiceability({ postalCode: input.address.pincode }, catalog).serviceable)
     return fail("We don't deliver there yet", 422, { fieldErrors: { address: ["We don't deliver there yet"] } });
-  // The checkout's shortest lead time for this pincode: the quickest delivery window the zone offers.
-  const leadHours = Math.min(...(zoneForPincode(input.address.pincode, catalog)?.slots ?? []).filter((s) => s !== "pickup").map((s) => resolveSlot(s, input.address.pincode, catalog).effectiveLeadHours));
-  if (new Date(input.dueAt).getTime() < Date.now() + leadHours * 3600_000) return fail("Please choose a later date", 422, { fieldErrors: { dueAt: ["Please choose a later date"] } });
+  const verdict = checkChoice({ slot: "scheduled", date: input.dueDate, window: input.dueWindow }, new Date(), "custom", catalog.deliveryRules);
+  if (!verdict.ok) return fail(verdict.message, 422, { fieldErrors: { dueAt: [verdict.message] } });
+  const { dueDate: _d, dueWindow: _w, ...rest } = input;
 
   try {
-    const { ref } = await createCustomRequest(input, Buffer.from(await photo.arrayBuffer()));
+    const { ref } = await createCustomRequest({ ...rest, dueAt: verdict.dueAt.toISOString() }, Buffer.from(await photo.arrayBuffer()));
     return Response.json({ ref }, { status: 201 });
   } catch (error) {
     log("error", "custom_request_failed", { error: error instanceof Error ? error.message : String(error) });
