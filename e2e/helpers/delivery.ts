@@ -18,11 +18,16 @@ export async function deliveryDetails(page: Page) {
   await page
     .getByLabel("Flat / house no. and floor", { exact: true })
     .fill("12 Synthetic Test Street");
-  await page
-    .getByLabel("Requested date")
-    .fill(new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10));
+  await scheduleDelivery(page);
   await expect(page.getByText(/We deliver here/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^Place order/ }),
   ).toBeEnabled();
+}
+
+/** Schedules delivery five days out in the 10:00–12:00 window. */
+export async function scheduleDelivery(page: Page, days = 5) {
+  await page.getByRole("radio", { name: /^Schedule/ }).check();
+  await page.getByLabel("Delivery date").fill(new Date(Date.now() + days * 86400000).toISOString().slice(0, 10));
+  await page.getByRole("radio", { name: "10:00–12:00" }).check({ force: true });
 }

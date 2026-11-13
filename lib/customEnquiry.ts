@@ -22,7 +22,7 @@ export interface Enquiry {
 }
 
 export const SIZES = ["0.5 kg", "1 kg", "1.5 kg", "2 kg", "3 kg", "4 kg", "5 kg or more"];
-export const TIMES = ["Any time", "Morning (10am–1pm)", "Afternoon (1pm–5pm)", "Evening (5pm–9pm)", "Midnight (11:30pm–12:30am)"];
+export const TIMES = ["Any time", "Morning (8am–12pm)", "Afternoon (12pm–4pm)", "Evening (4pm–6pm)"];
 
 /** "Sun, 16 Nov 2026" for a YYYY-MM-DD, read as an Indian calendar date. */
 function readableDate(ymd: string): string {

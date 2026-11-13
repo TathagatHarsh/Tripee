@@ -1,25 +1,28 @@
 import type { Metadata } from "next";
 import { ContactLinks, PolicyPage, Section } from "@/components/shop/PolicyPage";
-import { getBakeryInfo } from "@/lib/catalogData";
+import { getBakeryInfo, tryCatalogSnapshot } from "@/lib/catalogData";
+import { DEFAULT_DELIVERY_RULES } from "@/lib/deliveryRules";
 
 export const metadata: Metadata = {
   title: "Delivery policy · MakeYourCakes",
-  description: "Where MakeYourCakes delivers, the delivery windows, and looking after your cake.",
+  description: "Where MakeYourCakes delivers, delivery times, and looking after your cake.",
 };
 
 const UPDATED = "9 November 2026";
 
+/** Minutes as hours for prose: 120 -> "2", 90 -> "1.5". */
+const hours = (m: number) => String(Math.round((m / 60) * 100) / 100);
+
 /**
- * Delivery and pickup.
- *
- * No window times or prices are printed here: they are rows the owner edits at
- * /admin/delivery, and checkout shows the live ones for the customer's pin and
- * date. Hyderabad is the service area (SERVICE_AREA, lib/coverage). The pickup
- * and tracking wording follows lib/orders' PICKUP_STATUS and the order page;
- * the storage advice is the docket's HANDLING block (lib/docket).
+ * Delivery and pickup. The delivery times and fee are read from the catalogue's
+ * delivery rules (admin Delivery rules form), never hard-coded. Hyderabad is
+ * the service area (SERVICE_AREA, lib/coverage). The pickup and tracking
+ * wording follows lib/orders' PICKUP_STATUS and the order page; the storage
+ * advice is the docket's HANDLING block (lib/docket).
  */
 export default async function ShippingPolicyPage() {
   const bakery = await getBakeryInfo();
+  const r = (await tryCatalogSnapshot())?.deliveryRules ?? DEFAULT_DELIVERY_RULES;
 
   return (
     <PolicyPage
@@ -31,15 +34,16 @@ export default async function ShippingPolicyPage() {
       <Section title="Where we deliver">
         <p>
           We deliver within Hyderabad. At checkout you drop a pin on your address, and we tell you
-          straight away whether we can deliver there and which delivery windows are open for it.
+          straight away whether we can deliver there.
         </p>
       </Section>
 
-      <Section title="Delivery windows and charges">
+      <Section title="Delivery times and charges">
         <ul>
-          <li>Checkout shows the windows available for your address and date, such as a standard daytime window, a same-day evening window, express delivery and midnight delivery, each with its price.</li>
-          <li>Every cake needs time to bake and decorate, so checkout only offers dates and windows we can meet.</li>
-          <li>The delivery charge is shown before you place the order and is included in your total.</li>
+          <li>We take orders {r.ordersFrom}–{r.ordersUntil}, every day.</li>
+          <li>Ready-made cakes arrive in {hours(r.readyMinMinutes)}–{hours(r.readyMaxMinutes)} hours; custom cakes in {hours(r.customMinMinutes)}–{hours(r.customMaxMinutes)} hours.</li>
+          <li>You can also schedule a {hours(r.windowMinutes)}-hour window up to {r.preorderDays} days ahead.</li>
+          <li>Delivery is a flat ₹{r.feePaise / 100}, shown before you place the order and included in your total.</li>
         </ul>
       </Section>
 
