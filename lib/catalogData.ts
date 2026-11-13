@@ -96,7 +96,13 @@ const load = unstable_cache(
       // resolver's "no zone" answer already says exactly that.
       db.deliveryZone.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
       db.bakerySettings.findUnique({ where: { id: "singleton" } }),
-      db.deliverySettings.findUnique({ where: { id: "singleton" } }),
+      // Tolerant on purpose, unlike every other read here: during a deploy that
+      // lands before `migrate deploy`, the table does not exist yet, and the
+      // spec says checkout keeps working on the default rules.
+      db.deliverySettings.findUnique({ where: { id: "singleton" } }).catch((e: unknown) => {
+        console.warn("delivery_settings_unreadable", e);
+        return null;
+      }),
     ]);
 
     return snapshotFrom(
