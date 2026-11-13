@@ -1,6 +1,6 @@
 process.env.TZ = "UTC";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DELIVERY_RULES as R, checkChoice, deliveryChoices } from "@/lib/deliveryRules";
+import { DEFAULT_DELIVERY_RULES as R, checkChoice, deliveryChoices, windowForPaid } from "@/lib/deliveryRules";
 
 const at = (s: string) => new Date(s + "+05:30");
 
@@ -49,5 +49,15 @@ describe("delivery rules", () => {
     expect(checkChoice({ slot: "scheduled", date: "2026-11-20", window: "12:00–14:00" }, at("2026-11-20T09:30:00"), "custom", R)).toMatchObject({ ok: false, message: "That time has passed — choose a later window." });
     expect(checkChoice({ slot: "scheduled", date: "2026-11-21", window: "09:00–11:00" }, at("2026-11-20T09:00:00"), "ready", R)).toMatchObject({ ok: false, message: "Choose a delivery window from the list." });
     expect(checkChoice({ slot: "scheduled", date: "2026-12-05", window: "10:00–12:00" }, at("2026-11-20T09:00:00"), "ready", R).ok).toBe(false);
+  });
+  it("windowForPaid never refuses for timing, only for a malformed choice", () => {
+    expect(windowForPaid({ slot: "asap" }, at("2026-11-20T18:00:01"), "ready", R)).toEqual({
+      ok: true, requestedFor: at("2026-11-20T20:00:01"), dueAt: at("2026-11-20T22:00:01"), window: "20:00–22:00",
+    });
+    expect(windowForPaid({ slot: "scheduled", date: "2026-11-20", window: "10:00–12:00" }, at("2026-11-20T15:00:00"), "ready", R)).toEqual({
+      ok: true, requestedFor: at("2026-11-20T10:00:00"), dueAt: at("2026-11-20T12:00:00"), window: "10:00–12:00",
+    });
+    expect(windowForPaid({ slot: "scheduled", date: "2026-11-20", window: "09:00–11:00" }, at("2026-11-20T08:00:00"), "ready", R).ok).toBe(false);
+    expect(windowForPaid({ slot: "scheduled", date: "20-11-2026", window: "10:00–12:00" }, at("2026-11-20T08:00:00"), "ready", R).ok).toBe(false);
   });
 });

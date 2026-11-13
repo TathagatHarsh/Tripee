@@ -20,7 +20,7 @@ import {
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { log } from "@/lib/log";
 import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
-import { cakeKindOf, checkChoice, choiceFromFulfillment, istDate } from "@/lib/deliveryRules";
+import { cakeKindOf, checkChoice, choiceFromFulfillment, istDate, windowForPaid } from "@/lib/deliveryRules";
 import { BUILDER_ENABLED } from "@/lib/flags";
 import { PICKUP_OPEN, resolveSlot } from "@/lib/delivery";
 
@@ -253,10 +253,11 @@ export async function validateCheckout(
   const choice = choiceFromFulfillment(body.fulfillment);
   if (choice) {
     const now = new Date();
-    const verdict = checkChoice(choice, now, cakeKindOf(body.items), catalog.deliveryRules);
+    // Spec: timing is checked before Razorpay; after payment only a malformed choice is refused.
+    const verdict = (paid ? windowForPaid : checkChoice)(choice, now, cakeKindOf(body.items), catalog.deliveryRules);
     if (!verdict.ok) return scheduleProblem(verdict.message);
     // ASAP's date is not the customer's to pick; it must be today's, which is what the blackout check reads.
-    if (choice.slot === "asap" && body.fulfillment.requestedDate !== istDate(now))
+    if (!paid && choice.slot === "asap" && body.fulfillment.requestedDate !== istDate(now))
       return scheduleProblem("Choose a delivery time again.");
     when = { requestedFor: verdict.requestedFor, dueAt: verdict.dueAt, requestedWindow: verdict.window };
   } else if (body.fulfillment.method === "delivery" && !paid) {
@@ -309,7 +310,7 @@ export async function validateCheckout(
       .map((item) => item.cakeSlug)
       .filter((slug): slug is string => Boolean(slug)),
   );
-  const review = reviewBasket(items, catalog, cakes);
+  const review = reviewBasket(items, catalog, cakes, { paid });
   if (!review.ok) {
     const { status, ...rest } = review.problem;
     return problem(

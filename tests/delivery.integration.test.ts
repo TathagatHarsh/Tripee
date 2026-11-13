@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 // Checkout, below, runs the real /api/orders route and payment recovery outside a Next request.
@@ -16,6 +16,7 @@ import { DEFAULT_ROWS } from '../lib/catalogDefaults';
 import { asJson, validateCheckout } from '../lib/checkoutValidate';
 import { recoverPayment } from '../lib/paymentRecovery';
 import { POST as placeOrder } from '../app/api/orders/route';
+import { POST as openIntent } from '../app/api/payments/intent/route';
 
 /**
  * One order from confirmed to the customer's door, the way the portals drive it
@@ -144,7 +145,8 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
     const keys: string[] = [];
     const slug = `delivery-test-checkout-${randomUUID().slice(0, 8)}`;
     let variantId = '';
-    let createdStandardRow = false;
+    /** undefined: this suite created the standard row and removes it; otherwise the value to put back. */
+    let priorStandardAvailable: boolean | undefined;
 
     const basket = (slot: string, requestedDate: string, requestedWindow: string) => {
       const idempotencyKey = randomUUID();
@@ -163,6 +165,43 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
       return placeOrder(new Request('http://localhost/api/orders', { method: 'POST', body: JSON.stringify(body) }));
     };
 
+    /** A stubbed Razorpay holding one gateway order and its captured payment. */
+    const razorpay = (orderId: string, paymentId: string, amount: () => number, receipt: string) => {
+      vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_abc');
+      vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
+      vi.stubEnv('SERVICE_AREA', 'hyderabad');
+      vi.stubGlobal('fetch', vi.fn(async (input: unknown) => {
+        const target = String(input);
+        if (target.endsWith('/v1/orders')) return Response.json({ id: orderId });
+        if (target.endsWith(`/payments/${paymentId}`)) return Response.json({ id: paymentId, order_id: orderId, status: 'captured', amount: amount(), amount_refunded: 0, currency: 'INR' });
+        if (target.endsWith(`/orders/${orderId}`)) return Response.json({ id: orderId, receipt, amount: amount(), currency: 'INR' });
+        throw new Error(`unexpected fetch ${target}`);
+      }));
+    };
+
+    it('a paid ASAP confirm arriving after 18:00 still creates the order', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-20T17:50:00+05:30'));
+      const body = basket('asap', '2026-11-20', 'asap');
+      const tag = randomUUID().replaceAll('-', '').slice(0, 10);
+      const orderId = `order_DA${tag}`, paymentId = `pay_DA${tag}`;
+      let amount = 0;
+      razorpay(orderId, paymentId, () => amount, body.idempotencyKey);
+      const post = (route: typeof placeOrder, b: unknown) => route(new Request('http://localhost/api/x', { method: 'POST', body: JSON.stringify(b) }));
+      const intent = await post(openIntent, body);
+      expect(intent.status).toBe(200);
+      amount = (await intent.json()).amountPaise;
+
+      vi.setSystemTime(new Date('2026-11-20T18:00:05+05:30'));
+      const payment = { razorpayOrderId: orderId, razorpayPaymentId: paymentId, razorpaySignature: createHmac('sha256', 'secret').update(`${orderId}|${paymentId}`).digest('hex') };
+      const res = await post(placeOrder, { ...body, payment });
+      const json = await res.json();
+      expect(res.status, JSON.stringify(json)).toBe(201);
+      const order = await db.order.findUniqueOrThrow({ where: { ref: json.orderId } });
+      expect(order).toMatchObject({ deliverySlot: 'asap', paymentStatus: 'paid', requestedWindow: '20:00–22:00' });
+      expect(order.dueAt).toEqual(new Date('2026-11-20T22:00:05+05:30'));
+    });
+
     afterEach(() => {
       vi.useRealTimers();
       vi.unstubAllEnvs();
@@ -173,7 +212,9 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
       await db.checkoutAttempt.deleteMany({ where: { id: { in: keys } } });
       await db.paymentRecovery.deleteMany({ where: { id: { in: keys } } });
       await db.cakeProduct.deleteMany({ where: { slug } });
-      if (createdStandardRow) await db.catalogOption.deleteMany({ where: { category: 'delivery', value: 'standard' } });
+      const standard = { category: 'delivery' as const, value: 'standard' };
+      if (priorStandardAvailable === undefined) await db.catalogOption.deleteMany({ where: standard });
+      else await db.catalogOption.updateMany({ where: standard, data: { isAvailable: priorStandardAvailable } });
     });
 
     beforeAll(async () => {
@@ -219,11 +260,15 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
     });
 
     it('recovery of a legacy-slot attempt is not refused', async () => {
-      // As on the live shop, where the standard row predates its withdrawal from the defaults.
-      if (!(await db.catalogOption.findFirst({ where: { category: 'delivery', value: 'standard' } }))) {
-        const row = DEFAULT_ROWS.find((r) => r.category === 'delivery' && r.value === 'standard')!;
-        await db.catalogOption.create({ data: { ...row, isAvailable: true } });
-        createdStandardRow = true;
+      // Production state: the standard row exists and Task 2's migration withdrew it.
+      const where = { category: 'delivery' as const, value: 'standard' };
+      const prior = await db.catalogOption.findFirst({ where });
+      if (prior) {
+        priorStandardAvailable = prior.isAvailable;
+        await db.catalogOption.update({ where: { id: prior.id }, data: { isAvailable: false } });
+      } else {
+        const row = DEFAULT_ROWS.find((r) => r.category === where.category && r.value === where.value)!;
+        await db.catalogOption.create({ data: { ...row, isAvailable: false } });
       }
       vi.stubEnv('SERVICE_AREA', 'hyderabad');
       const body = basket('standard', new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10), 'x');
@@ -235,14 +280,7 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
 
       const tag = randomUUID().replaceAll('-', '').slice(0, 10);
       const orderId = `order_DR${tag}`, paymentId = `pay_DR${tag}`;
-      vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_abc');
-      vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
-      vi.stubGlobal('fetch', vi.fn(async (input: unknown) => {
-        const target = String(input);
-        if (target.endsWith(`/payments/${paymentId}`)) return Response.json({ id: paymentId, order_id: orderId, status: 'captured', amount, amount_refunded: 0, currency: 'INR' });
-        if (target.endsWith(`/orders/${orderId}`)) return Response.json({ id: orderId, receipt: body.idempotencyKey, amount, currency: 'INR' });
-        throw new Error(`unexpected fetch ${target}`);
-      }));
+      razorpay(orderId, paymentId, () => amount, body.idempotencyKey);
 
       await recoverPayment(paymentId);
 

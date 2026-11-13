@@ -563,6 +563,12 @@ export function reviewBasket(
    * with a URL which cakes used to exist.
    */
   cakes: ReadonlyMap<string, CakeProductView> = new Map(),
+  /**
+   * `paid`: the customer has already paid against a basket the intent accepted,
+   * so a delivery slot withdrawn since (the retired legacy slots) no longer
+   * refuses it. Every other withdrawn option still does.
+   */
+  { paid = false }: { paid?: boolean } = {},
 ): BasketReview {
   const quotes: ItemQuote[] = [];
 
@@ -700,7 +706,8 @@ export function reviewBasket(
      *
      * The delivery slot is the exception and stays checked in both cases,
      * because it is genuinely still a catalogue option the shop offers: taking
-     * midnight delivery off the menu has to stop somebody ordering it.
+     * midnight delivery off the menu has to stop somebody ordering it — but
+     * not somebody who already paid for it (`paid`).
      */
     const deliveryChoice = item.choices?.delivery ?? config?.delivery;
     if (!deliveryChoice) {
@@ -714,7 +721,7 @@ export function reviewBasket(
         },
       };
     }
-    const withdrawn = cake
+    let withdrawn: WithdrawnOption[] = cake
       ? entryFor(catalog, "delivery", deliveryChoice)?.isAvailable
         ? []
         : [
@@ -725,6 +732,7 @@ export function reviewBasket(
             },
           ]
       : withdrawnOptions(config!, catalog);
+    if (paid) withdrawn = withdrawn.filter((o) => o.category !== "delivery");
     if (withdrawn.length > 0) {
       const names = withdrawn.map((o) => o.name).join(", ");
       return {

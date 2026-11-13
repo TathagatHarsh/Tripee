@@ -316,6 +316,25 @@ describe("options the bakery has withdrawn", () => {
     expect(withdrawnOptions(DEFAULT_CAKE, DEFAULT_SNAPSHOT)).toEqual([]);
   });
 
+  it("a withdrawn delivery slot refuses an unpaid basket but not a paid one; other withdrawals still refuse", () => {
+    const retired = withdraw("delivery", "standard");
+    const unpaid = reviewBasket(one(cake(), 1), retired);
+    expect(unpaid.ok).toBe(false);
+    if (!unpaid.ok) expect(unpaid.problem.code).toBe("option_unavailable");
+
+    const paid = reviewBasket(one(cake(), 1), retired, undefined, { paid: true });
+    expect(paid.ok).toBe(true);
+    // The legacy fee still comes from the slot's own row.
+    if (paid.ok) expect(paid.deliveryFeePaise).toBe(retired.price.deliveryFee.standard);
+
+    const noNutella = catalogWith((r) =>
+      (r.category === "delivery" && r.value === "standard") || (r.category === "filling" && r.value === "nutella")
+        ? { ...r, isAvailable: false } : r);
+    const both = reviewBasket(one(cake({ filling: "nutella" }), 1), noNutella, undefined, { paid: true });
+    expect(both.ok).toBe(false);
+    if (!both.ok) expect(both.problem.options?.map((o) => o.value)).toEqual(["nutella"]);
+  });
+
   it("refuses the order rather than quietly baking it", () => {
     const review = reviewBasket(one(cake({ filling: "nutella" }), 1), withdraw("filling", "nutella"));
 

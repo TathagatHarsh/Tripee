@@ -105,6 +105,30 @@ export function deliveryChoices(
   return { asap, days };
 }
 
+/** The grid window this date and label name, or null when either is malformed. */
+function chosenWindow(choice: { date: string; window: string }, rules: DeliveryRules): Window | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(choice.date) || Number.isNaN(new Date(`${choice.date}T00:00:00+05:30`).getTime()))
+    return null;
+  return dayWindows(choice.date, rules).find((x) => x.label === choice.window) ?? null;
+}
+
+/**
+ * The window for a checkout that has already been paid for. Timing was checked
+ * before Razorpay, so nothing here refuses for time (closed, passed, too soon):
+ * ASAP runs from now, scheduled keeps the chosen window. Only a malformed
+ * choice is refused.
+ */
+export function windowForPaid(
+  choice: DeliveryChoice,
+  now: Date,
+  kind: CakeKind,
+  rules: DeliveryRules,
+): ChoiceVerdict {
+  const w = choice.slot === "asap" ? asapWindow(now, kind, rules) : chosenWindow(choice, rules);
+  if (!w) return { ok: false, message: "Choose a delivery window from the list." };
+  return { ok: true, requestedFor: w.start, dueAt: w.end, window: w.label };
+}
+
 export function checkChoice(
   choice: DeliveryChoice,
   now: Date,
@@ -126,7 +150,7 @@ export function checkChoice(
     choice.date >= today &&
     choice.date <= last;
   if (!valid) return unknown;
-  const w = dayWindows(choice.date, rules).find((x) => x.label === choice.window);
+  const w = chosenWindow(choice, rules);
   if (!w) return unknown;
   if (w.start.getTime() < now.getTime() + bounds(kind, rules).min)
     return { ok: false, message: "That time has passed — choose a later window." };
