@@ -17,17 +17,17 @@ export const metadata: Metadata = {
   description:
     "MakeYourCakes: eggless cakes baked to order and delivered across Hyderabad, with low sugar, prebiotic and fibre-rich cakes available. Itemised pricing, and we call to confirm every order before it goes in the oven.",
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "MakeYourCakes",
     description: "Cakes baked to order in Hyderabad. Low sugar, prebiotic and fibre-rich cakes available.",
-    images: ["/brand/icon-512.png"],
+    images: ["/brand/logo.webp"],
   },
   openGraph: {
     title: "MakeYourCakes",
     siteName: "MakeYourCakes",
     description: "Cakes baked to order in Hyderabad. Low sugar, prebiotic and fibre-rich cakes available.",
     type: "website",
-    images: [{ url: "/brand/icon-512.png", width: 512, height: 512, alt: "MakeYourCakes" }],
+    images: [{ url: "/brand/logo.webp", width: 1200, height: 800, alt: "MakeYourCakes" }],
   },
 };
 

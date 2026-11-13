@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import { requireAdmin } from "@/lib/auth";
 import { renderOrderCakeDocket } from "@/lib/orderCakeDocket";
 import { notFound } from "next/navigation";
@@ -82,7 +83,7 @@ export default async function OrderDocket({
 
       <header className="flex flex-col gap-2 border-b-2 border-ink pb-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-          <span className="text-item uppercase tracking-[0.18em]">MakeYourCakes</span>
+          <span className="text-item uppercase tracking-[0.18em]"><BrandLogo compact /></span>
           <span className="text-micro uppercase tracking-[0.1em] text-steel">Order docket</span>
         </div>
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">

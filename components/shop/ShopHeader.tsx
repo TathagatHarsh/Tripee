@@ -130,7 +130,7 @@ export function ShopHeader({
         }
       >
         <div className="mb-5 flex items-center justify-between">
-          <span className="font-display text-[1.25rem]">Browse</span>
+          <Link href="/" aria-label="MakeYourCakes, home"><BrandLogo compact /></Link>
           <button
             type="button"
             popoverTarget="shop-drawer"

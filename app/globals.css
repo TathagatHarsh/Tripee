@@ -2420,23 +2420,22 @@ body:has(.k-root)::after {
 @media(max-width:1100px) { .ops-overview-band { align-items:start; flex-direction:column; } .ops-overview-figures { width:100%; justify-content:space-between; gap:1rem; } }
 @media(max-width:639px) { .ops-overview-band { padding:1.5rem; } .ops-overview-figures a { padding-left:.65rem; min-width:0; } .ops-overview-figures strong { font-size:1.8rem; } }
 
-/* Keep the navigation usable on 320px screens without shrinking touch targets. */
-@media (max-width: 359px) {
-  .s-bar a[aria-label="MakeYourCakes, home"] .brand-logo { gap: .2rem; }
-  .s-bar a[aria-label="MakeYourCakes, home"] .font-display { font-size: 1rem; }
+/* Preserve the original logo; navigation shows its readable wordmark. */
+.brand-logo { display:inline-block; flex-shrink:0; vertical-align:middle; overflow:hidden; background:#fffaf5; border-radius:4px; }
+.brand-logo img { display:block; width:100%; height:auto; max-width:none; }
+.brand-logo-wordmark { width:190px; height:31px; position:relative; }
+.brand-logo-wordmark img { position:absolute; top:-64px; left:0; }
+.brand-logo-compact { width:160px; height:26px; }
+.brand-logo-compact img { top:-54px; }
+.brand-logo-full { width:280px; max-width:100%; }
+.brand-logo-light { box-shadow:0 0 0 4px #fffaf5; }
+@media (max-width:359px) {
+  .s-bar .brand-logo-wordmark { width:150px; height:24px; }
+  .s-bar .brand-logo-wordmark img { top:-50px; }
 }
-
-/* Logo sizing and local spacing keep the approved navigation in one row. */
-@media (max-width: 359px) {
-  .s-bar .brand-logo img { width: 1.25rem; height: 1.25rem; }
-  .a-root header .brand-logo { gap: .25rem; }
-  .a-root header .brand-logo .font-display { font-size: .875rem; }
-  .a-root header .brand-logo img { width: 1.125rem; height: 1.125rem; }
-}
-@media (min-width: 1024px) and (max-width: 1199px) {
-  .s-bar .brand-logo .font-display { font-size: 1.125rem; }
-  .s-bar nav[aria-label="Cakes"] { margin-left: .5rem; }
-  .s-bar nav[aria-label="Cakes"] > a { padding-inline: .5rem; }
+@media (min-width:1024px) and (max-width:1199px) {
+  .s-bar nav[aria-label="Cakes"] { margin-left:.5rem; }
+  .s-bar nav[aria-label="Cakes"] > a { padding-inline:.5rem; }
 }
 
 /* Changing readiness must not tween through low-contrast color combinations. */
