@@ -118,7 +118,7 @@ export const DEFAULT_CAKE: CakeConfig = {
   toppings: [],
   eggless: true,
   sugarFree: false,
-  delivery: "standard",
+  delivery: "asap",
 };
 
 /**

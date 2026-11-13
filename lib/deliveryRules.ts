@@ -172,3 +172,8 @@ export function choiceFromFulfillment(f: {
   if (f.slot === "scheduled") return { slot: "scheduled", date: f.requestedDate, window: f.requestedWindow };
   return null;
 }
+
+/** The builder's `?delivery=` param: only the new slots are accepted; legacy/unknown values are ignored. */
+export function deliveryFromParam(v: string | null): "asap" | "scheduled" | null {
+  return v !== null && isNewSlot(v) ? v : null;
+}

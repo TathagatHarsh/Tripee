@@ -650,7 +650,7 @@ export function reviewBasket(
       config = configForVariant(
         found,
         picked,
-        item.choices ?? { delivery: "standard" },
+        item.choices ?? { delivery: "asap" },
       );
     } else if (item.config) {
       /* The builder's path, unchanged: an assembly with no row behind it. */

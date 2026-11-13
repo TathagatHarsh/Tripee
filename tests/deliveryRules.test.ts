@@ -61,3 +61,15 @@ describe("delivery rules", () => {
     expect(windowForPaid({ slot: "scheduled", date: "20-11-2026", window: "10:00–12:00" }, at("2026-11-20T08:00:00"), "ready", R).ok).toBe(false);
   });
 });
+
+describe("builder defaults", () => {
+  it("defaults new cakes to ASAP and only accepts new slots from the URL", async () => {
+    const { DEFAULT_CAKE } = await import("@/lib/schema");
+    const { deliveryFromParam } = await import("@/lib/deliveryRules");
+    expect(DEFAULT_CAKE.delivery).toBe("asap");
+    expect(deliveryFromParam("standard")).toBeNull();
+    expect(deliveryFromParam("asap")).toBe("asap");
+    expect(deliveryFromParam("scheduled")).toBe("scheduled");
+    expect(deliveryFromParam(null)).toBeNull();
+  });
+});

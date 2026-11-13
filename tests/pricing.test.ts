@@ -22,10 +22,10 @@ const cake = (patch: Partial<CakeConfig> = {}): CakeConfig => ({ ...DEFAULT_CAKE
 describe("priceCake", () => {
   it("prices the default cake deterministically", () => {
     const p = priceCake(DEFAULT_CAKE);
-    // 1kg base 1200 + american buttercream 100 + standard delivery 60 = 1360
-    expect(p.subtotal).toBe(136000);
-    expect(p.gst).toBe(24480);
-    expect(p.total).toBe(160480);
+    // 1kg base 1200 + american buttercream 100 + ASAP delivery 150 = 1450
+    expect(p.subtotal).toBe(145000);
+    expect(p.gst).toBe(26100);
+    expect(p.total).toBe(171100);
     expect(p.currency).toBe("INR");
   });
 

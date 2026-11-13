@@ -53,7 +53,7 @@ export const FILM_CAKE: CakeConfig = {
   ],
   eggless: true,
   sugarFree: false,
-  delivery: "standard",
+  delivery: "asap",
   pincode: "500033",
 };
 
@@ -243,7 +243,7 @@ const TRIPS: Partial<CakeConfig>[] = [
   { frosting: "fondant", finish: "combed" },
   { frosting: "mirror-glaze", finish: "combed" },
   { coverage: "naked", frosting: "fondant" },
-  { frosting: "whipped-cream", delivery: "standard" },
+  { frosting: "whipped-cream", delivery: "asap" },
   { toppings: [{ kind: "edible-flower", placement: "top-scatter", density: 2 }], delivery: "midnight" },
   {
     toppings: [

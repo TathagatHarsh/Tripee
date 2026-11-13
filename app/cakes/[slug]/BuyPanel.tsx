@@ -67,7 +67,7 @@ export function BuyPanel({
      choices in three places is how two of them end up disagreeing. */
   const choices: CakeChoices = useMemo(
     () => ({
-      delivery: "standard",
+      delivery: "asap",
       ...(message.trim() ? { message: message.trim() } : {}),
 
     }),

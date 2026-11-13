@@ -353,7 +353,7 @@ export const CakeChoices = z.object({
 
 export type CakeChoices = z.infer<typeof CakeChoices>;
 
-export const DEFAULT_CHOICES: CakeChoices = { delivery: "standard" };
+export const DEFAULT_CHOICES: CakeChoices = { delivery: "asap" };
 
 /**
  * The cake as the kitchen has to bake it.
