@@ -4,6 +4,7 @@ import {
   Finish as FinishEnum, Frosting as FrostingEnum, Shape, SizeBand as SizeBandEnum,
   Sponge as SpongeEnum, Topping as ToppingEnum, ToppingPlacement,
 } from "./schema";
+import { DEFAULT_DELIVERY_RULES, type DeliveryRules } from "./deliveryRules";
 import type {
   DeliverySlot, Filling, Finish, Frosting, SizeBand, Sponge, Topping,
 } from "./schema";
@@ -128,6 +129,7 @@ export interface CatalogSnapshot {
   /** Active zones only, in display order. */
   zones: DeliveryZoneInfo[];
   bakery: BakeryInfo;
+  deliveryRules: DeliveryRules;
 }
 
 export const CATEGORIES: CatalogCategory[] = [
@@ -176,6 +178,7 @@ export function buildSnapshot(
   settings: PricingSettingsSnapshot,
   zones: DeliveryZoneInfo[],
   bakery: BakeryInfo,
+  rules: DeliveryRules = DEFAULT_DELIVERY_RULES,
 ): CatalogSnapshot {
   const byCategory = {} as Record<CatalogCategory, CatalogEntry[]>;
   for (const c of CATEGORIES) byCategory[c] = [];
@@ -207,6 +210,17 @@ export function buildSnapshot(
     };
   }
 
+  // The two new slots come from the rules, not from option rows.
+  for (const [slot, name] of [["asap", "As soon as possible"], ["scheduled", "Scheduled"]] as const) {
+    slots[slot] = {
+      slot, name, leadHours: rules.readyMinMinutes / 60,
+      window: "", note: "", dailyCapacity: 0, cutoffHours: 0,
+    };
+  }
+  const deliveryFee = priceIndex<DeliverySlot>(byCategory.delivery);
+  deliveryFee.asap = rules.feePaise;
+  deliveryFee.scheduled = rules.feePaise;
+
   return {
     byCategory,
     price: {
@@ -217,12 +231,13 @@ export function buildSnapshot(
       frostingDelta: priceIndex<Frosting>(byCategory.frosting),
       finishLabour: priceIndex<Finish>(byCategory.finish),
       toppingUnit: priceIndex<Topping>(byCategory.topping),
-      deliveryFee: priceIndex<DeliverySlot>(byCategory.delivery),
+      deliveryFee,
     },
     settings,
     slots,
     zones,
     bakery,
+    deliveryRules: rules,
   };
 }
 

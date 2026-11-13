@@ -5,6 +5,8 @@ import {
   isCakeReady, isSameISTDay, istDayOffset, matchesDeliveryState, startOfISTDay,
   type DeliveryDay, type DeliveryState, type DeliveryView,
 } from "@/lib/ops";
+import { DEFAULT_SNAPSHOT } from "@/lib/catalogDefaults";
+import { resolveSlot } from "@/lib/delivery";
 import { NEXT_STATUS } from "@/lib/orders";
 import { VENDOR_NEXT } from "@/lib/vendors";
 
@@ -254,5 +256,17 @@ describe("the day at a glance", () => {
       total: 0, ready: 0, notReady: 0, preparing: 0,
       outForDelivery: 0, delivered: 0, attention: 0,
     });
+  });
+});
+
+describe("asap/scheduled coverage", () => {
+  it("asap is available wherever we deliver, ignoring zone slot lists", () => {
+    const r = resolveSlot("asap", "501100", DEFAULT_SNAPSHOT);
+    expect(r.available).toBe(true);
+    expect(r.effectiveLeadHours).toBe(2);
+  });
+
+  it("asap is unavailable to a pincode outside every zone", () => {
+    expect(resolveSlot("asap", "400001", DEFAULT_SNAPSHOT).available).toBe(false);
   });
 });

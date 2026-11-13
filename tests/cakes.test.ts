@@ -7,7 +7,7 @@ import {
   type CakeProductView, type CakeVariantView,
 } from "@/lib/cakes";
 import { SIZES } from "@/lib/catalog";
-import { DEFAULT_ROWS, DEFAULT_SETTINGS, DEFAULT_SNAPSHOT, snapshotFrom } from "@/lib/catalogDefaults";
+import { DEFAULT_ROWS as SHIPPED_ROWS, DEFAULT_SETTINGS, snapshotFrom } from "@/lib/catalogDefaults";
 import type { CatalogRow, CatalogSnapshot } from "@/lib/catalogSnapshot";
 import { allergenLineForOffer } from "@/lib/allergens";
 import { lineId } from "@/lib/cart";
@@ -17,6 +17,16 @@ import { PRESETS } from "@/lib/presets";
 import { DEFAULT_CAKE } from "@/lib/schema";
 import { categoryForConfig } from "@/lib/shop";
 import { productionSpecFromConfig } from "@/lib/productionSpec";
+
+/* Legacy delivery slots are withdrawn by default now (asap/scheduled replace them).
+   These tests exercise generic basket/pricing rules with the shipped default
+   cake (delivery "standard"), so they run against a catalogue with the legacy
+   slots re-opened. */
+const DEFAULT_ROWS = SHIPPED_ROWS.map((r) =>
+  r.category === "delivery" ? { ...r, isAvailable: true } : r,
+);
+const DEFAULT_SNAPSHOT = snapshotFrom(DEFAULT_ROWS, DEFAULT_SETTINGS);
+
 
 /**
  * Sellable cakes: what they cost, who may sell them, and what an order keeps.

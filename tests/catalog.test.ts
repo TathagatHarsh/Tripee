@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_ROWS, DEFAULT_SETTINGS, DEFAULT_SNAPSHOT, snapshotFrom,
+  DEFAULT_BAKERY, DEFAULT_ROWS, DEFAULT_SETTINGS, DEFAULT_SNAPSHOT, DEFAULT_ZONES, snapshotFrom,
 } from "@/lib/catalogDefaults";
+import { buildSnapshot } from "@/lib/catalogSnapshot";
 import type { CatalogRow } from "@/lib/catalogSnapshot";
+import { DEFAULT_DELIVERY_RULES } from "@/lib/deliveryRules";
 import {
   Coverage, DeliverySlot, Filling, Finish, Frosting, Shape, SizeBand, Sponge,
   Topping, ToppingPlacement,
@@ -107,5 +109,23 @@ describe("snapshotFrom", () => {
     // Withdrawn, not deleted: it still prices, because an order already holding
     // it still has to render.
     expect(s.price.fillingDelta.rabri).toBe(22000);
+  });
+});
+
+describe("delivery rules in the snapshot", () => {
+  it("new slots take their fee from delivery rules", () => {
+    const s = buildSnapshot(DEFAULT_ROWS, DEFAULT_SETTINGS, DEFAULT_ZONES, DEFAULT_BAKERY,
+      { ...DEFAULT_DELIVERY_RULES, feePaise: 9900 });
+    expect(s.price.deliveryFee.asap).toBe(9900);
+    expect(s.price.deliveryFee.scheduled).toBe(9900);
+  });
+
+  it("legacy slots are withdrawn by default but still priced", () => {
+    expect(DEFAULT_SNAPSHOT.byCategory.delivery.find((e) => e.value === "standard")!.isAvailable).toBe(false);
+    expect(DEFAULT_SNAPSHOT.price.deliveryFee.standard).toBe(6000);
+  });
+
+  it("snapshot without stored rules uses the defaults", () => {
+    expect(snapshotFrom([], DEFAULT_SETTINGS).deliveryRules).toEqual(DEFAULT_DELIVERY_RULES);
   });
 });

@@ -88,7 +88,7 @@ function toRow(r: {
  */
 const load = unstable_cache(
   async (): Promise<CatalogSnapshot> => {
-    const [rows, settings, zones, bakery] = await Promise.all([
+    const [rows, settings, zones, bakery, rulesRow] = await Promise.all([
       db.catalogOption.findMany({ orderBy: [{ category: "asc" }, { sortOrder: "asc" }] }),
       db.pricingSettings.findUnique({ where: { id: "singleton" } }),
       // Inactive zones are left behind entirely rather than carried with a
@@ -96,6 +96,7 @@ const load = unstable_cache(
       // resolver's "no zone" answer already says exactly that.
       db.deliveryZone.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
       db.bakerySettings.findUnique({ where: { id: "singleton" } }),
+      db.deliverySettings.findUnique({ where: { id: "singleton" } }),
     ]);
 
     return snapshotFrom(
@@ -122,6 +123,20 @@ const load = unstable_cache(
         slots: z.slots as DeliverySlot[],
       })),
       bakery ?? undefined,
+      // Plain fields only (no id/timestamps): the snapshot is cached and serialised.
+      rulesRow
+        ? {
+            feePaise: rulesRow.feePaise,
+            ordersFrom: rulesRow.ordersFrom,
+            ordersUntil: rulesRow.ordersUntil,
+            readyMinMinutes: rulesRow.readyMinMinutes,
+            readyMaxMinutes: rulesRow.readyMaxMinutes,
+            customMinMinutes: rulesRow.customMinMinutes,
+            customMaxMinutes: rulesRow.customMaxMinutes,
+            windowMinutes: rulesRow.windowMinutes,
+            preorderDays: rulesRow.preorderDays,
+          }
+        : undefined,
     );
   },
   ["catalog-snapshot"],

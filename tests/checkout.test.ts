@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_ROWS, DEFAULT_SETTINGS, DEFAULT_SNAPSHOT, snapshotFrom,
+  DEFAULT_ROWS as SHIPPED_ROWS, DEFAULT_SETTINGS, snapshotFrom,
 } from "@/lib/catalogDefaults";
 import type { CatalogRow, CatalogSnapshot } from "@/lib/catalogSnapshot";
 import {
@@ -9,6 +9,16 @@ import {
 } from "@/lib/checkout";
 import { priceCake } from "@/lib/pricing";
 import { DEFAULT_CAKE, type CakeConfig } from "@/lib/schema";
+
+/* Legacy delivery slots are withdrawn by default now (asap/scheduled replace them).
+   These tests exercise generic basket/pricing rules with the shipped default
+   cake (delivery "standard"), so they run against a catalogue with the legacy
+   slots re-opened. */
+const DEFAULT_ROWS = SHIPPED_ROWS.map((r) =>
+  r.category === "delivery" ? { ...r, isAvailable: true } : r,
+);
+const DEFAULT_SNAPSHOT = snapshotFrom(DEFAULT_ROWS, DEFAULT_SETTINGS);
+
 
 /**
  * What the till refuses, and what it charges.

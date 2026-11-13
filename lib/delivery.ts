@@ -1,3 +1,4 @@
+import { isNewSlot } from "./deliveryRules";
 import { validSlotWindow } from "./scheduling";
 import type {
   CatalogSnapshot, DeliverySlotInfo, DeliveryZoneInfo,
@@ -58,6 +59,18 @@ export function resolveSlot(
   catalog: CatalogSnapshot,
 ): ResolvedSlot {
   const base = catalog.slots[slot];
+  if (isNewSlot(slot)) {
+    // ASAP/scheduled ignore the zone's slot list and extraHours: wherever we deliver, we offer them.
+    const zone = zoneForPincode(pincode, catalog);
+    const ok = zone !== null && checkDeliveryServiceability({ postalCode: pincode }, catalog).serviceable;
+    return {
+      ...base, available: ok, effectiveLeadHours: base.leadHours,
+      zoneName: zone?.name ?? null, zoneId: zone?.id ?? null,
+      unavailableReason: ok ? null
+        : pincode && /^\d{6}$/.test(pincode) ? "We don't deliver to that pincode yet."
+        : "Enter a six-digit delivery pincode.",
+    };
+  }
   if (!validSlotWindow(base.window)) return {
     ...base, available: false, effectiveLeadHours: base.leadHours, zoneName: null, zoneId: null,
     unavailableReason: "This delivery window is temporarily unavailable. Choose another slot.",

@@ -21,6 +21,10 @@ export const DEFAULT_DELIVERY_RULES: DeliveryRules = {
   windowMinutes: 120,
   preorderDays: 14,
 };
+export const NEW_SLOTS = ["asap", "scheduled"] as const;
+export function isNewSlot(s: string): s is "asap" | "scheduled" {
+  return (NEW_SLOTS as readonly string[]).includes(s);
+}
 export interface Window {
   start: Date;
   end: Date;
