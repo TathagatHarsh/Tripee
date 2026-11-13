@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { indianMobile } from "@/lib/phone";
 import { sBtn, sField } from "@/lib/shopUi";
 
@@ -26,6 +26,7 @@ export function PhoneVerify({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wait, setWait] = useState(0);
+  const inputId = useId();
 
   useEffect(() => {
     if (wait <= 0) return;
@@ -96,12 +97,22 @@ export function PhoneVerify({
         </button>
       ) : (
         <>
-          <label className="flex min-w-0 flex-col gap-2">
-            <span className="text-xs font-semibold">WhatsApp code</span>
-            <span className="flex gap-2">
+          <label htmlFor={inputId} className="text-xs font-semibold">
+            WhatsApp code
+          </label>
+          <div className="flex gap-2">
               <input
+                id={inputId}
+                autoFocus
                 value={code}
                 onChange={(e) => change(e.target.value)}
+                onKeyDown={(e) => {
+                  // Inside the checkout <form>: Enter must verify, not place the order.
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (code.length === 6) void verify(code);
+                  }
+                }}
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={6}
@@ -112,8 +123,7 @@ export function PhoneVerify({
               <button type="button" onClick={() => verify(code)} disabled={busy || code.length !== 6} className={sBtn("primary", "md")}>
                 Verify
               </button>
-            </span>
-          </label>
+          </div>
           <button type="button" onClick={send} disabled={busy || wait > 0} className={sBtn("ghost", "md", "self-start")}>
             {wait > 0 ? `Resend code in ${wait}s` : "Resend code"}
           </button>
