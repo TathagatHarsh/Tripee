@@ -739,6 +739,72 @@ export async function saveMinOrder(
   return { ok: true, message: parsed.data === 0 ? "Minimum removed." : "Minimum saved." };
 }
 
+const HM = (name: string) =>
+  z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, `${name} must be a time like 08:00.`);
+
+/** Hours on screen (multiples of 0.5, up to a day), whole minutes in the database. */
+const Hours = (name: string) =>
+  z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d+)?$/, `${name} must be a number of hours.`)
+    .transform(Number)
+    .refine((h) => h > 0 && h <= 24 && Number.isInteger(h * 2), `${name} must be 0.5 to 24 hours, in half hours.`)
+    .transform((h) => h * 60);
+
+const DeliveryRulesInput = z
+  .object({
+    fee: RupeeAmount,
+    ordersFrom: HM("Orders open"),
+    ordersUntil: HM("Orders close"),
+    readyMin: Hours("Ready-made minimum"),
+    readyMax: Hours("Ready-made maximum"),
+    customMin: Hours("Custom minimum"),
+    customMax: Hours("Custom maximum"),
+    // The only lengths the slot engine is allowed to loop over: 0 would never advance.
+    windowMinutes: z.enum(["60", "120", "180"], { message: "Window length must be 1, 2 or 3 hours." }).transform(Number),
+    preorderDays: z.string().trim().regex(/^\d+$/, "Pre-order days must be a whole number.").transform(Number)
+      .refine((n) => n <= 60, "Pre-order days can be at most 60."),
+  })
+  .refine((v) => v.ordersFrom < v.ordersUntil, { message: "Orders must close after they open.", path: ["ordersUntil"] })
+  .refine((v) => v.readyMin <= v.readyMax, { message: "Ready-made: minimum must not exceed maximum.", path: ["readyMin"] })
+  .refine((v) => v.customMin <= v.customMax, { message: "Custom: minimum must not exceed maximum.", path: ["customMin"] });
+
+export async function saveDeliveryRules(
+  _prev: ActionResult | undefined,
+  form: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  if (!hasDatabase()) return NO_DB;
+
+  const parsed = DeliveryRulesInput.safeParse(Object.fromEntries(form));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
+  }
+  const v = parsed.data;
+  const data = {
+    feePaise: v.fee,
+    ordersFrom: v.ordersFrom,
+    ordersUntil: v.ordersUntil,
+    readyMinMinutes: v.readyMin,
+    readyMaxMinutes: v.readyMax,
+    customMinMinutes: v.customMin,
+    customMaxMinutes: v.customMax,
+    windowMinutes: v.windowMinutes,
+    preorderDays: v.preorderDays,
+  };
+
+  await db.deliverySettings.upsert({
+    where: { id: "singleton" },
+    update: data,
+    create: { id: "singleton", ...data },
+  });
+
+  revalidateCatalog();
+  revalidatePath("/admin/delivery");
+  return { ok: true, message: "Delivery rules saved." };
+}
+
 /* -------------------------------------------------------------- the bakery */
 
 const Bakery = z.object({

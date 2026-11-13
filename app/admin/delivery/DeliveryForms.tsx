@@ -2,10 +2,11 @@
 
 import { useActionState, useRef, useState } from "react";
 import {
-  addClosedDay, addZone, deleteZone, reopenDay, saveDeliverySlot, saveMinOrder, saveZone,
+  addClosedDay, addZone, deleteZone, reopenDay, saveDeliveryRules, saveDeliverySlot, saveMinOrder, saveZone,
   type ActionResult,
 } from "../actions";
 import { aBtn, aField, aMonoField } from "@/components/admin/ui";
+import type { DeliveryRules } from "@/lib/deliveryRules";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 
 const rupees = (paise: number) => (paise / 100).toFixed(2).replace(/\.00$/, "");
@@ -332,6 +333,61 @@ export function MinOrderForm({ minOrderPaise }: { minOrderPaise: number }) {
       <Status result={result} />
       <p className="w-full font-a-sans text-a-meta leading-relaxed text-a-muted">
         Before GST. Zero means no minimum, which is what this shipped with.
+      </p>
+    </form>
+  );
+}
+
+export function DeliveryRulesForm({ rules }: { rules: DeliveryRules }) {
+  const [result, formAction, pending] = useActionState<ActionResult | undefined, FormData>(
+    saveDeliveryRules,
+    undefined,
+  );
+  const hours = (minutes: number) => String(minutes / 60);
+  const field = (label: string, name: string, defaultValue: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
+    <label className="flex flex-col gap-1">
+      <span className="font-a-mono text-a-small text-a-muted">{label}</span>
+      <input name={name} defaultValue={defaultValue} className={aMonoField("w-28")} {...props} />
+    </label>
+  );
+  const hoursField = (label: string, name: string, minutes: number) =>
+    field(label, name, hours(minutes), { type: "number", min: 0.5, max: 24, step: 0.5, required: true });
+
+  return (
+    <form
+      action={formAction}
+      className="flex flex-col gap-4 rounded-a border border-a-line bg-a-surface px-4 py-4"
+    >
+      <div className="flex flex-wrap gap-x-6 gap-y-3">
+        {field("Delivery fee (₹)", "fee", rupees(rules.feePaise), { inputMode: "decimal", required: true })}
+        {field("Orders open", "ordersFrom", rules.ordersFrom, { type: "time", required: true })}
+        {field("Orders close", "ordersUntil", rules.ordersUntil, { type: "time", required: true })}
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-3">
+        {hoursField("Ready-made min (hours)", "readyMin", rules.readyMinMinutes)}
+        {hoursField("Ready-made max (hours)", "readyMax", rules.readyMaxMinutes)}
+        {hoursField("Custom min (hours)", "customMin", rules.customMinMinutes)}
+        {hoursField("Custom max (hours)", "customMax", rules.customMaxMinutes)}
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-3">
+        <label className="flex flex-col gap-1">
+          <span className="font-a-mono text-a-small text-a-muted">Window length</span>
+          <select name="windowMinutes" defaultValue={String(rules.windowMinutes)} className={aMonoField("w-28")}>
+            <option value="60">1 hour</option>
+            <option value="120">2 hours</option>
+            <option value="180">3 hours</option>
+          </select>
+        </label>
+        {field("Pre-order days", "preorderDays", String(rules.preorderDays), { type: "number", min: 0, max: 60, step: 1, required: true })}
+      </div>
+      <div className="flex flex-wrap items-center gap-4">
+        <button type="submit" disabled={pending} className={aBtn("secondary", "md")}>
+          {pending ? "Saving" : "Save"}
+        </button>
+        <Status result={result} />
+      </div>
+      <p className="font-a-sans text-a-meta leading-relaxed text-a-muted">
+        ASAP shows only while orders are open. Scheduled windows always sit inside these hours.
       </p>
     </form>
   );

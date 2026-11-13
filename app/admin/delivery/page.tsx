@@ -1,9 +1,9 @@
 import { requireAdmin } from "@/lib/auth";
-import Link from "next/link";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
+import { DEFAULT_DELIVERY_RULES, type DeliveryRules } from "@/lib/deliveryRules";
 import { Notice, PageHeader } from "@/components/admin/ui";
 import {
-  AddZone, ClosedDays, MinOrderForm, SlotRow, ZoneRow,
+  AddZone, ClosedDays, DeliveryRulesForm, MinOrderForm, ZoneRow,
   type ClosedDayData, type SlotRowData, type ZoneRowData,
 } from "./DeliveryForms";
 
@@ -32,13 +32,14 @@ export default async function DeliveryAdmin() {
   }
 
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-  const [slotRows, zoneRows, settings, blackouts] = await Promise.all([
+  const [slotRows, zoneRows, settings, ruleRow, blackouts] = await Promise.all([
     db.catalogOption.findMany({
       where: { category: "delivery" },
       orderBy: { sortOrder: "asc" },
     }),
     db.deliveryZone.findMany({ orderBy: { sortOrder: "asc" } }),
     db.pricingSettings.findUnique({ where: { id: "singleton" } }),
+    db.deliverySettings.findUnique({ where: { id: "singleton" } }),
     db.fulfillmentBlackout.findMany({
       where: { date: { gte: new Date(`${today}T00:00:00.000Z`) } },
       orderBy: { date: "asc" },
@@ -79,9 +80,7 @@ export default async function DeliveryAdmin() {
     isActive: z.isActive,
   }));
 
-  /** Which live zones carry each slot — the answer to "who can actually pick this". */
-  const offeredIn = (value: string) =>
-    zones.filter((z) => z.isActive && z.slots.includes(value)).map((z) => z.name).join(", ");
+  const rules: DeliveryRules = ruleRow ?? DEFAULT_DELIVERY_RULES;
 
   return (
     <div className="flex flex-col gap-10">
@@ -91,6 +90,11 @@ export default async function DeliveryAdmin() {
       />
 
       <section className="flex flex-col gap-3">
+        <h2 className="text-a-item">Delivery rules</h2>
+        <DeliveryRulesForm rules={rules} />
+      </section>
+
+      <section className="flex flex-col gap-3">
         <h2 className="text-a-item">Closed days</h2>
         <ClosedDays days={closedDays} today={today} />
       </section>
@@ -98,23 +102,6 @@ export default async function DeliveryAdmin() {
       <section className="flex flex-col gap-3">
         <h2 className="text-a-item">Minimum order</h2>
         <MinOrderForm minOrderPaise={settings?.minOrderPaise ?? 0} />
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-          <h2 className="text-a-item">Slots</h2>
-          <p className="font-a-mono text-a-meta text-a-muted">
-            Turn a slot on or off on the{" "}
-            <Link href="/admin/catalog#delivery" className="underline underline-offset-2">
-              catalogue page
-            </Link>
-          </p>
-        </div>
-        <ul className="rounded-a border border-a-line bg-a-surface">
-          {slots.map((s) => (
-            <SlotRow key={s.id} slot={s} offeredIn={offeredIn(s.value)} />
-          ))}
-        </ul>
       </section>
 
       <section className="flex flex-col gap-3">
