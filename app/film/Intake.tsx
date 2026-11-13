@@ -38,7 +38,7 @@ export function Intake() {
   const now = useMemo(() => new Date(), []);
   const resolved = parseWhen(when, now);
 
-  const slot = pickup ? "pickup" : "standard";
+  const slot = pickup ? "pickup" : "asap";
   const lead = resolveSlot(slot, pincode.length === 6 ? pincode : undefined, DEFAULT_SNAPSHOT);
   const earliest = earliestDate(now, lead.effectiveLeadHours);
 

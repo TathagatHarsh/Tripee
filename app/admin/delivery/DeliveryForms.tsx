@@ -294,7 +294,7 @@ export function AddZone({ slots }: { slots: SlotRowData[] }) {
   return (
     <form action={formAction} className="flex flex-col gap-3 rounded-a border border-a-line bg-a-surface px-4 py-4">
       <ZoneFields />
-      <SlotChecks options={slots} checked={["standard", "pickup"]} />
+      <SlotChecks options={slots} checked={["asap", "scheduled", "pickup"]} />
       <div className="flex flex-wrap items-center gap-4">
         <button type="submit" disabled={pending} className={aBtn("primary", "md")}>
           {pending ? "Adding" : "Add zone"}
