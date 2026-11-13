@@ -6,8 +6,10 @@ import { haversine, pointFrom } from "./assignmentRules";
 import { refForAttempt, type PaymentProof } from "./checkout";
 import { refundPayment } from "./checkoutPayment";
 import { refundOperationStatus } from "./refunds";
-import { canMoveCustom, customerPricePaise, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, quoteExpiresAt, type NewCustomRequest } from "./customRules";
+import { canMoveCustom, customerQuotePaise, splitCustomQuote, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, quoteExpiresAt, type NewCustomRequest } from "./customRules";
+import { readDeliverySettings } from "./catalogData";
 import { db } from "./db";
+import { DEFAULT_DELIVERY_RULES } from "./deliveryRules";
 import { meetsDeadline } from "./inventoryRules";
 import { log } from "./log";
 import { IntentRecord } from "./razorpay";
@@ -119,13 +121,14 @@ export async function recordQuote(vendorId: string, requestId: string, vendorPai
       return { ok: false, message: `${r.ref} is due too soon for you to make it now, so it has been passed on.`, moveOn: true };
     }
     const margin = (await tx.bakerySettings.findUnique({ where: { id: "singleton" }, select: { customMarginPct: true } }))?.customMarginPct ?? 15;
-    const quotePaise = customerPricePaise(vendorPaise, margin);
+    const feePaise = (await readDeliverySettings())?.feePaise ?? DEFAULT_DELIVERY_RULES.feePaise;
+    const quotePaise = customerQuotePaise(vendorPaise, margin, feePaise);
     await tx.customRequest.update({
       where: { id: r.id },
       data: { status: "quoted", vendorQuotePaise: vendorPaise, quotePaise, quoteExpiresAt: expiresAt, offerExpiresAt: null },
     });
     await send(tx, r, [r.phone], `cr:${r.id}:quote`, customQuoteMessage({ id: r.id, ref: r.ref, token: r.token, sizeKg: r.sizeKg.toString(), dueAt: r.dueAt, quotePaise }));
-    await send(tx, r, adminNumbers(), `cr:${r.id}:quote:admin`, updateMessage(r.ref, `${vendor.name} quoted ₹${rupees(vendorPaise)}; customer price ₹${rupees(quotePaise)}`));
+    await send(tx, r, adminNumbers(), `cr:${r.id}:quote:admin`, updateMessage(r.ref, `${vendor.name} quoted ₹${rupees(vendorPaise)}; customer price ₹${rupees(quotePaise)} incl. ₹${rupees(feePaise)} delivery`));
     return { ok: true, quotePaise };
   }, ASSIGNMENT_TX);
   if (res.ok) return res;
@@ -238,6 +241,8 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
     }
 
     const quotePaise = r.quotePaise!, vendorQuotePaise = r.vendorQuotePaise!;
+    const margin = (await tx.bakerySettings.findUnique({ where: { id: "singleton" }, select: { customMarginPct: true } }))?.customMarginPct ?? 15;
+    const { cakePaise, deliveryFeePaise } = splitCustomQuote(quotePaise, vendorQuotePaise, margin);
     let ref: string | null = null;
     for (let attempt = 0; attempt < 8 && !ref; attempt++) {
       const candidate = await refForAttempt(key, 0, attempt);
@@ -252,8 +257,8 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
       data: {
         ref, cakeName, cakeImageUrl: r.photoUrl,
         config: { custom: true, sizeKg, flavour: r.flavour, cakeMessage: r.cakeMessage, budgetPaise: r.budgetPaise },
-        priceBreakdown: { custom: { vendorQuotePaise, quotePaise } },
-        totalPaise: quotePaise, payablePaise: quotePaise, productSubtotalPaise: quotePaise,
+        priceBreakdown: { custom: { vendorQuotePaise, quotePaise, deliveryFeePaise } },
+        totalPaise: quotePaise, payablePaise: quotePaise, productSubtotalPaise: cakePaise, deliveryFeePaise,
         status: "confirmed", paymentStatus: "paid", confirmedAt: now,
         dueAt: r.dueAt, requestedFor: r.dueAt, deliverySlot: "custom",
         leadHours: Math.round((r.dueAt.getTime() - r.createdAt.getTime()) / 3600_000),
@@ -263,7 +268,7 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
         customerNotes: r.cakeMessage,
         razorpayOrderId: proof.razorpayOrderId, razorpayPaymentId: proof.razorpayPaymentId,
         assignmentState: "ASSIGNED",
-        items: { create: [{ label: cakeName, kind: "base", amountPaise: quotePaise, position: 0 }] },
+        items: { create: [{ label: cakeName, kind: "base", amountPaise: cakePaise, position: 0 }] },
       },
       select: { id: true, ref: true },
     });
@@ -271,7 +276,7 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
       data: {
         orderId: order.id, vendorId: vendor.id, assignmentStatus: "ACCEPTED", status: "accepted", sequence: 0,
         offeredAt: now, assignedAt: now, acceptedAt: now, respondedAt: now,
-        orderValuePaise: quotePaise, vendorEarningPaise: vendorQuotePaise, commissionPaise: quotePaise - vendorQuotePaise, feePaise: 0,
+        orderValuePaise: quotePaise, vendorEarningPaise: vendorQuotePaise, commissionPaise: cakePaise - vendorQuotePaise, feePaise: 0,
       },
       select: { id: true },
     });

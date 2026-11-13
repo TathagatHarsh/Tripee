@@ -26,6 +26,23 @@ export function customerPricePaise(vendorPaise: number, marginPct: number): numb
   return Math.ceil((vendorPaise * (100 + marginPct)) / 100_000) * 1000;
 }
 
+/** What the customer is quoted: the cake (bakery price + margin) plus the flat delivery fee. */
+export function customerQuotePaise(vendorPaise: number, marginPct: number, deliveryFeePaise: number): number {
+  return customerPricePaise(vendorPaise, marginPct) + deliveryFeePaise;
+}
+
+/**
+ * A stored quote split back into cake and delivery. A quote made before
+ * delivery was charged splits as fee 0.
+ * ponytail: the cake part is recomputed from today's margin; if the margin
+ * changes between quote and payment only this split drifts (never the amount
+ * paid). Store the fee on CustomRequest if that ever matters.
+ */
+export function splitCustomQuote(quotePaise: number, vendorPaise: number, marginPct: number) {
+  const cakePaise = Math.min(quotePaise, customerPricePaise(vendorPaise, marginPct));
+  return { cakePaise, deliveryFeePaise: quotePaise - cakePaise };
+}
+
 export function customOfferMinutes(): number {
   const minutes = Number(process.env.CUSTOM_OFFER_MINUTES ?? 60);
   if (!Number.isInteger(minutes) || minutes < 5 || minutes > 1440) throw new Error("Invalid custom offer window");
