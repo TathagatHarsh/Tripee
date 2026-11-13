@@ -68,6 +68,16 @@ function dayWindows(date: string, r: DeliveryRules): Window[] {
   return out;
 }
 
+/**
+ * The grid window a stored due time is the end of, for records that keep only
+ * the end (photo-quote requests). null when no window on that day's grid ends
+ * there, e.g. the admin changed the window length since — callers then fall
+ * back to the bare due time.
+ */
+export function windowEndingAt(dueAt: Date, r: DeliveryRules): Window | null {
+  return dayWindows(istDate(dueAt), r).find((w) => w.end.getTime() === dueAt.getTime()) ?? null;
+}
+
 /** null when open; otherwise the refusal copy. */
 function asapRefusal(now: Date, r: DeliveryRules): string | null {
   const date = istDate(now);

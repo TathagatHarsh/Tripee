@@ -1,6 +1,6 @@
 process.env.TZ = "UTC";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DELIVERY_RULES as R, checkChoice, deliveryChoices, windowForPaid } from "@/lib/deliveryRules";
+import { DEFAULT_DELIVERY_RULES as R, checkChoice, deliveryChoices, windowEndingAt, windowForPaid } from "@/lib/deliveryRules";
 
 const at = (s: string) => new Date(s + "+05:30");
 
@@ -71,5 +71,20 @@ describe("builder defaults", () => {
     expect(deliveryFromParam("asap")).toBe("asap");
     expect(deliveryFromParam("scheduled")).toBe("scheduled");
     expect(deliveryFromParam(null)).toBeNull();
+  });
+});
+
+describe("windowEndingAt", () => {
+  it("finds the window a stored due time ends", () => {
+    const w = windowEndingAt(at("2026-11-20T16:00:00"), R);
+    expect(w?.label).toBe("14:00–16:00");
+    expect(w?.start.toISOString()).toBe("2026-11-20T08:30:00.000Z");
+  });
+  it("finds a last window cut short at closing", () => {
+    expect(windowEndingAt(at("2026-11-20T18:00:00"), { ...R, windowMinutes: 180 })?.label).toBe("17:00–18:00");
+  });
+  it("returns null for a time that ends no window", () => {
+    expect(windowEndingAt(at("2026-11-20T15:00:00"), R)).toBeNull();
+    expect(windowEndingAt(at("2026-11-20T21:30:00"), R)).toBeNull();
   });
 });

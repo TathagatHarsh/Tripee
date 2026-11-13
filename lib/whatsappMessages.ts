@@ -55,7 +55,8 @@ export function formatDue(at: Date | null): string {
  * ("Thu 20 Nov, 10:00–12:00"); a legacy order keeps formatDue(dueAt).
  */
 export function formatWhen(o: { slot?: string | null; requestedFor?: Date | null; requestedWindow?: string | null; dueAt: Date | null }): string {
-  if (!o.slot || !isNewSlot(o.slot) || !o.requestedFor || !o.requestedWindow) return formatDue(o.dueAt);
+  const windowed = o.slot === "custom" || (!!o.slot && isNewSlot(o.slot));
+  if (!windowed || !o.requestedFor || !o.requestedWindow) return formatDue(o.dueAt);
   const p = Object.fromEntries(DUE_FORMAT.formatToParts(o.requestedFor).map((x) => [x.type, x.value]));
   return `${p.weekday} ${p.day} ${p.month}, ${o.requestedWindow}`;
 }
@@ -189,14 +190,18 @@ export function customQuoteMessage(r: {
   token: string;
   sizeKg: string;
   dueAt: Date;
+  /** The chosen window, when known; otherwise the bare due time is shown. */
+  requestedFor?: Date | null;
+  requestedWindow?: string | null;
   quotePaise: number;
 }): WhatsAppMessage {
+  const when = formatWhen({ slot: "custom", requestedFor: r.requestedFor, requestedWindow: r.requestedWindow, dueAt: r.dueAt });
   return {
     type: "template",
     name: "custom_quote",
     components: [
       header(r.id),
-      body(cleanParam(r.ref), cleanParam(`${r.sizeKg} kg`), cleanParam(formatDue(r.dueAt)), cleanParam(rupees(r.quotePaise))),
+      body(cleanParam(r.ref), cleanParam(`${r.sizeKg} kg`), cleanParam(when), cleanParam(rupees(r.quotePaise))),
       { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: r.token }] },
       quickReply(1, `cq_decline:${r.id}`),
     ],

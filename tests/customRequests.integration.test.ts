@@ -364,7 +364,7 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
       razorpayOrderId: proof.razorpayOrderId, razorpayPaymentId: proof.razorpayPaymentId, assignmentState: 'ASSIGNED',
       cakeName: 'Custom cake · 1.5 kg · Chocolate', cakeImageUrl: 'https://x.test/p.jpg', customerName: 'Asha', customerPhone: CUSTOMER,
       addressLine1: '12 Secret Street', city: 'Hyderabad', state: 'Telangana', pincode: '500084', customerNotes: 'Happy 30th',
-      deliverySlot: 'custom', leadHours: 50, dueAt: request.dueAt, requestedFor: request.dueAt,
+      deliverySlot: 'custom', leadHours: 50, dueAt: request.dueAt, requestedFor: request.dueAt, requestedWindow: null,
     });
     expect(order.config).toEqual({ custom: true, sizeKg: 1.5, flavour: 'Chocolate', cakeMessage: 'Happy 30th', budgetPaise: 200000 });
     expect(order.priceBreakdown).toEqual({ custom: { vendorQuotePaise: 180000, quotePaise: 222000, deliveryFeePaise: 15000 } });

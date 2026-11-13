@@ -88,6 +88,10 @@ describe('custom cake builders', () => {
     const n = customOfferMessage({ id: 'cr1', ref: 'R', sizeKg: '1', flavour: 'f', cakeMessage: null, dueAt, area: 'a', budgetPaise: null });
     expect(bodyTexts(n).slice(3).filter((_: string, i: number) => i !== 1)).toEqual(['-', 'a', 'no budget given']);
   });
+  it('customQuoteMessage shows the chosen window when known', () => {
+    const m = customQuoteMessage({ id: 'cr1', ref: 'CR-ABC234', token: 'tok', sizeKg: '2', dueAt, requestedFor: new Date(dueAt.getTime() - 2 * 3600000), requestedWindow: '14:00–16:00', quotePaise: 222000 });
+    expect(bodyTexts(m)[2]).toBe('Sat 10 Oct, 14:00–16:00');
+  });
   it('customQuoteMessage: exact components', () => {
     const m = customQuoteMessage({ id: 'cr1', ref: 'CR-ABC234', token: 'tok', sizeKg: '2', dueAt, quotePaise: 207000 });
     expect(m).toEqual({ type: 'template', name: 'custom_quote', components: [

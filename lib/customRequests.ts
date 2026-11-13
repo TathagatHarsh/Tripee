@@ -9,7 +9,7 @@ import { refundOperationStatus } from "./refunds";
 import { canMoveCustom, customerQuotePaise, splitCustomQuote, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, quoteExpiresAt, type NewCustomRequest } from "./customRules";
 import { readDeliverySettings } from "./catalogData";
 import { db } from "./db";
-import { DEFAULT_DELIVERY_RULES } from "./deliveryRules";
+import { DEFAULT_DELIVERY_RULES, windowEndingAt } from "./deliveryRules";
 import { meetsDeadline } from "./inventoryRules";
 import { log } from "./log";
 import { IntentRecord } from "./razorpay";
@@ -108,6 +108,8 @@ export async function offerNext(requestId: string): Promise<void> {
 const endOffer = (tx: Tx, id: string) => tx.customRequest.update({ where: { id }, data: { vendorId: null, offerExpiresAt: new Date() } });
 
 export async function recordQuote(vendorId: string, requestId: string, vendorPaise: number): Promise<{ ok: true; quotePaise: number } | { ok: false; message: string }> {
+  // Read before the transaction: a second connection inside it can starve the pool.
+  const rules = (await readDeliverySettings()) ?? DEFAULT_DELIVERY_RULES;
   const res = await db.$transaction(async (tx): Promise<{ ok: true; quotePaise: number } | { ok: false; message: string; moveOn?: boolean }> => {
     const r = await locked(tx, requestId);
     const now = new Date();
@@ -121,13 +123,14 @@ export async function recordQuote(vendorId: string, requestId: string, vendorPai
       return { ok: false, message: `${r.ref} is due too soon for you to make it now, so it has been passed on.`, moveOn: true };
     }
     const margin = (await tx.bakerySettings.findUnique({ where: { id: "singleton" }, select: { customMarginPct: true } }))?.customMarginPct ?? 15;
-    const feePaise = (await readDeliverySettings())?.feePaise ?? DEFAULT_DELIVERY_RULES.feePaise;
+    const feePaise = rules.feePaise;
+    const chosen = windowEndingAt(r.dueAt, rules);
     const quotePaise = customerQuotePaise(vendorPaise, margin, feePaise);
     await tx.customRequest.update({
       where: { id: r.id },
       data: { status: "quoted", vendorQuotePaise: vendorPaise, quotePaise, quoteExpiresAt: expiresAt, offerExpiresAt: null },
     });
-    await send(tx, r, [r.phone], `cr:${r.id}:quote`, customQuoteMessage({ id: r.id, ref: r.ref, token: r.token, sizeKg: r.sizeKg.toString(), dueAt: r.dueAt, quotePaise }));
+    await send(tx, r, [r.phone], `cr:${r.id}:quote`, customQuoteMessage({ id: r.id, ref: r.ref, token: r.token, sizeKg: r.sizeKg.toString(), dueAt: r.dueAt, requestedFor: chosen?.start, requestedWindow: chosen?.label, quotePaise }));
     await send(tx, r, adminNumbers(), `cr:${r.id}:quote:admin`, updateMessage(r.ref, `${vendor.name} quoted ₹${rupees(vendorPaise)}; customer price ₹${rupees(quotePaise)} incl. ₹${rupees(feePaise)} delivery`));
     return { ok: true, quotePaise };
   }, ASSIGNMENT_TX);
@@ -221,6 +224,8 @@ export type CustomPayment = { kind: "paid"; orderRef: string } | { kind: "refund
  */
 export async function payCustomRequest(requestId: string, proof: PaymentProof): Promise<CustomPayment> {
   const key = `custom:${requestId}`;
+  // Read before the transaction: a second connection inside it can starve the pool.
+  const rules = (await readDeliverySettings()) ?? DEFAULT_DELIVERY_RULES;
   const outcome = await db.$transaction(async (tx): Promise<CustomPayment | { kind: "refund" }> => {
     await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${`checkout:${key}`}))`;
     const r = await locked(tx, requestId);
@@ -243,6 +248,8 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
     const quotePaise = r.quotePaise!, vendorQuotePaise = r.vendorQuotePaise!;
     const margin = (await tx.bakerySettings.findUnique({ where: { id: "singleton" }, select: { customMarginPct: true } }))?.customMarginPct ?? 15;
     const { cakePaise, deliveryFeePaise } = splitCustomQuote(quotePaise, vendorQuotePaise, margin);
+    // The request keeps only the window's end; rebuild the window the customer chose.
+    const chosen = windowEndingAt(r.dueAt, rules);
     let ref: string | null = null;
     for (let attempt = 0; attempt < 8 && !ref; attempt++) {
       const candidate = await refForAttempt(key, 0, attempt);
@@ -260,7 +267,7 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
         priceBreakdown: { custom: { vendorQuotePaise, quotePaise, deliveryFeePaise } },
         totalPaise: quotePaise, payablePaise: quotePaise, productSubtotalPaise: cakePaise, deliveryFeePaise,
         status: "confirmed", paymentStatus: "paid", confirmedAt: now,
-        dueAt: r.dueAt, requestedFor: r.dueAt, deliverySlot: "custom",
+        dueAt: r.dueAt, requestedFor: chosen?.start ?? r.dueAt, requestedWindow: chosen?.label ?? null, deliverySlot: "custom",
         leadHours: Math.round((r.dueAt.getTime() - r.createdAt.getTime()) / 3600_000),
         customerName: r.name, customerPhone: r.phone,
         deliveryLocation: { latitude: address.lat, longitude: address.lng },
