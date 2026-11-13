@@ -1,5 +1,6 @@
 "use client";
 
+import { BrandLogo } from "@/components/BrandLogo";
 import Link from "next/link";
 import { DEFAULT_SNAPSHOT } from "@/lib/catalogDefaults";
 import { useEffect, useState } from "react";
@@ -13,7 +14,6 @@ import { mulberry32 } from "@/lib/seed";
  * would be a hydration mismatch dressed up as character.
  */
 const rng = mulberry32(7412);
-const WORDMARK_ANGLE = (rng() * 4 - 2).toFixed(2);
 const STAMP_ANGLE = (rng() * 8 - 4).toFixed(2);
 
 /**
@@ -37,7 +37,7 @@ export function Masthead() {
   return (
     <header className="film-masthead sticky top-0 z-50 bg-paper" data-fed={fed}>
       <div className="mx-auto flex h-full max-w-[1400px] items-center gap-[24px] px-[24px] md:px-[48px]">
-        <Wordmark />
+        <BrandLogo compact />
 
         <div className="hidden text-[length:var(--mono-xs)] leading-[1.45] tracking-[var(--tracking-mono-xs)] text-ink-60 uppercase sm:block">
           <div>MLR Colony, Ahmedguda</div>
@@ -57,46 +57,6 @@ export function Masthead() {
         </div>
       </div>
     </header>
-  );
-}
-
-/**
- * The wordmark is a stamp, not a heading — it is struck onto the paper, so its
- * edges break where the ink did not take.
- *
- * The letters are SVG text rather than outlined paths, which is the one place
- * this falls short of "never live text": outlining Geist Mono needs a
- * font-to-path step the repo has no tooling for. The displacement filter and
- * the seeded angle carry the rest, and `aria-hidden` on the glyphs with a label
- * on the svg keeps it a mark rather than a paragraph.
- */
-function Wordmark() {
-  return (
-    <svg
-      viewBox="0 0 300 34"
-      className="h-[22px] w-auto shrink-0 text-ink"
-      role="img"
-      aria-label="MakeYourCakes"
-      style={{ transform: `rotate(${WORDMARK_ANGLE}deg)` }}
-    >
-      <filter id="mm-ink">
-        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="7412" result="n" />
-        <feDisplacementMap in="SourceGraphic" in2="n" scale="1.4" xChannelSelector="R" yChannelSelector="G" />
-      </filter>
-      <text
-        x="0"
-        y="25"
-        aria-hidden="true"
-        fill="currentColor"
-        filter="url(#mm-ink)"
-        fontFamily="var(--font-mono)"
-        fontSize="26"
-        fontWeight="500"
-        letterSpacing="0.14em"
-      >
-        MakeYourCakes
-      </text>
-    </svg>
   );
 }
 

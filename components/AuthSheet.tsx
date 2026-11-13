@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import type { ComponentProps } from "react";
 import type { SignIn } from "@clerk/nextjs";
 import Image from "next/image";
@@ -175,36 +176,6 @@ export const shopClerkAppearance: Appearance = {
 };
 
 /**
- * The wordmark, as it is drawn in the shop's own header.
- *
- * A copy of `components/shop/ShopHeader`'s private `CakeWordmark` rather than
- * an import, for one reason: this one is cream on a photograph at 28px, and the
- * header's is berry on cream at 24px. Exporting the other and parameterising it
- * would be one component with two call sites that never agree on anything but
- * the path data.
- */
-function CakeWordmark({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden focusable="false">
-      <path d="M12 2.6v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path
-        d="M4.5 20.4V12a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8.4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M4.5 14.6c1.9 0 1.9 1.6 3.75 1.6s1.9-1.6 3.75-1.6 1.9 1.6 3.75 1.6 1.9-1.6 3.75-1.6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path d="M3 20.4h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-/**
  * The photograph, and the only thing on this page that is not a form.
  *
  * ## Why it is identical on both pages
@@ -291,10 +262,7 @@ function BrandPanel() {
           href="/"
           className="inline-flex w-fit items-center gap-2 rounded-s-sm text-s-cream transition-opacity duration-[var(--dur-ui)] hover:opacity-85"
         >
-          <CakeWordmark className="size-6 shrink-0 sm:size-7" />
-          <span className="font-display text-[1.375rem] leading-none tracking-[-0.01em] whitespace-nowrap sm:text-[1.5rem]">
-            MakeYourCakes
-          </span>
+          <BrandLogo light />
         </Link>
 
         {/* The sales argument, and it is only shown where there is room to read

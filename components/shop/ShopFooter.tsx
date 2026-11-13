@@ -30,7 +30,7 @@ export function ShopFooter({ bakery }: { bakery: BakeryInfo }) {
     <footer className="border-t border-s-line bg-s-cocoa-deep text-s-cream/85">
       <div className="mx-auto grid max-w-[84rem] gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-10">
         <div className="flex flex-col gap-3">
-          <span className="text-s-cream"><BrandLogo light /></span>
+          <span className="text-s-cream"><BrandLogo full light /></span>
           <p className="max-w-[34ch] text-[0.9375rem] leading-relaxed text-s-cream/70">
             One bakery in Hyderabad. Every cake is baked to the
             order it was quoted from.

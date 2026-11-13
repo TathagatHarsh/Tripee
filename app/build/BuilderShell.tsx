@@ -1,5 +1,7 @@
 "use client";
 
+import { BrandLogo } from "@/components/BrandLogo";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -260,7 +262,7 @@ function ShellBar({ reference }: { reference?: string }) {
           href="/"
           className="shrink-0 font-mono text-meta font-medium tracking-[0.2em] text-ink"
         >
-          MakeYourCakes
+          <BrandLogo compact />
         </Link>
         {reference && (
           <>
