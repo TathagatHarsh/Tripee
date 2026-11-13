@@ -54,7 +54,7 @@ export const ToppingSpec = z.object({
 });
 
 export const DeliverySlot = z.enum([
-  "standard", "same-day", "express-4hr", "midnight", "pickup",
+  "asap", "scheduled", "standard", "same-day", "express-4hr", "midnight", "pickup",
 ]);
 
 /** THE object. Everything reads from this. */
@@ -118,7 +118,7 @@ export const DEFAULT_CAKE: CakeConfig = {
   toppings: [],
   eggless: true,
   sugarFree: false,
-  delivery: "standard",
+  delivery: "asap",
 };
 
 /**

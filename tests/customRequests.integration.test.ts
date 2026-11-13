@@ -127,7 +127,7 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
   it('a typed "1800" quotes: customer price with margin, customer template, bakery reply', async () => {
     const { request } = await quoted();
     const r = await reload(request.id);
-    expect(r).toMatchObject({ status: 'quoted', vendorQuotePaise: 180000, quotePaise: 207000 });
+    expect(r).toMatchObject({ status: 'quoted', vendorQuotePaise: 180000, quotePaise: 222000 });
     expect(r.quoteExpiresAt!.getTime()).toBeGreaterThan(Date.now());
     const all = await rows(request.id);
     expect(all.find(x => x.destination === CUSTOMER)!.payload).toMatchObject({ type: 'template', name: 'custom_quote' });
@@ -339,11 +339,11 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
       sizeKg: 1.5, flavour: 'Chocolate', cakeMessage: 'Happy 30th', budgetPaise: 200000,
       dueAt: new Date(Date.now() + 48 * 3600000), createdAt: new Date(Date.now() - 2 * 3600000),
       address: { lat: 14.2, lng: 77.6, address: '12 Secret Street', locality: 'Kondapur', city: 'Hyderabad', state: 'Telangana', pincode: '500084', placeId: 'p' },
-      vendorId: vendor.id, triedVendorIds: [vendor.id], vendorQuotePaise: 180000, quotePaise: 207000,
+      vendorId: vendor.id, triedVendorIds: [vendor.id], vendorQuotePaise: 180000, quotePaise: 222000,
       quoteExpiresAt: new Date(Date.now() + (opts.expired ? -1 : 1) * 3600000),
     } });
     ids.push(request.id);
-    const intent = await openPaymentIntent(`custom:${request.id}`, `custom:${request.id}`, 207000);
+    const intent = await openPaymentIntent(`custom:${request.id}`, `custom:${request.id}`, 222000);
     if (intent.kind !== 'ok') throw new Error('no intent');
     const razorpayPaymentId = `pay_CP${run}${n}`;
     paymentOrder.set(razorpayPaymentId, intent.record.razorpayOrderId);
@@ -360,14 +360,14 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
     const ref = (result as { orderRef: string }).orderRef;
     const order = await db.order.findUniqueOrThrow({ where: { ref }, include: { assignments: true, items: true, events: true } });
     expect(order).toMatchObject({
-      totalPaise: 207000, payablePaise: 207000, productSubtotalPaise: 207000, status: 'confirmed', paymentStatus: 'paid',
+      totalPaise: 222000, payablePaise: 222000, productSubtotalPaise: 207000, deliveryFeePaise: 15000, status: 'confirmed', paymentStatus: 'paid',
       razorpayOrderId: proof.razorpayOrderId, razorpayPaymentId: proof.razorpayPaymentId, assignmentState: 'ASSIGNED',
       cakeName: 'Custom cake · 1.5 kg · Chocolate', cakeImageUrl: 'https://x.test/p.jpg', customerName: 'Asha', customerPhone: CUSTOMER,
       addressLine1: '12 Secret Street', city: 'Hyderabad', state: 'Telangana', pincode: '500084', customerNotes: 'Happy 30th',
-      deliverySlot: 'custom', leadHours: 50, dueAt: request.dueAt, requestedFor: request.dueAt,
+      deliverySlot: 'custom', leadHours: 50, dueAt: request.dueAt, requestedFor: request.dueAt, requestedWindow: null,
     });
     expect(order.config).toEqual({ custom: true, sizeKg: 1.5, flavour: 'Chocolate', cakeMessage: 'Happy 30th', budgetPaise: 200000 });
-    expect(order.priceBreakdown).toEqual({ custom: { vendorQuotePaise: 180000, quotePaise: 207000 } });
+    expect(order.priceBreakdown).toEqual({ custom: { vendorQuotePaise: 180000, quotePaise: 222000, deliveryFeePaise: 15000 } });
     expect(order.deliveryLocation).toEqual({ latitude: 14.2, longitude: 77.6 });
     expect(order.items).toMatchObject([{ label: 'Custom cake · 1.5 kg · Chocolate', amountPaise: 207000 }]);
     // The bakery portal: no designer config, but flagged custom so it doesn't say "Specification unavailable".
@@ -377,7 +377,7 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
     const [assignment] = order.assignments;
     expect(order.currentAssignmentId).toBe(assignment.id);
     expect(assignment).toMatchObject({ vendorId: vendor.id, assignmentStatus: 'ACCEPTED', status: 'accepted', sequence: 0,
-      orderValuePaise: 207000, vendorEarningPaise: 180000, commissionPaise: 27000, feePaise: 0 });
+      orderValuePaise: 222000, vendorEarningPaise: 180000, commissionPaise: 27000, feePaise: 0 });
     expect(await reload(request.id)).toMatchObject({ status: 'paid', orderId: order.id });
     expect(await db.checkoutAttempt.findUnique({ where: { id: `custom:${request.id}` } })).toMatchObject({ status: 'completed', orderId: order.id });
     const rows = await db.notificationOutbox.findMany({ where: { orderId: order.id }, orderBy: { createdAt: 'asc' } });
@@ -443,7 +443,7 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
   it('the routes: intent for a live quote, 400 for a forged proof, the order for a real one even after the webhook made it', async () => {
     const { request, proof } = await paidQuote();
     const intent = await call(openQuoteIntent, request.token);
-    expect(await intent.json()).toEqual({ razorpayOrderId: proof.razorpayOrderId, amountPaise: 207000, keyId: 'rzp_test_abc' });
+    expect(await intent.json()).toEqual({ razorpayOrderId: proof.razorpayOrderId, amountPaise: 222000, keyId: 'rzp_test_abc' });
     expect((await call(payQuote, request.token, { ...proof, razorpaySignature: 'f'.repeat(64) })).status).toBe(400);
     await recoverPayment(proof.razorpayPaymentId); // the webhook wins the race
     const res = await call(payQuote, request.token, proof);

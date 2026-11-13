@@ -26,6 +26,23 @@ export function customerPricePaise(vendorPaise: number, marginPct: number): numb
   return Math.ceil((vendorPaise * (100 + marginPct)) / 100_000) * 1000;
 }
 
+/** What the customer is quoted: the cake (bakery price + margin) plus the flat delivery fee. */
+export function customerQuotePaise(vendorPaise: number, marginPct: number, deliveryFeePaise: number): number {
+  return customerPricePaise(vendorPaise, marginPct) + deliveryFeePaise;
+}
+
+/**
+ * A stored quote split back into cake and delivery. A quote made before
+ * delivery was charged splits as fee 0.
+ * ponytail: the cake part is recomputed from today's margin; if the margin
+ * changes between quote and payment only this split drifts (never the amount
+ * paid). Store the fee on CustomRequest if that ever matters.
+ */
+export function splitCustomQuote(quotePaise: number, vendorPaise: number, marginPct: number) {
+  const cakePaise = Math.min(quotePaise, customerPricePaise(vendorPaise, marginPct));
+  return { cakePaise, deliveryFeePaise: quotePaise - cakePaise };
+}
+
 export function customOfferMinutes(): number {
   const minutes = Number(process.env.CUSTOM_OFFER_MINUTES ?? 60);
   if (!Number.isInteger(minutes) || minutes < 5 || minutes > 1440) throw new Error("Invalid custom offer window");
@@ -73,7 +90,8 @@ export const CustomRequestInput = z.object({
   budgetRupees: z.number().int().min(100).max(100_000).optional(),
   flavour: z.string().trim().min(1).max(60),
   cakeMessage: z.string().trim().max(60).optional(),
-  dueAt: z.iso.datetime({ offset: true }),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dueWindow: z.string().min(1).max(20),
   address: z.object({
     lat: z.number(), lng: z.number(), address: z.string(), locality: z.string().optional(),
     source: z.enum(["map", "current_location"]).optional(),
@@ -82,3 +100,5 @@ export const CustomRequestInput = z.object({
   consent: z.literal(true),
 });
 export type CustomRequestInput = z.infer<typeof CustomRequestInput>;
+/** What is stored: the picked window collapses to its end, `dueAt`. */
+export type NewCustomRequest = Omit<CustomRequestInput, "dueDate" | "dueWindow"> & { dueAt: string };

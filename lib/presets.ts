@@ -133,7 +133,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
            should be. Same change on the Biscoff and the pistachio. */
         { kind: "butterscotch-crunch", placement: "base-border", density: 5 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -154,7 +154,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "biscoff-biscuit", placement: "top-ring", density: 3 },
         { kind: "biscoff-crumb", placement: "base-border", density: 5 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -186,7 +186,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "pistachio-nut", placement: "top-ring", density: 3 },
         { kind: "pistachio-crumb", placement: "top-scatter", density: 4 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -229,7 +229,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "chocolate-curl", placement: "crown", density: 4 },
         { kind: "white-chocolate-curl", placement: "base-border", density: 3 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -256,7 +256,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
            eggless caveat with it, which the docket states rather than hides. */
         { kind: "meringue-kiss", placement: "top-ring", density: 2 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -284,7 +284,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "chocolate-shard", placement: "crown", density: 3 },
         { kind: "chocolate-curl", placement: "base-border", density: 3 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -325,7 +325,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
       ],
       /* No longer whipped cream, so no longer pickup-only — see
          rules.whipped-cream-transit. Ganache travels. */
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -370,7 +370,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "pistachio-crumb", placement: "top-scatter", density: 4 },
         { kind: "almond-sliver", placement: "base-border", density: 4 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -410,7 +410,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "chocolate-shard", placement: "crown", density: 3 },
         { kind: "chocolate-curl", placement: "base-border", density: 3 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -427,7 +427,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "truffle", placement: "top-ring", density: 3 },
         { kind: "chocolate-curl", placement: "crown", density: 3 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   /*
@@ -481,7 +481,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "truffle", placement: "top-scatter", density: 5 },
         { kind: "chocolate-curl", placement: "base-border", density: 3 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -506,7 +506,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "cherry", placement: "top-ring", density: 3 },
         { kind: "white-chocolate-curl", placement: "crown", density: 4 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -533,7 +533,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "blueberry", placement: "top-ring", density: 4 },
         { kind: "oreo", placement: "base-border", density: 3 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -553,7 +553,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "strawberry", placement: "top-ring", density: 3 },
         { kind: "oreo", placement: "base-border", density: 3 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -580,7 +580,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "mixed-berry", placement: "top-ring", density: 3 },
         { kind: "white-chocolate-curl", placement: "base-border", density: 3 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -623,7 +623,7 @@ export const PREMIUM_FLAVOURS: Preset[] = [
         { kind: "butterscotch-crunch", placement: "top-ring", density: 3 },
         { kind: "biscoff-crumb", placement: "base-border", density: 5 },
       ],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
 ];
@@ -644,7 +644,7 @@ export const SIGNATURE_DESIGNS: Preset[] = [
       frosting: "dark-ganache", coverage: "full", finish: "smooth",
       frostingColor: "#3B2318", hasDrip: true, dripColor: "#3B2318",
       toppings: [{ kind: "chocolate-curl", placement: "top-ring", density: 3 }],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
   {
@@ -701,7 +701,7 @@ export const SIGNATURE_DESIGNS: Preset[] = [
       frosting: "cream-cheese", coverage: "naked", finish: "rustic",
       frostingColor: "#F8F0E2", hasDrip: false,
       toppings: [{ kind: "chocolate-curl", placement: "base-border", density: 2 }],
-      eggless: true, sugarFree: false, delivery: "standard",
+      eggless: true, sugarFree: false, delivery: "asap",
     },
   },
 ];

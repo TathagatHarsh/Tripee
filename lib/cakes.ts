@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { CakeCategory, EggType } from "@prisma/client";
 import { SIZES } from "./catalog";
 import { WEIGHT_KG } from "./servings";
-import { type CakeConfig, type DeliverySlot, type SizeBand } from "./schema";
+import { type CakeConfig, type DeliverySlot, DeliverySlot as DeliverySlotEnum, type SizeBand } from "./schema";
 import { allergensForVariant, type ProductionSpec } from "./productionSpec";
 
 /**
@@ -347,13 +347,13 @@ export function sizeDiameter(band: SizeBand): string {
 export const CakeChoices = z.object({
   /** Piped on the cake. Charged as labour — see PricingSettings. */
   message: z.string().trim().max(60).optional(),
-  delivery: z.enum(["standard", "same-day", "express-4hr", "midnight", "pickup"]),
+  delivery: DeliverySlotEnum,
   pincode: z.string().regex(/^\d{6}$/).optional(),
 });
 
 export type CakeChoices = z.infer<typeof CakeChoices>;
 
-export const DEFAULT_CHOICES: CakeChoices = { delivery: "standard" };
+export const DEFAULT_CHOICES: CakeChoices = { delivery: "asap" };
 
 /**
  * The cake as the kitchen has to bake it.

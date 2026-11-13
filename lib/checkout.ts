@@ -241,6 +241,8 @@ export const QuoteRequest = z
         slot: DeliverySlot,
         pincode: z.string().trim().optional(),
         requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        /** The scheduled window's label; checkout sends it, older clients may not. */
+        requestedWindow: z.string().trim().max(120).optional(),
       })
       .superRefine((f, ctx) => {
         if (f.method === "pickup" && f.slot !== "pickup") {
@@ -561,6 +563,12 @@ export function reviewBasket(
    * with a URL which cakes used to exist.
    */
   cakes: ReadonlyMap<string, CakeProductView> = new Map(),
+  /**
+   * `paid`: the customer has already paid against a basket the intent accepted,
+   * so a delivery slot withdrawn since (the retired legacy slots) no longer
+   * refuses it. Every other withdrawn option still does.
+   */
+  { paid = false }: { paid?: boolean } = {},
 ): BasketReview {
   const quotes: ItemQuote[] = [];
 
@@ -642,7 +650,7 @@ export function reviewBasket(
       config = configForVariant(
         found,
         picked,
-        item.choices ?? { delivery: "standard" },
+        item.choices ?? { delivery: "asap" },
       );
     } else if (item.config) {
       /* The builder's path, unchanged: an assembly with no row behind it. */
@@ -698,7 +706,8 @@ export function reviewBasket(
      *
      * The delivery slot is the exception and stays checked in both cases,
      * because it is genuinely still a catalogue option the shop offers: taking
-     * midnight delivery off the menu has to stop somebody ordering it.
+     * midnight delivery off the menu has to stop somebody ordering it — but
+     * not somebody who already paid for it (`paid`).
      */
     const deliveryChoice = item.choices?.delivery ?? config?.delivery;
     if (!deliveryChoice) {
@@ -712,7 +721,7 @@ export function reviewBasket(
         },
       };
     }
-    const withdrawn = cake
+    let withdrawn: WithdrawnOption[] = cake
       ? entryFor(catalog, "delivery", deliveryChoice)?.isAvailable
         ? []
         : [
@@ -723,6 +732,7 @@ export function reviewBasket(
             },
           ]
       : withdrawnOptions(config!, catalog);
+    if (paid) withdrawn = withdrawn.filter((o) => o.category !== "delivery");
     if (withdrawn.length > 0) {
       const names = withdrawn.map((o) => o.name).join(", ");
       return {
@@ -940,15 +950,19 @@ export async function refForAttempt(
   return "MC-" + slugFromBytes(new Uint8Array(digest)).toUpperCase();
 }
 
-/** Order identity excludes mutable quote estimates and server-owned window prose. */
+/**
+ * Order identity excludes mutable quote estimates and server-owned window prose.
+ * A scheduled window is the customer's choice, so it stays part of the identity.
+ */
 export function checkoutIntent(
   body: Pick<
     CheckoutRequest,
     "items" | "customerName" | "customerPhone" | "fulfillment"
   > & { designSlug?: string },
 ) {
-  const { requestedWindow: _window, ...fulfillment } = body.fulfillment;
-  void _window;
+  const { requestedWindow, ...rest } = body.fulfillment;
+  const fulfillment =
+    body.fulfillment.slot === "scheduled" ? { ...rest, requestedWindow } : rest;
   return {
     items: body.items.map(({ quotedTotalPaise: _quote, ...item }) => {
       void _quote;

@@ -13,6 +13,9 @@ import { priceProduct } from "@/lib/pricing";
 import { deriveServings } from "@/lib/servings";
 import { sBtn, sField } from "@/lib/shopUi";
 
+/** Minutes as hours for prose: 120 -> "2", 90 -> "1.5". */
+const hrs = (m: number) => String(Math.round((m / 60) * 100) / 100);
+
 /**
  * Everything a shopper decides about one cake, and the two buttons that end it.
  *
@@ -57,6 +60,7 @@ export function BuyPanel({
   product: CakeProductView;
   catalog: CatalogSnapshot;
 }) {
+  const r = catalog.deliveryRules;
   const pick = useVariantPick(product, cheapestVariant(product)?.id);
   const { variant } = pick;
 
@@ -67,7 +71,7 @@ export function BuyPanel({
      choices in three places is how two of them end up disagreeing. */
   const choices: CakeChoices = useMemo(
     () => ({
-      delivery: "standard",
+      delivery: "asap",
       ...(message.trim() ? { message: message.trim() } : {}),
 
     }),
@@ -215,7 +219,7 @@ export function BuyPanel({
         />
       </Group>
 
-      <div className="rounded-s bg-s-cream-deep p-4 text-sm text-s-bark">We deliver across Hyderabad. At checkout we verify your pincode, requested date and delivery price there.</div>
+      <div className="rounded-s bg-s-cream-deep p-4 text-sm text-s-bark">We deliver across Hyderabad: as soon as {hrs(r.readyMinMinutes)}–{hrs(r.readyMaxMinutes)} hours, or at a time you schedule. Your pincode and delivery time are confirmed at checkout.</div>
 
       {/* ── Quantity + the two actions ────────────────────────────────── */}
       <div className="flex flex-col gap-3 border-t border-s-line pt-6">

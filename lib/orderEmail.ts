@@ -1,9 +1,11 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
+import { DELIVERY_OPTIONS } from "./catalog";
+import { isNewSlot } from "./deliveryRules";
 import { formatINR } from "./format";
 import { outboxCreate } from "./notifications";
 import { siteUrl } from "./whatsapp";
-import { formatDue } from "./whatsappMessages";
+import { formatWhen } from "./whatsappMessages";
 
 /**
  * The one email a customer gets: "your order is confirmed", from orders@.
@@ -21,6 +23,8 @@ export interface ConfirmationFacts {
   pickup: boolean;
   dueAt: Date | null;
   slot: string | null;
+  requestedFor?: Date | null;
+  requestedWindow?: string | null;
   address: string | null;
 }
 
@@ -39,7 +43,9 @@ const escapeHtml = (s: string) =>
 
 export function orderConfirmationEmail(f: ConfirmationFacts): RenderedEmail {
   const link = `${siteUrl()}/orders/${f.ref}`;
-  const when = `${formatDue(f.dueAt)}${f.slot ? ` (${f.slot})` : ""}`;
+  // ASAP/scheduled read as the window and the slot's name; a legacy order as before (due time, raw slot).
+  const slotName = f.slot && isNewSlot(f.slot) ? DELIVERY_OPTIONS.find((o) => o.value === f.slot)?.name : f.slot;
+  const when = `${formatWhen(f)}${slotName ? ` (${slotName})` : ""}`;
   const rows: [string, string][] = [
     ["Order", f.ref],
     ["Cake", f.cakes.join(", ")],
@@ -74,7 +80,7 @@ export async function queueOrderConfirmationEmail(tx: Prisma.TransactionClient, 
     where: { id: orderId },
     select: {
       ref: true, customerName: true, customerEmail: true, cakeName: true, totalPaise: true, fulfillmentMethod: true,
-      dueAt: true, requestedFor: true, deliverySlot: true,
+      dueAt: true, requestedFor: true, requestedWindow: true, deliverySlot: true,
       addressLine1: true, addressLine2: true, city: true, state: true, pincode: true,
       cakes: { orderBy: { position: "asc" }, select: { cakeName: true } },
     },
@@ -92,6 +98,8 @@ export async function queueOrderConfirmationEmail(tx: Prisma.TransactionClient, 
     pickup,
     dueAt: o.dueAt ?? o.requestedFor,
     slot: o.deliverySlot,
+    requestedFor: o.requestedFor,
+    requestedWindow: o.requestedWindow,
     address: pickup ? null : [o.addressLine1, o.addressLine2, o.city, o.state, o.pincode].filter(Boolean).join(", ") || null,
   });
 

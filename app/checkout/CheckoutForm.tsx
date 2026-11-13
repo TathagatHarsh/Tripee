@@ -14,6 +14,7 @@ import { variantById, variantLabel, type CakeProductView } from "@/lib/cakes";
 import type { CatalogSnapshot } from "@/lib/catalogSnapshot";
 import { CheckoutRequest, checkoutIntent, keptAttempt, nameOk, PaymentProof, phoneOk } from "@/lib/checkout";
 import { PICKUP_OPEN, resolveSlot } from "@/lib/delivery";
+import { cakeKindOf, checkChoice, deliveryChoices, isNewSlot, istDate } from "@/lib/deliveryRules";
 import { formatINR } from "@/lib/format";
 import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
 import { DeliverySlot, type CakeConfig } from "@/lib/schema";
@@ -37,6 +38,7 @@ const DraftSchema = z.object({
   state: z.string().max(80),
   pincode: z.string().max(6),
   requestedDate: z.string(),
+  requestedWindow: z.string().max(120).default(""),
   deliveryInstructions: z.string().max(500),
   customerNotes: z.string().max(1000),
   occasion: z.string().max(80),
@@ -63,25 +65,26 @@ const QuoteSchema = z.object({
   gstPaise: z.number().int().nonnegative(),
   totalPaise: z.number().int().nonnegative(),
 });
-function istDate(date = new Date()) {
-  return new Date(date.getTime() + 19800000).toISOString().slice(0, 10);
-}
 function readDraft(): Draft {
   try {
     const parsed = DraftSchema.safeParse(
       JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? "null"),
     );
-    if (parsed.success)
-      return !PICKUP_OPEN && parsed.data.method === "pickup"
-        ? { ...parsed.data, method: "delivery", slot: "standard" }
-        : parsed.data;
+    if (parsed.success) {
+      const d = parsed.data;
+      // A draft from before ASAP / Schedule holds a retired slot: start over on ASAP.
+      if (d.method === "pickup" && PICKUP_OPEN) return d;
+      return isNewSlot(d.slot) && d.method === "delivery"
+        ? d
+        : { ...d, method: "delivery", slot: "asap", requestedDate: "", requestedWindow: "" };
+    }
   } catch {}
   return {
     name: "",
     phone: "",
     email: "",
     method: "delivery",
-    slot: "standard",
+    slot: "asap",
     locality: "",
     formattedAddress: "",
     source: "manual",
@@ -91,7 +94,8 @@ function readDraft(): Draft {
     city: "Hyderabad",
     state: "Telangana",
     pincode: "",
-    requestedDate: istDate(new Date(Date.now() + 7 * 86400000)),
+    requestedDate: "",
+    requestedWindow: "",
     deliveryInstructions: "",
     customerNotes: "",
     occasion: "",
@@ -115,6 +119,8 @@ type Props = {
   designSlug?: string;
   catalog: CatalogSnapshot;
   cakes: CakeProductView[];
+  /** Delivery dates (YYYY-MM-DD) the bakery is shut. */
+  closedDays: string[];
   payments: { enabled: boolean; testMode: boolean; available?: boolean };
 };
 const ATTEMPT_KEY = "makemycake.checkoutAttempt";
@@ -158,7 +164,7 @@ export function CheckoutForm(props: Props) {
     </div>
   );
 }
-function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
+function Checkout({ catalog, cakes, closedDays, payments, builder, designSlug }: Props) {
   const cartLines = useCart((s) => s.lines);
   const lines = useMemo(() => builder ? [{ id: "builder", slug: "Custom cake", variantId: "builder", qty: 1, choices: { message: builder.message, delivery: builder.delivery, pincode: builder.pincode } }] : cartLines, [builder, cartLines]);
   const clear = useCart((s) => s.clear);
@@ -208,11 +214,37 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
   );
   const missing = !builder && resolved.some((r) => !r.cake || !r.variant?.isAvailable);
   const delivery = draft.method === "pickup" ? "pickup" : draft.slot;
+  // ASAP closes at 18:00 and the windows run out, so the clock ticks without a reload.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
+  const rules = catalog.deliveryRules;
+  const kind = cakeKindOf(builder ? [{ config: builder }] : []);
+  const choices = useMemo(
+    () => deliveryChoices(now, kind, rules, new Set(closedDays)),
+    [now, kind, rules, closedDays],
+  );
+  const asapVerdict = checkChoice({ slot: "asap" }, now, kind, rules);
+  // Out of order hours (a fresh draft, or the clock ticking past closing) ASAP is disabled: move to Schedule so
+  // the date picker shows. Adjusted during render, not in an effect (react-hooks/set-state-in-effect; see OptionForm).
+  if (draft.method === "delivery" && draft.slot === "asap" && !choices.asap) setDraft((d) => ({ ...d, slot: "scheduled" }));
+  const pickedDay = choices.days.find((d) => d.date === draft.requestedDate);
+  const choiceOk =
+    draft.method === "pickup" ||
+    (delivery === "asap"
+      ? Boolean(choices.asap)
+      : Boolean(pickedDay?.windows.some((w) => w.label === draft.requestedWindow)));
+  const requestedDate =
+    delivery === "asap" ? istDate(now) : draft.requestedDate;
   const slot = resolveSlot(
     delivery,
     draft.method === "delivery" ? draft.pincode : undefined,
     catalog,
   );
+  const requestedWindow =
+    draft.method === "pickup" ? slotWindow(slot) : delivery === "asap" ? "asap" : draft.requestedWindow;
   const pincodeOk = /^\d{6}$/.test(draft.pincode);
   const receiverOk =
     !draft.forSomeoneElse ||
@@ -246,13 +278,15 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
       method: draft.method,
       slot: delivery,
       pincode: draft.method === "delivery" ? draft.pincode : undefined,
-      requestedDate: draft.requestedDate,
+      requestedDate,
+      requestedWindow: draft.method === "pickup" ? undefined : requestedWindow,
     },
   });
   const canQuote =
     lines.length > 0 &&
     !missing &&
-    Boolean(draft.requestedDate) &&
+    Boolean(requestedDate) &&
+    choiceOk &&
     (draft.method === "pickup" || /^\d{6}$/.test(draft.pincode));
   useEffect(() => {
     if (!canQuote) return;
@@ -303,6 +337,7 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
     contactOk &&
     (draft.method === "pickup" || addressComplete) &&
     Boolean(quote) &&
+    choiceOk &&
     !missing);
 
   function keyFor(signature: string) {
@@ -348,8 +383,8 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
       recipientName:
         draft.method === "delivery" && draft.forSomeoneElse ? draft.recipientName : draft.name,
       contactEmail: draft.email || undefined,
-      requestedDate: draft.requestedDate,
-      requestedWindow: slotWindow(slot),
+      requestedDate,
+      requestedWindow,
       customerNotes: draft.customerNotes || undefined,
       occasion: draft.occasion || undefined,
       ...(draft.method === "delivery"
@@ -491,7 +526,7 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
       </div>
     );
   const serviceText = !canQuote
-    ? "Enter your pincode and choose a date to check delivery."
+    ? "Enter your pincode and choose when you want it to check delivery."
     : !current
       ? "Checking delivery and price…"
       : quote
@@ -623,7 +658,7 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
                     onChange={() =>
                       patch({
                         method,
-                        slot: method === "pickup" ? "pickup" : "standard",
+                        slot: method === "pickup" ? "pickup" : "asap",
                       })
                     }
                   />
@@ -768,11 +803,103 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
                 Choose your requested date and delivery window.
               </p>
             </div>
+            {draft.method === "delivery" ? (
+              <>
+                <fieldset className="grid gap-3 sm:grid-cols-2">
+                  <legend className="mb-2 text-xs font-semibold">When should it arrive?</legend>
+                  <label
+                    className={`flex min-h-24 items-start gap-3 rounded-s-sm border p-4 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-s-cocoa ${draft.slot === "asap" ? "border-s-cocoa bg-s-cream-deep" : "border-s-line"} ${choices.asap ? "cursor-pointer" : "opacity-65"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="slot"
+                      checked={draft.slot === "asap"}
+                      disabled={!choices.asap}
+                      aria-describedby="asap-note"
+                      onChange={() => patch({ slot: "asap", requestedWindow: "" })}
+                      className="mt-1"
+                    />
+                    <span>
+                      <strong className="block text-sm">{catalog.slots.asap.name}</strong>
+                      <span id="asap-note" className={`mt-1 block text-xs ${choices.asap ? "text-s-bark" : "text-s-stop"}`}>
+                        {choices.asap
+                          ? `Arrives ${choices.asap.label}`
+                          : asapVerdict.ok
+                            ? "We're closed today. Schedule a time instead."
+                            : asapVerdict.message}
+                      </span>
+                    </span>
+                  </label>
+                  <label
+                    className={`flex min-h-24 cursor-pointer items-start gap-3 rounded-s-sm border p-4 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-s-cocoa ${draft.slot === "scheduled" ? "border-s-cocoa bg-s-cream-deep" : "border-s-line"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="slot"
+                      checked={draft.slot === "scheduled"}
+                      onChange={() => patch({ slot: "scheduled" })}
+                      className="mt-1"
+                    />
+                    <span>
+                      <strong className="block text-sm">Schedule</strong>
+                      <span className="mt-1 block text-xs text-s-bark">{`Pick a day and a ${rules.windowMinutes % 60 ? `${rules.windowMinutes}-minute` : `${rules.windowMinutes / 60}-hour`} window.`}</span>
+                    </span>
+                  </label>
+                </fieldset>
+                {draft.slot === "scheduled" && (
+                  <div className="mt-5">
+                    <Field label="Delivery date">
+                      <input
+                        type="date"
+                        value={draft.requestedDate}
+                        min={choices.days[0].date}
+                        max={choices.days[choices.days.length - 1].date}
+                        onChange={(e) => patch({ requestedDate: e.target.value, requestedWindow: "" })}
+                        required
+                        className={sField()}
+                      />
+                    </Field>
+                    {draft.requestedDate && (
+                      pickedDay?.windows.length ? (
+                        <fieldset className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                          <legend className="mb-2 text-xs font-semibold">Delivery window</legend>
+                          {pickedDay.windows.map((w) => (
+                            <label
+                              key={w.label}
+                              className={`flex min-h-11 cursor-pointer items-center justify-center rounded-s-sm border px-3 text-sm tabular-nums has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-s-cocoa ${draft.requestedWindow === w.label ? "border-s-cocoa bg-s-cream-deep font-semibold" : "border-s-line"}`}
+                            >
+                              <input
+                                type="radio"
+                                name="window"
+                                value={w.label}
+                                checked={draft.requestedWindow === w.label}
+                                onChange={() => patch({ requestedWindow: w.label })}
+                                className="sr-only"
+                              />
+                              {w.label}
+                            </label>
+                          ))}
+                        </fieldset>
+                      ) : (
+                        <p role="status" className="mt-3 text-sm text-s-stop">
+                          {closedDays.includes(draft.requestedDate)
+                            ? "We're closed that day."
+                            : pickedDay
+                              ? "No windows left that day. Choose another date."
+                              : `Choose a date within the next ${rules.preorderDays} days.`}
+                        </p>
+                      )
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
             <Field label="Requested date">
               <input
                 type="date"
                 value={draft.requestedDate}
-                min={istDate()}
+                min={istDate(now)}
                 onChange={(e) => patch({ requestedDate: e.target.value })}
                 required
                 className={sField()}
@@ -823,6 +950,8 @@ function Checkout({ catalog, cakes, payments, builder, designSlug }: Props) {
                   );
                 })}
             </fieldset>
+              </>
+            )}
             <div
               className={`mt-5 rounded-s border p-4 text-sm ${quote ? "border-s-done/30 bg-s-done-wash text-s-done" : current?.error ? "border-s-stop/30 bg-s-stop-wash text-s-stop" : "border-s-line bg-s-cream"}`}
               role="status"

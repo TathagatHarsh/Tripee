@@ -7,7 +7,7 @@ import { CheckoutForm } from "@/app/checkout/CheckoutForm";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
 import { listCakes } from "@/lib/cakeData";
-import { getCatalogSnapshot } from "@/lib/catalogData";
+import { getCatalogSnapshot, loadClosedDays } from "@/lib/catalogData";
 import { isTestKey, paymentsEnabled, offlinePaymentsEnabled, paymentCheckoutAvailable } from "@/lib/razorpay";
 
 export const metadata: Metadata = {
@@ -34,6 +34,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
     getCatalogSnapshot(),
     listCakes(),
   ]);
+  const closedDays = await loadClosedDays(catalog.deliveryRules.preorderDays);
 
   return (
     <div className="s-root flex min-h-dvh flex-col bg-s-cream">
@@ -62,6 +63,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
             designSlug={builder ? query.design : undefined}
             catalog={catalog}
             cakes={cakes}
+            closedDays={closedDays}
             payments={{ enabled: paymentsEnabled(), available: paymentCheckoutAvailable() || offlinePaymentsEnabled(), testMode: isTestKey() }}
           />
         </div>

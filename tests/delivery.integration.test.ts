@@ -1,11 +1,22 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { createHmac, randomUUID } from 'node:crypto';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
+// Checkout, below, runs the real /api/orders route and payment recovery outside a Next request.
+vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn, revalidateTag: () => {}, revalidatePath: () => {}, updateTag: () => {} }));
+vi.mock('../lib/auth', () => ({ getViewer: async () => null }));
+vi.mock('../lib/guestOrders', () => ({ rememberGuestOrders: async () => {} }));
+vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/server')>()), after: () => {} }));
 vi.mock('../lib/mapping', () => ({ getDistanceMatrix: vi.fn(async (origins: unknown[]) => origins.map(() => ({ distanceKm: 2, estimatedMinutes: 10, source: 'test' }))) }));
 import { db } from '../lib/db';
 import { assignmentCandidates, manualAssignment, moveFulfillment, respondToAssignment } from '../lib/assignment';
 import { applyStatusTransition } from '../lib/orderTransition';
 import { vendorNext } from '../lib/vendors';
 import { isCovered } from '../lib/coverage';
+import { DEFAULT_ROWS } from '../lib/catalogDefaults';
+import { asJson, validateCheckout } from '../lib/checkoutValidate';
+import { recoverPayment } from '../lib/paymentRecovery';
+import { POST as placeOrder } from '../app/api/orders/route';
+import { POST as openIntent } from '../app/api/payments/intent/route';
 
 /**
  * One order from confirmed to the customer's door, the way the portals drive it
@@ -128,5 +139,169 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
     const candidate = (await assignmentCandidates(order.ref)).find((c) => c.vendorId === vendor.id)!;
     expect(candidate.eligible).toBe(false);
     expect(candidate.reasons).toContain('Outside service area');
+  });
+
+  describe('checkout against the delivery rules', () => {
+    const keys: string[] = [];
+    const slug = `delivery-test-checkout-${randomUUID().slice(0, 8)}`;
+    let variantId = '';
+    /** undefined: this suite created the standard row and removes it; otherwise the value to put back. */
+    let priorStandardAvailable: boolean | undefined;
+
+    const basket = (slot: string, requestedDate: string, requestedWindow: string) => {
+      const idempotencyKey = randomUUID();
+      keys.push(idempotencyKey);
+      return {
+        idempotencyKey, customerName: 'Rules Customer', customerPhone: '9876543210',
+        items: [{ cakeSlug: slug, variantId, qty: 1, choices: { delivery: slot } }],
+        fulfillment: { method: 'delivery', slot, recipientName: 'Rules Customer', addressLine1: '12 Test Street', city: 'Hyderabad', state: 'Telangana', pincode: '500081', requestedDate, requestedWindow, location: { lat: 17.44, lng: 78.38, placeId: '' } },
+      };
+    };
+    const offline = (body: unknown) => {
+      vi.stubEnv('PAYMENT_MODE', 'offline');
+      vi.stubEnv('RAZORPAY_KEY_ID', '');
+      vi.stubEnv('RAZORPAY_KEY_SECRET', '');
+      vi.stubEnv('SERVICE_AREA', 'hyderabad');
+      return placeOrder(new Request('http://localhost/api/orders', { method: 'POST', body: JSON.stringify(body) }));
+    };
+
+    /** A stubbed Razorpay holding one gateway order and its captured payment. */
+    const razorpay = (orderId: string, paymentId: string, amount: () => number, receipt: string) => {
+      vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_abc');
+      vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
+      vi.stubEnv('SERVICE_AREA', 'hyderabad');
+      vi.stubGlobal('fetch', vi.fn(async (input: unknown) => {
+        const target = String(input);
+        if (target.endsWith('/v1/orders')) return Response.json({ id: orderId });
+        if (target.endsWith(`/payments/${paymentId}`)) return Response.json({ id: paymentId, order_id: orderId, status: 'captured', amount: amount(), amount_refunded: 0, currency: 'INR' });
+        if (target.endsWith(`/orders/${orderId}`)) return Response.json({ id: orderId, receipt, amount: amount(), currency: 'INR' });
+        throw new Error(`unexpected fetch ${target}`);
+      }));
+    };
+
+    it('a paid ASAP confirm arriving after 18:00 still creates the order', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-20T17:50:00+05:30'));
+      const body = basket('asap', '2026-11-20', 'asap');
+      const tag = randomUUID().replaceAll('-', '').slice(0, 10);
+      const orderId = `order_DA${tag}`, paymentId = `pay_DA${tag}`;
+      let amount = 0;
+      razorpay(orderId, paymentId, () => amount, body.idempotencyKey);
+      const post = (route: typeof placeOrder, b: unknown) => route(new Request('http://localhost/api/x', { method: 'POST', body: JSON.stringify(b) }));
+      const intent = await post(openIntent, body);
+      expect(intent.status).toBe(200);
+      amount = (await intent.json()).amountPaise;
+
+      vi.setSystemTime(new Date('2026-11-20T18:00:05+05:30'));
+      const payment = { razorpayOrderId: orderId, razorpayPaymentId: paymentId, razorpaySignature: createHmac('sha256', 'secret').update(`${orderId}|${paymentId}`).digest('hex') };
+      const res = await post(placeOrder, { ...body, payment });
+      const json = await res.json();
+      expect(res.status, JSON.stringify(json)).toBe(201);
+      const order = await db.order.findUniqueOrThrow({ where: { ref: json.orderId } });
+      expect(order).toMatchObject({ deliverySlot: 'asap', paymentStatus: 'paid', requestedWindow: '20:00–22:00' });
+      expect(order.dueAt).toEqual(new Date('2026-11-20T22:00:05+05:30'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    });
+    afterAll(async () => {
+      await db.order.deleteMany({ where: { checkoutAttempt: { id: { in: keys } } } });
+      await db.checkoutAttempt.deleteMany({ where: { id: { in: keys } } });
+      await db.paymentRecovery.deleteMany({ where: { id: { in: keys } } });
+      await db.cakeProduct.deleteMany({ where: { slug } });
+      const standard = { category: 'delivery' as const, value: 'standard' };
+      if (priorStandardAvailable === undefined) await db.catalogOption.deleteMany({ where: standard });
+      else await db.catalogOption.updateMany({ where: standard, data: { isAvailable: priorStandardAvailable } });
+    });
+
+    beforeAll(async () => {
+      const product = await db.cakeProduct.create({
+        data: {
+          slug, name: 'Rules Test Cake', description: 'Test', category: 'chocolate', pricePaise: 189900, sizeBand: '2kg',
+          productionSpec: { version: 1, allergens: ['Egg', 'Milk'], ingredients: ['vanilla sponge'], dietaryClaims: [], preparationNotes: 'Test cake.', kitchenInstructions: 'Test cake.', allergenStatementReviewed: true },
+          variants: { create: { sizeBand: '2kg', eggType: 'eggless', pricePaise: 189900 } },
+        },
+        include: { variants: true },
+      });
+      variantId = product.variants[0].id;
+    });
+
+    it('an ASAP ready-made order stores dueAt = now+4h, its window label and fee 15000', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-20T11:00:00+05:30'));
+      const res = await offline(basket('asap', '2026-11-20', 'asap'));
+      const json = await res.json();
+      expect(res.status, JSON.stringify(json)).toBe(201);
+      const order = await db.order.findUniqueOrThrow({ where: { ref: json.orderId } });
+      expect(order.dueAt).toEqual(new Date('2026-11-20T15:00:00+05:30'));
+      expect(order.requestedFor).toEqual(new Date('2026-11-20T13:00:00+05:30'));
+      expect(order.requestedWindow).toBe('13:00–15:00');
+      expect(order.deliverySlot).toBe('asap');
+      expect(order.deliveryFeePaise).toBe(15000);
+    });
+
+    it('refuses an ASAP order arriving at 18:00:01', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-20T18:00:01+05:30'));
+      const res = await offline(basket('asap', '2026-11-20', 'asap'));
+      expect(res.status).toBe(422);
+      const json = await res.json();
+      expect(json).toMatchObject({ code: 'schedule_unavailable', field: 'requestedDate' });
+      expect(json.error).toMatch(/stopped taking orders/);
+    });
+
+    it('refuses a legacy slot on a new checkout', async () => {
+      const res = await offline(basket('standard', new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10), 'x'));
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({ code: 'slot_retired', error: 'That delivery option has changed. Choose a delivery time again.' });
+    });
+
+    it('recovery of a legacy-slot attempt is not refused', async () => {
+      // Production state: the standard row exists and Task 2's migration withdrew it.
+      const where = { category: 'delivery' as const, value: 'standard' };
+      const prior = await db.catalogOption.findFirst({ where });
+      if (prior) {
+        priorStandardAvailable = prior.isAvailable;
+        await db.catalogOption.update({ where: { id: prior.id }, data: { isAvailable: false } });
+      } else {
+        const row = DEFAULT_ROWS.find((r) => r.category === where.category && r.value === where.value)!;
+        await db.catalogOption.create({ data: { ...row, isAvailable: false } });
+      }
+      vi.stubEnv('SERVICE_AREA', 'hyderabad');
+      const body = basket('standard', new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10), 'x');
+      const checked = await validateCheckout(body, 'test', true);
+      if (checked.kind !== 'checked') throw new Error(`legacy basket did not validate: ${checked.kind === 'problem' ? await checked.response.text() : checked.kind}`);
+      const amount = checked.checked.review.totalPaise;
+      // What /api/payments/intent saved before the slot was retired.
+      await db.paymentRecovery.create({ data: { id: body.idempotencyKey, request: asJson(checked.checked.body), payloadHash: checked.checked.hash } });
+
+      const tag = randomUUID().replaceAll('-', '').slice(0, 10);
+      const orderId = `order_DR${tag}`, paymentId = `pay_DR${tag}`;
+      razorpay(orderId, paymentId, () => amount, body.idempotencyKey);
+
+      await recoverPayment(paymentId);
+
+      const order = await db.order.findFirstOrThrow({ where: { razorpayPaymentId: paymentId } });
+      expect(order).toMatchObject({ deliverySlot: 'standard', paymentStatus: 'paid', requestedWindow: '10:00–20:00' });
+      expect(order.dueAt).toEqual(order.requestedFor);
+      expect(await db.paymentRecovery.findUnique({ where: { id: body.idempotencyKey } })).toMatchObject({ status: 'completed' });
+    });
+
+    it('a paid legacy attempt whose cutoff passed during payment is not refused; a malformed date still is', async () => {
+      // Runs after the test above, which leaves the standard row withdrawn. Today is inside standard's notice.
+      vi.stubEnv('SERVICE_AREA', 'hyderabad');
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const unpaid = await validateCheckout(basket('standard', today, 'x'), 'test', false);
+      expect(unpaid.kind).toBe('problem');
+      const paid = await validateCheckout(basket('standard', today, 'x'), 'test', true);
+      if (paid.kind !== 'checked') throw new Error(`paid legacy basket refused: ${paid.kind === 'problem' ? await paid.response.text() : paid.kind}`);
+      expect(paid.checked.requestedFor).toEqual(new Date(`${today}T10:00:00+05:30`));
+      const bad = await validateCheckout(basket('standard', '2026-02-30', 'x'), 'test', true);
+      if (bad.kind !== 'problem') throw new Error('malformed date was accepted');
+      expect(await bad.response.json()).toMatchObject({ code: 'schedule_unavailable' });
+    });
   });
 });

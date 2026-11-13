@@ -1320,3 +1320,20 @@ model CustomRequest {
   @@index([status, offerExpiresAt])
   @@index([phone, status])
 }
+
+model DeliverySettings {
+  id                String   @id @default("singleton")
+  feePaise          Int      @default(15000)
+  /// "HH:MM" IST. Orders (ASAP and scheduled) are accepted inside this range,
+  /// and scheduled windows are laid out inside it.
+  ordersFrom        String   @default("08:00")
+  ordersUntil       String   @default("18:00")
+  readyMinMinutes   Int      @default(120)
+  readyMaxMinutes   Int      @default(240)
+  customMinMinutes  Int      @default(180)
+  customMaxMinutes  Int      @default(240)
+  windowMinutes     Int      @default(120)
+  preorderDays      Int      @default(14)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}

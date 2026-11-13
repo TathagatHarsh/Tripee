@@ -1,4 +1,4 @@
-import { deliveryDetails, pinAddress, MADHAPUR } from "./helpers/delivery";
+import { deliveryDetails, pinAddress, scheduleDelivery, MADHAPUR } from "./helpers/delivery";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
@@ -147,7 +147,7 @@ test("Map pin survives completing the address and reaches server assignment", as
   await map.screenshot({ path: testInfo.outputPath("map-checkout.png") });
   await page.getByRole("button", { name: "Confirm location", exact: true }).click();
   await page.getByLabel("Flat / house no. and floor", { exact: true }).fill("House 12");
-  await page.getByLabel("Requested date").fill(new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 10));
+  await scheduleDelivery(page);
   const created = page.waitForResponse(r => r.url().endsWith("/api/orders") && r.request().method() === "POST");
   await page.getByRole("button", { name: /^Place order/ }).click();
   const response = await created;

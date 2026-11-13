@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { CustomCakeTile } from "@/components/shop/CustomCakeTile";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
-import { getBakeryInfo, getCatalogSnapshot } from "@/lib/catalogData";
+import { getBakeryInfo, getCatalogSnapshot, loadClosedDays } from "@/lib/catalogData";
 import { paymentCheckoutAvailable } from "@/lib/razorpay";
 import { CUSTOM_CAKES, CUSTOM_GROUPS, whatsappTo } from "@/lib/customCakes";
 import { CustomEnquiry } from "@/components/shop/CustomEnquiry";
@@ -34,10 +35,13 @@ export default async function CustomCakesPage() {
   // With WhatsApp, an image store and online payment the photo goes through our own request form (a quote must be
   // payable); otherwise the wa.me button. Gallery "Ask" tiles stay on CustomEnquiry.
   const catalog = whatsappConfigured() && hasImageStore() && paymentCheckoutAvailable() ? await getCatalogSnapshot() : null;
+  // Closed days are today's, not the build's: the sheet's date picker greys them out like checkout's.
+  if (catalog) await connection();
+  const closedDays = catalog ? await loadClosedDays(catalog.deliveryRules.preorderDays) : [];
 
   const sendPhoto = (extra = "") =>
     catalog ? (
-      <CustomRequestSheet catalog={catalog} buttonClassName={sBtn("primary", "lg", extra)}>
+      <CustomRequestSheet catalog={catalog} closedDays={closedDays} buttonClassName={sBtn("primary", "lg", extra)}>
         Send us your cake photo <span aria-hidden>↗</span>
       </CustomRequestSheet>
     ) : to ? (

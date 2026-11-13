@@ -6,7 +6,7 @@ import { expect, test } from "@playwright/test";
 // All fixtures are synthetic and notifications must be disabled in the test server.
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 let product: { slug: string; variantId: string };
-const date = (days = 30) =>
+const date = (days = 5) =>
   new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 function order(extra: Record<string, unknown> = {}) {
   return {
@@ -18,12 +18,12 @@ function order(extra: Record<string, unknown> = {}) {
         cakeSlug: product.slug,
         variantId: product.variantId,
         qty: 2,
-        choices: { delivery: "standard", pincode: "500081" },
+        choices: { delivery: "scheduled", pincode: "500081" },
       },
     ],
     fulfillment: {
       method: "delivery",
-      slot: "standard",
+      slot: "scheduled",
       recipientName: "E2E Checkout Test",
       addressLine1: "12 Test Street",
       locality: "Test Locality",
@@ -33,7 +33,7 @@ function order(extra: Record<string, unknown> = {}) {
       state: "Telangana",
       pincode: "500081",
       requestedDate: date(),
-      requestedWindow: "Client text is not authoritative",
+      requestedWindow: "10:00–12:00",
     },
     ...extra,
   };
@@ -92,7 +92,7 @@ test("concurrent retries create one frozen order with two cakes and one shipping
   });
   expect(rows[0].paymentStatus).toBe("none");
   expect(rows[0].status).toBe("confirmed");
-  expect(rows[0].requestedWindow).toBe("10:00–20:00");
+  expect(rows[0].requestedWindow).toBe("10:00–12:00");
   expect(rows[0].deliveryFeePaise).toBe(quote.deliveryFeePaise);
   expect(rows[0].requested_utc).toBe(`${date()}T04:30:00.000Z`);
 });
@@ -101,14 +101,14 @@ test("a committed attempt survives later blackout and quote changes", async ({
   request,
 }) => {
   const body = order();
-  body.fulfillment.requestedDate = date(32);
+  body.fulfillment.requestedDate = date(6);
   const first = await request.post("/api/orders", { data: body });
   expect(first.status(), await first.text()).toBe(201);
   const receipt = await first.json();
   const blackoutId = randomUUID();
   await pool.query(
     "INSERT INTO \"FulfillmentBlackout\" (id, date, method, reason) VALUES ($1, $2, 'delivery', 'E2E closure')",
-    [blackoutId, date(32)],
+    [blackoutId, date(6)],
   );
   try {
     const replay = await request.post("/api/orders", {
@@ -186,5 +186,48 @@ test("cross-site writes and malformed requests fail closed", async ({
       ).status(),
     ).toBe(403);
     expect((await request.post(path, { data: "not json" })).status()).toBe(400);
+  }
+});
+
+test("shows ASAP and Schedule, charges ₹150 delivery", async ({ page }) => {
+  await page.addInitScript(
+    ([slug, variantId]) =>
+      localStorage.setItem(
+        "makemycake.cart",
+        JSON.stringify({ state: { lines: [{ id: "e2e", slug, variantId, choices: { delivery: "asap" }, qty: 1 }] }, version: 0 }),
+      ),
+    [product.slug, product.variantId],
+  );
+  // A pinned address is what unlocks pricing; the map sheet itself is not under test here.
+  await page.addInitScript(() =>
+    sessionStorage.setItem(
+      "makemycake.checkoutDraft.v2",
+      JSON.stringify({
+        name: "", phone: "", email: "", method: "delivery", slot: "asap",
+        addressLine1: "12 Test Street", addressLine2: "", landmark: "", city: "Hyderabad", state: "Telangana",
+        pincode: "500081", requestedDate: "", requestedWindow: "", deliveryInstructions: "", customerNotes: "",
+        occasion: "", location: { lat: 17.4486, lng: 78.3908, placeId: "e2e" },
+      }),
+    ),
+  );
+  await page.goto("/checkout");
+  await expect(page.getByRole("radio", { name: /As soon as possible/ })).toBeVisible();
+  await page.getByRole("radio", { name: /^Schedule/ }).check();
+  await page.getByLabel("Delivery date").fill(date(1));
+  await page.getByRole("radio", { name: "10:00–12:00" }).check({ force: true });
+  const row = page.locator("dt:text-is('Delivery') >> visible=true").locator("..");
+  await expect(row).toContainText("₹150");
+  // Optional evidence run: SHOTS_DIR=/path npx playwright test ... -g "shows ASAP"
+  const dir = process.env.SHOTS_DIR;
+  if (dir) {
+    for (const width of [1280, 375]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.screenshot({ path: `${dir}/task4-schedule-${width}.png`, fullPage: true });
+    }
+    await page.getByRole("radio", { name: /As soon as possible/ }).check({ timeout: 1000 }).catch(() => {});
+    for (const width of [1280, 375]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.screenshot({ path: `${dir}/task4-asap-${width}.png`, fullPage: true });
+    }
   }
 });

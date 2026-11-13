@@ -169,6 +169,9 @@ export const PLACEMENTS: (Option<ToppingPlacement> & { short: string })[] = [
 ];
 
 export const DELIVERY_OPTIONS: Option<DeliverySlot>[] = [
+  // Generic on purpose: the times live in DeliverySettings, which the admin edits.
+  { value: "asap", name: "As soon as possible", blurb: "Within hours · during order hours" },
+  { value: "scheduled", name: "Scheduled", blurb: "Pick a date and a delivery window" },
   { value: "standard", name: "Standard", blurb: "48 hours · 10:00–20:00" },
   { value: "same-day", name: "Same day", blurb: "12 hours · order before 11:00" },
   { value: "express-4hr", name: "Express 4-hour", blurb: "4 hours · core Hyderabad only" },

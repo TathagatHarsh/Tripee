@@ -1,4 +1,5 @@
 import type { CatalogCategory } from "@prisma/client";
+import { DEFAULT_DELIVERY_RULES, type DeliveryRules } from "./deliveryRules";
 import {
   COVERAGES, DELIVERY_OPTIONS, FILLINGS, FINISHES, FROSTINGS, PLACEMENTS,
   SHAPES, SIZES, SPONGES, TOPPINGS, type Option,
@@ -136,6 +137,8 @@ const TOPPING_UNIT: Record<Topping, number> = {
 };
 
 const DELIVERY_FEE: Record<DeliverySlot, number> = {
+  asap: RUPEES(150),
+  scheduled: RUPEES(150),
   pickup: 0,
   standard: RUPEES(60),
   "same-day": RUPEES(120),
@@ -171,6 +174,8 @@ const DEFAULT_SLOT_INFO: Record<
   DeliverySlot,
   { leadHours: number; window: string; note: string; dailyCapacity: number; cutoffHours: number }
 > = {
+  asap: { leadHours: 2, window: "", note: "", dailyCapacity: 0, cutoffHours: 0 },
+  scheduled: { leadHours: 2, window: "", note: "", dailyCapacity: 0, cutoffHours: 0 },
   standard: {
     leadHours: 48,
     window: "10:00–20:00, day after tomorrow",
@@ -291,6 +296,8 @@ function toRows<T extends string>(
 /** Free by construction: shape, coverage and placement change no price. */
 const free = () => 0;
 
+const LEGACY_SLOTS: DeliverySlot[] = ["standard", "same-day", "express-4hr", "midnight"];
+
 export const DEFAULT_ROWS: CatalogRow[] = [
   ...toRows("shape", SHAPES, free),
   ...toRows("size", SIZES, (v) => BASE_BY_SIZE[v], (v) => SIZE_MULTIPLIER[v]),
@@ -307,6 +314,9 @@ export const DEFAULT_ROWS: CatalogRow[] = [
     const info = DEFAULT_SLOT_INFO[r.value as DeliverySlot];
     return {
       ...r,
+      // Legacy slots are withdrawn from new orders; the rows stay so past
+      // orders still render and price.
+      isAvailable: !LEGACY_SLOTS.includes(r.value as DeliverySlot) && r.isAvailable,
       leadHours: info.leadHours,
       slotWindow: info.window,
       slotNote: info.note,
@@ -322,6 +332,7 @@ export const DEFAULT_SNAPSHOT: CatalogSnapshot = buildSnapshot(
   DEFAULT_SETTINGS,
   DEFAULT_ZONES,
   DEFAULT_BAKERY,
+  DEFAULT_DELIVERY_RULES,
 );
 
 /**
@@ -337,6 +348,7 @@ export function snapshotFrom(
   settings: PricingSettingsSnapshot,
   zones?: DeliveryZoneInfo[],
   bakery?: BakeryInfo,
+  rules?: DeliveryRules,
 ): CatalogSnapshot {
   const key = (r: { category: CatalogCategory; value: string }) =>
     `${r.category}:${r.value}`;
@@ -357,5 +369,6 @@ export function snapshotFrom(
     settings,
     zones && zones.length > 0 ? zones : DEFAULT_ZONES,
     bakery ?? DEFAULT_BAKERY,
+    rules ?? DEFAULT_DELIVERY_RULES,
   );
 }

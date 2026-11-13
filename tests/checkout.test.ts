@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_ROWS, DEFAULT_SETTINGS, DEFAULT_SNAPSHOT, snapshotFrom,
+  DEFAULT_ROWS, DEFAULT_SNAPSHOT, DEFAULT_SETTINGS, snapshotFrom,
 } from "@/lib/catalogDefaults";
 import type { CatalogRow, CatalogSnapshot } from "@/lib/catalogSnapshot";
 import {
@@ -9,6 +9,7 @@ import {
 } from "@/lib/checkout";
 import { priceCake } from "@/lib/pricing";
 import { DEFAULT_CAKE, type CakeConfig } from "@/lib/schema";
+
 
 /**
  * What the till refuses, and what it charges.
@@ -53,7 +54,7 @@ describe("the checkout request", () => {
     customerPhone: "9876543210",
     items: [{ config: { ...DEFAULT_CAKE, pincode: "500081" }, qty: 1 }],
     idempotencyKey: "00000000-0000-4000-8000-000000000001",
-    fulfillment: { method: "delivery", slot: "standard", recipientName: "Aryu", addressLine1: "12 Test Street", city: "Hyderabad", state: "Telangana", pincode: "500081", requestedDate: "2030-01-01", requestedWindow: "10:00–20:00", location: { lat: 17.44, lng: 78.38, placeId: "" } },
+    fulfillment: { method: "delivery", slot: "asap", recipientName: "Aryu", addressLine1: "12 Test Street", city: "Hyderabad", state: "Telangana", pincode: "500081", requestedDate: "2030-01-01", requestedWindow: "10:00–20:00", location: { lat: 17.44, lng: 78.38, placeId: "" } },
   };
 
   it("accepts a basket of one cake", () => {
@@ -227,7 +228,7 @@ describe("the server's price is the only price", () => {
   it("multiplies by the quantity the basket asked for", () => {
     const review = reviewBasket(one(DEFAULT_CAKE, 3), DEFAULT_SNAPSHOT);
     expect(review.ok && review.totalPaise).toBe(
-      priceCake({...DEFAULT_CAKE,delivery:"pickup"}, DEFAULT_SNAPSHOT).total * 3 + Math.round(DEFAULT_SNAPSHOT.price.deliveryFee.standard * (1 + DEFAULT_SNAPSHOT.settings.gstRate)),
+      priceCake({...DEFAULT_CAKE,delivery:"pickup"}, DEFAULT_SNAPSHOT).total * 3 + Math.round(DEFAULT_SNAPSHOT.price.deliveryFee.asap * (1 + DEFAULT_SNAPSHOT.settings.gstRate)),
     );
   });
 
@@ -306,6 +307,27 @@ describe("options the bakery has withdrawn", () => {
     expect(withdrawnOptions(DEFAULT_CAKE, DEFAULT_SNAPSHOT)).toEqual([]);
   });
 
+  it("a withdrawn delivery slot refuses an unpaid basket but not a paid one; other withdrawals still refuse", () => {
+    const retired = withdraw("delivery", "standard");
+    /* Genuinely legacy: the retired slot is the thing under test, so the cake asks for it by name. */
+    const legacy = cake({ delivery: "standard" });
+    const unpaid = reviewBasket(one(legacy, 1), retired);
+    expect(unpaid.ok).toBe(false);
+    if (!unpaid.ok) expect(unpaid.problem.code).toBe("option_unavailable");
+
+    const paid = reviewBasket(one(legacy, 1), retired, undefined, { paid: true });
+    expect(paid.ok).toBe(true);
+    // The legacy fee still comes from the slot's own row.
+    if (paid.ok) expect(paid.deliveryFeePaise).toBe(retired.price.deliveryFee.standard);
+
+    const noNutella = catalogWith((r) =>
+      (r.category === "delivery" && r.value === "standard") || (r.category === "filling" && r.value === "nutella")
+        ? { ...r, isAvailable: false } : r);
+    const both = reviewBasket(one(cake({ filling: "nutella", delivery: "standard" }), 1), noNutella, undefined, { paid: true });
+    expect(both.ok).toBe(false);
+    if (!both.ok) expect(both.problem.options?.map((o) => o.value)).toEqual(["nutella"]);
+  });
+
   it("refuses the order rather than quietly baking it", () => {
     const review = reviewBasket(one(cake({ filling: "nutella" }), 1), withdraw("filling", "nutella"));
 
@@ -347,7 +369,7 @@ describe("options the bakery has withdrawn", () => {
 describe("delivery", () => {
   it("takes a slot the zone can actually serve", () => {
     const review = reviewBasket(
-      one(cake({ delivery: "standard", pincode: "500081" }), 1),
+      one(cake({ delivery: "asap", pincode: "500081" }), 1),
       DEFAULT_SNAPSHOT,
     );
     expect(review.ok).toBe(true);
@@ -359,7 +381,7 @@ describe("delivery", () => {
 
   it("refuses a pincode the bakery does not reach", () => {
     const review = reviewBasket(
-      one(cake({ delivery: "standard", pincode: "560001" }), 1),
+      one(cake({ delivery: "asap", pincode: "560001" }), 1),
       DEFAULT_SNAPSHOT,
     );
     expect(review.ok).toBe(false);
@@ -371,8 +393,14 @@ describe("delivery", () => {
   it("refuses a slot that is not offered where the cake is going", () => {
     /* A zone that takes standard and nothing else — the far edge of the map,
        where the rider cannot make an express window. */
+    /* Genuinely legacy: zone gating of express-4hr is what is tested, and that
+       slot is withdrawn in the shipped catalogue, so re-open the delivery rows here only. */
+    const reopened = snapshotFrom(
+      DEFAULT_ROWS.map((r) => (r.category === "delivery" ? { ...r, isAvailable: true } : r)),
+      DEFAULT_SETTINGS,
+    );
     const narrow: CatalogSnapshot = {
-      ...DEFAULT_SNAPSHOT,
+      ...reopened,
       zones: [
         {
           id: "z",

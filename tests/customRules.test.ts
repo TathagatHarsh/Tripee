@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  canMoveCustom, customerPricePaise, customOfferMinutes, newCustomRef, newCustomToken, parseQuoteReply, quoteExpiresAt,
+  canMoveCustom, customerPricePaise, customerQuotePaise, splitCustomQuote, customOfferMinutes, newCustomRef, newCustomToken, parseQuoteReply, quoteExpiresAt,
 } from "@/lib/customRules";
 
 describe("customRules", () => {
@@ -19,6 +19,13 @@ describe("customRules", () => {
   it("adds margin and rounds up to the next 10 rupees", () => {
     expect(customerPricePaise(180000, 15)).toBe(207000);
     expect(customerPricePaise(180100, 15)).toBe(208000);
+  });
+
+  it('quotes the cake plus the flat delivery fee, and splits it back', () => {
+    expect(customerQuotePaise(180000, 15, 15000)).toBe(222000);
+    expect(splitCustomQuote(222000, 180000, 15)).toEqual({ cakePaise: 207000, deliveryFeePaise: 15000 });
+    // A quote from before delivery was charged carries no fee.
+    expect(splitCustomQuote(207000, 180000, 15)).toEqual({ cakePaise: 207000, deliveryFeePaise: 0 });
     expect(customerPricePaise(100000, 0)).toBe(100000);
   });
 

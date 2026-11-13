@@ -80,7 +80,7 @@ export const HERO_CAKE: CakeConfig = {
 
   eggless: false,
   sugarFree: false,
-  delivery: "standard",
+  delivery: "asap",
 };
 
 /** Shown in the hero's spec block, where a preset's name used to be. */

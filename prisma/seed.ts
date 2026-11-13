@@ -105,7 +105,8 @@ async function main() {
         leadHours: r.leadHours ?? null,
         slotWindow: r.slotWindow ?? null,
         slotNote: r.slotNote ?? null,
-        dailyCapacity: r.dailyCapacity ?? null,
+        // 0 means "no limit" in the defaults; the table's check wants NULL there.
+        dailyCapacity: r.dailyCapacity || null,
         cutoffHours: r.cutoffHours ?? null,
         isAvailable: r.isAvailable,
         sortOrder: r.sortOrder,
@@ -138,7 +139,7 @@ async function main() {
     });
     const capacity = await db.catalogOption.updateMany({
       where: { category: "delivery", value: r.value, dailyCapacity: null },
-      data: { dailyCapacity: r.dailyCapacity ?? null },
+      data: { dailyCapacity: r.dailyCapacity || null },
     });
     const cutoff = await db.catalogOption.updateMany({
       where: { category: "delivery", value: r.value, cutoffHours: null },

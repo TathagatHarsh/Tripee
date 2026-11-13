@@ -7,7 +7,7 @@ import {
   type CakeProductView, type CakeVariantView,
 } from "@/lib/cakes";
 import { SIZES } from "@/lib/catalog";
-import { DEFAULT_ROWS, DEFAULT_SETTINGS, DEFAULT_SNAPSHOT, snapshotFrom } from "@/lib/catalogDefaults";
+import { DEFAULT_ROWS, DEFAULT_SNAPSHOT, DEFAULT_SETTINGS, snapshotFrom } from "@/lib/catalogDefaults";
 import type { CatalogRow, CatalogSnapshot } from "@/lib/catalogSnapshot";
 import { allergenLineForOffer } from "@/lib/allergens";
 import { lineId } from "@/lib/cart";
@@ -17,6 +17,7 @@ import { PRESETS } from "@/lib/presets";
 import { DEFAULT_CAKE } from "@/lib/schema";
 import { categoryForConfig } from "@/lib/shop";
 import { productionSpecFromConfig } from "@/lib/productionSpec";
+
 
 /**
  * Sellable cakes: what they cost, who may sell them, and what an order keeps.
@@ -299,7 +300,7 @@ describe("what a cake offers", () => {
 /* ───────────────────────────────────────────────── the cart's line identity */
 
 describe("cart line identity", () => {
-  const choices = { delivery: "standard" } as const;
+  const choices = { delivery: "asap" } as const;
 
   it("keeps two sizes of one cake apart", () => {
     /* §9, and the failure it prevents: without the variant in the key these
@@ -317,7 +318,7 @@ describe("cart line identity", () => {
 
   it("merges the identical version ordered the same way", () => {
     expect(lineId("pineapple-delight", "v_1_no", choices)).toBe(
-      lineId("pineapple-delight", "v_1_no", { delivery: "standard" }),
+      lineId("pineapple-delight", "v_1_no", { delivery: "asap" }),
     );
   });
 
@@ -367,9 +368,9 @@ describe("configForVariant", () => {
   it("drops an empty message rather than writing one", () => {
     /* `message: ""` would print a blank plaque on the docket. */
     const v = { sizeBand: "1kg", eggType: "eggless" } as const;
-    const c = configForVariant({ config: DEFAULT_CAKE }, v, { delivery: "standard", message: "   " });
+    const c = configForVariant({ config: DEFAULT_CAKE }, v, { delivery: "asap", message: "   " });
     expect(c && "message" in c).toBe(false);
-    const piped = configForVariant({ config: DEFAULT_CAKE }, v, { delivery: "standard", message: " Hi " });
+    const piped = configForVariant({ config: DEFAULT_CAKE }, v, { delivery: "asap", message: " Hi " });
     expect(piped?.message).toBe("Hi");
   });
 });
@@ -387,7 +388,7 @@ describe("size", () => {
 const line = (patch: Partial<BasketItem> = {}): BasketItem => ({
   cakeSlug: "chocolate-truffle",
   variantId: "var_1",
-  choices: { delivery: "standard", pincode: "500081" },
+  choices: { delivery: "asap", pincode: "500081" },
   qty: 1,
   ...patch,
 });
@@ -555,7 +556,7 @@ describe("reviewBasket, for a cake from the shop", () => {
     const cake = product();
     const quoted = priceProduct(
       priced(cake, cake.variants[0]),
-      { delivery: "standard" },
+      { delivery: "asap" },
       DEFAULT_SNAPSHOT,
     ).total;
     /* The bakery reprices that exact version while the basket sits in a
@@ -617,14 +618,14 @@ describe("reviewBasket, for a cake from the shop", () => {
     const cake = product();
     const each = priceProduct(
       priced(cake, cake.variants[0]),
-      { delivery: "standard" },
+      { delivery: "asap" },
       DEFAULT_SNAPSHOT,
     ).total;
     const review = reviewBasket([line({ qty: 3 })], DEFAULT_SNAPSHOT, shelf(cake));
     expect(review.ok).toBe(true);
     if (!review.ok) return;
-    expect(review.deliveryFeePaise).toBe(DEFAULT_SNAPSHOT.price.deliveryFee.standard);
-    expect(review.totalPaise).toBe(each * 3 + Math.round(DEFAULT_SNAPSHOT.price.deliveryFee.standard * (1 + DEFAULT_SNAPSHOT.settings.gstRate)));
+    expect(review.deliveryFeePaise).toBe(DEFAULT_SNAPSHOT.price.deliveryFee.asap);
+    expect(review.totalPaise).toBe(each * 3 + Math.round(DEFAULT_SNAPSHOT.price.deliveryFee.asap * (1 + DEFAULT_SNAPSHOT.settings.gstRate)));
   });
 
   it("prices two versions of one cake as two separate lines", () => {
@@ -680,7 +681,7 @@ describe("an order already placed", () => {
     /* The admin puts that version up to ₹899. */
     const after = priceProduct(
       { name: cake.name, pricePaise: 89900 },
-      { delivery: "standard" },
+      { delivery: "asap" },
       DEFAULT_SNAPSHOT,
     );
 

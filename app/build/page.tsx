@@ -3,9 +3,10 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
-import { DELIVERY_OPTIONS, SIZES } from "@/lib/catalog";
+import { SIZES } from "@/lib/catalog";
+import { deliveryFromParam } from "@/lib/deliveryRules";
 import { PRESETS } from "@/lib/presets";
-import type { CakeConfig, DeliverySlot, SizeBand } from "@/lib/schema";
+import type { CakeConfig, SizeBand } from "@/lib/schema";
 import { deriveServings } from "@/lib/servings";
 import { useCake } from "@/lib/store";
 
@@ -80,10 +81,8 @@ function BuildEntry() {
     const pincode = params.get("pincode");
     if (pincode && /^\d{6}$/.test(pincode)) patch.pincode = pincode;
 
-    const delivery = params.get("delivery");
-    if (delivery && DELIVERY_OPTIONS.some(o => o.value === delivery)) {
-      patch.delivery = delivery as DeliverySlot;
-    }
+    const delivery = deliveryFromParam(params.get("delivery"));
+    if (delivery) patch.delivery = delivery;
 
     if (Object.keys(patch).length) return load({ ...current, ...patch }, "/build/shape");
     router.replace("/build/shape");

@@ -87,6 +87,8 @@ export const metadata: Metadata = {
  * to whatever the column actually says rather than dropping the order.
  */
 const SLOT_ORDER: { slot: string; note: string }[] = [
+  { slot: "asap", note: "As soon as possible: out within hours of the order." },
+  { slot: "scheduled", note: "A date and a delivery window the customer picked." },
   { slot: "express-4hr", note: "Four hours from when the order was taken." },
   { slot: "same-day", note: "Out today." },
   { slot: "midnight", note: "Late drop. Goes out after the rest of the day is done." },
