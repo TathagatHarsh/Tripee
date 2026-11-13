@@ -2,12 +2,14 @@ import { BUILDER_ENABLED } from "@/lib/flags";
 import { decodeConfig } from "@/lib/share";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { CheckoutForm } from "@/app/checkout/CheckoutForm";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
 import { listCakes } from "@/lib/cakeData";
 import { getCatalogSnapshot, loadClosedDays } from "@/lib/catalogData";
+import { PHONE_COOKIE, phoneVerificationOn, provenPhone } from "@/lib/phoneVerify";
 import { isTestKey, paymentsEnabled, offlinePaymentsEnabled, paymentCheckoutAvailable } from "@/lib/razorpay";
 
 export const metadata: Metadata = {
@@ -35,6 +37,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
     listCakes(),
   ]);
   const closedDays = await loadClosedDays(catalog.deliveryRules.preorderDays);
+  const verified = provenPhone((await cookies()).get(PHONE_COOKIE)?.value);
 
   return (
     <div className="s-root flex min-h-dvh flex-col bg-s-cream">
@@ -64,6 +67,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
             catalog={catalog}
             cakes={cakes}
             closedDays={closedDays}
+            phone={{ required: phoneVerificationOn(), verified }}
             payments={{ enabled: paymentsEnabled(), available: paymentCheckoutAvailable() || offlinePaymentsEnabled(), testMode: isTestKey() }}
           />
         </div>

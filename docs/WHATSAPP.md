@@ -41,6 +41,7 @@ Bakery phones are matched to the sender after cleaning them up. Spaces, `+91` an
 | `WHATSAPP_PHONE_NUMBER_ID` | From WhatsApp, API Setup. |
 | `WHATSAPP_APP_SECRET` | From App, Basic. Secret. |
 | `WHATSAPP_VERIFY_TOKEN` | Any random string. Type the same one into Meta's webhook form. |
+| `PHONE_VERIFICATION` | `on` makes checkout verify the phone with a WhatsApp code (needs the `verify_code` template Active). Anything else: off. |
 | `WHATSAPP_ADMIN_NUMBERS` | Comma-separated, with country code, e.g. `919800000000,919811111111`. A 10-digit Indian number gets `91` added. |
 | `ASSIGNMENT_AUTO_START` | `true`: offer the nearest eligible bakery at confirmation. |
 | `ASSIGNMENT_AUTO_REASSIGN` | `true`: after a rejection or expiry, offer the next bakery. |
