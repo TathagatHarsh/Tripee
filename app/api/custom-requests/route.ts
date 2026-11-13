@@ -1,6 +1,7 @@
 import { callerKey, CROSS_SITE_MESSAGE, crossSite, rateLimit, tooMany } from "@/lib/apiGuard";
 import { getCatalogSnapshot } from "@/lib/catalogData";
 import { createCustomRequest } from "@/lib/customRequests";
+import { db } from "@/lib/db";
 import { CustomRequestInput } from "@/lib/customRules";
 import { checkDeliveryServiceability } from "@/lib/delivery";
 import { checkChoice } from "@/lib/deliveryRules";
@@ -48,6 +49,9 @@ export async function POST(req: Request) {
     return fail("We don't deliver there yet", 422, { fieldErrors: { address: ["We don't deliver there yet"] } });
   const verdict = checkChoice({ slot: "scheduled", date: input.dueDate, window: input.dueWindow }, new Date(), "custom", catalog.deliveryRules);
   if (!verdict.ok) return fail(verdict.message, 422, { fieldErrors: { dueAt: [verdict.message] } });
+  // Same date convention as placeOrder's blackout check.
+  if (await db.fulfillmentBlackout.findUnique({ where: { date_method: { date: new Date(`${input.dueDate}T00:00:00.000Z`), method: "delivery" } } }))
+    return fail("We're closed that day.", 422, { fieldErrors: { dueAt: ["We're closed that day."] } });
   const { dueDate: _d, dueWindow: _w, ...rest } = input;
 
   try {

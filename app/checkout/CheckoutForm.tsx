@@ -227,6 +227,9 @@ function Checkout({ catalog, cakes, closedDays, payments, builder, designSlug }:
     [now, kind, rules, closedDays],
   );
   const asapVerdict = checkChoice({ slot: "asap" }, now, kind, rules);
+  // Out of order hours (a fresh draft, or the clock ticking past closing) ASAP is disabled: move to Schedule so
+  // the date picker shows. Adjusted during render, not in an effect (react-hooks/set-state-in-effect; see OptionForm).
+  if (draft.method === "delivery" && draft.slot === "asap" && !choices.asap) setDraft((d) => ({ ...d, slot: "scheduled" }));
   const pickedDay = choices.days.find((d) => d.date === draft.requestedDate);
   const choiceOk =
     draft.method === "pickup" ||
@@ -839,7 +842,7 @@ function Checkout({ catalog, cakes, closedDays, payments, builder, designSlug }:
                     />
                     <span>
                       <strong className="block text-sm">Schedule</strong>
-                      <span className="mt-1 block text-xs text-s-bark">Pick a day and a two-hour window.</span>
+                      <span className="mt-1 block text-xs text-s-bark">{`Pick a day and a ${rules.windowMinutes % 60 ? `${rules.windowMinutes}-minute` : `${rules.windowMinutes / 60}-hour`} window.`}</span>
                     </span>
                   </label>
                 </fieldset>

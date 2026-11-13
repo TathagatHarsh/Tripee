@@ -58,6 +58,16 @@ describe('orderConfirmationEmail', () => {
   });
 });
 
+describe('when the cake arrives', () => {
+  it('ASAP and scheduled orders show the window and the slot name; a legacy order shows the due time and raw slot', () => {
+    const scheduled = orderConfirmationEmail({ ...facts, slot: 'scheduled', requestedFor: new Date('2026-11-20T10:00:00+05:30'), requestedWindow: '10:00–12:00', dueAt: new Date('2026-11-20T12:00:00+05:30') });
+    expect(scheduled.text).toContain('Delivery: Fri 20 Nov, 10:00–12:00 (Scheduled)');
+    const asap = orderConfirmationEmail({ ...facts, slot: 'asap', requestedFor: new Date('2026-11-20T13:00:00+05:30'), requestedWindow: '13:00–15:00', dueAt: new Date('2026-11-20T15:00:00+05:30') });
+    expect(asap.text).toContain('Delivery: Fri 20 Nov, 13:00–15:00 (As soon as possible)');
+    expect(orderConfirmationEmail(facts).text).toContain('Delivery: Thu 12 Nov, 4:00 pm (morning)');
+  });
+});
+
 describe('queueOrderConfirmationEmail', () => {
   it('queues nothing without RESEND_API_KEY, or with a blank email', async () => {
     order.customerEmail = 'asha@example.com';

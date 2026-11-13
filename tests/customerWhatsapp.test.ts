@@ -58,4 +58,14 @@ describe("the customer's WhatsApp messages", () => {
       customerCancelledMessage(facts, true), customerCancelledMessage(facts, false)];
     for (const m of all) for (const t of body(m)) expect(cleanParam(t, 400)).toBe(t);
   });
+
+  it('an ASAP or scheduled order reads as its window, not dueAt (the window end); a legacy order as before', () => {
+    const scheduled = { ...facts, slot: 'scheduled', requestedFor: new Date('2026-11-20T10:00:00+05:30'), requestedWindow: '10:00–12:00', dueAt: new Date('2026-11-20T12:00:00+05:30') };
+    expect(body(customerConfirmedMessage(scheduled))[2]).toBe('Fri 20 Nov, 10:00–12:00');
+    expect(body(customerOutForDeliveryMessage(scheduled))[3]).toBe('Fri 20 Nov, 10:00–12:00');
+    const asap = { ...facts, slot: 'asap', requestedFor: new Date('2026-11-20T13:00:00+05:30'), requestedWindow: '13:00–15:00', dueAt: new Date('2026-11-20T15:00:00+05:30') };
+    expect(body(customerConfirmedMessage(asap))[2]).toBe('Fri 20 Nov, 13:00–15:00');
+    const legacy = { ...facts, slot: 'standard', requestedFor: facts.dueAt, requestedWindow: '10:00–20:00' };
+    expect(body(customerConfirmedMessage(legacy))[2]).toBe('Sat 10 Oct, 4:00 pm');
+  });
 });

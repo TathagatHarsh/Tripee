@@ -6,6 +6,8 @@ vi.mock("@/lib/catalogData", async () => {
   const { DEFAULT_DELIVERY_RULES } = await import("@/lib/deliveryRules");
   return { getCatalogSnapshot: vi.fn(async () => ({ deliveryRules: DEFAULT_DELIVERY_RULES })) };
 });
+const blackout = vi.fn<(q: unknown) => Promise<object | null>>(async () => null);
+vi.mock("@/lib/db", () => ({ db: { fulfillmentBlackout: { findUnique: blackout } } }));
 const serviceable = vi.fn(() => ({ serviceable: true }));
 vi.mock("@/lib/delivery", () => ({
   checkDeliveryServiceability: serviceable,
@@ -59,6 +61,14 @@ describe("POST /api/custom-requests", () => {
       expect(res.status).toBe(201);
       const [input] = createCustomRequest.mock.calls[0] as unknown as [{ dueAt: string }];
       expect(new Date(input.dueAt).toISOString()).toBe(new Date("2026-11-13T16:00:00+05:30").toISOString());
+    });
+    it("refuses a closed (delivery blackout) day", async () => {
+      blackout.mockResolvedValueOnce({ reason: "Diwali" });
+      const res = await send({ ...valid(), dueDate: "2026-11-14", dueWindow: "14:00–16:00" });
+      expect(res.status).toBe(422);
+      expect((await res.json()).fieldErrors.dueAt).toEqual(["We're closed that day."]);
+      expect(blackout).toHaveBeenCalledWith({ where: { date_method: { date: new Date("2026-11-14T00:00:00.000Z"), method: "delivery" } } });
+      expect(createCustomRequest).not.toHaveBeenCalled();
     });
     it("refuses a custom window inside 3h", async () => {
       const res = await send({ ...valid(), dueDate: "2026-11-13", dueWindow: "12:00–14:00" });

@@ -5,6 +5,7 @@ import {
 } from "./catalogDefaults";
 import type { BakeryInfo, CatalogRow, CatalogSnapshot } from "./catalogSnapshot";
 import { db, hasDatabase } from "./db";
+import { istDate } from "./deliveryRules";
 import type { DeliverySlot } from "./schema";
 
 /**
@@ -82,6 +83,35 @@ function toRow(r: {
 }
 
 /**
+ * The DeliverySettings row, or null when its table does not exist yet.
+ *
+ * Tolerant on purpose, unlike every other read here: a deploy can land before
+ * `migrate deploy`, and the spec says checkout keeps working on the default
+ * rules. Only Prisma's missing-table error (P2021) is tolerated — anything else
+ * throws, so the tag-only cache below never holds the defaults for a blip.
+ */
+export async function readDeliverySettings() {
+  try {
+    return await db.deliverySettings.findUnique({ where: { id: "singleton" } });
+  } catch (e) {
+    if ((e as { code?: unknown } | null)?.code !== "P2021") throw e;
+    console.warn("delivery_settings_unreadable", e);
+    return null;
+  }
+}
+
+/** Delivery blackout dates from today (IST) through the pre-order horizon, as YYYY-MM-DD. */
+export async function loadClosedDays(preorderDays: number): Promise<string[]> {
+  if (!hasDatabase()) return [];
+  const today = new Date(`${istDate(new Date())}T00:00:00Z`);
+  const rows = await db.fulfillmentBlackout.findMany({
+    where: { method: "delivery", date: { gte: today, lte: new Date(today.getTime() + preorderDays * 86_400_000) } },
+    select: { date: true },
+  });
+  return rows.map((r) => r.date.toISOString().slice(0, 10));
+}
+
+/**
  * Deliberately free of Date objects and class instances: this value is written
  * to the Data Cache, which serialises it. Row timestamps stay in the database,
  * where the admin table reads them directly.
@@ -96,13 +126,7 @@ const load = unstable_cache(
       // resolver's "no zone" answer already says exactly that.
       db.deliveryZone.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
       db.bakerySettings.findUnique({ where: { id: "singleton" } }),
-      // Tolerant on purpose, unlike every other read here: during a deploy that
-      // lands before `migrate deploy`, the table does not exist yet, and the
-      // spec says checkout keeps working on the default rules.
-      db.deliverySettings.findUnique({ where: { id: "singleton" } }).catch((e: unknown) => {
-        console.warn("delivery_settings_unreadable", e);
-        return null;
-      }),
+      readDeliverySettings(),
     ]);
 
     return snapshotFrom(

@@ -12,7 +12,7 @@ import { sBtn, sField } from "@/lib/shopUi";
  * "Send us your cake photo": the quoted-custom-cake request form. Posts the photo and details to
  * /api/custom-requests; a bakery quotes over WhatsApp. Same `<dialog>` `.s-sheet` as CustomEnquiry.
  */
-export function CustomRequestSheet({ catalog, buttonClassName, children }: { catalog: CatalogSnapshot; buttonClassName: string; children: React.ReactNode }) {
+export function CustomRequestSheet({ catalog, closedDays, buttonClassName, children }: { catalog: CatalogSnapshot; closedDays: string[]; buttonClassName: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   return (
@@ -23,6 +23,7 @@ export function CustomRequestSheet({ catalog, buttonClassName, children }: { cat
       {open && (
         <Sheet
           catalog={catalog}
+          closedDays={closedDays}
           onClose={() => {
             setOpen(false);
             trigger.current?.focus();
@@ -39,7 +40,7 @@ function Err({ errors, name }: { errors: Record<string, string[]>; name: string 
   return errors[name]?.length ? <span role="alert" className="text-[0.8125rem] font-normal text-s-berry">{errors[name][0]}</span> : null;
 }
 
-function Sheet({ catalog, onClose }: { catalog: CatalogSnapshot; onClose: () => void }) {
+function Sheet({ catalog, closedDays, onClose }: { catalog: CatalogSnapshot; closedDays: string[]; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement | null>(null);
   const mount = useCallback((el: HTMLDialogElement | null) => {
     dialog.current = el;
@@ -61,7 +62,7 @@ function Sheet({ catalog, onClose }: { catalog: CatalogSnapshot; onClose: () => 
   const [dueDate, setDueDate] = useState("");
   const [dueWindow, setDueWindow] = useState("");
   // Custom cakes need the longer lead time: the picker only offers windows the server will accept.
-  const days = useMemo(() => deliveryChoices(new Date(), "custom", catalog.deliveryRules).days, [catalog.deliveryRules]);
+  const days = useMemo(() => deliveryChoices(new Date(), "custom", catalog.deliveryRules, new Set(closedDays)).days, [catalog.deliveryRules, closedDays]);
   const pickedDay = days.find((d) => d.date === dueDate);
   const [busy, setBusy] = useState(false);
   const [ref, setRef] = useState<string | null>(null);
@@ -206,7 +207,7 @@ function Sheet({ catalog, onClose }: { catalog: CatalogSnapshot; onClose: () => 
                 ))}
               </fieldset>
             ) : (
-              <p role="status" className="text-[0.8125rem] text-s-bark">No windows left that day. Choose another date.</p>
+              <p role="status" className="text-[0.8125rem] text-s-bark">{closedDays.includes(dueDate) ? "We're closed that day." : "No windows left that day. Choose another date."}</p>
             ))}
             <Err errors={errors} name="dueAt" />
 

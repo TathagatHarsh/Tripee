@@ -7,26 +7,13 @@ import { CheckoutForm } from "@/app/checkout/CheckoutForm";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
 import { listCakes } from "@/lib/cakeData";
-import { getCatalogSnapshot } from "@/lib/catalogData";
-import { db, hasDatabase } from "@/lib/db";
-import { istDate } from "@/lib/deliveryRules";
+import { getCatalogSnapshot, loadClosedDays } from "@/lib/catalogData";
 import { isTestKey, paymentsEnabled, offlinePaymentsEnabled, paymentCheckoutAvailable } from "@/lib/razorpay";
 
 export const metadata: Metadata = {
   title: "Checkout · MakeYourCakes",
   robots: { index: false, follow: false },
 };
-
-/** Delivery blackout dates from today (IST) through the pre-order horizon, as YYYY-MM-DD. */
-async function loadClosedDays(preorderDays: number): Promise<string[]> {
-  if (!hasDatabase()) return [];
-  const today = new Date(`${istDate(new Date())}T00:00:00Z`);
-  const rows = await db.fulfillmentBlackout.findMany({
-    where: { method: "delivery", date: { gte: today, lte: new Date(today.getTime() + preorderDays * 86_400_000) } },
-    select: { date: true },
-  });
-  return rows.map((r) => r.date.toISOString().slice(0, 10));
-}
 
 /**
  * Checkout, and no sign-in wall in front of it.

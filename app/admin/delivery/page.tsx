@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
+import { readDeliverySettings } from "@/lib/catalogData";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { DEFAULT_DELIVERY_RULES, type DeliveryRules } from "@/lib/deliveryRules";
 import { Notice, PageHeader } from "@/components/admin/ui";
@@ -39,7 +40,7 @@ export default async function DeliveryAdmin() {
     }),
     db.deliveryZone.findMany({ orderBy: { sortOrder: "asc" } }),
     db.pricingSettings.findUnique({ where: { id: "singleton" } }),
-    db.deliverySettings.findUnique({ where: { id: "singleton" } }),
+    readDeliverySettings(),
     db.fulfillmentBlackout.findMany({
       where: { date: { gte: new Date(`${today}T00:00:00.000Z`) } },
       orderBy: { date: "asc" },

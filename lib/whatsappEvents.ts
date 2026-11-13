@@ -27,6 +27,7 @@ export async function loadOrderFacts(tx: Tx, orderId: string): Promise<OrderFact
     orderId, ref: o.ref, totalPaise: o.totalPaise, dueAt: o.dueAt ?? o.requestedFor, cake,
     area: [o.addressLine2, o.city, o.pincode].filter(Boolean).join(", "),
     customerName: o.customerName,
+    slot: o.deliverySlot, requestedFor: o.requestedFor, requestedWindow: o.requestedWindow,
   };
 }
 

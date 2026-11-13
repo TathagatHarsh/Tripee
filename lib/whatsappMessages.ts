@@ -1,6 +1,7 @@
 import "server-only";
 import type { NotificationKind, Prisma } from "@prisma/client";
 import { outboxCreate } from "./notifications";
+import { isNewSlot } from "./deliveryRules";
 import { normalizePhone, photoUrl, whatsappConfigured, type TemplateComponent, type WhatsAppMessage } from "./whatsapp";
 
 export interface OrderFacts {
@@ -11,6 +12,10 @@ export interface OrderFacts {
   area: string;
   cake: string;
   customerName?: string | null;
+  /** The customer's promise; see formatWhen. Absent for legacy facts. */
+  slot?: string | null;
+  requestedFor?: Date | null;
+  requestedWindow?: string | null;
 }
 
 /** Meta rejects template parameters that are empty or contain newlines, tabs or runs of spaces. */
@@ -42,6 +47,17 @@ export function formatDue(at: Date | null): string {
   if (!at) return "not set";
   const p = Object.fromEntries(DUE_FORMAT.formatToParts(at).map((x) => [x.type, x.value]));
   return `${p.weekday} ${p.day} ${p.month}, ${p.hour}:${p.minute} ${String(p.dayPeriod).toLowerCase()}`;
+}
+
+/**
+ * What the customer was promised. An ASAP or scheduled order's dueAt is its
+ * window's end, so it reads as the window's day plus the window
+ * ("Thu 20 Nov, 10:00–12:00"); a legacy order keeps formatDue(dueAt).
+ */
+export function formatWhen(o: { slot?: string | null; requestedFor?: Date | null; requestedWindow?: string | null; dueAt: Date | null }): string {
+  if (!o.slot || !isNewSlot(o.slot) || !o.requestedFor || !o.requestedWindow) return formatDue(o.dueAt);
+  const p = Object.fromEntries(DUE_FORMAT.formatToParts(o.requestedFor).map((x) => [x.type, x.value]));
+  return `${p.weekday} ${p.day} ${p.month}, ${o.requestedWindow}`;
 }
 
 const imageHeader = (link: string): TemplateComponent => ({
@@ -107,7 +123,7 @@ export function customerConfirmedMessage(f: OrderFacts): WhatsAppMessage {
     name: "customer_order_confirmed",
     components: [
       header(f.orderId),
-      body(cleanParam(firstName(f.customerName)), cleanParam(f.cake), cleanParam(formatDue(f.dueAt)), cleanParam(f.area), cleanParam(f.ref), cleanParam(rupees(f.totalPaise))),
+      body(cleanParam(firstName(f.customerName)), cleanParam(f.cake), cleanParam(formatWhen(f)), cleanParam(f.area), cleanParam(f.ref), cleanParam(rupees(f.totalPaise))),
     ],
   };
 }
@@ -116,7 +132,7 @@ export function customerOutForDeliveryMessage(f: OrderFacts): WhatsAppMessage {
   return {
     type: "template",
     name: "customer_out_for_delivery",
-    components: [header(f.orderId), body(cleanParam(firstName(f.customerName)), cleanParam(f.cake), cleanParam(f.area), cleanParam(formatDue(f.dueAt)), cleanParam(f.ref))],
+    components: [header(f.orderId), body(cleanParam(firstName(f.customerName)), cleanParam(f.cake), cleanParam(f.area), cleanParam(formatWhen(f)), cleanParam(f.ref))],
   };
 }
 

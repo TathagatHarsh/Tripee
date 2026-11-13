@@ -289,5 +289,19 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
       expect(order.dueAt).toEqual(order.requestedFor);
       expect(await db.paymentRecovery.findUnique({ where: { id: body.idempotencyKey } })).toMatchObject({ status: 'completed' });
     });
+
+    it('a paid legacy attempt whose cutoff passed during payment is not refused; a malformed date still is', async () => {
+      // Runs after the test above, which leaves the standard row withdrawn. Today is inside standard's notice.
+      vi.stubEnv('SERVICE_AREA', 'hyderabad');
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const unpaid = await validateCheckout(basket('standard', today, 'x'), 'test', false);
+      expect(unpaid.kind).toBe('problem');
+      const paid = await validateCheckout(basket('standard', today, 'x'), 'test', true);
+      if (paid.kind !== 'checked') throw new Error(`paid legacy basket refused: ${paid.kind === 'problem' ? await paid.response.text() : paid.kind}`);
+      expect(paid.checked.requestedFor).toEqual(new Date(`${today}T10:00:00+05:30`));
+      const bad = await validateCheckout(basket('standard', '2026-02-30', 'x'), 'test', true);
+      if (bad.kind !== 'problem') throw new Error('malformed date was accepted');
+      expect(await bad.response.json()).toMatchObject({ code: 'schedule_unavailable' });
+    });
   });
 });

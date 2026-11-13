@@ -274,7 +274,9 @@ export async function validateCheckout(
   } else {
     const slotInfo = resolveSlot(body.fulfillment.slot, body.fulfillment.pincode, catalog);
     const schedule = scheduleVerdict(body.fulfillment.requestedDate, slotInfo);
-    if (!schedule.ok) return scheduleProblem(schedule.message);
+    // Spec: after payment nothing is checked again; a paid legacy attempt is refused only for a malformed date.
+    const dateValid = !Number.isNaN(schedule.requestedFor.getTime());
+    if (!schedule.ok && !(paid && dateValid)) return scheduleProblem(schedule.message);
     when = { requestedFor: schedule.requestedFor, dueAt: schedule.requestedFor, requestedWindow: slotWindow(slotInfo) };
   }
 
