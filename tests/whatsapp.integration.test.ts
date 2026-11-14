@@ -136,7 +136,7 @@ describe.skipIf(!url)('WhatsApp messages for every order step on isolated Postgr
     await cakeRow(order.id, 0, 'Chocolate Truffle', '1kg', 'eggless'); await cakeRow(order.id, 1, 'Red Velvet', '500g', 'egg');
     await db.$transaction(tx => whatsappNewOrder(tx, order.id));
     const row = (await wa(order.id)).find(r => r.destination === ADMIN)!;
-    expect(row.payload).toMatchObject({ type: 'template', name: 'admin_new_order' });
+    expect(row.payload).toMatchObject({ type: 'template', name: 'admin_new_order_v2' });
     expect(comps(row).find(c => c.type === 'header')!.parameters[0].image!.link).toContain(`/api/whatsapp/photo/${order.id}?s=`);
     expect(bodyText(row)[2]).toContain('Chocolate Truffle'); expect(bodyText(row)[2]).toContain('Red Velvet');
   });
