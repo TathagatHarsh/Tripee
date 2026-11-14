@@ -31,7 +31,7 @@ Example: `started MC-1234`. **Delivered** only works once the order is out for d
 
 If the word fits one order, it applies. If it fits none, the bakery is told so. If it fits several, the bakery is asked which one. Anything else gets a short help message. A message from a number that is not an active bakery gets one fixed line saying the number is for bakery partners.
 
-Bakery phones are matched to the sender after cleaning them up. Spaces, `+91` and a leading `0` are all fine. Each active bakery needs its own number. If two active bakeries share one, WhatsApp replies from it do nothing except ask them to contact the admin. Set phones in `/admin/vendors`.
+Bakery phones are matched to the sender after cleaning them up. Spaces, `+91` and a leading `0` are all fine. Each active bakery needs its own number. If two active bakeries share one, WhatsApp replies from it do nothing except ask them to contact the admin. Set phones in `/admin/vendors`. Adding or changing a bakery number there needs the 6-digit WhatsApp code the bakery receives (the admin taps Send code, the bakery reads it out, the admin types it before saving). Numbers saved before this change aren't re-checked, and where WhatsApp isn't configured the check is skipped.
 
 ## Environment variables
 

@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   addVendor, linkVendorUser, saveVendor, setVendorActive, unlinkVendorUser,
   type ActionResult,
 } from "../actions";
 import { useToast } from "@/components/admin/Toast";
 import { aBtn, aField } from "@/components/admin/ui";
+import { VendorPhoneVerify } from "./VendorPhoneVerify";
 
 /**
  * Every write on the two vendor pages.
@@ -80,6 +81,7 @@ export function VendorForm({ vendor }: { vendor?: VendorFields & { id: string } 
   useAnnounce(result);
 
   const formRef = useRef<HTMLFormElement>(null);
+  const [phone, setPhone] = useState(vendor?.phone ?? "");
 
   /* Clear the fields after a bakery is added, so the form is ready for the next
      one rather than holding the last one's name. Never on edit, where the
@@ -89,7 +91,7 @@ export function VendorForm({ vendor }: { vendor?: VendorFields & { id: string } 
   }, [result, vendor]);
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-col gap-4 p-4 sm:p-5">
+    <form ref={formRef} action={formAction} onReset={() => setPhone("")} className="flex flex-col gap-4 p-4 sm:p-5">
       {vendor && <input type="hidden" name="id" value={vendor.id} />}
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -99,11 +101,14 @@ export function VendorForm({ vendor }: { vendor?: VendorFields & { id: string } 
             <input
               name={f.name}
               type={f.type ?? "text"}
-              defaultValue={vendor?.[f.name] ?? ""}
+              {...(f.name === "phone"
+                ? { value: phone, onChange: (e) => setPhone(e.target.value) }
+                : { defaultValue: vendor?.[f.name] ?? "" })}
               required={f.name === "name"}
               className={aField("w-full")}
             />
             {f.hint && <span className="text-a-meta leading-snug text-a-muted">{f.hint}</span>}
+            {f.name === "phone" && <VendorPhoneVerify phone={phone} saved={vendor?.phone ?? null} />}
           </label>
         ))}
       </div>
