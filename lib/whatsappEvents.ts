@@ -2,7 +2,7 @@ import "server-only";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { UNDELIVERABLE } from "./orders";
 import { adminNumbers, normalizePhone, siteUrl, whatsappConfigured, type WhatsAppMessage } from "./whatsapp";
-import { adminNewOrderMessage, customerCancelledMessage, customerConfirmedMessage, customerDeliveredMessage, customerOutForDeliveryMessage, offerMessage, queueWhatsApp, updateMessage, type OrderFacts } from "./whatsappMessages";
+import { adminNewOrderMessage, customerCancelledMessage, customerConfirmedMessage, customerDeliveredMessage, customerOutForDeliveryMessage, offerMessage, orderContacts, queueWhatsApp, updateMessage, type OrderFacts } from "./whatsappMessages";
 
 type Tx = Prisma.TransactionClient;
 const CAP = 120; // Meta template parameter cap applied by cleanParam in whatsappMessages
@@ -26,7 +26,7 @@ export async function loadOrderFacts(tx: Tx, orderId: string): Promise<OrderFact
   return {
     orderId, ref: o.ref, totalPaise: o.totalPaise, dueAt: o.dueAt ?? o.requestedFor, cake,
     area: [o.addressLine2, o.city, o.pincode].filter(Boolean).join(", "),
-    customerName: o.customerName,
+    customerName: o.customerName, customerContact: orderContacts(o).admin,
     slot: o.deliverySlot, requestedFor: o.requestedFor, requestedWindow: o.requestedWindow,
   };
 }
