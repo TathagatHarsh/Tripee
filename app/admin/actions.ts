@@ -16,7 +16,11 @@ import { formatINR } from "@/lib/format";
 import { applyStatusTransition } from "@/lib/orderTransition";
 import { assignOrderToVendor } from "@/lib/vendorTransition";
 import { ADMIN_MOVES, STATUS_LABEL } from "@/lib/orders";
-import { indianMobile } from "@/lib/whatsapp";
+import { indianMobile, sendWhatsApp } from "@/lib/whatsapp";
+import { rateLimit } from "@/lib/apiGuard";
+import { log } from "@/lib/log";
+import { issueCode, vendorPhoneProblem } from "@/lib/phoneVerify";
+import { verifyCodeMessage } from "@/lib/whatsappMessages";
 import {
   discard, hasImageStore, ImageError, MAX_UPLOAD_BYTES, NO_IMAGE_STORE_MESSAGE,
   optimize, store,
@@ -1207,6 +1211,38 @@ function readVendorEdit(form: FormData) {
   });
 }
 
+/** Send the bakery a WhatsApp code to type back into the add/edit form. */
+export async function sendVendorPhoneCode(
+  phone: string,
+): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+  await requireAdmin();
+  const n = indianMobile(phone);
+  if (!n) return { ok: false, error: "Enter a 10-digit Indian mobile number, like 98765 43210." };
+
+  // ponytail: per-instance in-memory limit, fine for an admin-only action.
+  const limit = rateLimit("vendor-phone-send", n, { max: 5, windowSeconds: 3600 });
+  if (!limit.ok) {
+    const minutes = Math.max(1, Math.ceil(limit.retryAfter / 60));
+    return {
+      ok: false,
+      error: `Too many codes sent to this number. Please wait ${minutes === 1 ? "a minute" : `about ${minutes} minutes`} and try again.`,
+    };
+  }
+
+  try {
+    const { code, token } = issueCode(n);
+    await sendWhatsApp(n, verifyCodeMessage(code));
+    return { ok: true, token };
+  } catch (error) {
+    log("error", "vendor_phone_code_send_failed", { error: error instanceof Error ? error.message : String(error) });
+    return { ok: false, error: "We couldn't send the code right now. Try again in a minute." };
+  }
+}
+
+/** The save rule for the hidden phoneToken / phoneCode fields the form posts. */
+const phoneProblem = (saved: string | null, next: string | null, form: FormData) =>
+  vendorPhoneProblem(saved, next, String(form.get("phoneCode") ?? "").trim(), String(form.get("phoneToken") ?? ""));
+
 /** Every surface that names a vendor, invalidated together. */
 function revalidateVendors(id?: string): void {
   revalidatePath("/admin/vendors");
@@ -1225,6 +1261,9 @@ export async function addVendor(
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
   }
+
+  const problem = phoneProblem(null, parsed.data.phone, form);
+  if (problem) return { ok: false, message: problem };
 
   const vendor = await db.vendor.create({ data: parsed.data, select: { id: true, name: true } });
 
@@ -1246,6 +1285,10 @@ export async function saveVendor(
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
   }
+
+  const current = await db.vendor.findUnique({ where: { id }, select: { phone: true } });
+  const problem = phoneProblem(current?.phone ?? null, parsed.data.phone, form);
+  if (problem) return { ok: false, message: problem };
 
   await db.vendor.update({ where: { id }, data: parsed.data });
 

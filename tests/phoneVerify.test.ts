@@ -10,7 +10,7 @@ vi.mock("next/headers", () => ({
   },
 }));
 
-import { checkCode, issueCode, phoneProblem, provenCookie, provenPhone } from "@/lib/phoneVerify";
+import { checkCode, issueCode, phoneProblem, provenCookie, provenPhone, vendorPhoneProblem } from "@/lib/phoneVerify";
 
 const P = "919876543210", T0 = 1_700_000_000_000;
 
@@ -34,4 +34,26 @@ describe("phoneProblem", () => {
   it("flag on, cookie for the same number spelled differently → null", async () => { vi.stubEnv("PHONE_VERIFICATION", "on"); jar.myc_phone = provenCookie(P); expect(await phoneProblem("098765 43210", false)).toBeNull(); expect(await phoneProblem("+91 98765-43210", false)).toBeNull(); });
   it("flag on, cookie for another number → 422", async () => { vi.stubEnv("PHONE_VERIFICATION", "on"); jar.myc_phone = provenCookie("919999999999"); expect((await phoneProblem("9876543210", false))!.status).toBe(422); });
   it("cookies() throwing (no request scope) → treated as no cookie", async () => { vi.stubEnv("PHONE_VERIFICATION", "on"); cookiesThrow = true; expect((await phoneProblem("9876543210", false))!.status).toBe(422); });
+});
+
+describe("vendorPhoneProblem", () => {
+  const NEXT = "+91 98765 43210";
+  const MISSING = "Send a code to this number and enter it to save.";
+  beforeEach(() => { vi.stubEnv("WHATSAPP_ACCESS_TOKEN", "t"); vi.stubEnv("WHATSAPP_PHONE_NUMBER_ID", "1"); });
+  it("unchanged, even spelled differently → null", () => {
+    expect(vendorPhoneProblem("+91 98765 43210", "098765 43210", "", "", T0)).toBeNull();
+    expect(vendorPhoneProblem("9876543210", "+91 98765-43210", "", "", T0)).toBeNull();
+  });
+  it("cleared → null", () => { expect(vendorPhoneProblem("+91 98765 43210", null, "", "", T0)).toBeNull(); });
+  it("WhatsApp not configured → null", () => { vi.stubEnv("WHATSAPP_ACCESS_TOKEN", ""); expect(vendorPhoneProblem(null, NEXT, "", "", T0)).toBeNull(); });
+  it("right code → null", () => { const { code, token } = issueCode(P, T0); expect(vendorPhoneProblem("+91 91111 11111", NEXT, code, token, T0 + 1000)).toBeNull(); });
+  it("wrong code", () => { const { code, token } = issueCode(P, T0); expect(vendorPhoneProblem(null, NEXT, code === "000000" ? "000001" : "000000", token, T0)).toBe("That code isn't right."); });
+  it("code for another number is wrong", () => { const { code, token } = issueCode("919999999999", T0); expect(vendorPhoneProblem(null, NEXT, code, token, T0)).toBe("That code isn't right."); });
+  it("expired", () => { const { code, token } = issueCode(P, T0); expect(vendorPhoneProblem(null, NEXT, code, token, T0 + 10 * 60_000 + 1)).toBe("That code has expired. Send a new one."); });
+  it("empty code or token", () => {
+    const { code, token } = issueCode(P, T0);
+    expect(vendorPhoneProblem(null, NEXT, "", "", T0)).toBe(MISSING);
+    expect(vendorPhoneProblem(null, NEXT, code, "", T0)).toBe(MISSING);
+    expect(vendorPhoneProblem(null, NEXT, "", token, T0)).toBe(MISSING);
+  });
 });

@@ -2,6 +2,7 @@ import "server-only";
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { indianMobile } from "./phone";
+import { whatsappConfigured } from "./whatsapp";
 
 export const PHONE_COOKIE = "myc_phone";
 export const PROVEN_SECONDS = 30 * 86400;
@@ -63,4 +64,24 @@ export async function phoneProblem(customerPhone: string, paid: boolean): Promis
     { error: "Verify your number on WhatsApp to continue.", code: "phone_unverified", field: "customerPhone" },
     { status: 422 },
   );
+}
+
+/**
+ * Why a bakery number may not be saved yet, else null. A code is needed only
+ * when the number is added or changed (compared normalised), and only where
+ * WhatsApp can actually send one.
+ */
+export function vendorPhoneProblem(
+  saved: string | null,
+  next: string | null,
+  code: string,
+  token: string,
+  now = Date.now(),
+): string | null {
+  const n = next ? indianMobile(next) : null;
+  if (!n || n === (saved ? indianMobile(saved) : null) || !whatsappConfigured()) return null;
+  if (!code || !token) return "Send a code to this number and enter it to save.";
+  const result = checkCode(n, code, token, now);
+  if (result === "ok") return null;
+  return result === "expired" ? "That code has expired. Send a new one." : "That code isn't right.";
 }
