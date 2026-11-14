@@ -41,6 +41,7 @@ Bakery phones are matched to the sender after cleaning them up. Spaces, `+91` an
 | `WHATSAPP_PHONE_NUMBER_ID` | From WhatsApp, API Setup. |
 | `WHATSAPP_APP_SECRET` | From App, Basic. Secret. |
 | `WHATSAPP_VERIFY_TOKEN` | Any random string. Type the same one into Meta's webhook form. |
+| `PHONE_VERIFICATION` | `on` makes checkout verify the phone with a WhatsApp code (needs the `verify_code` template Active). Anything else: off. |
 | `WHATSAPP_ADMIN_NUMBERS` | Comma-separated, with country code, e.g. `919800000000,919811111111`. A 10-digit Indian number gets `91` added. |
 | `ASSIGNMENT_AUTO_START` | `true`: offer the nearest eligible bakery at confirmation. |
 | `ASSIGNMENT_AUTO_REASSIGN` | `true`: after a rejection or expiry, offer the next bakery. |
@@ -67,13 +68,13 @@ The admin does these. Code can't.
 5. Business settings, System users: create one. Assign it the app and the WhatsApp account. Generate a non-expiring token with `whatsapp_business_messaging` and `whatsapp_business_management`. This is `WHATSAPP_ACCESS_TOKEN`.
 6. App, Basic: copy the App secret into `WHATSAPP_APP_SECRET`. Add the site's privacy policy URL. Switch the app to **Live**.
 7. WhatsApp, Configuration, Webhook: callback URL `https://<site>/api/whatsapp/webhook`, the verify token (`WHATSAPP_VERIFY_TOKEN`), and subscribe to **messages**.
-8. WhatsApp Manager, Message templates: create the nine templates below (five for bakeries and the admin, four for customers).
+8. WhatsApp Manager, Message templates: create the ten templates below (five for bakeries and the admin, four for customers, and the verification code template).
 
-Business verification is not needed to start. The unverified limit (250 recipients a day) is far above a few bakeries plus the admin.
+Business verification is not needed to start, except that Meta may ask for it before allowing the `verify_code` Authentication template (see below). The unverified limit (250 recipients a day) is far above a few bakeries plus the admin.
 
 ### Templates
 
-All nine: category **Utility**, language **English** (`en`). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
+The nine bakery, admin and customer templates: category **Utility**, language **English** (`en`). The verification code template is the exception (see below). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
 
 | Name | Header | Body | Buttons |
 |---|---|---|---|
@@ -162,6 +163,22 @@ Parameters never contain line breaks. The first three are the texts Meta approve
 `custom_offer` and `custom_quote` have **not been submitted to Meta yet**. Submit them with the wording above. If Meta asks for changes, change the matching builder in `lib/whatsappMessages.ts` before the branch ships.
 
 **Deploy order for custom cakes:** run the `9l_custom_requests` migration on production (`prisma migrate deploy` on the Supabase session pooler, port 5432) *before* deploying the code that uses it. The outbox code writes `NotificationOutbox.customRequestId` on every insert, so code deployed ahead of the migration breaks checkout and every notification. The migration is safe for the code already running. Also, the custom-cake form only appears once WhatsApp, an image store and online payment are all configured.
+
+### Verification code template
+
+Used to confirm a customer's phone number. Name `verify_code`, category **Authentication**, language English. It must be created in WABA 985694517174842.
+
+- Body: Meta's fixed text. The code is its only parameter (`{{1}}`), filled in by `verifyCodeMessage` in `lib/whatsappMessages.ts`, so nothing is typed in by hand.
+- Button: **Copy code**, carrying the same code (`verifyCodeMessage` sends it as the button's parameter).
+- Turn on **Add security recommendation**.
+- Turn on **Add expiry time**, set to 10 minutes.
+
+Meta may ask for Business Verification before it allows Authentication templates. Turn on `PHONE_VERIFICATION` only once this template is **Active**.
+
+Before turning on `PHONE_VERIFICATION`:
+
+- On the production edge, confirm what `callerKey` resolves to. The per-caller send limit keys on the last `x-forwarded-for` entry, which behind Cloudflare/Railway may be a proxy IP shared by many customers.
+- On the preview, verify a real code and inspect the `Set-Cookie` from `/api/phone/verify` (`myc_phone; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`), then complete a test payment.
 
 ## Pinger (every-minute timer)
 

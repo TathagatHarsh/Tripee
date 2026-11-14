@@ -149,6 +149,18 @@ export function customerCancelledMessage(o: { ref: string; customerName?: string
   return { type: "template", name: "customer_order_cancelled", components: [body(cleanParam(firstName(o.customerName)), cleanParam(o.ref), why)] };
 }
 
+/** Authentication template: Meta's fixed body, the code as its one variable, and the same code on the copy-code button. */
+export function verifyCodeMessage(code: string): WhatsAppMessage {
+  return {
+    type: "template",
+    name: "verify_code",
+    components: [
+      body(code),
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
+    ],
+  };
+}
+
 export function updateMessage(ref: string, text: string): WhatsAppMessage {
   return { type: "template", name: "order_update", components: [body(cleanParam(ref), cleanParam(text, 400))] };
 }

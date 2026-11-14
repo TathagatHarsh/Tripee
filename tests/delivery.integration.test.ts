@@ -303,5 +303,16 @@ describe.skipIf(!url)('delivery lifecycle on isolated PostgreSQL', () => {
       if (bad.kind !== 'problem') throw new Error('malformed date was accepted');
       expect(await bad.response.json()).toMatchObject({ code: 'schedule_unavailable' });
     });
+
+    it('refuses an unverified number before payment, never after', async () => {
+      vi.stubEnv('PHONE_VERIFICATION', 'on');
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const unpaid = await validateCheckout(basket('standard', today, 'x'), 'test', false);
+      expect(unpaid.kind).toBe('problem');
+      if (unpaid.kind === 'problem') expect((await unpaid.response.json()).code).toBe('phone_unverified');
+      const paid = await validateCheckout(basket('standard', today, 'x'), 'test', true);
+      expect(paid.kind === 'problem' && (await paid.response.clone().json()).code === 'phone_unverified').toBe(false);
+      vi.unstubAllEnvs();
+    });
   });
 });
