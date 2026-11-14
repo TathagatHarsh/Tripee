@@ -1240,7 +1240,7 @@ export async function sendVendorPhoneCode(
 }
 
 /** The save rule for the hidden phoneToken / phoneCode fields the form posts. */
-const phoneProblem = (saved: string | null, next: string | null, form: FormData) =>
+const vendorPhoneFromForm = (saved: string | null, next: string | null, form: FormData) =>
   vendorPhoneProblem(saved, next, String(form.get("phoneCode") ?? "").trim(), String(form.get("phoneToken") ?? ""));
 
 /** Every surface that names a vendor, invalidated together. */
@@ -1262,7 +1262,7 @@ export async function addVendor(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
   }
 
-  const problem = phoneProblem(null, parsed.data.phone, form);
+  const problem = vendorPhoneFromForm(null, parsed.data.phone, form);
   if (problem) return { ok: false, message: problem };
 
   const vendor = await db.vendor.create({ data: parsed.data, select: { id: true, name: true } });
@@ -1287,7 +1287,7 @@ export async function saveVendor(
   }
 
   const current = await db.vendor.findUnique({ where: { id }, select: { phone: true } });
-  const problem = phoneProblem(current?.phone ?? null, parsed.data.phone, form);
+  const problem = vendorPhoneFromForm(current?.phone ?? null, parsed.data.phone, form);
   if (problem) return { ok: false, message: problem };
 
   await db.vendor.update({ where: { id }, data: parsed.data });

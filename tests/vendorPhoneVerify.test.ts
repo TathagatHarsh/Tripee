@@ -54,7 +54,7 @@ describe('sendVendorPhoneCode', () => {
     const r = await sendVendorPhoneCode('98765 22222');
     expect(r).toEqual({ ok: false, error: "We couldn't send the code right now. Try again in a minute." });
     expect(log).toHaveBeenCalledWith('error', 'vendor_phone_code_send_failed', expect.any(Object));
-    expect(JSON.stringify(log.mock.calls)).not.toMatch(/\b\d{6}\b/);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(sentCode());
   });
 
   it('refuses the 6th send to one number in an hour', async () => {

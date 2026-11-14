@@ -46,6 +46,7 @@ describe("vendorPhoneProblem", () => {
   });
   it("cleared → null", () => { expect(vendorPhoneProblem("+91 98765 43210", null, "", "", T0)).toBeNull(); });
   it("WhatsApp not configured → null", () => { vi.stubEnv("WHATSAPP_ACCESS_TOKEN", ""); expect(vendorPhoneProblem(null, NEXT, "", "", T0)).toBeNull(); });
+  it("no signing secret → null", () => { vi.stubEnv("WHATSAPP_APP_SECRET", ""); expect(vendorPhoneProblem(null, NEXT, "", "", T0)).toBeNull(); });
   it("right code → null", () => { const { code, token } = issueCode(P, T0); expect(vendorPhoneProblem("+91 91111 11111", NEXT, code, token, T0 + 1000)).toBeNull(); });
   it("wrong code", () => { const { code, token } = issueCode(P, T0); expect(vendorPhoneProblem(null, NEXT, code === "000000" ? "000001" : "000000", token, T0)).toBe("That code isn't right."); });
   it("code for another number is wrong", () => { const { code, token } = issueCode("919999999999", T0); expect(vendorPhoneProblem(null, NEXT, code, token, T0)).toBe("That code isn't right."); });

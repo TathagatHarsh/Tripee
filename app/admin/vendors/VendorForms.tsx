@@ -87,29 +87,36 @@ export function VendorForm({ vendor }: { vendor?: VendorFields & { id: string } 
      one rather than holding the last one's name. Never on edit, where the
      values on screen are the row. */
   useEffect(() => {
-    if (!vendor && result?.ok) formRef.current?.reset();
+    if (!vendor && result?.ok) {
+      formRef.current?.reset();
+      // Only a successful add clears it: React also resets the form after every submit.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPhone("");
+    }
   }, [result, vendor]);
 
   return (
-    <form ref={formRef} action={formAction} onReset={() => setPhone("")} className="flex flex-col gap-4 p-4 sm:p-5">
+    <form ref={formRef} action={formAction} className="flex flex-col gap-4 p-4 sm:p-5">
       {vendor && <input type="hidden" name="id" value={vendor.id} />}
 
       <div className="grid gap-4 sm:grid-cols-2">
         {FIELDS.map((f) => (
-          <label key={f.name} className={`flex flex-col gap-1 ${f.wide ? "sm:col-span-2" : ""}`}>
-            <span className="font-a-sans text-a-small font-medium text-a-ink">{f.label}</span>
-            <input
-              name={f.name}
-              type={f.type ?? "text"}
-              {...(f.name === "phone"
-                ? { value: phone, onChange: (e) => setPhone(e.target.value) }
-                : { defaultValue: vendor?.[f.name] ?? "" })}
-              required={f.name === "name"}
-              className={aField("w-full")}
-            />
-            {f.hint && <span className="text-a-meta leading-snug text-a-muted">{f.hint}</span>}
+          <div key={f.name} className={`flex flex-col gap-1 ${f.wide ? "sm:col-span-2" : ""}`}>
+            <label className="flex flex-col gap-1">
+              <span className="font-a-sans text-a-small font-medium text-a-ink">{f.label}</span>
+              <input
+                name={f.name}
+                type={f.type ?? "text"}
+                {...(f.name === "phone"
+                  ? { value: phone, onChange: (e) => setPhone(e.target.value) }
+                  : { defaultValue: vendor?.[f.name] ?? "" })}
+                required={f.name === "name"}
+                className={aField("w-full")}
+              />
+              {f.hint && <span className="text-a-meta leading-snug text-a-muted">{f.hint}</span>}
+            </label>
             {f.name === "phone" && <VendorPhoneVerify phone={phone} saved={vendor?.phone ?? null} />}
-          </label>
+          </div>
         ))}
       </div>
 

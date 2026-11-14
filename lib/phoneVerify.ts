@@ -69,7 +69,7 @@ export async function phoneProblem(customerPhone: string, paid: boolean): Promis
 /**
  * Why a bakery number may not be saved yet, else null. A code is needed only
  * when the number is added or changed (compared normalised), and only where
- * WhatsApp can actually send one.
+ * WhatsApp can actually send one (configured, with the signing secret set).
  */
 export function vendorPhoneProblem(
   saved: string | null,
@@ -79,7 +79,7 @@ export function vendorPhoneProblem(
   now = Date.now(),
 ): string | null {
   const n = next ? indianMobile(next) : null;
-  if (!n || n === (saved ? indianMobile(saved) : null) || !whatsappConfigured()) return null;
+  if (!n || n === (saved ? indianMobile(saved) : null) || !whatsappConfigured() || !secret()) return null;
   if (!code || !token) return "Send a code to this number and enter it to save.";
   const result = checkCode(n, code, token, now);
   if (result === "ok") return null;
