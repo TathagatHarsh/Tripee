@@ -105,7 +105,7 @@ The check sits in `validateCheckout`, so the two routes cannot disagree.
 
 ## Rollout
 
-1. Admin creates `verify_code` in WhatsApp Manager under WABA **985694517174842** (not the test WABA; elsewhere sends fail with `132001`). If Meta says the account must complete **Business Verification** before Authentication templates can be created, that comes first (this could not be confirmed from Meta's docs). If Meta won't allow it at all, come back to this spec and switch to the message-us-first fallback.
+1. Admin creates `verify_code` in WhatsApp Manager under WABA **985694517174842** (not the test WABA; elsewhere sends fail with `132001`). Done on 2026-11-14: the template went Active straight away, with no Business Verification needed.
 2. Deploy the code with the flag unset. No visible change.
 3. When `verify_code` is **Active**, set `PHONE_VERIFICATION=on` and redeploy. Test with a real order.
 4. To turn it off: unset `PHONE_VERIFICATION`.
