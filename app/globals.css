@@ -284,15 +284,16 @@
  *
  * ── Surfaces ──────────────────────────────────────────────────────────── */
 @theme {
-  --color-a-canvas: #f4f1e8;   /* the page behind the cards. Neutral, barely there. */
-  --color-a-surface: #fffdf8;  /* a card, a table, a form. Where content lives. */
+  --color-a-canvas: #fbf6ef;   /* the page behind the cards. Warm cream, same as the shop. */
+  --color-a-surface: #ffffff;  /* a card, a table, a form. Where content lives. */
   --color-a-sunken: #eeeadd;   /* table headers, read-only wells, striped rows. */
   --color-a-nav: #22392b;      /* the sidebar. Deep navy, so the shell reads as chrome. */
   --color-a-nav-hover: #304c38;
   --color-a-nav-active: #3e5c43;
 
   /* ── Ink ────────────────────────────────────────────────────────────── */
-  /* Measured on --color-a-surface (#fff), which is where all four are used:
+  /* Measured on --color-a-surface (#fff), where all four are used (on the cream
+     canvas muted and faint lose roughly 0.3; ink is unaffected in practice):
      ink 15.6:1, muted 5.4:1, faint 3.4:1, ghost 2.3:1. The last two are the
      non-text tier — icons, hairlines, disabled glyphs — and the comment is
      here because "faint" reads like a text colour and is not one. */
@@ -306,7 +307,7 @@
   --color-a-nav-muted: #d0d8c3;
 
   /* ── Lines ──────────────────────────────────────────────────────────── */
-  --color-a-line: #ded9cc;        /* the default hairline: card edge, row rule. */
+  --color-a-line: #eaded0;        /* the default hairline: card edge, row rule. */
   --color-a-line-strong: #a5a08f;  /* an input's edge, a control's edge. */
 
   /*
@@ -385,7 +386,7 @@
   --text-a-title: clamp(1.75rem, 2.4vw, 2.5rem);   /* 22px — the page's own h1. */
   --text-a-figure: 2.25rem;   /* 28px — a stat card's number. */
 
-  --radius-a: 0.5rem;         /* cards, inputs, buttons. */
+  --radius-a: 0.875rem;       /* cards, inputs, buttons. 14px, as the approved warm look. */
   --radius-a-sm: 0.3125rem;   /* badges, chips, thumbnails. */
 
   /*
@@ -2366,7 +2367,7 @@ body:has(.k-root)::after {
 .a-root h1 { letter-spacing:-.045em; }
 .a-root main { max-width:100rem; width:100%; margin-inline:auto; }
 .ops-metric { border-top:3px solid var(--color-a-accent); }
-.vendor-root { background:#efeee2; }
+.vendor-root { background:var(--color-a-canvas); }
 .vendor-root>header { border-top:5px solid var(--brand-secondary); }
 .vendor-root main { max-width:90rem; }
 .vendor-ticket { border-top:3px solid var(--color-a-accent-line); }

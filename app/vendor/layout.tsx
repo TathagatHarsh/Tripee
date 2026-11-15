@@ -76,7 +76,7 @@ export default async function VendorLayout({ children }: { children: React.React
   return (
     <div className="a-root vendor-root flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-a-line bg-a-surface/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[90rem] flex-wrap items-center gap-x-4 gap-y-1 px-4 pt-3 sm:px-6">
+        <div className="mx-auto flex max-w-[90rem] flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 sm:px-6">
           <span className="min-w-0 font-a-sans text-a-lede font-bold tracking-[-0.015em] text-a-ink">
             {vendor.name}
           </span>
@@ -104,10 +104,11 @@ export default async function VendorLayout({ children }: { children: React.React
           </div>
         </div>
 
-        <VendorTabs />
       </header>
 
-      <main id="main" className="mx-auto w-full max-w-[90rem] flex-1 px-4 py-5 sm:px-6 sm:py-6">
+      <VendorTabs active={vendor.isActive} />
+
+      <main id="main" className="mx-auto w-full max-w-[90rem] flex-1 px-4 pb-24 pt-5 sm:px-6 sm:py-6">
         <PortalAlerts role="vendor" userId={userId} />
         {children}
       </main>

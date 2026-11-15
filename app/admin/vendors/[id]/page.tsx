@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
-import { Availability } from "@/components/inventory/Availability";
+import { DetailsForm } from "@/components/vendor/DetailsForm";
+import { StatusSwitch } from "@/components/vendor/StatusSwitch";
 import { AssignmentRulesForm } from "../AssignmentRulesForm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -111,7 +112,8 @@ export default async function VendorDetail({
         <StatusBadge label={stageLabel(setup)} tone={STAGE_TONE[setup.stage]} />
       </PageHeader>
 
-      <Availability key={vendor.updatedAt.toISOString()} vendor={vendor} />
+      <StatusSwitch key={`s${vendor.updatedAt.toISOString()}`} vendorId={vendor.id} accepting={!vendor.isAcceptingOrders ? "closed" : vendor.isBusy ? "busy" : "accepting"} active={vendor.isActive} />
+      <DetailsForm key={vendor.updatedAt.toISOString()} vendor={vendor} />
       <Link href={`/admin/inventory?vendor=${vendor.id}`} className="font-semibold underline">View Cake Availability</Link>
       {!vendor.isActive && (
         <Notice tone="warn" icon="alert">

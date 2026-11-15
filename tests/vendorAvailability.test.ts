@@ -44,6 +44,16 @@ describe('vendor availability route', () => {
     expect(data.serviceRadiusKm).toBe(8);
     expect(data).not.toHaveProperty('detailsConfirmedAt');
   });
+  it('saves availability alone without confirming details', async () => {
+    const update = run({ id: 'v1', name: 'B', isActive: true });
+    expect((await POST(request({ availability: 'busy' }))).status).toBe(200);
+    const data = update.mock.calls[0][0].data;
+    expect(data.isBusy).toBe(true);
+    for (const k of ['preparationMinutes', 'maxConcurrentOrders', 'serviceRadiusKm', 'detailsConfirmedAt']) expect(data).not.toHaveProperty(k);
+  });
+  it('needs the whole details group or none', async () => {
+    expect((await POST(request({ availability: 'closed', preparationMinutes: 60 }))).status).toBe(400);
+  });
   it('rejects a radius outside 1 to 50', async () => {
     for (const radiusKm of [0, 51]) expect((await POST(request({ availability: 'closed', preparationMinutes: 60, capacity: 3, radiusKm }))).status).toBe(400);
   });
