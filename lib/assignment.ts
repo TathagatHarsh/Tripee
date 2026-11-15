@@ -20,7 +20,7 @@ import { canVendorTransition, ORDER_STATUS_FOR_VENDOR, STAMP } from "./vendors";
 import { canTransition, UNDELIVERABLE } from "./orders";
 
 import { inventoryForOrder, requireOrderAvailability, InventoryConflict } from './inventory';
-import { meetsDeadline } from './inventoryRules';
+import { isOfferable, meetsDeadline } from './inventoryRules';
 import { portalEvent } from './portalNotifications';
 import { whatsappAssignmentEvent, whatsappNoBakery, whatsappOrderStatus } from './whatsappEvents';
 type Tx = Prisma.TransactionClient;
@@ -46,11 +46,6 @@ async function lockedOrder(tx: Tx, ref: string) {
 }
 const openOrder = (order: Pick<Order, "status">) =>
   order.status === "confirmed" || order.status === "in_kitchen";
-const productsFor = (o: {
-  cakes: { cakeProductId: string | null }[];
-  cakeProductId: string | null;
-}) =>
-  o.cakes.length ? o.cakes.map((c) => c.cakeProductId) : [o.cakeProductId];
 async function load(tx: Tx | typeof db, vendorId: string) {
   return tx.vendorOrder.count({
     where: {
@@ -126,7 +121,7 @@ async function advance(tx: Tx, order: Awaited<ReturnType<typeof lockedOrder>>) {
     const point = pointFrom(order.deliveryLocation),
       origin = pointFrom(vendor);
     if (
-      !vendorEligible(vendor, productsFor(order), await load(tx, vendor.id), new Date(), order.fulfillmentMethod !== "pickup") ||
+      !vendorEligible(vendor, await load(tx, vendor.id), new Date(), order.fulfillmentMethod !== "pickup") ||
       (order.fulfillmentMethod !== "pickup" && (!point || !origin || haversine(origin, point) > vendor.serviceRadiusKm)) ||
       (order.fulfillmentMethod !== "pickup" && (row.distanceKm ?? Infinity) > vendor.serviceRadiusKm)
     ) {
@@ -141,7 +136,7 @@ async function advance(tx: Tx, order: Awaited<ReturnType<typeof lockedOrder>>) {
       continue;
     }
     const stock = await inventoryForOrder(tx, vendor.id, order).catch(() => []);
-    if (!stock.length || stock.some(({ item }) => !item?.isAvailable) || !meetsDeadline(order.dueAt ?? order.requestedFor, vendor.preparationMinutes, row.estimatedMinutes ?? 0)) {
+    if (!stock.length || stock.some(({ item }) => !isOfferable(item)) || !meetsDeadline(order.dueAt ?? order.requestedFor, vendor.preparationMinutes, row.estimatedMinutes ?? 0)) {
       await tx.vendorOrder.update({ where: { id: row.id }, data: { assignmentStatus: 'CANCELLED', status: 'withdrawn', rejectionReason: 'Cake variant unavailable or insufficient preparation time' } });
       continue;
     }
@@ -211,13 +206,13 @@ export async function assignmentCandidates(ref: string) {
   for (const vendor of vendors) {
     const currentLoad = await load(db, vendor.id);
     const reasons = await vendorBlockers(db, vendor, new Date(), currentLoad);
-    if (!vendor.fulfillsAllProducts && !productsFor(order).every(id => id && vendor.supportedProductIds.includes(id))) reasons.push('Product not supported');
     let inventory: { product: string; isAvailable: boolean }[] = [];
     try {
       inventory = (await inventoryForOrder(db, vendor.id, order)).map(({ item, need }) => {
         const name = item?.productName ?? productNames.get(need.productId) ?? 'Cake';
-        if (!item?.isAvailable) reasons.push(`${name} ${need.sizeBand} ${need.eggType}: unavailable`);
-        return { product: `${name} · ${need.sizeBand} · ${need.eggType}`, isAvailable: item?.isAvailable ?? false };
+        const offerable = isOfferable(item);
+        if (!offerable) reasons.push(`${name} ${need.sizeBand} ${need.eggType}: unavailable`);
+        return { product: `${name} · ${need.sizeBand} · ${need.eggType}`, isAvailable: offerable };
       });
     } catch (error) { reasons.push((error as Error).message); }
     const origin = pointFrom(vendor);
@@ -336,7 +331,6 @@ function respondInTransaction(
       if (
         !vendorEligible(
           vendor,
-          productsFor(order),
           Math.max(0, (await load(tx, vendorId)) - 1),
           new Date(),
           order.fulfillmentMethod !== "pickup",
@@ -473,7 +467,6 @@ export async function manualAssignment(
     if (
       !vendorEligible(
         vendor,
-        productsFor(order),
         await load(tx, vendorId),
         new Date(),
         !pickup,

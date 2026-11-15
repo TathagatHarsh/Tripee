@@ -7,7 +7,7 @@ vi.mock('@clerk/nextjs/server', () => ({ clerkClient: vi.fn() }));
 vi.mock('@/lib/auth', () => ({ requireAdmin: vi.fn() }));
 vi.mock('@/lib/assignment', () => ({ lockAssignments: vi.fn() }));
 vi.mock('@/lib/catalogData', () => ({ revalidateCatalog: vi.fn() }));
-vi.mock('@/lib/db', () => ({ hasDatabase: () => true, db: { vendor: { create } } }));
+vi.mock('@/lib/db', () => ({ hasDatabase: () => true, db: { vendor: { create, update: vi.fn(async () => ({})) } } }));
 
 const { addVendor } = await import('../app/admin/actions');
 const form = (phone: string) => { const f = new FormData(); f.set('name', 'Sweet Spot'); f.set('phone', phone); f.set('email', ''); f.set('address', ''); return f; };
@@ -24,9 +24,9 @@ describe('a partner bakery phone number', () => {
     }
   });
 
-  it('may be left empty', async () => {
-    expect((await addVendor(undefined, form(''))).ok).toBe(true);
-    expect(create.mock.calls[0][0]!.data.phone).toBeNull();
+  it('is required, because the invite goes to it', async () => {
+    expect((await addVendor(undefined, form(''))).ok).toBe(false);
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('is refused when WhatsApp could not reach it', async () => {

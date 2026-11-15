@@ -7,7 +7,7 @@ vi.mock('../lib/mapping', () => ({ getDistanceMatrix: async (origins: unknown[])
 import { db } from '../lib/db';
 import { manualAssignment, respondToAssignment, moveFulfillment } from '../lib/assignment';
 import { handOver, vendorDeliveryMove } from '../lib/vendorTransition';
-import { vendorBoard, vendorHistory, vendorOrder } from '../app/vendor/data';
+import { vendorBoard, vendorHistory, vendorOrder, vendorSetup, pausedRows } from '../app/vendor/data';
 import { VENDOR_COLUMNS, VENDOR_SENT_OUT_COLUMN, vendorNext } from '../lib/vendors';
 import { setVendorActive } from '../app/admin/actions';
 
@@ -38,6 +38,23 @@ describe.skipIf(!url)('admin and vendor panels on isolated PostgreSQL', () => {
     expect(board).toHaveLength(1);
     expect(vendorNext(board[0].status, board[0].order.status)).toEqual(['delivered']);
     expect([...VENDOR_COLUMNS, VENDOR_SENT_OUT_COLUMN].filter((col) => col.status === board[0].status)).toHaveLength(1);
+  });
+
+  it('home data for an inactive vendor returns its setup steps and stage', async () => {
+    const vendor = await db.vendor.create({ data: { name: `Setup bakery ${++serial}`, isActive: false } });
+    const { steps, stage } = await vendorSetup(vendor.id);
+    expect(steps).toMatchObject({ location: false, cakes: false, details: false, done: 0 });
+    expect(stage).toBe('invite_expired');
+  });
+
+  it('lists only rows with a pause that has not ended', async () => {
+    const f = await fixture();
+    const [row] = await db.vendorInventory.findMany({ where: { vendorId: f.vendor.id } });
+    expect(await pausedRows(f.vendor.id)).toHaveLength(0);
+    await db.vendorInventory.update({ where: { id: row.id }, data: { pausedUntil: new Date(Date.now() + 3600_000) } });
+    expect((await pausedRows(f.vendor.id)).map((r) => r.id)).toEqual([row.id]);
+    await db.vendorInventory.update({ where: { id: row.id }, data: { pausedUntil: new Date(Date.now() - 1000) } });
+    expect(await pausedRows(f.vendor.id)).toHaveLength(0);
   });
 
   it('accepting clears the pending-response note', async () => {

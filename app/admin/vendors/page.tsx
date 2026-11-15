@@ -8,6 +8,7 @@ import {
 } from "@/components/admin/ui";
 import { Icon } from "@/components/admin/icons";
 import { vendorLoads } from "../data";
+import { STAGE_TONE, stageLabel, vendorSetupStates } from "@/lib/vendorInvite";
 import { VendorForm } from "./VendorForms";
 
 /**
@@ -51,9 +52,10 @@ export default async function VendorsPage() {
    * Already sorted busiest-first with inactive bakeries at the bottom, which is
    * the order the office reads it in: the question is who can take the next one.
    */
-  const [vendors, contacts] = await Promise.all([
+  const [vendors, contacts, stages] = await Promise.all([
     vendorLoads(),
     db.vendor.findMany({ select: { id: true, phone: true, email: true } }),
+    vendorSetupStates(),
   ]);
 
   /* Contact details are not part of a workload, so `VendorLoad` does not carry
@@ -158,10 +160,12 @@ export default async function VendorsPage() {
                   </span>
                 </Td>
                 <Td>
-                  <StatusBadge
-                    label={v.isActive ? "Active" : "Inactive"}
-                    tone={v.isActive ? "good" : "plain"}
-                  />
+                  {(() => {
+                    const st = stages.get(v.id);
+                    return st
+                      ? <StatusBadge label={stageLabel(st)} tone={STAGE_TONE[st.stage]} />
+                      : <StatusBadge label={v.isActive ? "Active" : "Inactive"} tone={v.isActive ? "good" : "plain"} />;
+                  })()}
                 </Td>
                 <Td align="right">
                   <Link href={`/admin/vendors/${v.id}`} className={aBtn("quiet", "sm")}>
@@ -178,7 +182,7 @@ export default async function VendorsPage() {
       <Card flush>
         <CardHead
           title="Add a bakery"
-          note="Only the name is required. The rest is how the office reaches them."
+          note="Name and mobile are required. The mobile is where the invite link goes."
         />
         <VendorForm />
       </Card>

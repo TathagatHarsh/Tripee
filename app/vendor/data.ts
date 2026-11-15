@@ -2,6 +2,7 @@ import type { EarningSnapshot } from "@/components/assignment/Earnings";
 import type { OrderStatus, VendorOrderStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { migrateConfig, type CakeConfig } from "@/lib/schema";
+import { vendorSetupStates } from "@/lib/vendorInvite";
 import { VENDOR_OPEN, VENDOR_STATUS_LABEL } from "@/lib/vendors";
 
 const ORDER_FOR_VENDOR = {
@@ -245,4 +246,20 @@ export async function vendorOrder(vendorId: string, ref: string) {
   // A custom-cake order has no designer config; its size and flavour are in cakeName, its message in customerNotes.
   const custom = (config as { custom?: unknown } | null)?.custom === true;
   return { ...assignment, order, config: migrateConfig(config), custom };
+}
+
+/** Setup steps and stage for the home checklist; reuses the admin list's loader so the two never disagree. */
+export async function vendorSetup(vendorId: string) {
+  const state = (await vendorSetupStates([vendorId])).get(vendorId);
+  if (!state) throw new Error("Bakery not found");
+  return state;
+}
+
+/** Variants the bakery has paused that are still paused, soonest to resume first. */
+export function pausedRows(vendorId: string) {
+  return db.vendorInventory.findMany({
+    where: { vendorId, isAvailable: true, pausedUntil: { gt: new Date() } },
+    orderBy: { pausedUntil: "asc" },
+    select: { id: true, productName: true, sizeBand: true, eggType: true, pausedUntil: true },
+  });
 }

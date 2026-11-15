@@ -18,8 +18,6 @@ const v = {
   longitude: 78.4,
   maxConcurrentOrders: 2,
   unavailableUntil: null,
-  fulfillsAllProducts: false,
-  supportedProductIds: ["cake"],
 } as Vendor;
 describe("a bakery's own delivery radius", () => {
   it("accepts 1 to 25 km and nothing else", () => {
@@ -28,7 +26,7 @@ describe("a bakery's own delivery radius", () => {
       expect(parseRadiusKm(bad), String(bad)).toBeNull();
   });
   it("needs its own pin even for a pickup order", () => {
-    expect(vendorEligible({ ...v, locationSetAt: null }, ["cake"], 0, new Date(), false)).toBe(false);
+    expect(vendorEligible({ ...v, locationSetAt: null }, 0, new Date(), false)).toBe(false);
   });
 });
 describe("assignment ranking and eligibility", () => {
@@ -41,8 +39,8 @@ describe("assignment ranking and eligibility", () => {
     expect(sortCandidates(rows, "time")[0].vendorId).toBe("b");
     expect(rows[0].vendorId).toBe("a");
   });
-  it("excludes unavailable, inactive, full and unsupported bakeries", () => {
-    expect(vendorEligible(v, ["cake"], 1)).toBe(true);
+  it("excludes unavailable, inactive, and full bakeries", () => {
+    expect(vendorEligible(v, 1)).toBe(true);
     for (const overrides of [
       { isActive: false },
       { isAcceptingOrders: false },
@@ -50,10 +48,8 @@ describe("assignment ranking and eligibility", () => {
       { locationSetAt: null },
       { unavailableUntil: new Date(Date.now() + 100000) },
     ])
-      expect(vendorEligible({ ...v, ...overrides }, ["cake"], 0)).toBe(false);
-    expect(vendorEligible(v, ["cake"], 2)).toBe(false);
-    expect(vendorEligible(v, ["other"], 0)).toBe(false);
-    expect(vendorEligible(v, [null], 0)).toBe(false);
+      expect(vendorEligible({ ...v, ...overrides }, 0)).toBe(false);
+    expect(vendorEligible(v, 2)).toBe(false);
   });
   it("rejects invalid coordinates and keeps legitimate zero coordinates", () => {
     expect(pointFrom({ latitude: 0, longitude: 0 })).toEqual({

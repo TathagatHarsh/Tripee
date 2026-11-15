@@ -336,11 +336,17 @@ model Vendor {
   serviceRadiusKm     Float             @default(10)
   maxConcurrentOrders Int               @default(10)
   unavailableUntil    DateTime?
-  // Empty list means no supported products; explicit all-products opt-in.
+  /// Deprecated, unread since 2026-11-15. Kept so no column is dropped on the live database.
   fulfillsAllProducts Boolean           @default(false)
+  /// Deprecated, unread since 2026-11-15. Kept so no column is dropped on the live database.
   supportedProductIds String[]          @default([])
   commissionBps       Int               @default(2000)
   assignmentFeePaise  Int               @default(0)
+  /// SHA-256 of the invite link token; the token itself is never stored.
+  inviteTokenHash     String?           @unique
+  inviteExpiresAt     DateTime?
+  /// When the bakery confirmed its details on the setup checklist.
+  detailsConfirmedAt  DateTime?
 
   /// The people who sign in as this vendor. Usually one.
   users       UserProfile[]
@@ -1200,6 +1206,8 @@ model VendorInventory {
   eggType             EggType
   /// Legacy quantities and reservation/history tables remain in the DB, unmapped.
   isAvailable         Boolean                       @default(false)
+  /// Paused until this time, then it sells again on its own. Null means not paused.
+  pausedUntil         DateTime?
   updatedAt           DateTime                      @updatedAt
   availabilityChanges InventoryAvailabilityChange[]
 
@@ -1214,6 +1222,7 @@ model InventoryAvailabilityChange {
   /// Null means this variant was first added to the bakery.
   previousAvailable Boolean?
   newAvailable      Boolean
+  pausedUntil       DateTime?
   userId            String
   createdAt         DateTime        @default(now())
 

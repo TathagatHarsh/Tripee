@@ -56,10 +56,16 @@ describe('portal authorization boundaries', () => {
     expect(create).toHaveBeenCalledTimes(1);
     expect(audit).toHaveBeenCalledWith({ data: { inventoryId: 'new-item', previousAvailable: null, newAvailable: true, userId: 'admin' } });
   });
-  it('rejects inactive vendors and malformed or mixed mutation payloads', async () => {
+  it('lets an unapproved bakery choose its cakes', async () => {
     mocks.viewer.mockResolvedValue({ userId: 'vendor-a', profile: { role: 'VENDOR', vendorId: 'bakery-a' } });
-    mocks.transaction.mockImplementation(async fn => fn({ vendor: { findUnique: async () => ({ isActive: false }) } }));
-    expect((await updateInventory(request({ vendorId: 'bakery-a', variantIds: ['v'] }))).status).toBe(409);
+    const findMany = vi.fn().mockResolvedValue([{ id: 'v', cakeId: 'c', sizeBand: '1kg', eggType: 'egg', cake: { name: 'C' } }]);
+    const create = vi.fn().mockResolvedValue({ id: 'i' });
+    mocks.transaction.mockImplementation(async fn => fn({ vendor: { findUnique: async () => ({ isActive: false }) }, cakeVariant: { findMany }, vendorInventory: { findUnique: async () => null, create }, inventoryAvailabilityChange: { create: vi.fn() } }));
+    expect((await updateInventory(request({ vendorId: 'bakery-a', variantIds: ['v'] }))).status).toBe(200);
+    expect(create).toHaveBeenCalled();
+  });
+  it('rejects malformed or mixed mutation payloads', async () => {
+    mocks.viewer.mockResolvedValue({ userId: 'vendor-a', profile: { role: 'VENDOR', vendorId: 'bakery-a' } });
     for (const body of [{ variantIds: [] }, { id: 'x', isAvailable: 'false' }, { id: 'x', isAvailable: true, variantIds: ['v'] }]) {
       expect((await updateInventory(request({ vendorId: 'bakery-a', ...body }))).status).toBe(400);
     }

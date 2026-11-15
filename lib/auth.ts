@@ -95,6 +95,14 @@ function displayName(user: User | null): string | null {
  * touched by anything on a request path. There is no argument to this function
  * that could carry a role, which is stronger than validating one.
  *
+ * ## The one exception: accepting a bakery invite
+ *
+ * lib/vendorInvite's `acceptInvite` does set `role` from a request. It is safe
+ * because the user id comes from the server session (never a form), the secret
+ * is a 32-byte token compared only by its SHA-256 hash, and lookup, refusals
+ * (staff, another bakery), the role write and burning the token are one
+ * transaction, so a link works once.
+ *
  * `currentUser()` is called only on the miss, so the round trip to Clerk
  * happens once in a person's lifetime rather than on every request.
  */
@@ -282,11 +290,25 @@ export interface VendorViewer extends Viewer {
  * something before this account works — so they share one refusal rather than
  * splitting into two messages with one fix between them.
  *
- * A deactivated vendor is locked out rather than left read-only on purpose:
- * `isActive` is how the shop stops sending a partner work, and a dashboard that
- * still opened would keep showing orders they are no longer meant to be making.
+ * This guard is for fulfilment (orders) only: a deactivated or not-yet-approved
+ * vendor is kept out of it on purpose, because `isActive` is how the shop stops
+ * sending a partner work. Setup pages use `requireVendorSetup` instead.
  */
 export async function requireVendor(): Promise<VendorViewer> {
+  return vendorViewer(false);
+}
+
+/**
+ * The same guard for the setup screens (home, cakes, profile): an unapproved
+ * bakery is allowed in, because pinning a location and choosing cakes is how it
+ * gets approved. Fulfilment keeps `requireVendor`. A missing bakery still
+ * redirects.
+ */
+export async function requireVendorSetup(): Promise<VendorViewer> {
+  return vendorViewer(true);
+}
+
+async function vendorViewer(allowInactive: boolean): Promise<VendorViewer> {
   const viewer = await requireRole("VENDOR");
 
   /* Not caught. `requireRole` has already read this person's profile, so the
@@ -297,7 +319,7 @@ export async function requireVendor(): Promise<VendorViewer> {
     ? await db.vendor.findUnique({ where: { id: viewer.profile.vendorId } })
     : null;
 
-  if (!vendor || !vendor.isActive) redirect("/account?denied=vendor");
+  if (!vendor || (!allowInactive && !vendor.isActive)) redirect("/account?denied=vendor");
 
   return { ...viewer, vendor };
 }

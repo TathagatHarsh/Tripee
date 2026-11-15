@@ -73,11 +73,13 @@ describe('addVendor / saveVendor enforcement', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('addVendor with a number and a valid code saves', async () => {
+  it('addVendor with a number and a valid code creates an inactive bakery with an invite link', async () => {
     const { token } = (await sendVendorPhoneCode('98765 55555')) as { token: string };
     const r = await addVendor(undefined, form({ name: 'Sweet Crust', phone: '98765 55555', email: '', address: '', phoneToken: token, phoneCode: sentCode() }));
     expect(r.ok).toBe(true);
-    expect(create).toHaveBeenCalled();
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ isActive: false }) }));
+    expect(r.link).toMatch(/\/join\//);
+    expect(r.whatsappUrl).toBeTruthy();
   });
 
   it('saveVendor changing only the name (same number, other spelling) saves with no code', async () => {
@@ -102,8 +104,10 @@ describe('addVendor / saveVendor enforcement', () => {
     expect(update).toHaveBeenCalled();
   });
 
-  it('saveVendor clearing the number saves with no code', async () => {
+  // Onboarding made the number required, so clearing it is refused before any code check.
+  it('saveVendor clearing the number is refused', async () => {
     findUnique.mockResolvedValue({ phone: '+91 98765 43210' });
-    expect((await saveVendor(undefined, form({ id: 'v1', name: 'N', phone: '', email: '', address: '' }))).ok).toBe(true);
+    expect((await saveVendor(undefined, form({ id: 'v1', name: 'N', phone: '', email: '', address: '' }))).ok).toBe(false);
+    expect(update).not.toHaveBeenCalled();
   });
 });
