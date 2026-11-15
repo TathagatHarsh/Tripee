@@ -1,10 +1,22 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-vi.mock('../lib/auth', () => ({ requireAdmin: async () => ({ userId: 'test-admin', profile: { id: 'test-admin', role: 'ADMIN' } }) }));
+const session = vi.hoisted(() => ({ userId: null as string | null }));
+// getViewer stands in for the real one: like loadProfile it creates the CUSTOMER row a fresh sign-up lacks.
+vi.mock('../lib/auth', () => ({
+  requireAdmin: async () => ({ userId: 'test-admin', profile: { id: 'test-admin', role: 'ADMIN' } }),
+  getViewer: async () => {
+    if (!session.userId) return null;
+    const { db } = await import('../lib/db');
+    const profile = await db.userProfile.upsert({ where: { id: session.userId }, update: {}, create: { id: session.userId, name: 'New baker' } });
+    return { userId: session.userId, profile };
+  },
+}));
+vi.mock('next/navigation', () => ({ redirect: (u: string) => { throw new Error(`REDIRECT:${u}`); } }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn(), unstable_cache: (f: unknown) => f }));
 vi.mock('@clerk/nextjs/server', () => ({ clerkClient: vi.fn() }));
 import { db } from '../lib/db';
 import { acceptInvite, issueInvite } from '../lib/vendorInvite';
+import { acceptJoin } from '../app/join/[token]/actions';
 import { addVendor, approveVendor, resendInvite } from '../app/admin/actions';
 
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
@@ -48,9 +60,21 @@ describe.skipIf(!url)('bakery invites on isolated PostgreSQL', () => {
   });
 
   it('two accepts at once let exactly one through', async () => {
-    const b = await bakery(); const [u1, u2] = [await user(), await user()];
-    const r = await Promise.all([acceptInvite(tokenOf(b.link), u1.id), acceptInvite(tokenOf(b.link), u2.id)]);
-    expect(r.filter((x) => x.ok)).toHaveLength(1);
+    for (let i = 0; i < 5; i++) {
+      const b = await bakery(); const [u1, u2] = [await user(), await user()];
+      const r = await Promise.all([acceptInvite(tokenOf(b.link), u1.id), acceptInvite(tokenOf(b.link), u2.id)]);
+      expect(r.filter((x) => x.ok)).toHaveLength(1);
+      expect(await db.userProfile.count({ where: { id: { in: [u1.id, u2.id] }, role: 'VENDOR' } })).toBe(1);
+    }
+  });
+
+  it('a brand-new sign-up with no profile row yet becomes the baker through the join action', async () => {
+    const b = await bakery();
+    session.userId = `inv-fresh-${++serial}`;
+    await expect(acceptJoin(tokenOf(b.link))).rejects.toThrow('REDIRECT:/vendor');
+    const p = await db.userProfile.findUniqueOrThrow({ where: { id: session.userId } });
+    expect([p.role, p.vendorId]).toEqual(['VENDOR', b.vendor.id]);
+    session.userId = null;
   });
 
   it('resending replaces the old token', async () => {

@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { getViewer } from "@/lib/auth";
 import type { Metadata } from "next";
 import { getBakeryInfo } from "@/lib/catalogData";
 import { whatsappHref } from "@/lib/customCakes";
@@ -29,11 +29,11 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       </>
     );
   } else {
-    const { userId } = await auth();
+    const viewer = await getViewer();
     body = (
       <>
         <h1 className="font-serif text-2xl">{bakery.name} has been invited to MakeYourCakes</h1>
-        {userId ? (
+        {viewer ? (
           <AcceptForm token={token} />
         ) : (
           <a href={`/sign-up?redirect_url=${encodeURIComponent(`/join/${token}`)}`} className={button}>Sign up to continue</a>

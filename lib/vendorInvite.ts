@@ -20,8 +20,9 @@ export type AcceptResult = { ok: true } | { ok: false; reason: 'expired' | 'staf
 export async function acceptInvite(token: string, userId: string): Promise<AcceptResult> {
   const hash = hashInviteToken(token);
   return db.$transaction(async (tx): Promise<AcceptResult> => {
+    const now = new Date();
     const vendor = await tx.vendor.findFirst({
-      where: { inviteTokenHash: hash, inviteExpiresAt: { gt: new Date() } },
+      where: { inviteTokenHash: hash, inviteExpiresAt: { gt: now } },
       select: { id: true },
     });
     if (!vendor) return { ok: false, reason: 'expired' };
@@ -32,8 +33,14 @@ export async function acceptInvite(token: string, userId: string): Promise<Accep
     if (profile.role === 'VENDOR') {
       return profile.vendorId === vendor.id ? { ok: true } : { ok: false, reason: 'other_bakery' };
     }
+    // Claim the token before writing the role: under READ COMMITTED two accepts can both pass the
+    // lookup above, but only one updateMany sees the hash still set (the other waits on the row lock, then matches 0).
+    const claimed = await tx.vendor.updateMany({
+      where: { id: vendor.id, inviteTokenHash: hash, inviteExpiresAt: { gt: now } },
+      data: { inviteTokenHash: null, inviteExpiresAt: null },
+    });
+    if (claimed.count !== 1) return { ok: false, reason: 'expired' };
     await tx.userProfile.update({ where: { id: userId }, data: { role: 'VENDOR', vendorId: vendor.id } });
-    await tx.vendor.update({ where: { id: vendor.id }, data: { inviteTokenHash: null, inviteExpiresAt: null } });
     return { ok: true };
   });
 }

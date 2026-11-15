@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
+import { getViewer } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { acceptInvite } from "@/lib/vendorInvite";
 
@@ -14,10 +14,11 @@ const REFUSAL = {
 
 /** The person is whoever the session says, never a form field: this is the one action that sets a role. */
 export async function acceptJoin(token: string): Promise<JoinState> {
-  const { userId } = await auth();
-  if (!userId) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/join/${token}`)}`);
+  // getViewer runs loadProfile, which creates the CUSTOMER row a brand-new sign-up does not have yet.
+  const viewer = await getViewer();
+  if (!viewer) return { message: "We couldn't check your account. Reload and try again." };
 
-  const r = await acceptInvite(token, userId);
+  const r = await acceptInvite(token, viewer.userId);
   if (!r.ok) return { message: REFUSAL[r.reason] };
   redirect("/vendor");
 }
