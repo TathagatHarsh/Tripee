@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
-import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
+import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { paymentFollowUps } from "@/lib/paymentFollowUp";
 import { Notice, PageHeader } from "@/components/admin/ui";
 export const dynamic = "force-dynamic";
