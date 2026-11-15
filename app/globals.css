@@ -2409,16 +2409,6 @@ body:has(.k-root)::after {
 .a-root pre { font-family:ui-monospace, SFMono-Regular, monospace; }
 .s-root footer h2 { font-family:var(--font-sans); font-size:.75rem; font-weight:650; letter-spacing:.1em; }
 
-.ops-overview-band { background:#263b2d; color:#faf7ef; display:flex; align-items:center; justify-content:space-between; gap:2rem; padding:2rem; border-radius:.75rem; }
-.ops-overview-band h2 { font-family:var(--font-display); color:inherit; font-weight:450; font-size:2rem; margin:.7rem 0; }
-.ops-overview-band p { color:#d0d8c3; font-size:.8rem; }
-.ops-overview-band>div>span { color:#e8c879; }
-.ops-overview-figures { display:flex; gap:2rem; }
-.ops-overview-figures a { display:flex; flex-direction:column; gap:.75rem; min-width:5rem; border-left:1px solid #59715d; padding-left:1.5rem; }
-.ops-overview-figures strong { font-size:2.2rem; font-weight:500; font-variant-numeric:tabular-nums; }
-.ops-overview-figures span { font-size:.7rem; color:#e8ecd9; }
-@media(max-width:1100px) { .ops-overview-band { align-items:start; flex-direction:column; } .ops-overview-figures { width:100%; justify-content:space-between; gap:1rem; } }
-@media(max-width:639px) { .ops-overview-band { padding:1.5rem; } .ops-overview-figures a { padding-left:.65rem; min-width:0; } .ops-overview-figures strong { font-size:1.8rem; } }
 
 /* Preserve the original logo; navigation shows its readable wordmark. */
 .brand-logo { display:inline-block; flex-shrink:0; vertical-align:middle; overflow:hidden; background:#fffaf5; border-radius:4px; }
