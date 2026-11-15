@@ -294,7 +294,7 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
 
     await whatsappNewOrder(tx, order.id);
     // One message, not a text then the buttons: rows written in one transaction share createdAt, so the outbox could send them in either order.
-    const accepted = acceptedMessage(order.ref, assignment.id);
+    const accepted = acceptedMessage({ ref: order.ref, assignmentId: assignment.id });
     await queueWhatsApp(tx, {
       orderId: order.id, vendorId: vendor.id, kind: "vendor_assigned", to: [vendor.phone], dedupeKey: `wa:order:${order.id}:custom:paid`,
       message: { ...accepted, body: `✅ Customer paid — ${r.ref} is now order ${order.ref}. Tap each step as you go.` },

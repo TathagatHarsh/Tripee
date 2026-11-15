@@ -2,6 +2,7 @@ import "server-only";
 import type { NotificationKind, Prisma } from "@prisma/client";
 import { outboxCreate } from "./notifications";
 import { isNewSlot } from "./deliveryRules";
+import { indianMobile } from "./phone";
 import { normalizePhone, photoUrl, whatsappConfigured, type TemplateComponent, type WhatsAppMessage } from "./whatsapp";
 
 export interface OrderFacts {
@@ -12,6 +13,8 @@ export interface OrderFacts {
   area: string;
   cake: string;
   customerName?: string | null;
+  /** "Asha · +91 98765 43210", plus "(deliver to …)" for someone-else orders; admin new-order message only. */
+  customerContact?: string;
   /** The customer's promise; see formatWhen. Absent for legacy facts. */
   slot?: string | null;
   requestedFor?: Date | null;
@@ -107,10 +110,10 @@ export function offerMessage(
 export function adminNewOrderMessage(f: OrderFacts): WhatsAppMessage {
   return {
     type: "template",
-    name: "admin_new_order",
+    name: "admin_new_order_v2",
     components: [
       header(f.orderId),
-      body(cleanParam(f.ref), cleanParam(rupees(f.totalPaise)), cleanParam(f.cake), cleanParam(formatDue(f.dueAt)), cleanParam(f.area)),
+      body(cleanParam(f.ref), cleanParam(rupees(f.totalPaise)), cleanParam(f.cake), cleanParam(formatDue(f.dueAt)), cleanParam(f.area), cleanParam(f.customerContact)),
     ],
   };
 }
@@ -147,6 +150,18 @@ export function customerCancelledMessage(o: { ref: string; customerName?: string
     ? "No partner bakery near you could make it in time."
     : "If you didn't ask for this, please write to hello@makeyourcakes.com and we'll sort it out.";
   return { type: "template", name: "customer_order_cancelled", components: [body(cleanParam(firstName(o.customerName)), cleanParam(o.ref), why)] };
+}
+
+/** Authentication template: Meta's fixed body, the code as its one variable, and the same code on the copy-code button. */
+export function verifyCodeMessage(code: string): WhatsAppMessage {
+  return {
+    type: "template",
+    name: "verify_code",
+    components: [
+      body(code),
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
+    ],
+  };
 }
 
 export function updateMessage(ref: string, text: string): WhatsAppMessage {
@@ -210,15 +225,35 @@ export function customQuoteMessage(r: {
 
 type ButtonsMessage = Extract<WhatsAppMessage, { type: "buttons" }>;
 
+interface Contact { name?: string | null; phone?: string | null }
+const showContact = (c: Contact, fallbackName = "Customer") => {
+  const raw = c.phone?.trim() ?? "";
+  const m = indianMobile(raw);
+  return `${c.name?.trim() || fallbackName} · ${m ? `+91 ${m.slice(2, 7)} ${m.slice(7)}` : raw}`;
+};
+
+/** Who ordered and, when the cake is for someone else, who receives it (delivery name/phone live on the order). */
+export function orderContacts(o: { customerName?: string | null; customerPhone?: string | null; recipientName?: string | null; deliveryLocation?: unknown }) {
+  const customer = { name: o.customerName, phone: o.customerPhone };
+  const loc = o.deliveryLocation as { phone?: unknown } | null;
+  const phone = typeof loc?.phone === "string" ? loc.phone : o.customerPhone;
+  const same = (a?: string | null, b?: string | null) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+  const other = !!o.recipientName?.trim() && (!same(o.recipientName, o.customerName) || (indianMobile(phone) ?? phone?.trim()) !== (indianMobile(o.customerPhone) ?? o.customerPhone?.trim()));
+  const recipient = other ? { name: o.recipientName, phone } : undefined;
+  const admin = `${showContact(customer)}${recipient ? ` (deliver to ${showContact(recipient)})` : ""}`;
+  return { customer, recipient, admin };
+}
+
 /** The portal's wording: for a pickup, handing over is the cake waiting at the counter. */
-export function acceptedMessage(ref: string, assignmentId: string, pickup = false): ButtonsMessage {
+export function acceptedMessage(o: { ref: string; assignmentId: string; pickup?: boolean; customer?: Contact; recipient?: Contact }): ButtonsMessage {
+  const who = o.customer ? ` Customer: ${showContact(o.customer)}.${o.recipient ? ` Deliver to: ${showContact(o.recipient)}.` : ""}` : "";
   return {
     type: "buttons",
-    body: `${ref} is yours. Tap each step as you go.`,
+    body: `${o.ref} is yours.${who} Tap each step as you go.`,
     buttons: [
-      { id: `start:${assignmentId}`, title: "Started" },
-      { id: `ready:${assignmentId}`, title: "Ready" },
-      { id: `handover:${assignmentId}`, title: pickup ? "Ready for collection" : "Handed over" },
+      { id: `start:${o.assignmentId}`, title: "Started" },
+      { id: `ready:${o.assignmentId}`, title: "Ready" },
+      { id: `handover:${o.assignmentId}`, title: o.pickup ? "Ready for collection" : "Handed over" },
     ],
   };
 }

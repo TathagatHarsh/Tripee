@@ -7,6 +7,7 @@ import { CUSTOM_CAKES, HOME_CUSTOM_IDS } from "@/lib/customCakes";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
+import { WellnessCard } from "@/components/shop/WellnessPromise";
 import { listCakes } from "@/lib/cakeData";
 import { CAKE_CATEGORIES, cheapestVariant } from "@/lib/cakes";
 import { getCatalogSnapshot } from "@/lib/catalogData";
@@ -67,10 +68,7 @@ export default async function Home() {
               </p>
               {/* The client's main selling point, so it sits above the fold
                   on every screen size, before the buttons. */}
-              <p className="brand-hero-badge inline-flex w-fit items-center gap-2 rounded-2xl border border-s-berry/30 bg-s-shell px-4 py-2 font-semibold">
-                <span aria-hidden className="shrink-0 text-s-berry">✳</span>
-                <span>Low sugar, prebiotic &amp; fibre-rich cakes available</span>
-              </p>
+              <WellnessCard />
               <div className="flex flex-wrap gap-3">
                 <Link href="/shop" className={sBtn("primary", "lg")}>
                   Find your cake <span aria-hidden>↗</span>
@@ -139,7 +137,7 @@ export default async function Home() {
           </div>
         </section>
         <div className="brand-ribbon" aria-label="Our approach">
-          <span>Low sugar · Prebiotic · Fibre-rich</span>
+          <span>Baked fresh to order</span>
           <span aria-hidden>✳</span>
           <span>Your cake. Your message.</span>
           <span aria-hidden>✳</span>

@@ -118,7 +118,8 @@ describe.skipIf(!url)('bakery invites on isolated PostgreSQL', () => {
   it('addVendor needs a phone, then creates an inactive bakery with an invite link', async () => {
     const name = `Added ${++serial}`;
     expect((await addVendor(undefined, form({ name, phone: '', email: '', address: '' }))).ok).toBe(false);
-    const r = await addVendor(undefined, form({ name, phone: '9876543210', email: '', address: '' }));
+    // A number no other fixture uses: inbound WhatsApp finds bakeries by phone.
+    const r = await addVendor(undefined, form({ name, phone: '9123400000', email: '', address: '' }));
     expect(r.ok).toBe(true);
     expect(r.link).toMatch(/\/join\//);
     const v = await db.vendor.findFirstOrThrow({ where: { name } });

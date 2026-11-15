@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { LocationSheet } from "@/components/shop/LocationSheet";
 import { CakePhoto } from "@/components/shop/CakePhoto";
+import { PhoneVerify } from "@/components/shop/PhoneVerify";
 import { PriceRoll } from "@/components/shop/PriceRoll";
 import { payWithRazorpay } from "@/components/shop/payWithRazorpay";
 import { OrderReceipt } from "@/lib/orderReceipt";
@@ -18,6 +19,7 @@ import { cakeKindOf, checkChoice, deliveryChoices, isNewSlot, istDate } from "@/
 import { formatINR } from "@/lib/format";
 import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
 import { DeliverySlot, type CakeConfig } from "@/lib/schema";
+import { indianMobile } from "@/lib/phone";
 import { sBtn, sCard, sField } from "@/lib/shopUi";
 
 const DRAFT_KEY = "makemycake.checkoutDraft.v2";
@@ -122,6 +124,8 @@ type Props = {
   /** Delivery dates (YYYY-MM-DD) the bakery is shut. */
   closedDays: string[];
   payments: { enabled: boolean; testMode: boolean; available?: boolean };
+  /** Phone verification: `verified` is the number the proven-phone cookie vouches for. */
+  phone: { required: boolean; verified: string | null };
 };
 const ATTEMPT_KEY = "makemycake.checkoutAttempt";
 /** The in-flight checkout: its idempotency key, and the payment once Razorpay has taken it. */
@@ -164,7 +168,7 @@ export function CheckoutForm(props: Props) {
     </div>
   );
 }
-function Checkout({ catalog, cakes, closedDays, payments, builder, designSlug }: Props) {
+function Checkout({ catalog, cakes, closedDays, payments, phone, builder, designSlug }: Props) {
   const cartLines = useCart((s) => s.lines);
   const lines = useMemo(() => builder ? [{ id: "builder", slug: "Custom cake", variantId: "builder", qty: 1, choices: { message: builder.message, delivery: builder.delivery, pincode: builder.pincode } }] : cartLines, [builder, cartLines]);
   const clear = useCart((s) => s.clear);
@@ -329,7 +333,9 @@ function Checkout({ catalog, cakes, closedDays, payments, builder, designSlug }:
   const current = answer?.signature === quoteSignature ? answer : null;
   const quote = current?.quote;
   const emailOk = !draft.email || z.email().safeParse(draft.email).success;
-  const contactOk = nameOk(draft.name) && phoneOk(draft.phone) && emailOk;
+  const [verifiedPhone, setVerifiedPhone] = useState(phone.verified);
+  const phoneVerified = !phone.required || (indianMobile(draft.phone) !== null && indianMobile(draft.phone) === verifiedPhone);
+  const contactOk = nameOk(draft.name) && phoneOk(draft.phone) && emailOk && phoneVerified;
   const signature = JSON.stringify(checkoutIntent(checkoutBody(quote)));
   const recover = keptAttempt(signature, payments.enabled, savedAttempt);
   const recovering = Boolean(recover?.request && (recover.signature === signature || recover.proof));
@@ -366,6 +372,7 @@ function Checkout({ catalog, cakes, closedDays, payments, builder, designSlug }:
   }
   function fail(data: { error?: string; code?: string }, fallback: string) {
     setError(data.error ?? fallback);
+    if (data.code === "phone_unverified") setVerifiedPhone(null);
     if (REQUOTE.includes(String(data.code))) {
       if (attempt.current && !attempt.current.proof) {
         attempt.current = { ...attempt.current, request: undefined };
@@ -598,6 +605,7 @@ function Checkout({ catalog, cakes, closedDays, payments, builder, designSlug }:
                   aria-invalid={touched && !nameOk(draft.name)}
                 />
               </Field>
+              <div className="min-w-0">
               <Field
                 label="Phone"
                 error={
@@ -620,6 +628,10 @@ function Checkout({ catalog, cakes, closedDays, payments, builder, designSlug }:
                 />
                 <span className="text-xs text-s-bark">We&rsquo;ll send your order updates to this number on WhatsApp.</span>
               </Field>
+              {phone.required && phoneOk(draft.phone) && (
+                <PhoneVerify key={draft.phone} phone={draft.phone} verified={phoneVerified} onVerified={setVerifiedPhone} />
+              )}
+              </div>
               <Field
                 label="Email (optional)"
                 error={!emailOk ? "Enter a valid email address." : undefined}
@@ -1064,7 +1076,9 @@ function Checkout({ catalog, cakes, closedDays, payments, builder, designSlug }:
         {touched && !ready && !error && (
           <p role="alert" className="text-sm text-s-stop">
             {!contactOk
-              ? "Check your contact details."
+              ? phone.required && !phoneVerified && nameOk(draft.name) && phoneOk(draft.phone) && emailOk
+                ? "Verify your number on WhatsApp to continue."
+                : "Check your contact details."
               : draft.method === "delivery" && !addressComplete
                 ? "Add your delivery address above."
                 : "Delivery and pricing must be verified before placing your order."}

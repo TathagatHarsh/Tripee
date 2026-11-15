@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LEGAL_NAME } from "@/lib/brand";
 import type { BakeryInfo } from "@/lib/catalogSnapshot";
 import { CAKE_CATEGORIES } from "@/lib/cakes";
+import { WellnessBand } from "@/components/shop/WellnessPromise";
 
 /**
  * The foot of the shop.
@@ -28,6 +29,7 @@ const POLICIES = [
 export function ShopFooter({ bakery }: { bakery: BakeryInfo }) {
   return (
     <footer className="border-t border-s-line bg-s-cocoa-deep text-s-cream/85">
+      <WellnessBand />
       <div className="mx-auto grid max-w-[84rem] gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-10">
         <div className="flex flex-col gap-3">
           <span className="text-s-cream"><BrandLogo full light /></span>
