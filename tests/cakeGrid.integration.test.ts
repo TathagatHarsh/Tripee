@@ -4,6 +4,7 @@ const viewer = vi.hoisted(() => ({ current: null as unknown }));
 vi.mock('../lib/auth', () => ({ getViewer: async () => viewer.current }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn(), unstable_cache: (f: unknown) => f }));
 import { db } from '../lib/db';
+import { isOfferable } from '../lib/inventoryRules';
 import { POST } from '../app/api/inventory/route';
 
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
@@ -128,5 +129,34 @@ describe.skipIf(!url)('cake grid save, pause and resume on isolated PostgreSQL',
     await db.vendorInventory.update({ where: { id: foreign.id }, data: { pausedUntil: new Date(Date.now() + 1e7) } });
     await call({ vendorId: mine.id, resume: { ids: [foreign.id] } });
     expect((await rows(other.id))[0].pausedUntil).not.toBeNull();
+  });
+
+  it('unticking a paused row clears the pause, and re-ticking makes it offerable', async () => {
+    const [v, c] = [await bakery(), await cake()];
+    const g = (sizes: string[]) => [{ productId: c.id, sizes, egg: true, eggless: false }];
+    const v1 = await (await grid(v.id, g(['1kg', '2kg']))).json();
+    await call({ vendorId: v.id, pause: { scope: { sizeBand: '2kg' }, length: 'tomorrow' } });
+    const paused = (await rows(v.id)).find(x => x.sizeBand === '2kg')!;
+    const v2 = await (await grid(v.id, g(['1kg']), (await db.vendorInventory.aggregate({ where: { vendorId: v.id }, _max: { updatedAt: true } }))._max.updatedAt!.toISOString())).json();
+    const off = (await rows(v.id)).find(x => x.sizeBand === '2kg')!;
+    expect([off.isAvailable, off.pausedUntil]).toEqual([false, null]);
+    const log = await db.inventoryAvailabilityChange.findMany({ where: { inventoryId: off.id, previousAvailable: true, newAvailable: false } });
+    expect(log).toHaveLength(1); expect(log[0].pausedUntil).toBeNull();
+    // (c) plain off -> on re-tick logs false -> true.
+    expect((await grid(v.id, g(['1kg', '2kg']), v2.version)).status).toBe(200);
+    const on = (await rows(v.id)).find(x => x.id === paused.id)!;
+    expect(isOfferable(on)).toBe(true);
+    expect(await db.inventoryAvailabilityChange.count({ where: { inventoryId: on.id, previousAvailable: false, newAvailable: true } })).toBe(1);
+    expect(v1.version).toBeTruthy();
+  });
+
+  it('the single toggle turning a paused row off clears the pause', async () => {
+    const [v, c] = [await bakery(), await cake()];
+    await grid(v.id, [{ productId: c.id, sizes: ['1kg'], egg: true, eggless: false }]);
+    await call({ vendorId: v.id, pause: { scope: { productId: c.id }, length: 'tomorrow' } });
+    const row = (await rows(v.id))[0];
+    expect((await call({ vendorId: v.id, id: row.id, isAvailable: false })).status).toBe(200);
+    const after = (await rows(v.id))[0];
+    expect([after.isAvailable, after.pausedUntil]).toEqual([false, null]);
   });
 });

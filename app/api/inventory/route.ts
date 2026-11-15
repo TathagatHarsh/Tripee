@@ -36,8 +36,8 @@ export async function POST(req: Request) {
         const before = await tx.vendorInventory.findFirst({ where: { id: input.id, vendorId: input.vendorId } });
         if (!before) throw new InventoryConflict('Inventory item not found.');
         if (before.isAvailable !== input.isAvailable) {
-          await tx.vendorInventory.update({ where: { id: before.id }, data: { isAvailable: input.isAvailable } });
-          await recordAvailability(tx, before.id, before.isAvailable, input.isAvailable, viewer.userId);
+          await tx.vendorInventory.update({ where: { id: before.id }, data: input.isAvailable ? { isAvailable: true } : { isAvailable: false, pausedUntil: null } });
+          await recordAvailability(tx, before.id, before.isAvailable, input.isAvailable, viewer.userId, null, input.isAvailable ? null : before.pausedUntil);
         }
       } else {
         const ids = [...new Set(input.variantIds)];
@@ -52,7 +52,8 @@ export async function POST(req: Request) {
           await recordAvailability(tx, item.id, null, true, viewer.userId);
         }
       }
-    });
+    // A first grid save writes ~170 rows and logs one by one; over a remote DB that outlasts Prisma's 5s default.
+    }, { timeout: 30_000, maxWait: 10_000 });
     return Response.json(version === undefined ? { ok: true } : { ok: true, version });
   } catch (error) {
     if (error instanceof RangeError) return Response.json({ error: 'Choose a pause date from today onwards.' }, { status: 400 });

@@ -57,8 +57,9 @@ export async function saveCakeGrid(tx: Tx, vendorId: string, grid: GridRow[], ve
   }
   for (const row of existing) {
     if (keep.has(key(row)) || !row.isAvailable) continue;
-    await tx.vendorInventory.update({ where: { id: row.id }, data: { isAvailable: false } });
-    await recordAvailability(tx, row.id, true, false, userId);
+    // A pause only applies to rows that are on, so turning a row off clears it.
+    await tx.vendorInventory.update({ where: { id: row.id }, data: { isAvailable: false, pausedUntil: null } });
+    await recordAvailability(tx, row.id, true, false, userId, null, row.pausedUntil);
   }
   return gridVersion(vendorId, tx);
 }
