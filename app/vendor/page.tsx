@@ -1,6 +1,6 @@
 import { AssignmentRefresh } from "@/components/assignment/Refresh";
 import Link from "next/link";
-import { requireVendor } from "@/lib/auth";
+import { requireVendorSetup } from "@/lib/auth";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { dueAt } from "@/lib/orders";
 import { dueUrgency, VENDOR_COLUMNS, VENDOR_SENT_OUT_COLUMN } from "@/lib/vendors";
@@ -14,7 +14,7 @@ export default async function KitchenBoard({
 }: {
   searchParams: Promise<QueueQuery>;
 }) {
-  const { vendor } = await requireVendor();
+  const { vendor } = await requireVendorSetup();
   if (!hasDatabase()) return <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>;
   const [all, query] = await Promise.all([
     vendorBoard(vendor.id),

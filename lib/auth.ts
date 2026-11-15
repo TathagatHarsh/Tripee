@@ -287,6 +287,20 @@ export interface VendorViewer extends Viewer {
  * still opened would keep showing orders they are no longer meant to be making.
  */
 export async function requireVendor(): Promise<VendorViewer> {
+  return vendorViewer(false);
+}
+
+/**
+ * The same guard for the setup screens (home, cakes, profile): an unapproved
+ * bakery is allowed in, because pinning a location and choosing cakes is how it
+ * gets approved. Fulfilment keeps `requireVendor`. A missing bakery still
+ * redirects.
+ */
+export async function requireVendorSetup(): Promise<VendorViewer> {
+  return vendorViewer(true);
+}
+
+async function vendorViewer(allowInactive: boolean): Promise<VendorViewer> {
   const viewer = await requireRole("VENDOR");
 
   /* Not caught. `requireRole` has already read this person's profile, so the
@@ -297,7 +311,7 @@ export async function requireVendor(): Promise<VendorViewer> {
     ? await db.vendor.findUnique({ where: { id: viewer.profile.vendorId } })
     : null;
 
-  if (!vendor || !vendor.isActive) redirect("/account?denied=vendor");
+  if (!vendor || (!allowInactive && !vendor.isActive)) redirect("/account?denied=vendor");
 
   return { ...viewer, vendor };
 }

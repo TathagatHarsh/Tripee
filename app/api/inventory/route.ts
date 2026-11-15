@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     await db.$transaction(async tx => {
       await lockAssignments(tx);
       const vendor = await tx.vendor.findUnique({ where: { id: input.vendorId } });
-      if (!vendor || viewer.profile.role === 'VENDOR' && !vendor.isActive) throw new InventoryConflict('Bakery is unavailable.');
+      if (!vendor) throw new InventoryConflict('Bakery is unavailable.');
       if ('id' in input) {
         const before = await tx.vendorInventory.findFirst({ where: { id: input.id, vendorId: input.vendorId } });
         if (!before) throw new InventoryConflict('Inventory item not found.');

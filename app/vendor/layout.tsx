@@ -2,7 +2,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { PortalAlerts } from "@/components/assignment/PortalAlerts";
 import type { Metadata } from "next";
 import { SignOutButton } from "@clerk/nextjs";
-import { getViewerEmail, requireVendor } from "@/lib/auth";
+import { getViewerEmail, requireVendorSetup } from "@/lib/auth";
 import { VendorTabs } from "./VendorTabs";
 
 /**
@@ -46,7 +46,7 @@ import { VendorTabs } from "./VendorTabs";
  *
  * ## The gate
  *
- * `requireVendor()` here, in a layout, so it runs on the server for this page
+ * `requireVendorSetup()` here, in a layout, so it runs on the server for this page
  * and every page nested under it on every request — the same arrangement
  * app/admin/layout.tsx has, and for the same reason a proxy is not good enough.
  *
@@ -56,6 +56,8 @@ import { VendorTabs } from "./VendorTabs";
  *
  * It does NOT cover the writes. A Server Action does not re-run its layout, so
  * every action in ./actions.ts carries its own `requireVendor()`.
+ * The layout lets an unapproved bakery in for setup; the orders pages and every
+ * action still call `requireVendor()`, which needs an active bakery.
  */
 
 export const metadata: Metadata = {
@@ -68,7 +70,7 @@ export const dynamic = "force-dynamic";
 
 export default async function VendorLayout({ children }: { children: React.ReactNode }) {
   // First statement, and never inside a try: this refuses by throwing.
-  const { vendor, userId } = await requireVendor();
+  const { vendor, userId } = await requireVendorSetup();
   const email = await getViewerEmail();
 
   return (
