@@ -1,15 +1,12 @@
 import { requireAdmin } from "@/lib/auth";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
+import { paymentFollowUps } from "@/lib/paymentFollowUp";
 import { Notice, PageHeader } from "@/components/admin/ui";
 export const dynamic = "force-dynamic";
-function followUpCutoff() { return new Date(Date.now() - 15 * 60000); }
 export default async function PaymentsAdmin() {
   await requireAdmin();
   if (!hasDatabase()) return <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>;
-  const [refunds, recoveries] = await Promise.all([
-    db.refundOperation.findMany({ where: { status: { not: "processed" } }, orderBy: { createdAt: "asc" }, take: 100 }),
-    db.paymentRecovery.findMany({ where: { status: { not: "completed" }, createdAt: { lt: followUpCutoff() } }, orderBy: { createdAt: "asc" }, take: 100 }),
-  ]);
+  const { refunds, recoveries } = await paymentFollowUps();
   return <div className="space-y-6">
     <PageHeader title="Payment follow-up" blurb="Unsettled refunds and checkouts awaiting reconciliation. Check Razorpay before taking any manual payment or refund action." />
     <section><h2 className="text-lg font-semibold">Refunds ({refunds.length})</h2>
