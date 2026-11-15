@@ -2,6 +2,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import Link from "next/link";
 import { AccountMenu } from "@/components/AccountMenu";
 import { CartBadge } from "@/components/shop/CartBadge";
+import { WellnessBar } from "@/components/shop/WellnessPromise";
 import { CAKE_CATEGORIES } from "@/lib/cakes";
 import { sField } from "@/lib/shopUi";
 
@@ -43,7 +44,11 @@ export function ShopHeader({
      one thing the bar can tell you that the page below it cannot: you are no
      longer at the top. Zero JavaScript, and it collapses under
      prefers-reduced-motion with every other animation in the document. */
+  /* The wellness strip sits outside the sticky header so it scrolls away and
+     the bar keeps its 68px once you are reading the page. */
   return (
+    <>
+    <WellnessBar />
     <header className="s-bar sticky top-0 z-30 border-b border-s-line bg-s-cream/90 backdrop-blur-md">
       <div className="mx-auto flex h-[68px] max-w-[84rem] items-center gap-2 px-4 sm:gap-4 sm:px-6 lg:px-10">
         {/* The drawer's trigger. First in the DOM so it is the first tab stop on
@@ -180,6 +185,7 @@ export function ShopHeader({
         </nav>
       </div>
     </header>
+    </>
   );
 }
 
