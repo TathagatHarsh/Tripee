@@ -51,6 +51,6 @@ export async function InventoryPage({ vendorId, query, admin = false }: { vendor
     {header}
     {picker}
     {fresh.length > 0 && <p className="rounded-a border border-a-accent-line bg-a-accent-wash p-3 text-a-body font-semibold text-a-accent-ink">{fresh.length} new {fresh.length === 1 ? 'cake' : 'cakes'} on the menu. Do you make {fresh.length === 1 ? 'it' : 'them'}? <span className="font-medium">{fresh.map(c => c.name).join(', ')}</span></p>}
-    <CakeGrid key={`${scope}:${version}`} vendorId={scope} cakes={grid} version={version} pauses={pauses} stickyAboveTabs={!admin} />
+    <CakeGrid key={scope} vendorId={scope} cakes={grid} version={version} pauses={pauses} stickyAboveTabs={!admin} />
   </div>;
 }

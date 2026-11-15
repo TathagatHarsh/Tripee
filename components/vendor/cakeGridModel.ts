@@ -39,3 +39,15 @@ export function wantedVariants(row: GridRow): string[] {
   const bands = new Set(row.sizes.filter(s => s.on).map(s => s.band));
   return row.variants.filter(k => { const [band, type] = k.split('|'); return bands.has(band) && (type === 'egg' ? row.egg : row.eggless); });
 }
+
+/** How many variants differ between two states of one cake. */
+export function changedCount(a: GridRow, b: GridRow): number {
+  const was = new Set(wantedVariants(a)); const now = new Set(wantedVariants(b));
+  return [...now].filter(k => !was.has(k)).length + [...was].filter(k => !now.has(k)).length;
+}
+
+/** The save payload: only cakes that changed, as ticked sizes plus the two egg flags. */
+export function changedGrid(baseline: GridRow[], rows: GridRow[]) {
+  return rows.filter((r, i) => changedCount(baseline[i], r) > 0)
+    .map(r => ({ productId: r.productId, sizes: r.sizes.filter(s => s.on).map(s => s.band), egg: !!r.egg, eggless: !!r.eggless }));
+}

@@ -4,14 +4,14 @@ import { useRouter } from 'next/navigation';
 import { aBtn } from '@/components/admin/ui';
 import { CakeGridRow, type RowPause } from './CakeGridRow';
 import { PauseSheet } from './PauseSheet';
-import { sizeLabel, wantedVariants, type GridRow } from './cakeGridModel';
+import { sizeLabel, changedCount, changedGrid, type GridRow } from './cakeGridModel';
 
 const chip = (on: boolean) => `inline-flex min-h-11 items-center justify-center rounded-full border px-4 text-a-body font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-a-accent ${on ? 'border-a-accent bg-a-accent-wash text-a-accent-ink' : 'border-a-line-strong bg-a-surface text-a-ink hover:bg-a-sunken'}`;
-const changed = (a: GridRow, b: GridRow) => { const was = new Set(wantedVariants(a)); const now = new Set(wantedVariants(b)); return [...now].filter(k => !was.has(k)).length + [...was].filter(k => !now.has(k)).length; };
 
-/** Cakes arrive as the loaded state; the page remounts this (key) whenever the server's version moves. */
+/** Props are the server's state. A version we did not write ourselves (pause, resume, another device) replaces local edits. */
 export function CakeGrid({ vendorId, cakes, version: initialVersion, pauses, stickyAboveTabs }: { vendorId: string; cakes: GridRow[]; version: string | null; pauses: Record<string, RowPause>; stickyAboveTabs: boolean }) {
   const router = useRouter();
+  const [seen, setSeen] = useState(cakes);
   const [baseline, setBaseline] = useState(cakes);
   const [rows, setRows] = useState(cakes);
   const [version, setVersion] = useState(initialVersion);
@@ -21,7 +21,11 @@ export function CakeGrid({ vendorId, cakes, version: initialVersion, pauses, sti
   const [saved, setSaved] = useState(false);
   const [sheet, setSheet] = useState<{ productId?: string } | null>(null);
 
-  const count = rows.reduce((n, r, i) => n + changed(baseline[i], r), 0);
+  if (cakes !== seen) {
+    setSeen(cakes);
+    if (initialVersion !== version) { setBaseline(cakes); setRows(cakes); setVersion(initialVersion); setSaved(false); }
+  }
+  const count = rows.reduce((n, r, i) => n + changedCount(baseline[i], r), 0);
   const bands = [...new Set(rows.flatMap(r => r.sizes.map(s => s.band)))].sort((a, b) => parseFloat(a) - parseFloat(b));
   const allOn = rows.every(r => r.sizes.every(s => s.on) && r.egg !== false && r.eggless !== false);
   const edit = (fn: (r: GridRow) => GridRow) => { setRows(rs => rs.map(fn)); setSaved(false); };
@@ -36,7 +40,7 @@ export function CakeGrid({ vendorId, cakes, version: initialVersion, pauses, sti
   async function save() {
     setSaving(true); setError('');
     try {
-      const grid = rows.filter((r, i) => changed(baseline[i], r) > 0).map(r => ({ productId: r.productId, sizes: r.sizes.filter(s => s.on).map(s => s.band), egg: !!r.egg, eggless: !!r.eggless }));
+      const grid = changedGrid(baseline, rows);
       const data = await post({ grid, version });
       setVersion(data.version ?? null); setBaseline(rows); setSaved(true); router.refresh();
     } catch (e) { setError(e instanceof Error ? e.message : 'Connection failed. Try again.'); }
@@ -45,7 +49,8 @@ export function CakeGrid({ vendorId, cakes, version: initialVersion, pauses, sti
   async function resume(ids: string[]) {
     setResuming(true); setError('');
     try { await post({ resume: { ids } }); router.refresh(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Connection failed. Try again.'); setResuming(false); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Connection failed. Try again.'); }
+    finally { setResuming(false); }
   }
 
   return (

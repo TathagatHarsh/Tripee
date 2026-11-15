@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 import { CakeGrid } from '../components/vendor/CakeGrid';
-import { gridFromRows, wantedVariants } from '../components/vendor/cakeGridModel';
+import { gridFromRows, wantedVariants, changedCount, changedGrid } from '../components/vendor/cakeGridModel';
 
 const cake = { productId: 'c1', name: 'Truffle', photo: '/t.jpg' };
 const v = (sizeBand: string, eggType: 'egg' | 'eggless') => ({ ...cake, sizeBand, eggType });
@@ -42,5 +42,16 @@ describe('CakeGrid markup', () => {
     expect(html).toMatch(/<button[^>]*disabled[^>]*>Save changes \(0\)<\/button>/);
     for (const copy of ['Select every cake', 'We’re eggless only', 'Paused until Tue, 17 Nov, 7:00 am', 'Resume', 'Truffle']) expect(html).toContain(copy);
     expect(html).toContain('aria-pressed="true"');
+  });
+});
+
+describe('changed rows', () => {
+  const all = [v('1kg', 'egg'), v('1kg', 'eggless'), v('2kg', 'egg'), v('2kg', 'eggless')];
+  it('counts differing variants and sends only changed cakes', () => {
+    const base = gridFromRows(all, [on('1kg', 'egg')]);
+    expect(changedGrid(base, base)).toEqual([]);
+    const next = [{ ...base[0], eggless: true, sizes: base[0].sizes.map(s => ({ ...s, on: true })) }];
+    expect(changedCount(base[0], next[0])).toBe(3);
+    expect(changedGrid(base, next)).toEqual([{ productId: 'c1', sizes: ['1kg', '2kg'], egg: true, eggless: true }]);
   });
 });
