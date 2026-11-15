@@ -2317,7 +2317,6 @@ body:has(.k-root)::after {
 .s-root .brand-hero h1 { font-size:clamp(3.5rem,6.3vw,6.3rem); line-height:1.02; letter-spacing:-.065em; font-weight:450; }
 .brand-hero h1 em { color:var(--brand-primary); font-weight:400; }
 .s-root .brand-hero-copy>p { max-width:38ch; font-size:1.05rem; line-height:1.8; color:var(--brand-muted); }
-.s-root .brand-hero-copy>.brand-hero-badge { max-width:100%; font-size:.9375rem; line-height:1.5; color:var(--brand-muted); }
 .brand-hero-note { display:flex; gap:.85rem; align-items:center; font-size:.75rem; line-height:1.7; margin-top:.5rem; }
 .brand-hero-note>span:first-child { font-size:2.25rem; color:var(--brand-primary); }
 .brand-hero-note strong { font-weight:500; color:var(--brand-muted); }
@@ -2478,4 +2477,48 @@ body:has(.k-root)::after {
 @media (max-width: 639px) {
   .celebration-cake { width: 240px; }
   .order-celebration h2 { font-size: 2.25rem; }
+}
+
+/* Wellness promise: the client's headline selling point. components/shop/WellnessPromise.tsx */
+.wellness-kicker { display:flex; align-items:center; gap:.5rem; font-size:.6875rem; font-weight:650; letter-spacing:.16em; text-transform:uppercase; color:var(--brand-primary); }
+.wellness-medal { flex-shrink:0; display:grid; place-items:center; width:2.6rem; height:2.6rem; border-radius:50%; background:var(--brand-secondary); color:var(--brand-accent); box-shadow:inset 0 0 0 3px color-mix(in srgb,var(--brand-accent) 22%,transparent); }
+.wellness-medal svg { width:1.4rem; height:1.4rem; }
+.wellness-pillars { display:grid; grid-template-columns:repeat(3,auto); justify-content:start; }
+.wellness-pillars li { display:flex; align-items:center; gap:.7rem; padding-inline:1.35rem; font-family:var(--font-display); font-size:1.2rem; line-height:1.15; letter-spacing:-.02em; color:var(--brand-secondary); white-space:nowrap; }
+.wellness-pillars li:first-child { padding-left:0; }
+.wellness-pillars li+li { border-left:1px solid var(--brand-border); }
+
+/* Top of every shop page. Scrolls away; the header below stays sticky. */
+.wellness-bar { background:var(--color-s-cocoa-deep); color:#e9e3d2; font-size:.8125rem; }
+.wellness-bar p { max-width:var(--brand-container); margin-inline:auto; min-height:2.375rem; display:flex; align-items:center; justify-content:center; gap:.75rem; padding:.45rem 1rem; text-align:center; line-height:1.35; }
+.wellness-bar strong { font-weight:650; color:var(--brand-accent); letter-spacing:.02em; }
+.wellness-bar-icons { display:inline-flex; gap:.3rem; color:var(--brand-accent); }
+.wellness-bar-icons svg { width:1.05rem; height:1.05rem; }
+
+/* Home hero. A gradient rule across the top in the three brand colours. */
+.wellness-card { position:relative; display:flex; flex-direction:column; gap:1rem; max-width:100%; padding:1.15rem 1.4rem 1.25rem; overflow:hidden; border-radius:1.25rem; background:var(--brand-surface); border:1px solid color-mix(in srgb,var(--brand-secondary) 12%,transparent); box-shadow:0 22px 44px -30px rgba(38,59,45,.55); }
+.wellness-card::before { content:""; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg,var(--brand-secondary),var(--brand-accent) 55%,var(--brand-primary)); }
+
+/* Footer opener: a lighter green band with a soft gold glow. */
+.wellness-band { background:radial-gradient(ellipse 60% 120% at 100% 0%,color-mix(in srgb,var(--brand-accent) 14%,transparent),transparent 70%),var(--brand-secondary); border-bottom:1px solid color-mix(in srgb,var(--brand-accent) 18%,transparent); }
+.wellness-band-inner { max-width:var(--brand-container); margin-inline:auto; padding:3rem 2.5rem; display:flex; align-items:center; justify-content:space-between; gap:2.5rem; }
+.wellness-band .wellness-kicker { color:var(--brand-accent); }
+.s-root .wellness-band-title { margin-top:.85rem; max-width:22ch; font-family:var(--font-display); font-size:clamp(1.75rem,3vw,2.6rem); line-height:1.08; letter-spacing:-.03em; color:var(--brand-background); text-wrap:balance; }
+.wellness-band-title em { color:var(--brand-accent); white-space:nowrap; }
+.wellness-pillars-dark li { color:var(--brand-background); }
+.wellness-pillars-dark li+li { border-left-color:color-mix(in srgb,var(--brand-background) 18%,transparent); }
+.wellness-pillars-dark .wellness-medal { background:transparent; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand-accent) 55%,transparent); width:3.25rem; height:3.25rem; }
+.wellness-pillars-dark .wellness-medal svg { width:1.6rem; height:1.6rem; }
+
+@media(max-width:1023px) {
+  .wellness-band-inner { flex-direction:column; align-items:flex-start; padding:2.5rem 1.5rem; }
+}
+@media(max-width:639px) {
+  .wellness-bar { font-size:.75rem; }
+  .wellness-bar-icons { display:none; }
+  .wellness-card { width:100%; padding:1rem 1rem 1.1rem; }
+  .wellness-pillars { grid-template-columns:repeat(3,minmax(0,1fr)); width:100%; }
+  .wellness-pillars li { flex-direction:column; gap:.5rem; padding-inline:.5rem; font-size:1rem; text-align:center; }
+  .wellness-pillars li:first-child { padding-left:.5rem; }
+  .wellness-band-inner { padding:2.25rem 1.25rem; gap:1.75rem; }
 }
