@@ -13,7 +13,7 @@ const REFUSAL = {
 } as const;
 
 /** The person is whoever the session says, never a form field: this is the one action that sets a role. */
-export async function acceptJoin(token: string, _prev: JoinState, _form: FormData): Promise<JoinState> {
+export async function acceptJoin(token: string): Promise<JoinState> {
   const { userId } = await auth();
   if (!userId) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/join/${token}`)}`);
 
