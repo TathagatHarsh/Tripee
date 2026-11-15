@@ -15,7 +15,9 @@ import {
   aEyebrow, Card, CardHead, EmptyState, Notice, OrderStatusBadge, PageHeader, Ref,
   StatusBadge,
 } from "@/components/admin/ui";
-import { ActiveToggle, LinkUserForm, UnlinkUserButton, VendorForm } from "../VendorForms";
+import { ActiveToggle, ApproveButton, LinkUserForm, UnlinkUserButton, VendorForm } from "../VendorForms";
+import { InviteLink } from "../InviteLink";
+import { STAGE_TONE, stageLabel, vendorSetupStates } from "@/lib/vendorInvite";
 
 /**
  * One bakery: who they are, who signs in as them, and what they are holding.
@@ -96,6 +98,8 @@ export default async function VendorDetail({
     : { data: [] };
   const emailOf = new Map(accounts.map((u) => [u.id, u.primaryEmailAddress?.emailAddress]));
 
+  const setup = (await vendorSetupStates([id])).get(id)!;
+  const invitePending = setup.stage === "invited" || setup.stage === "invite_expired";
   const holding = vendor.assignments.filter((a) => !isVendorFinished(a.status));
 
   return (
@@ -104,10 +108,7 @@ export default async function VendorDetail({
         title={vendor.name}
         back={{ href: "/admin/vendors", label: "Back to vendors" }}
       >
-        <StatusBadge
-          label={vendor.isActive ? "Active" : "Inactive"}
-          tone={vendor.isActive ? "good" : "plain"}
-        />
+        <StatusBadge label={stageLabel(setup)} tone={STAGE_TONE[setup.stage]} />
       </PageHeader>
 
       <Availability key={vendor.updatedAt.toISOString()} vendor={vendor} />
@@ -230,6 +231,28 @@ export default async function VendorDetail({
               </p>
             </div>
           </Card>
+
+          {!vendor.isActive && (
+            <Card>
+              <h2 className={aEyebrow}>{invitePending ? "Invite" : "Approval"}</h2>
+              {setup.stage === "ready_for_review" ? (
+                <>
+                  <p className="mt-2 mb-3 text-a-small leading-relaxed text-a-muted">
+                    They have finished setup. Approving puts this bakery in the assign picker.
+                  </p>
+                  <ApproveButton id={vendor.id} />
+                </>
+              ) : invitePending ? (
+                <div className="mt-3">
+                  <InviteLink vendorId={vendor.id} />
+                </div>
+              ) : (
+                <p className="mt-2 text-a-small leading-relaxed text-a-muted">
+                  Setting up, {setup.steps.done} of 4 steps done. Approval opens when all four are.
+                </p>
+              )}
+            </Card>
+          )}
 
           <Card>
             <h2 className={aEyebrow}>{vendor.isActive ? "Stop sending work" : "Start again"}</h2>

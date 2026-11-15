@@ -17,6 +17,8 @@ import { applyStatusTransition } from "@/lib/orderTransition";
 import { assignOrderToVendor } from "@/lib/vendorTransition";
 import { ADMIN_MOVES, STATUS_LABEL } from "@/lib/orders";
 import { indianMobile } from "@/lib/whatsapp";
+import { issueInvite, vendorSetupStates } from "@/lib/vendorInvite";
+import { whatsappInviteUrl } from "@/lib/onboarding";
 import {
   discard, hasImageStore, ImageError, MAX_UPLOAD_BYTES, NO_IMAGE_STORE_MESSAGE,
   optimize, store,
@@ -81,6 +83,10 @@ const OptionEdit = z.object({
 export interface ActionResult {
   ok: boolean;
   message: string;
+  /** An invite link, for the card the admin copies it from. */
+  link?: string;
+  /** wa.me link carrying the invite, built here because lib/onboarding is server-only. */
+  whatsappUrl?: string | null;
 }
 
 const NO_DB: ActionResult = {
@@ -1189,7 +1195,7 @@ const VendorEdit = z.object({
      to it and the bakery's button replies are matched back by it. Stored as
      "+91 98765 43210" whatever way it was typed. */
   phone: z.string().trim().max(40)
-    .refine((s) => s === "" || indianMobile(s) !== null, "Enter a 10-digit Indian mobile number, like 98765 43210. WhatsApp offers go to it.")
+    .refine((s) => indianMobile(s) !== null, "Enter a 10-digit Indian mobile number, like 98765 43210. WhatsApp offers go to it.")
     .transform((s) => {
       const n = indianMobile(s);
       return n ? `+91 ${n.slice(2, 7)} ${n.slice(7)}` : null;
@@ -1226,10 +1232,58 @@ export async function addVendor(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "That didn't save." };
   }
 
-  const vendor = await db.vendor.create({ data: parsed.data, select: { id: true, name: true } });
+  // Inactive until the baker finishes setup and the office approves.
+  const vendor = await db.vendor.create({ data: { ...parsed.data, isActive: false }, select: { id: true, name: true } });
+  const { link } = await issueInvite(vendor.id);
 
   revalidateVendors(vendor.id);
-  return { ok: true, message: `${vendor.name} added.` };
+  const whatsappUrl = parsed.data.phone ? whatsappInviteUrl(parsed.data.phone, vendor.name, link) : null;
+  return { ok: true, message: `${vendor.name} added. Send them the invite link.`, link, whatsappUrl };
+}
+
+export async function resendInvite(
+  _prev: ActionResult | undefined,
+  form: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  if (!hasDatabase()) return NO_DB;
+
+  const id = String(form.get("id") ?? "");
+  if (!id) return { ok: false, message: "That form is missing a vendor." };
+  const vendor = await db.vendor.findUnique({ where: { id }, select: { name: true, phone: true } });
+  if (!vendor) return { ok: false, message: "That bakery no longer exists." };
+  const { link } = await issueInvite(id);
+
+  revalidateVendors(id);
+  const whatsappUrl = vendor.phone ? whatsappInviteUrl(vendor.phone, vendor.name, link) : null;
+  return { ok: true, message: "New invite link ready. The old one no longer works.", link, whatsappUrl };
+}
+
+/** Only a bakery that has finished setup goes live; shared by approve and activate. */
+async function refuseUnlessReady(id: string): Promise<ActionResult | null> {
+  const state = (await vendorSetupStates([id])).get(id);
+  if (!state) return { ok: false, message: "That bakery no longer exists." };
+  if (state.stage !== "ready_for_review") {
+    return { ok: false, message: "This bakery hasn't finished setting up yet, so it can't go live." };
+  }
+  return null;
+}
+
+export async function approveVendor(
+  _prev: ActionResult | undefined,
+  form: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  if (!hasDatabase()) return NO_DB;
+
+  const id = String(form.get("id") ?? "");
+  if (!id) return { ok: false, message: "That form is missing a vendor." };
+  const refused = await refuseUnlessReady(id);
+  if (refused) return refused;
+
+  const vendor = await db.vendor.update({ where: { id }, data: { isActive: true }, select: { name: true } });
+  revalidateVendors(id);
+  return { ok: true, message: `${vendor.name} approved and live.` };
 }
 
 export async function saveVendor(
@@ -1277,6 +1331,10 @@ export async function setVendorActive(
   const id = String(form.get("id") ?? "");
   const isActive = form.get("isActive") === "true";
   if (!id) return { ok: false, message: "That form is missing a vendor." };
+  if (isActive) {
+    const refused = await refuseUnlessReady(id);
+    if (refused) return refused;
+  }
 
   const result = await db.$transaction(async tx => {
     await lockAssignments(tx);

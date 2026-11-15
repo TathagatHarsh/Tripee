@@ -95,6 +95,14 @@ function displayName(user: User | null): string | null {
  * touched by anything on a request path. There is no argument to this function
  * that could carry a role, which is stronger than validating one.
  *
+ * ## The one exception: accepting a bakery invite
+ *
+ * lib/vendorInvite's `acceptInvite` does set `role` from a request. It is safe
+ * because the user id comes from the server session (never a form), the secret
+ * is a 32-byte token compared only by its SHA-256 hash, and lookup, refusals
+ * (staff, another bakery), the role write and burning the token are one
+ * transaction, so a link works once.
+ *
  * `currentUser()` is called only on the miss, so the round trip to Clerk
  * happens once in a person's lifetime rather than on every request.
  */

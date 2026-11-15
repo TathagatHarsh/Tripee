@@ -2,11 +2,12 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import {
-  addVendor, linkVendorUser, saveVendor, setVendorActive, unlinkVendorUser,
+  addVendor, approveVendor, linkVendorUser, saveVendor, setVendorActive, unlinkVendorUser,
   type ActionResult,
 } from "../actions";
 import { useToast } from "@/components/admin/Toast";
 import { aBtn, aField } from "@/components/admin/ui";
+import { InviteLink } from "./InviteLink";
 
 /**
  * Every write on the two vendor pages.
@@ -100,7 +101,7 @@ export function VendorForm({ vendor }: { vendor?: VendorFields & { id: string } 
               name={f.name}
               type={f.type ?? "text"}
               defaultValue={vendor?.[f.name] ?? ""}
-              required={f.name === "name"}
+              required={f.name === "name" || (f.name === "phone" && !vendor)}
               className={aField("w-full")}
             />
             {f.hint && <span className="text-a-meta leading-snug text-a-muted">{f.hint}</span>}
@@ -109,6 +110,7 @@ export function VendorForm({ vendor }: { vendor?: VendorFields & { id: string } 
       </div>
 
       <Failure result={result} />
+      {!vendor && result?.ok && result.link && <InviteLink vendorId="" link={result.link} whatsappUrl={result.whatsappUrl} />}
 
       <div>
         <button type="submit" disabled={pending} className={aBtn("primary", "md")}>
@@ -145,6 +147,19 @@ export function ActiveToggle({ id, isActive }: { id: string; isActive: boolean }
       >
         {pending ? "Working…" : isActive ? "Deactivate" : "Reactivate"}
       </button>
+      <Failure result={result} />
+    </form>
+  );
+}
+
+/** Approve a bakery that has finished setup. The action re-checks the stage. */
+export function ApproveButton({ id }: { id: string }) {
+  const [result, formAction, pending] = useActionState<ActionResult | undefined, FormData>(approveVendor, undefined);
+  useAnnounce(result);
+  return (
+    <form action={formAction} className="flex flex-col gap-2">
+      <input type="hidden" name="id" value={id} />
+      <button type="submit" disabled={pending} className={aBtn("primary", "md")}>{pending ? "Approving…" : "Approve and go live"}</button>
       <Failure result={result} />
     </form>
   );
