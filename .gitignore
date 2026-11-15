@@ -78,3 +78,6 @@ next-env.d.ts
 
 # The client's original photo/video exports; public/custom holds the web copies.
 /MakeYourCakes/
+
+# brainstorming mockups
+.superpowers/
