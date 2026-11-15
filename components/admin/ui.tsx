@@ -731,3 +731,104 @@ export function Notice({
     </div>
   );
 }
+
+/* ══════════════════════════════════════════════════════ needs-you pieces */
+
+/* Stripe colour per kind of item. `request` has no solid idle token, so it
+   borrows `a-ghost`, the same grey StatusBadge uses for its plain dot. */
+const ITEM_TONE = {
+  late: { bar: "bg-a-bad", tag: "border-a-bad-line bg-a-bad-wash text-a-bad-ink" },
+  stuck: { bar: "bg-a-warn", tag: "border-a-warn-line bg-a-warn-wash text-a-warn-ink" },
+  new: { bar: "bg-a-accent", tag: "border-a-accent-line bg-a-accent-wash text-a-accent-ink" },
+  request: { bar: "bg-a-ghost", tag: "border-a-idle-line bg-a-idle-wash text-a-muted" },
+} as const;
+
+/** One row of the "Needs you" list: a coloured stripe, what it is, and what to do. */
+export function ActionItem({
+  tone,
+  tag,
+  title,
+  detail,
+  action,
+  secondary,
+}: {
+  tone: keyof typeof ITEM_TONE;
+  tag: string;
+  title: string;
+  detail: string;
+  action: React.ReactNode;
+  secondary?: React.ReactNode;
+}) {
+  const t = ITEM_TONE[tone];
+  return (
+    <div className="flex overflow-hidden rounded-a border border-a-line bg-a-surface">
+      <span aria-hidden="true" className={`w-1.5 shrink-0 ${t.bar}`} />
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+        <div className="min-w-0 flex-1 basis-60">
+          <span
+            className={`inline-flex rounded-a-sm border px-2 py-1 font-a-sans text-a-meta font-medium leading-none ${t.tag}`}
+          >
+            {tag}
+          </span>
+          <p className="mt-1.5 font-a-sans text-a-body font-medium text-a-ink">{title}</p>
+          <p className="text-a-small text-a-muted">{detail}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {secondary}
+          {action}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Filter pills as links, so the filter lives in the URL. `all` links to the bare path. */
+export function FilterChips({
+  options,
+  selected,
+  param,
+  basePath,
+}: {
+  options: { value: string; label: string; count?: number }[];
+  selected: string;
+  param: string;
+  basePath: string;
+}) {
+  return (
+    <nav aria-label="Filter" className="flex flex-wrap gap-2">
+      {options.map((o) => {
+        const on = o.value === selected;
+        return (
+          <Link
+            key={o.value}
+            href={o.value === "all" ? basePath : `${basePath}?${param}=${encodeURIComponent(o.value)}`}
+            aria-current={on ? "page" : undefined}
+            className={[
+              "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 font-a-sans text-a-small font-medium",
+              on
+                ? "border-a-accent bg-a-accent text-white"
+                : "border-a-line-strong bg-a-surface text-a-ink hover:bg-a-sunken",
+            ].join(" ")}
+          >
+            {o.label}
+            {o.count !== undefined && <span className={on ? "text-white" : "text-a-muted"}>{o.count}</span>}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Label/value rows for a quiet "today at a glance" block. */
+export function StatList({ rows }: { rows: { label: string; value: string }[] }) {
+  return (
+    <dl className="divide-y divide-a-line">
+      {rows.map((r) => (
+        <div key={r.label} className="flex items-baseline justify-between gap-4 py-2">
+          <dt className="text-a-small text-a-muted">{r.label}</dt>
+          <dd className="font-a-sans text-a-body font-medium text-a-ink">{r.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
