@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     if (!vendor) return 'missing' as const;
     // Unapproved bakeries finish setup but cannot open for orders yet.
     if (!vendor.isActive && input.data.availability !== 'closed') return 'unapproved' as const;
-    const result = await tx.vendor.update({ where: { id: vendorId }, data: { unavailableUntil: null, isAcceptingOrders: input.data.availability !== 'closed', isBusy: input.data.availability === 'busy', preparationMinutes: input.data.preparationMinutes, maxConcurrentOrders: input.data.capacity, ...(input.data.radiusKm !== undefined && { serviceRadiusKm: input.data.radiusKm }), detailsConfirmedAt: new Date() } });
+    const result = await tx.vendor.update({ where: { id: vendorId }, data: { unavailableUntil: null, isAcceptingOrders: input.data.availability !== 'closed', isBusy: input.data.availability === 'busy', preparationMinutes: input.data.preparationMinutes, maxConcurrentOrders: input.data.capacity, ...(input.data.radiusKm !== undefined && { serviceRadiusKm: input.data.radiusKm }), ...(viewer.profile.role === 'VENDOR' && { detailsConfirmedAt: new Date() }) } });
     await portalEvent(tx, { key: `availability:${result.id}:${result.updatedAt.toISOString()}`, vendorId, title: 'Bakery availability changed', message: `${vendor.name}: ${input.data.availability}` });
     return 'saved' as const;
   });

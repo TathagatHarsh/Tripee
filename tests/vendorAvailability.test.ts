@@ -36,6 +36,14 @@ describe('vendor availability route', () => {
     expect(data.serviceRadiusKm).toBe(8);
     expect(data.detailsConfirmedAt).toBeInstanceOf(Date);
   });
+  it('does not confirm details when an admin saves', async () => {
+    const update = run({ id: 'v1', name: 'B', isActive: true });
+    mocks.viewer.mockResolvedValue({ userId: 'a', profile: { role: 'ADMIN' } });
+    expect((await POST(request({ vendorId: 'v1', availability: 'accepting', preparationMinutes: 90, capacity: 4, radiusKm: 8 }))).status).toBe(200);
+    const data = update.mock.calls[0][0].data;
+    expect(data.serviceRadiusKm).toBe(8);
+    expect(data).not.toHaveProperty('detailsConfirmedAt');
+  });
   it('rejects a radius outside 1 to 50', async () => {
     for (const radiusKm of [0, 51]) expect((await POST(request({ availability: 'closed', preparationMinutes: 60, capacity: 3, radiusKm }))).status).toBe(400);
   });
