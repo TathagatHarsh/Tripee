@@ -1,6 +1,6 @@
 import 'server-only';
 import type { Prisma } from '@prisma/client';
-import { variantNeeds } from './inventoryRules';
+import { isOfferable, variantNeeds } from './inventoryRules';
 type Tx = Prisma.TransactionClient;
 export class InventoryConflict extends Error {}
 export async function inventoryForOrder(tx: Tx, vendorId: string, order: Parameters<typeof variantNeeds>[0]) {
@@ -12,7 +12,7 @@ export async function inventoryForOrder(tx: Tx, vendorId: string, order: Paramet
 // The caller holds the assignment lock, shared with availability edits.
 export async function requireOrderAvailability(tx: Tx, vendorId: string, order: Parameters<typeof variantNeeds>[0]) {
   const inventory = await inventoryForOrder(tx, vendorId, order);
-  if (!inventory.length || inventory.some(({ item }) => !item?.isAvailable))
+  if (!inventory.length || inventory.some(({ item }) => !isOfferable(item)))
     throw new InventoryConflict('A required cake variant is unavailable at this bakery.');
 }
 export async function recordAvailability(tx: Tx, inventoryId: string, previousAvailable: boolean | null, newAvailable: boolean, userId: string) {

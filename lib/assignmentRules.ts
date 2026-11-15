@@ -61,7 +61,6 @@ export function parseRadiusKm(value: unknown): number | null {
 
 export function vendorEligible(
   v: Vendor,
-  products: (string | null)[],
   load: number,
   now = new Date(),
   requireLocation = true,
@@ -73,12 +72,7 @@ export function vendorEligible(
     !!v.locationSetAt &&
     (!requireLocation || !!pointFrom(v)) &&
     (!v.unavailableUntil || v.unavailableUntil <= now) &&
-    load < v.maxConcurrentOrders &&
-    (v.fulfillsAllProducts ||
-      (products.length > 0 &&
-        products.every(
-          (id) => id !== null && v.supportedProductIds.includes(id),
-        )))
+    load < v.maxConcurrentOrders
   );
 }
 export function sortCandidates<T extends RouteEstimate & { vendorId: string }>(

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blockerFor, canSubmit, validateCake } from "@/lib/rules";
+import { isOfferable } from "@/lib/inventoryRules";
 import { DEFAULT_CAKE, type CakeConfig } from "@/lib/schema";
 
 const cake = (patch: Partial<CakeConfig> = {}): CakeConfig => ({ ...DEFAULT_CAKE, ...patch });
@@ -136,5 +137,19 @@ describe("validateCake", () => {
       const fixed = { ...c, ...v.fix!.patch };
       expect(ids(fixed), `${v.id} not cleared by its own fix`).not.toContain(v.id);
     }
+  });
+});
+
+describe("isOfferable", () => {
+  const now = new Date("2026-11-15T10:00:00Z");
+  const on = { isAvailable: true, pausedUntil: null };
+  it("needs a row that is on", () => {
+    expect(isOfferable(undefined, now)).toBe(false);
+    expect(isOfferable({ ...on, isAvailable: false }, now)).toBe(false);
+    expect(isOfferable(on, now)).toBe(true);
+  });
+  it("a pause blocks until it ends", () => {
+    expect(isOfferable({ ...on, pausedUntil: new Date(now.getTime() + 3600000) }, now)).toBe(false);
+    expect(isOfferable({ ...on, pausedUntil: new Date(now.getTime() - 1000) }, now)).toBe(true);
   });
 });
