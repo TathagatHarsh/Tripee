@@ -290,9 +290,9 @@ export interface VendorViewer extends Viewer {
  * something before this account works — so they share one refusal rather than
  * splitting into two messages with one fix between them.
  *
- * A deactivated vendor is locked out rather than left read-only on purpose:
- * `isActive` is how the shop stops sending a partner work, and a dashboard that
- * still opened would keep showing orders they are no longer meant to be making.
+ * This guard is for fulfilment (orders) only: a deactivated or not-yet-approved
+ * vendor is kept out of it on purpose, because `isActive` is how the shop stops
+ * sending a partner work. Setup pages use `requireVendorSetup` instead.
  */
 export async function requireVendor(): Promise<VendorViewer> {
   return vendorViewer(false);

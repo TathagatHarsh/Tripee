@@ -4,9 +4,10 @@ import { db } from '@/lib/db';
 import { crossSite } from '@/lib/apiGuard';
 import { lockAssignments } from '@/lib/assignment';
 import { portalEvent } from '@/lib/portalNotifications';
+import { RADIUS_KM } from '@/lib/assignmentRules';
 // The details group (prep time, capacity, radius) is all-or-nothing: the status switch posts availability alone.
-const Input = z.object({ vendorId: z.string().optional(), availability: z.enum(['accepting', 'busy', 'closed']), preparationMinutes: z.number().int().min(1).max(10080).optional(), capacity: z.number().int().min(0).max(10000).optional(), radiusKm: z.number().min(1).max(50).optional() })
-  .refine(d => (d.preparationMinutes === undefined) === (d.capacity === undefined), { message: 'details' });
+const Input = z.object({ vendorId: z.string().optional(), availability: z.enum(['accepting', 'busy', 'closed']), preparationMinutes: z.number().int().min(1).max(10080).optional(), capacity: z.number().int().min(0).max(10000).optional(), radiusKm: z.number().min(RADIUS_KM.min).max(RADIUS_KM.max).optional() })
+  .refine(d => (d.preparationMinutes === undefined) === (d.capacity === undefined) && (d.capacity === undefined) === (d.radiusKm === undefined), { message: 'details' });
 export async function POST(req: Request) {
   if (crossSite(req)) return Response.json({ error: 'Not authorised' }, { status: 403 });
   const viewer = await getViewer();

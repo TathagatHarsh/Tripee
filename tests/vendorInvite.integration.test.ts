@@ -99,6 +99,13 @@ describe.skipIf(!url)('bakery invites on isolated PostgreSQL', () => {
   it('a baker of the same bakery is simply ok', async () => {
     const b = await bakery(); const u = await user('VENDOR', b.vendor.id);
     expect(await acceptInvite(tokenOf(b.link), u.id)).toEqual({ ok: true });
+    const v = await db.vendor.findUniqueOrThrow({ where: { id: b.vendor.id } });
+    expect([v.inviteTokenHash, v.inviteExpiresAt]).toEqual([null, null]);
+  });
+
+  it('a signed-out/unsettled session is sent back to the join page, not given an error', async () => {
+    session.userId = null;
+    await expect(acceptJoin('abc/def')).rejects.toThrow('REDIRECT:/join/abc%2Fdef');
   });
 
   it('a customer with orders keeps them', async () => {

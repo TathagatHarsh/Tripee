@@ -18,7 +18,7 @@ describe('vendor availability route', () => {
   it('refuses accepting or busy until the bakery is approved', async () => {
     for (const availability of ['accepting', 'busy']) {
       const update = run({ id: 'v1', name: 'B', isActive: false });
-      const res = await POST(request({ availability, preparationMinutes: 60, capacity: 3 }));
+      const res = await POST(request({ availability, preparationMinutes: 60, capacity: 3, radiusKm: 5 }));
       expect(res.status).toBe(409);
       expect(await res.json()).toEqual({ error: 'Available once MakeYourCakes approves your bakery' });
       expect(update).not.toHaveBeenCalled();
@@ -26,7 +26,7 @@ describe('vendor availability route', () => {
   });
   it('lets an unapproved bakery save details with closed', async () => {
     const update = run({ id: 'v1', name: 'B', isActive: false });
-    expect((await POST(request({ availability: 'closed', preparationMinutes: 60, capacity: 3 }))).status).toBe(200);
+    expect((await POST(request({ availability: 'closed', preparationMinutes: 60, capacity: 3, radiusKm: 5 }))).status).toBe(200);
     expect(update).toHaveBeenCalled();
   });
   it('saves the radius and confirms details', async () => {
@@ -54,7 +54,10 @@ describe('vendor availability route', () => {
   it('needs the whole details group or none', async () => {
     expect((await POST(request({ availability: 'closed', preparationMinutes: 60 }))).status).toBe(400);
   });
-  it('rejects a radius outside 1 to 50', async () => {
-    for (const radiusKm of [0, 51]) expect((await POST(request({ availability: 'closed', preparationMinutes: 60, capacity: 3, radiusKm }))).status).toBe(400);
+  it('rejects a radius alone', async () => {
+    expect((await POST(request({ availability: 'closed', radiusKm: 5 }))).status).toBe(400);
+  });
+  it('rejects a radius outside 1 to 25', async () => {
+    for (const radiusKm of [0, 26, 51]) expect((await POST(request({ availability: 'closed', preparationMinutes: 60, capacity: 3, radiusKm }))).status).toBe(400);
   });
 });

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { RADIUS_KM } from '@/lib/assignmentRules';
 import { aBtn, aField, aLabel } from '@/components/admin/ui';
 
 type V = { id: string; isActive: boolean; isAcceptingOrders: boolean; isBusy: boolean; preparationMinutes: number; maxConcurrentOrders: number; serviceRadiusKm: number };
@@ -28,7 +29,7 @@ export function DetailsForm({ vendor }: { vendor: V }) {
       <h2 className="font-a-sans text-a-item font-semibold text-a-ink">Kitchen details</h2>
       <div className="mt-3 grid gap-4 sm:grid-cols-3">
         <label className={`${aLabel} flex flex-col gap-2`}>Prep time (minutes)<input name="preparationMinutes" type="number" inputMode="numeric" min="1" max="10080" required defaultValue={vendor.preparationMinutes} className={aField('min-h-11')} /></label>
-        <label className={`${aLabel} flex flex-col gap-2`}>Delivery radius (km)<input name="radiusKm" type="number" inputMode="decimal" min="1" max="50" step="any" required defaultValue={vendor.serviceRadiusKm} className={aField('min-h-11')} /></label>
+        <label className={`${aLabel} flex flex-col gap-2`}>Delivery radius (km)<input name="radiusKm" type="number" inputMode="decimal" min={RADIUS_KM.min} max={RADIUS_KM.max} step="any" required defaultValue={vendor.serviceRadiusKm} className={aField('min-h-11')} /></label>
         <label className={`${aLabel} flex flex-col gap-2`}>Max orders at once<input name="capacity" type="number" inputMode="numeric" min="0" max="10000" required defaultValue={vendor.maxConcurrentOrders} className={aField('min-h-11')} /></label>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-3">

@@ -50,6 +50,14 @@ describe.skipIf(!url)('bakery-set location on isolated PostgreSQL', () => {
     expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).currentAssignmentId).not.toBeNull();
   });
 
+  it('an unapproved (inactive) bakery can pin its location during setup', async () => {
+    const { vendor } = await unsetBakeryWithOrder();
+    await db.vendor.update({ where: { id: vendor.id }, data: { isActive: false } });
+    asBakery(vendor.id);
+    expect((await post({ lat: 17.43, lng: 78.4, radiusKm: 5 })).status).toBe(200);
+    expect((await db.vendor.findUniqueOrThrow({ where: { id: vendor.id } })).locationSetAt).not.toBeNull();
+  });
+
   it('refuses a radius outside 1–25 km, staff, and saving another bakery', async () => {
     const { vendor } = await unsetBakeryWithOrder();
     const other = await unsetBakeryWithOrder();

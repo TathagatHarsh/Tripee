@@ -30,9 +30,8 @@ export async function acceptInvite(token: string, userId: string): Promise<Accep
     const profile = await tx.userProfile.findUnique({ where: { id: userId }, select: { role: true, vendorId: true } });
     if (!profile) return { ok: false, reason: 'expired' };
     if (profile.role === 'ADMIN' || profile.role === 'KITCHEN') return { ok: false, reason: 'staff' };
-    if (profile.role === 'VENDOR') {
-      return profile.vendorId === vendor.id ? { ok: true } : { ok: false, reason: 'other_bakery' };
-    }
+    if (profile.role === 'VENDOR' && profile.vendorId !== vendor.id) return { ok: false, reason: 'other_bakery' };
+    // (A baker of this same bakery burns it too, so the link cannot be reused by someone else.)
     // Claim the token before writing the role: under READ COMMITTED two accepts can both pass the
     // lookup above, but only one updateMany sees the hash still set (the other waits on the row lock, then matches 0).
     const claimed = await tx.vendor.updateMany({
@@ -40,7 +39,7 @@ export async function acceptInvite(token: string, userId: string): Promise<Accep
       data: { inviteTokenHash: null, inviteExpiresAt: null },
     });
     if (claimed.count !== 1) return { ok: false, reason: 'expired' };
-    await tx.userProfile.update({ where: { id: userId }, data: { role: 'VENDOR', vendorId: vendor.id } });
+    if (profile.role !== 'VENDOR') await tx.userProfile.update({ where: { id: userId }, data: { role: 'VENDOR', vendorId: vendor.id } });
     return { ok: true };
   });
 }

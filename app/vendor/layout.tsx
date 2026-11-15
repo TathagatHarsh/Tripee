@@ -109,7 +109,7 @@ export default async function VendorLayout({ children }: { children: React.React
       <VendorTabs active={vendor.isActive} />
 
       <main id="main" className="mx-auto w-full max-w-[90rem] flex-1 px-4 pb-24 pt-5 sm:px-6 sm:py-6">
-        <PortalAlerts role="vendor" userId={userId} />
+        {vendor.isActive && <PortalAlerts role="vendor" userId={userId} />}
         {children}
       </main>
     </div>

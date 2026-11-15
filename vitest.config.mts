@@ -10,6 +10,10 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    // DB integration files share one scratch DB and a global advisory lock, so they run one file at a time.
+    projects: [
+      { extends: true, test: { name: "unit", include: ["tests/**/*.test.ts"], exclude: ["tests/**/*.integration.test.ts", "**/node_modules/**"] } },
+      { extends: true, test: { name: "integration", include: ["tests/**/*.integration.test.ts"], fileParallelism: false } },
+    ],
   },
 });

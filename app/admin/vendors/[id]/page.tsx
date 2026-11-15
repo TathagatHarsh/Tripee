@@ -117,8 +117,8 @@ export default async function VendorDetail({
       <Link href={`/admin/inventory?vendor=${vendor.id}`} className="font-semibold underline">View Cake Availability</Link>
       {!vendor.isActive && (
         <Notice tone="warn" icon="alert">
-          Deactivated, so this bakery cannot be given new orders and nobody can
-          open its dashboard.{" "}
+          Not live yet (setup in progress or waiting for approval), so this bakery
+          cannot be given new orders.{" "}
           {holding.length > 0 ? (
             <>
               It is still holding{" "}
@@ -129,7 +129,7 @@ export default async function VendorDetail({
               page.
             </>
           ) : (
-            "It is holding nothing."
+            ""
           )}
         </Notice>
       )}
@@ -256,16 +256,16 @@ export default async function VendorDetail({
             </Card>
           )}
 
-          <Card>
-            <h2 className={aEyebrow}>{vendor.isActive ? "Stop sending work" : "Start again"}</h2>
-            <p className="mt-2 mb-3 text-a-small leading-relaxed text-a-muted">
-              {vendor.isActive
-                ? "Takes this bakery out of the assign picker and shuts its dashboard. "
-                  + "Orders it is already holding are not touched — reassign those one at a time."
-                : "Puts this bakery back in the assign picker and reopens its dashboard."}
-            </p>
-            <ActiveToggle id={vendor.id} isActive={vendor.isActive} />
-          </Card>
+          {vendor.isActive && (
+            <Card>
+              <h2 className={aEyebrow}>Stop sending work</h2>
+              <p className="mt-2 mb-3 text-a-small leading-relaxed text-a-muted">
+                Takes this bakery out of the assign picker and shuts its dashboard.
+                Orders it is already holding are not touched — reassign those one at a time.
+              </p>
+              <ActiveToggle id={vendor.id} isActive={vendor.isActive} />
+            </Card>
+          )}
         </div>
       </div>
     </div>

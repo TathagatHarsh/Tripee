@@ -16,7 +16,8 @@ const REFUSAL = {
 export async function acceptJoin(token: string): Promise<JoinState> {
   // getViewer runs loadProfile, which creates the CUSTOMER row a brand-new sign-up does not have yet.
   const viewer = await getViewer();
-  if (!viewer) return { message: "We couldn't check your account. Reload and try again." };
+  // A fresh sign-in's session may not be usable inside a Server Action yet; a GET through the proxy settles it (and a signed-out visitor sees "Sign up to continue").
+  if (!viewer) redirect(`/join/${encodeURIComponent(token)}`);
 
   const r = await acceptInvite(token, viewer.userId);
   if (!r.ok) return { message: REFUSAL[r.reason] };
