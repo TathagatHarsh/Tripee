@@ -91,7 +91,7 @@ export function AvailabilityToggle({
         <span
           aria-hidden="true"
           className={[
-            "pointer-events-none ml-0.5 flex items-center justify-center rounded-full bg-white shadow-sm",
+            "pointer-events-none ml-0.5 flex items-center justify-center rounded-full bg-a-surface shadow-sm",
             "transition-transform duration-[var(--dur-ui)] ease-[var(--ease-out)]",
             knob,
             available ? travel : "translate-x-0",

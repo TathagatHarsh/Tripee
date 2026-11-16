@@ -478,7 +478,7 @@ export default async function OrderDetail({
             )}
 
             {(order.status === "confirmed" || order.status === "in_kitchen") ? (
-            <div className="mt-3 border-t border-a-line pt-3">
+            <div id="assign" className="mt-3 scroll-mt-24 border-t border-a-line pt-3">
               {/* Keyed on the live assignment, so handing the order to a
                   different bakery remounts the picker with it shut again rather
                   than leaving a component's state chasing a prop. */}
