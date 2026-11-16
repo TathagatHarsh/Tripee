@@ -31,7 +31,7 @@ type Groups = ReturnType<typeof pipelineGroups>;
 
 export function PipelineTab({ groups }: { groups: Groups }) {
   if (!groups.length) return <EmptyState icon="vendor" title="No bakeries yet: add one to get started" blurb="" />;
-  const list = (g: Groups[number]) => (
+  const list = (g: { rows: Groups[number]["rows"] }) => (
     <div className="flex flex-col gap-2">
       {g.rows.map((r) => {
         const call = telHref(r.phone);
@@ -47,17 +47,27 @@ export function PipelineTab({ groups }: { groups: Groups }) {
       })}
     </div>
   );
+  /* Invited and expired share one section: Resend flips a row from expired to
+     invited, and a row that changed parents would remount its InviteLink and
+     lose the one-time link it just received. Keyed by row id in one list, it stays. */
+  const isInvite = (s: VendorStage) => s === "invited" || s === "invite_expired";
+  const invites = groups.filter((g) => isInvite(g.stage)).flatMap((g) => g.rows);
+  const sections = groups.flatMap((g) =>
+    !isInvite(g.stage) ? [{ key: g.stage, title: STAGE_LABEL[g.stage], rows: g.rows }]
+    : g.stage === groups.find((x) => isInvite(x.stage))!.stage ? [{ key: "invites", title: "Invites", rows: invites }]
+    : [],
+  );
   return (
     <div className="flex flex-col gap-6">
-      {groups.map((g) =>
-        g.stage === "live" ? (
-          <details key={g.stage}>
+      {sections.map((g) =>
+        g.key === "live" ? (
+          <details key={g.key}>
             <summary className={`${heading} min-h-11 cursor-pointer`}>Live bakeries ({g.rows.length})</summary>
             <div className="mt-2">{list(g)}</div>
           </details>
         ) : (
-          <section key={g.stage} className="flex flex-col gap-2">
-            <h2 className={heading}>{STAGE_LABEL[g.stage]} ({g.rows.length})</h2>
+          <section key={g.key} className="flex flex-col gap-2">
+            <h2 className={heading}>{g.title} ({g.rows.length})</h2>
             {list(g)}
           </section>
         ),
@@ -151,7 +161,7 @@ export function AreasTab({ missed, reach, days }: { missed: ReturnType<typeof mi
                 </p>
                 <p className="text-a-muted">
                   Last on {formatIST(a.last)} ·{" "}
-                  {a.nearest ? `${a.nearest.name} · ${a.nearest.km} km (delivers up to ${a.nearest.radiusKm} km)` : "No live bakery"}
+                  {!a.located ? "No location to measure from" : a.nearest ? `${a.nearest.name} · ${a.nearest.km} km (delivers up to ${a.nearest.radiusKm} km)` : "No live bakery"}
                 </p>
               </li>
             ))}

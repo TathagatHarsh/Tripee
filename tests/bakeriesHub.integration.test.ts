@@ -41,6 +41,13 @@ describe.skipIf(!url)('bakeries hub loaders on isolated PostgreSQL', () => {
     expect(cake?.sizes[0].eggless).toMatchObject({ count: 0, gap: true, paused: true });
   });
 
+  it('coverage leaves out variants switched off for sale', async () => {
+    const p = await product('off');
+    await db.cakeVariant.create({ data: { cakeId: p.id, sizeBand: '3kg', eggType: 'egg', pricePaise: 300000, isAvailable: false } });
+    const cake = (await loadCoverage()).cakes.find((c) => c.productId === p.id);
+    expect(cake?.sizes.map((s) => s.sizeBand)).toEqual(['1kg']);
+  });
+
   it('performance counts offers and acceptance per bakery', async () => {
     const v = await db.vendor.create({ data: { name: `BH perf ${tag}`, isAcceptingOrders: true } });
     const offered = new Date(Date.now() - 3600_000);

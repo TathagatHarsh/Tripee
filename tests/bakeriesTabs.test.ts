@@ -31,6 +31,16 @@ describe('PipelineTab', () => {
     expect(out).toContain('Needs: pin');
   });
 
+  it('invited and expired rows share one Invites section, so Resend keeps its link when the stage flips', () => {
+    const groups = pipelineGroups([
+      row({ id: 'i', stage: 'invited', inviteExpiresAt: new Date(now.getTime() + 86400000) }),
+      row({ id: 'e', stage: 'invite_expired' }),
+    ], now);
+    const out = html(createElement(PipelineTab, { groups }));
+    expect(out).toContain('Invites (2)');
+    expect((out.match(/<section/g) ?? []).length).toBe(1);
+  });
+
   it('no Call without a phone; empty state', () => {
     const out = html(createElement(PipelineTab, { groups: pipelineGroups([row({ stage: 'paused', phone: null })], now) }));
     expect(out).not.toContain('tel:');
@@ -66,13 +76,16 @@ describe('AreasTab', () => {
   it('shows the nearest bakery, the checkout note, the no-live-bakery line and the empty state', () => {
     const out = html(createElement(AreasTab, {
       missed: [
-        { area: '500034', count: 2, last: now, nearest: { name: 'Sweet Crumbs', km: 12.4, radiusKm: 10 } },
-        { area: 'Kondapur', count: 1, last: now, nearest: null },
+        { area: '500034', count: 2, last: now, located: true, nearest: { name: 'Sweet Crumbs', km: 12.4, radiusKm: 10 } },
+        { area: 'Kondapur', count: 1, last: now, located: true, nearest: null },
+        { area: 'Unknown area', count: 1, last: now, located: false, nearest: null },
       ],
       reach: [{ name: 'Sweet Crumbs', address: 'Road 3', radiusKm: 10 }], days: 30,
     }));
     expect(out).toContain('Sweet Crumbs · 12.4 km (delivers up to 10 km)');
     expect(out).toContain('No live bakery');
+    expect(out).toContain('Unknown area · 1 order missed</p><p class="text-a-muted">Last on');
+    expect(out).toMatch(/Unknown area[\s\S]*?No location to measure from/);
     expect(out).toContain('Addresses refused at checkout never become orders, so they are not counted here.');
     expect(html(createElement(AreasTab, { missed: [], reach: [], days: 30 }))).toContain('No missed orders in this window');
   });

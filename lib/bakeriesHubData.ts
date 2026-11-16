@@ -31,7 +31,7 @@ export async function loadPipeline(now = new Date()) {
 
 export async function loadCoverage(now = new Date()) {
   const [variants, rows] = await Promise.all([
-    db.cakeVariant.findMany({ where: { cake: { isAvailable: true } }, select: { cakeId: true, sizeBand: true, eggType: true, cake: { select: { name: true } } } }),
+    db.cakeVariant.findMany({ where: { isAvailable: true, cake: { isAvailable: true } }, select: { cakeId: true, sizeBand: true, eggType: true, cake: { select: { name: true } } } }),
     db.vendorInventory.findMany({ where: { vendor: LIVE }, select: { productId: true, sizeBand: true, eggType: true, isAvailable: true, pausedUntil: true, vendor: { select: { name: true } } } }),
   ]);
   const cakes = new Map<string, CoverageCake>();

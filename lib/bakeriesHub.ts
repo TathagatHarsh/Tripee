@@ -192,7 +192,7 @@ export function missedAreas(orders: MissedOrder[], live: LiveBakery[]) {
           if (!nearest || km < nearest.km) nearest = { name: b.name, km, radiusKm: b.serviceRadiusKm };
         }
       }
-      return { area, count: list.length, last: latest[0].createdAt, nearest };
+      return { area, count: list.length, last: latest[0].createdAt, located: at !== null, nearest };
     })
     .sort((a, b) => b.count - a.count || b.last.getTime() - a.last.getTime());
 }

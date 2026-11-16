@@ -139,13 +139,13 @@ describe("missedAreas", () => {
       live,
     );
     expect(out.map((a) => a.area)).toEqual(["500034", "Kondapur", "near 17.12, 78.46"]);
-    expect(out[0]).toMatchObject({ count: 2, last: now });
+    expect(out[0]).toMatchObject({ count: 2, last: now, located: true });
     expect(out[0].nearest).toMatchObject({ name: "Sweet Crumbs", radiusKm: 10 });
     expect(Number.isInteger(Math.round(out[0].nearest!.km * 10))).toBe(true);
   });
 
   it("missedAreas with no location", () => {
-    expect(missedAreas([{ pincode: null, location: null, createdAt: now }], live)[0]).toMatchObject({ area: "Unknown area", nearest: null });
+    expect(missedAreas([{ pincode: null, location: null, createdAt: now }], live)[0]).toMatchObject({ area: "Unknown area", located: false, nearest: null });
   });
 
   it("no live bakeries: nearest is null", () => {
