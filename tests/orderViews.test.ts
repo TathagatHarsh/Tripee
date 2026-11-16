@@ -70,32 +70,32 @@ describe("bakeryLine", () => {
   const confirmed = { status: "confirmed" as const, cancellationReason: null };
 
   it("first pending offer: finding a bakery", () => {
-    expect(bakeryLine(confirmed, [attempt({})], now)).toBe("finding a bakery");
+    expect(bakeryLine(confirmed, [attempt({})])).toBe("finding a bakery");
   });
 
   it("second try counts attempts", () => {
     const a = [attempt({ state: "REJECTED", sequence: 0, vendorName: "Cocoa Lane" }), attempt({ sequence: 1 })];
-    expect(bakeryLine(confirmed, a, now)).toBe("finding a bakery (2nd try)");
+    expect(bakeryLine(confirmed, a)).toBe("finding a bakery (2nd try)");
   });
 
   it("accepted and baking: bakery · stage", () => {
     const a = [attempt({ state: "ACCEPTED", production: "in_preparation" })];
-    expect(bakeryLine({ status: "in_kitchen", cancellationReason: null }, a, now)).toBe("Sweet Crumbs · baking");
+    expect(bakeryLine({ status: "in_kitchen", cancellationReason: null }, a)).toBe("Sweet Crumbs · baking");
   });
 
   it("cancelled after every bakery declined", () => {
     const a = [attempt({ state: "REJECTED" }), attempt({ state: "EXPIRED", sequence: 1 })];
-    expect(bakeryLine({ status: "cancelled", cancellationReason: "No bakery near you can make this order in time" }, a, now)).toBe(
+    expect(bakeryLine({ status: "cancelled", cancellationReason: "No bakery near you can make this order in time" }, a)).toBe(
       "No bakery could take it",
     );
   });
 
   it("draft with no attempts: waiting for confirmation", () => {
-    expect(bakeryLine({ status: "draft", cancellationReason: null }, [], now)).toBe("waiting for confirmation");
+    expect(bakeryLine({ status: "draft", cancellationReason: null }, [])).toBe("waiting for confirmation");
   });
 
   it("otherwise empty", () => {
-    expect(bakeryLine(confirmed, [], now)).toBe("");
+    expect(bakeryLine(confirmed, [])).toBe("");
   });
 });
 

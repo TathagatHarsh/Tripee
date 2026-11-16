@@ -72,7 +72,6 @@ function ordinal(n: number): string {
 export function bakeryLine(
   order: { status: OrderStatus; cancellationReason: string | null },
   attempts: Attempt[],
-  _now: Date,
 ): string {
   if (order.status === "cancelled" && order.cancellationReason === UNDELIVERABLE) return "No bakery could take it";
   const held = attempts.find((a) => a.state === "ACCEPTED");
@@ -118,3 +117,26 @@ export function callBakeryPhone(attempts: Attempt[]): string | null {
   const offered = latest.find((a) => PENDING.includes(a.state));
   return phone((offered ?? latest[0])?.vendorPhone ?? null);
 }
+
+/** Legacy filter links keep the old page; otherwise a view. A search with no view looks through everything. */
+export function effectiveMode(params: Params): "legacy" | { kind: "view"; view: OrderView } {
+  if (hasLegacyFilters(params)) return "legacy";
+  if (first(params.view)) return { kind: "view", view: parseView(params.view) };
+  return { kind: "view", view: first(params.q)?.trim() ? "all" : "needs" };
+}
+
+function ordersHref(params: Params, open?: string): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    const value = first(v);
+    if (k !== "open" && value) qs.set(k, value);
+  }
+  if (open) qs.set("open", open);
+  const s = qs.toString();
+  return s ? `/admin/orders?${s}` : "/admin/orders";
+}
+
+/** Open an order in the quick view without losing the current view, filters or search. */
+export const rowHref = (params: Params, ref: string) => ordersHref(params, ref);
+/** Close the quick view: the same list, minus `open`. */
+export const closeHref = (params: Params) => ordersHref(params);

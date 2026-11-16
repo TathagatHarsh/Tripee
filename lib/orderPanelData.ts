@@ -84,7 +84,7 @@ export async function loadOrderPanel(ref: string, now = new Date()): Promise<Ord
     customerName: o.customerName,
     customerPhone: o.customerPhone,
     attempts,
-    bakeryLine: bakeryLine(o, attempts, now),
+    bakeryLine: bakeryLine(o, attempts),
     attemptLines: attemptLines(attempts, now),
     callCustomerHref: telHref(o.customerPhone),
     whatsappHref: o.customerPhone ? whatsappHref(o.customerPhone, greeting) : null,
