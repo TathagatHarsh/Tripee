@@ -38,14 +38,14 @@ const run = (over: Partial<NeedsYouInput>) =>
   classifyNeedsYou({ orders: [], liveBakeries: 2, reviews: [], quotes: [], followUps: [], ...over }, now);
 
 describe("late", () => {
-  it("late order whose offer was rejected or expired falls back to Assign", () => {
+  it("late order whose offer was rejected or expired falls back to Open order", () => {
     for (const state of ["REJECTED", "EXPIRED", "CANCELLED"] as const) {
       const { items } = run({ orders: [order({ due: ago(5), assignment: asg({ state }) })] });
-      expect(items[0]).toMatchObject({ category: "late", detail: "No bakery yet", action: { label: "Assign" } });
+      expect(items[0]).toMatchObject({ category: "late", detail: "No bakery yet", action: { label: "Open order", href: expect.stringContaining("/admin/orders?view=needs&open=") } });
     }
   });
 
-  it("late in_kitchen order nobody holds opens the order instead of Assign", () => {
+  it("late in_kitchen order nobody holds opens the full order page", () => {
     const { items } = run({ orders: [order({ status: "in_kitchen", due: ago(5), assignment: null })] });
     expect(items[0]).toMatchObject({ category: "late", detail: "Baking", action: { label: "Open order", href: "/admin/orders/MMC-1" } });
     const out = run({ orders: [order({ status: "out_for_delivery", due: ago(5), assignment: null })] });
@@ -71,13 +71,13 @@ describe("late", () => {
     expect(run({ orders: [order({ due: ahead(180) })] }).items).toHaveLength(0);
   });
 
-  it("late and unassigned appears once, under late, with Assign", () => {
+  it("late and unassigned appears once, under late, with Open order", () => {
     const { items } = run({ orders: [order({ due: ago(5), assignment: null })] });
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       category: "late",
       detail: "No bakery yet",
-      action: { href: "/admin/orders/MMC-1#assign", label: "Assign" },
+      action: { href: "/admin/orders?view=needs&open=MMC-1", label: "Open order" },
     });
   });
 
@@ -117,9 +117,9 @@ describe("stuck", () => {
       ],
     });
     const by = Object.fromEntries(items.map((i) => [i.key, i]));
-    expect(by["stuck:A"]).toMatchObject({ tag: "No bakery", action: { label: "Assign" } });
+    expect(by["stuck:A"]).toMatchObject({ tag: "No bakery", action: { label: "Open order" } });
     expect(by["stuck:B"].tag).toBe("Offer expired 12 min ago");
-    expect(by["stuck:C"]).toMatchObject({ tag: "Rejected", action: { label: "Reassign" } });
+    expect(by["stuck:C"]).toMatchObject({ tag: "Rejected", action: { label: "Open order" } });
     expect(by["stuck:C"].detail).toContain("out of mango");
   });
 
