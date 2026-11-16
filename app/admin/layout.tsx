@@ -6,6 +6,7 @@ import { db, hasDatabase } from "@/lib/db";
 import { AdminShell } from "@/components/admin/Shell";
 import { GlobalSearch } from "@/components/admin/Filters";
 import { ToastProvider } from "@/components/admin/Toast";
+import { needsYouCount } from "@/lib/needsYouData";
 import { hasActivePartners } from "./data";
 
 /**
@@ -92,10 +93,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
    * customer typed is interpolated; the only parameter is a timestamp this file
    * computed.
    */
-  const [bakery, alerts, partners] = await Promise.all([
+  const [bakery, alerts, partners, needsYou] = await Promise.all([
     getCatalogSnapshot().then((c) => c.bakery.name),
     loadAlerts(),
     hasDatabase() ? hasActivePartners() : Promise.resolve(false),
+    /* Shares one cached load with the home page; a failed count must never break a page. */
+    hasDatabase() ? needsYouCount().catch(() => null) : Promise.resolve(null),
   ]);
 
   return (
@@ -112,6 +115,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         alerts={alerts}
         search={<GlobalSearch />}
         partners={partners}
+        needsYouCount={needsYou}
       >
         <PortalAlerts role="admin" userId={viewer.userId} />
         {children}
