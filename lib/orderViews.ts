@@ -1,5 +1,5 @@
 import type { AssignmentStatus, OrderStatus, Prisma, VendorOrderStatus } from "@prisma/client";
-import { formatIST } from "./format";
+import { formatIST, titleCase } from "./format";
 import { istDayStart } from "./needsYou";
 import { UNDELIVERABLE } from "./orders";
 
@@ -140,3 +140,27 @@ function ordersHref(params: Params, open?: string): string {
 export const rowHref = (params: Params, ref: string) => ordersHref(params, ref);
 /** Close the quick view: the same list, minus `open`. */
 export const closeHref = (params: Params) => ordersHref(params);
+
+type Mode = ReturnType<typeof effectiveMode>;
+
+/** What an empty list says. Only view mode has one; `all` and legacy keep the page's own wording. */
+export function emptyStateFor(mode: Mode): { title: string; href: string; cta: string } | null {
+  if (mode === "legacy") return null;
+  switch (mode.view) {
+    case "needs": return { title: "Nothing needs you right now", href: "/admin/orders?view=today", cta: "See today's orders" };
+    case "today": return { title: "Nothing due today", href: "/admin/orders?view=all", cta: "See all orders" };
+    case "upcoming": return { title: "Nothing coming up", href: "/admin/orders?view=all", cta: "See all orders" };
+    default: return null;
+  }
+}
+
+/** The Needs list is ordered most urgent first; cap it before querying so the cap never drops the urgent ones. */
+export const needsWhereRefs = (refs: string[], limit: number) => refs.slice(0, limit);
+
+export const isOpenRow = (params: Params, ref: string) => first(params.open) === ref;
+
+/** The panel's Deliver line: the customer's window, else the slot with the due time. */
+export function deliveryWindowLabel(requestedWindow: string | null, slot: string, due: Date | null): string {
+  if (requestedWindow) return requestedWindow;
+  return due ? `${titleCase(slot)} · ${formatIST(due)}` : titleCase(slot);
+}

@@ -55,6 +55,12 @@ describe('OrderPanel', () => {
     expect(html).toContain('href="tel:+919000000002"');
   });
 
+  it('sits below the sticky admin header on laptop', () => {
+    const html = render(base);
+    expect(html).toContain('lg:top-[4.5rem]');
+    expect(html).toContain('lg:max-h-[calc(100dvh-5.5rem)]');
+  });
+
   it('pickup shows Pickup', () => {
     const html = render({ ...base, fulfillmentMethod: 'pickup', deliverySlot: 'pickup' });
     expect(html).toContain('Pickup');

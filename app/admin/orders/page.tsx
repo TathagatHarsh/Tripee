@@ -1,6 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
-import { VENDOR_STATUS_LABEL } from "@/lib/vendors";
 import type { Metadata } from "next";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
@@ -17,7 +16,7 @@ import { CakePhoto } from "@/components/shop/CakePhoto";
 import { loadNeedsYou } from "@/lib/needsYouData";
 import { loadOrderPanel } from "@/lib/orderPanelData";
 import { OrderPanel } from "@/components/admin/OrderPanel";
-import { bakeryLine, closeHref, effectiveMode, rowHref, viewWhere, type Attempt, type OrderView } from "@/lib/orderViews";
+import { bakeryLine, closeHref, effectiveMode, emptyStateFor, isOpenRow, needsWhereRefs, rowHref, viewWhere, type Attempt, type OrderView } from "@/lib/orderViews";
 
 /**
  * Orders, for the office rather than the bench.
@@ -129,11 +128,11 @@ export default async function AdminOrders({
     where.createdAt = { gte: new Date(now.getTime() - window * 24 * 60 * 60 * 1000) };
   }
   /* "Needs action" is exactly the home page's list, so the two never disagree. */
-  const needsRefs = (await loadNeedsYou()).result.items
+  const needsRefs = ((await loadNeedsYou().catch(() => null))?.result.items ?? [])
     .filter((i) => i.category !== "requests")
     .map((i) => i.key.slice(i.key.indexOf(":") + 1));
   if (mode !== "legacy") {
-    if (mode.view === "needs") where.ref = { in: needsRefs };
+    if (mode.view === "needs") where.ref = { in: needsWhereRefs(needsRefs, LIMIT) };
     else if (mode.view !== "all") where.AND = [viewWhere(mode.view, now)];
   }
   if (q?.trim()) {
@@ -244,6 +243,7 @@ export default async function AdminOrders({
   ];
 
   const filtered = Boolean(q?.trim() || filter || window || slotFilter || late || production);
+  const viewEmpty = !q?.trim() ? emptyStateFor(mode) : null;
   const queue = production === "open" && !q?.trim() && !filter && !window && !slotFilter && !late;
   if (mode !== "legacy" && mode.view === "needs") orders.sort((a, b) => needsRefs.indexOf(a.ref) - needsRefs.indexOf(b.ref));
   const attemptsOf = (o: (typeof orders)[number]): Attempt[] =>
@@ -345,6 +345,12 @@ export default async function AdminOrders({
                 Clear all filters
               </Link>
             </EmptyState>
+          ) : viewEmpty ? (
+            <EmptyState icon="check" title={viewEmpty.title}>
+              <Link href={viewEmpty.href} className={aBtn("secondary", "md")}>
+                {viewEmpty.cta}
+              </Link>
+            </EmptyState>
           ) : (
             <EmptyState
               icon="orders"
@@ -376,13 +382,13 @@ export default async function AdminOrders({
                 }
               >
                 {orders.map((o) => (
-                  <Tr key={o.id}>
+                  <Tr key={o.id} className={isOpenRow(sp, o.ref) ? "bg-a-sunken" : undefined}>
                     <Td>
                       <span className="flex gap-3">
                       <Thumb src={photoOf(o)} name={o.cakes[0]?.cakeName ?? o.cakeName ?? "cake"} />
                       <span className="min-w-0">
                       <Link
-                        href={rowHref(sp, o.ref)} scroll={false} aria-current={sp.open === o.ref ? "true" : undefined}
+                        href={rowHref(sp, o.ref)} scroll={false} aria-current={isOpenRow(sp, o.ref) ? "true" : undefined}
                         className="font-a-mono text-a-small font-semibold tracking-[0.03em] text-a-ink underline decoration-transparent underline-offset-2 transition-colors hover:decoration-a-accent"
                       >
                         {o.ref}
@@ -431,8 +437,6 @@ export default async function AdminOrders({
                           label={`Placed ${placedAgo(o.createdAt, now)}`}
                         />
                       )}
-                      <p className="mt-1 text-sm">{o.currentAssignment?.vendor.name ?? 'Unassigned'}</p>
-                      {o.currentAssignment && <p className="text-xs text-a-muted">{VENDOR_STATUS_LABEL[o.currentAssignment.status]}</p>}
                     </Td>
 
                     <Td>
@@ -504,8 +508,8 @@ export default async function AdminOrders({
               {orders.map((o) => (
                 <li key={o.id} className="border-b border-a-line last:border-0">
                   <Link
-                    href={rowHref(sp, o.ref)} scroll={false} aria-current={sp.open === o.ref ? "true" : undefined}
-                    className="flex flex-col gap-2.5 p-3.5 transition-colors active:bg-a-sunken"
+                    href={rowHref(sp, o.ref)} scroll={false} aria-current={isOpenRow(sp, o.ref) ? "true" : undefined}
+                    className={`flex flex-col gap-2.5 p-3.5 transition-colors active:bg-a-sunken${isOpenRow(sp, o.ref) ? " bg-a-sunken" : ""}`}
                   >
                     <span className="flex flex-wrap items-center justify-between gap-2">
                       <span className="flex items-center gap-2.5">
@@ -529,8 +533,6 @@ export default async function AdminOrders({
                           label={`Placed ${placedAgo(o.createdAt, now)}`}
                         />
                       )}
-                      <p className="mt-1 text-sm">{o.currentAssignment?.vendor.name ?? 'Unassigned'}</p>
-                      {o.currentAssignment && <p className="text-xs text-a-muted">{VENDOR_STATUS_LABEL[o.currentAssignment.status]}</p>}
                       {o.allergens.length > 0 && (
                         <StatusBadge tone="warn" dot={false} label={o.allergens.join(", ")} />
                       )}

@@ -12,7 +12,7 @@ import type { OrderPanelData } from "@/lib/orderPanelData";
  * shows the bakery attempts and offers only calls, Confirm and the full page.
  */
 const SHELL =
-  "fixed inset-0 z-40 flex flex-col bg-a-surface lg:sticky lg:top-4 lg:inset-auto lg:z-auto lg:max-h-[calc(100dvh-2rem)] lg:w-[380px] lg:shrink-0 lg:rounded-a lg:border lg:border-a-line lg:shadow-a-card";
+  "fixed inset-0 z-40 flex flex-col bg-a-surface lg:sticky lg:top-[4.5rem] lg:inset-auto lg:z-auto lg:max-h-[calc(100dvh-5.5rem)] lg:w-[380px] lg:shrink-0 lg:rounded-a lg:border lg:border-a-line lg:shadow-a-card";
 
 function Close({ href }: { href: string }) {
   return (

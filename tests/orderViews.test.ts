@@ -3,6 +3,10 @@ import {
   attemptLines,
   bakeryLine,
   callBakeryPhone,
+  deliveryWindowLabel,
+  emptyStateFor,
+  isOpenRow,
+  needsWhereRefs,
   hasLegacyFilters,
   parseView,
   viewWhere,
@@ -146,5 +150,34 @@ describe("callBakeryPhone", () => {
   it("blank phone is null", () => {
     expect(callBakeryPhone([attempt({ state: "ACCEPTED", vendorPhone: "  " })])).toBeNull();
     expect(callBakeryPhone([])).toBeNull();
+  });
+});
+
+describe("final-fix helpers", () => {
+  it("emptyStateFor: view-mode empties say what is true, not 'No orders yet'", () => {
+    expect(emptyStateFor({ kind: "view", view: "needs" })).toEqual({ title: "Nothing needs you right now", href: "/admin/orders?view=today", cta: "See today's orders" });
+    expect(emptyStateFor({ kind: "view", view: "today" })?.title).toBe("Nothing due today");
+    expect(emptyStateFor({ kind: "view", view: "today" })?.href).toBe("/admin/orders?view=all");
+    expect(emptyStateFor({ kind: "view", view: "upcoming" })?.title).toBe("Nothing coming up");
+    expect(emptyStateFor({ kind: "view", view: "all" })).toBeNull();
+    expect(emptyStateFor("legacy")).toBeNull();
+  });
+
+  it("needsWhereRefs keeps the most urgent LIMIT refs, in order", () => {
+    expect(needsWhereRefs(["a", "b", "c"], 2)).toEqual(["a", "b"]);
+    expect(needsWhereRefs(["a"], 2)).toEqual(["a"]);
+  });
+
+  it("isOpenRow matches only the open ref", () => {
+    expect(isOpenRow({ open: "MC-1" }, "MC-1")).toBe(true);
+    expect(isOpenRow({ open: "MC-1" }, "MC-2")).toBe(false);
+    expect(isOpenRow({}, "MC-1")).toBe(false);
+  });
+
+  it("deliveryWindowLabel adds the due time when no window was requested", () => {
+    const due = new Date("2026-11-16T12:30:00Z");
+    expect(deliveryWindowLabel(null, "standard", due)).toBe(`Standard · ${formatIST(due)}`);
+    expect(deliveryWindowLabel("Today 6–7 pm", "standard", due)).toBe("Today 6–7 pm");
+    expect(deliveryWindowLabel(null, "standard", null)).toBe("Standard");
   });
 });

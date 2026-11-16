@@ -1,10 +1,9 @@
 import "server-only";
 import type { EggType, FulfillmentMethod, OrderStatus, PaymentStatus } from "@prisma/client";
 import { db } from "./db";
-import { titleCase } from "./format";
 import { whatsappHref } from "./customCakes";
 import { telHref } from "./needsYou";
-import { attemptLines, bakeryLine, callBakeryPhone, type Attempt } from "./orderViews";
+import { attemptLines, bakeryLine, callBakeryPhone, deliveryWindowLabel, type Attempt } from "./orderViews";
 
 export type OrderPanelData = {
   ref: string;
@@ -78,7 +77,7 @@ export async function loadOrderPanel(ref: string, now = new Date()): Promise<Ord
     cakes,
     fulfillmentMethod: o.fulfillmentMethod,
     deliverySlot: o.deliverySlot,
-    deliveryWindow: o.requestedWindow ?? titleCase(o.deliverySlot),
+    deliveryWindow: deliveryWindowLabel(o.requestedWindow, o.deliverySlot, o.dueAt ?? o.requestedFor),
     due: o.dueAt ?? o.requestedFor,
     deliveryLocation: o.deliveryLocation,
     customerName: o.customerName,
