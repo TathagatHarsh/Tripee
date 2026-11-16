@@ -6,17 +6,17 @@ import { haversine, pointFrom } from "./assignmentRules";
 import { refForAttempt, type PaymentProof } from "./checkout";
 import { refundPayment } from "./checkoutPayment";
 import { refundOperationStatus } from "./refunds";
-import { canMoveCustom, customerQuotePaise, splitCustomQuote, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, quoteExpiresAt, type NewCustomRequest } from "./customRules";
+import { canMoveCustom, customerQuotePaise, splitCustomQuote, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, QUOTE_MAX_PAISE, QUOTE_MIN_PAISE, quoteExpiresAt, type NewCustomRequest } from "./customRules";
 import { readDeliverySettings } from "./catalogData";
 import { db } from "./db";
-import { DEFAULT_DELIVERY_RULES, windowEndingAt } from "./deliveryRules";
+import { DEFAULT_DELIVERY_RULES, windowEndingAt, type DeliveryRules } from "./deliveryRules";
 import { meetsDeadline } from "./inventoryRules";
 import { log } from "./log";
 import { IntentRecord } from "./razorpay";
 import { optimize, store } from "./storage";
 import { adminNumbers, indianMobile, normalizePhone } from "./whatsapp";
 import { whatsappNewOrder } from "./whatsappEvents";
-import { acceptedMessage, customOfferMessage, customQuoteMessage, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
+import { acceptedMessage, customOfferMessage, customQuoteMessage, formatDue, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
 
 type Tx = Prisma.TransactionClient;
 type Message = Parameters<typeof queueWhatsApp>[1]["message"];
@@ -89,6 +89,8 @@ export async function offerNext(requestId: string): Promise<void> {
     if (!next) {
       await tx.customRequest.update({ where: { id: r.id }, data: { status: "no_bakery", vendorId: null, offerExpiresAt: null } });
       await send(tx, r, adminNumbers(), `cr:${r.id}:nobakery`, updateMessage(r.ref, `No bakery could quote this custom cake. Customer: ${r.name} ${r.phone}`));
+      // Worded to leave room for an admin quote: the request can still be rescued.
+      await send(tx, r, [r.phone], `cr:${r.id}:nobakery:customer`, updateMessage(r.ref, "none of our partner bakeries could quote your custom cake yet. Our team will contact you"));
       return;
     }
     const { vendor } = next;
@@ -107,36 +109,74 @@ export async function offerNext(requestId: string): Promise<void> {
 // Ends the current offer now; offerNext then moves on (the worker would too, if this process dies first).
 const endOffer = (tx: Tx, id: string) => tx.customRequest.update({ where: { id }, data: { vendorId: null, offerExpiresAt: new Date() } });
 
-export async function recordQuote(vendorId: string, requestId: string, vendorPaise: number): Promise<{ ok: true; quotePaise: number } | { ok: false; message: string }> {
+type QuoteResult = { ok: true; quotePaise: number } | { ok: false; message: string };
+
+/**
+ * Prices a locked, quotable request for this bakery and sends the customer the quote.
+ * Null, with nothing changed, when the bakery could no longer make it in time.
+ */
+async function sendQuote(tx: Tx, r: CustomRequest, vendor: { id: string; name: string; preparationMinutes: number }, vendorPaise: number, rules: DeliveryRules, now: Date): Promise<number | null> {
+  const expiresAt = quoteExpiresAt(now, r.dueAt, vendor.preparationMinutes);
+  if (expiresAt <= now) return null;
+  const margin = (await tx.bakerySettings.findUnique({ where: { id: "singleton" }, select: { customMarginPct: true } }))?.customMarginPct ?? 15;
+  const feePaise = rules.feePaise;
+  const chosen = windowEndingAt(r.dueAt, rules);
+  const quotePaise = customerQuotePaise(vendorPaise, margin, feePaise);
+  await tx.customRequest.update({
+    where: { id: r.id },
+    data: {
+      status: "quoted", vendorId: vendor.id, vendorQuotePaise: vendorPaise, quotePaise, quoteExpiresAt: expiresAt, offerExpiresAt: null,
+      ...(r.triedVendorIds.includes(vendor.id) ? {} : { triedVendorIds: { push: vendor.id } }),
+    },
+  });
+  await send(tx, r, [r.phone], `cr:${r.id}:quote`, customQuoteMessage({ id: r.id, ref: r.ref, token: r.token, sizeKg: r.sizeKg.toString(), dueAt: r.dueAt, requestedFor: chosen?.start, requestedWindow: chosen?.label, quotePaise }));
+  await send(tx, r, adminNumbers(), `cr:${r.id}:quote:admin`, updateMessage(r.ref, `${vendor.name} quoted ₹${rupees(vendorPaise)}; customer price ₹${rupees(quotePaise)} incl. ₹${rupees(feePaise)} delivery`));
+  return quotePaise;
+}
+
+export async function recordQuote(vendorId: string, requestId: string, vendorPaise: number): Promise<QuoteResult> {
   // Read before the transaction: a second connection inside it can starve the pool.
   const rules = (await readDeliverySettings()) ?? DEFAULT_DELIVERY_RULES;
-  const res = await db.$transaction(async (tx): Promise<{ ok: true; quotePaise: number } | { ok: false; message: string; moveOn?: boolean }> => {
+  const res = await db.$transaction(async (tx): Promise<QuoteResult & { moveOn?: boolean }> => {
     const r = await locked(tx, requestId);
     const now = new Date();
     // The same quote applied again (a retried webhook) is already done.
     if (r?.status === "quoted" && r.vendorId === vendorId && r.vendorQuotePaise === vendorPaise) return { ok: true, quotePaise: r.quotePaise! };
     if (!r || r.status !== "awaiting_quote" || r.vendorId !== vendorId || !r.offerExpiresAt || r.offerExpiresAt <= now) return { ok: false, message: NOT_WAITING };
-    const vendor = await tx.vendor.findUniqueOrThrow({ where: { id: vendorId }, select: { name: true, preparationMinutes: true } });
-    const expiresAt = quoteExpiresAt(now, r.dueAt, vendor.preparationMinutes);
-    if (expiresAt <= now) {
-      await endOffer(tx, r.id);
-      return { ok: false, message: `${r.ref} is due too soon for you to make it now, so it has been passed on.`, moveOn: true };
-    }
-    const margin = (await tx.bakerySettings.findUnique({ where: { id: "singleton" }, select: { customMarginPct: true } }))?.customMarginPct ?? 15;
-    const feePaise = rules.feePaise;
-    const chosen = windowEndingAt(r.dueAt, rules);
-    const quotePaise = customerQuotePaise(vendorPaise, margin, feePaise);
-    await tx.customRequest.update({
-      where: { id: r.id },
-      data: { status: "quoted", vendorQuotePaise: vendorPaise, quotePaise, quoteExpiresAt: expiresAt, offerExpiresAt: null },
-    });
-    await send(tx, r, [r.phone], `cr:${r.id}:quote`, customQuoteMessage({ id: r.id, ref: r.ref, token: r.token, sizeKg: r.sizeKg.toString(), dueAt: r.dueAt, requestedFor: chosen?.start, requestedWindow: chosen?.label, quotePaise }));
-    await send(tx, r, adminNumbers(), `cr:${r.id}:quote:admin`, updateMessage(r.ref, `${vendor.name} quoted ₹${rupees(vendorPaise)}; customer price ₹${rupees(quotePaise)} incl. ₹${rupees(feePaise)} delivery`));
-    return { ok: true, quotePaise };
+    const vendor = await tx.vendor.findUniqueOrThrow({ where: { id: vendorId }, select: { id: true, name: true, preparationMinutes: true } });
+    const quotePaise = await sendQuote(tx, r, vendor, vendorPaise, rules, now);
+    if (quotePaise !== null) return { ok: true, quotePaise };
+    await endOffer(tx, r.id);
+    return { ok: false, message: `${r.ref} is due too soon for you to make it now, so it has been passed on.`, moveOn: true };
   }, ASSIGNMENT_TX);
   if (res.ok) return res;
   if (res.moveOn) await offerNext(requestId);
   return { ok: false, message: res.message };
+}
+
+/**
+ * An admin prices a request still waiting for a quote, or one no bakery took, for a
+ * bakery they pick. The customer gets the same quote a bakery's own reply would send.
+ */
+export async function adminQuote(requestId: string, vendorId: string, vendorPaise: number): Promise<QuoteResult> {
+  if (!Number.isInteger(vendorPaise) || vendorPaise < QUOTE_MIN_PAISE || vendorPaise > QUOTE_MAX_PAISE)
+    return { ok: false, message: "Enter the bakery's price, between ₹100 and ₹1,00,000." };
+  const rules = (await readDeliverySettings()) ?? DEFAULT_DELIVERY_RULES;
+  return db.$transaction(async (tx): Promise<QuoteResult> => {
+    const r = await locked(tx, requestId);
+    if (!r || !canMoveCustom(r.status, "quoted")) return { ok: false, message: "That request is no longer open for a quote." };
+    const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { id: true, name: true, phone: true, isActive: true, preparationMinutes: true } });
+    if (!vendor?.isActive || !normalizePhone(vendor.phone)) return { ok: false, message: "Pick an active bakery with a WhatsApp number." };
+    const offered = r.vendorId && r.vendorId !== vendor.id ? r.vendorId : null;
+    const quotePaise = await sendQuote(tx, r, vendor, vendorPaise, rules, new Date());
+    if (quotePaise === null) return { ok: false, message: `${vendor.name} can't make it in time: ${r.ref} is due too soon.` };
+    // The bakery holding the live offer loses it, as offerNext would tell it.
+    if (offered) await send(tx, r, [await vendorPhone(tx, offered)], `cr:${r.id}:passed:${offered}`, updateMessage(r.ref, `${r.ref} has been passed on.`), offered);
+    // Without this, the chosen bakery's first word of the cake would be "Customer paid".
+    await send(tx, r, [vendor.phone], `cr:${r.id}:adminquote:${vendor.id}`, updateMessage(r.ref,
+      `MakeYourCakes quoted ₹${rupees(vendorPaise)} for your bakery on ${r.ref} (${r.sizeKg.toString()} kg ${r.flavour}, due ${formatDue(r.dueAt)}). We'll tell you if the customer pays`), vendor.id);
+    return { ok: true, quotePaise };
+  }, ASSIGNMENT_TX);
 }
 
 export async function declineOffer(vendorId: string, requestId: string): Promise<{ ok: boolean; message: string }> {
@@ -181,6 +221,7 @@ export async function cancelCustomRequest(requestId: string): Promise<boolean> {
     await tx.customRequest.update({ where: { id: r.id }, data: { status: "cancelled", offerExpiresAt: null } });
     if (r.vendorId)
       await send(tx, r, [await vendorPhone(tx, r.vendorId)], `cr:${r.id}:cancelled`, updateMessage(r.ref, `${r.ref} was cancelled. Please ignore it.`), r.vendorId);
+    await send(tx, r, [r.phone], `cr:${r.id}:cancelled:customer`, updateMessage(r.ref, "your custom cake request has been cancelled"));
     return true;
   }, ASSIGNMENT_TX);
 }

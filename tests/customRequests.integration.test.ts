@@ -11,7 +11,7 @@ vi.mock('../lib/checkoutPayment', async (orig) => {
 import { createHmac } from 'node:crypto';
 import { db } from '../lib/db';
 import { openPaymentIntent, refundPayment } from '../lib/checkoutPayment';
-import { cancelCustomRequest, createCustomRequest, nextBakery, offerNext, payCustomRequest, runCustomRequestWorker } from '../lib/customRequests';
+import { adminQuote, cancelCustomRequest, createCustomRequest, nextBakery, offerNext, payCustomRequest, runCustomRequestWorker } from '../lib/customRequests';
 import { recoverPayment } from '../lib/paymentRecovery';
 import { durableRefund } from '../lib/refunds';
 import { POST as openQuoteIntent } from '../app/api/custom-requests/[token]/intent/route';
@@ -160,6 +160,10 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
     const alert = (await rows(request.id)).find(x => x.destination === ADMIN)!;
     expect(textOf(alert)).toContain('No bakery could quote this custom cake. Customer: Asha 919822200000');
     expect((await rows(request.id)).some(x => x.destination === phoneOf(3))).toBe(false);
+    // The customer was told "we'll contact you shortly": they hear it didn't work out, through an approved template.
+    const told = (await rows(request.id)).find(x => x.destination === CUSTOMER)!;
+    expect(told.payload).toMatchObject({ type: 'template', name: 'order_update' });
+    expect(textOf(told)).toContain('Our team will contact you');
   });
   it('a quote after the offer expired changes nothing and says the request is not waiting', async () => {
     const { request } = await fixture(); await offerNext(request.id); await expireOffer(request.id);
@@ -175,7 +179,7 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
     const r = await reload(request.id);
     expect(r.status).toBe('no_bakery'); expect(r.quotePaise).toBeNull();
     const all = await rows(request.id);
-    expect(all.some(x => x.destination === CUSTOMER)).toBe(false);
+    expect(all.some(x => x.destination === CUSTOMER && (x.payload as { name?: string }).name === 'custom_quote')).toBe(false);
     expect(textOf(all.find(x => x.dedupeKey.startsWith('wa-reply:wamid.close:'))!)).toContain('too soon');
   });
   it('the same message id delivered twice quotes once and replies once', async () => {
@@ -241,19 +245,69 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
     const { request } = await fixture(); await offerNext(request.id);
     expect(await cancelCustomRequest(request.id)).toBe(true);
     expect((await reload(request.id)).status).toBe('cancelled');
-    expect(textOf((await rows(request.id)).at(-1)!)).toContain('cancelled');
+    expect(textOf((await rows(request.id)).filter(x => x.destination === phoneOf(0)).at(-1)!)).toContain('cancelled');
     expect(await cancelCustomRequest(request.id)).toBe(false);
   });
-  it('cancel on a quoted request tells the bakery; a paid one is left alone', async () => {
+  it('cancel on a quoted request tells the bakery and the customer; a paid one is left alone', async () => {
     const { request } = await quoted();
     expect(await cancelCustomRequest(request.id)).toBe(true);
     expect((await reload(request.id)).status).toBe('cancelled');
-    expect(textOf((await rows(request.id)).at(-1)!)).toContain(`${request.ref} was cancelled`);
+    expect(textOf((await rows(request.id)).filter(x => x.destination === phoneOf(0)).at(-1)!)).toContain(`${request.ref} was cancelled`);
+    const told = (await rows(request.id)).filter(x => x.destination === CUSTOMER).at(-1)!;
+    expect(told.payload).toMatchObject({ type: 'template', name: 'order_update' });
+    expect(textOf(told)).toContain('has been cancelled');
     await db.customRequest.update({ where: { id: request.id }, data: { status: 'paid' } });
     const n = (await rows(request.id)).length;
     expect(await cancelCustomRequest(request.id)).toBe(false);
     expect((await reload(request.id)).status).toBe('paid');
     expect((await rows(request.id)).length).toBe(n);
+  });
+  it('cancel closes a no_bakery request and tells the customer', async () => {
+    const { request } = await fixture();
+    await db.customRequest.update({ where: { id: request.id }, data: { status: 'no_bakery' } });
+    expect(await cancelCustomRequest(request.id)).toBe(true);
+    expect((await reload(request.id)).status).toBe('cancelled');
+    expect(textOf((await rows(request.id)).find(x => x.destination === CUSTOMER)!)).toContain('has been cancelled');
+  });
+
+  describe('admin quote', () => {
+    it('quotes a request another bakery was offered: that bakery passed on, the chosen one told, customer gets the quote', async () => {
+      const { vendors, request } = await fixture(); await offerNext(request.id);
+      expect(await adminQuote(request.id, vendors[1].id, 150000)).toEqual({ ok: true, quotePaise: 188000 });
+      const r = await reload(request.id);
+      expect(r).toMatchObject({ status: 'quoted', vendorId: vendors[1].id, vendorQuotePaise: 150000, quotePaise: 188000, offerExpiresAt: null });
+      expect(r.triedVendorIds).toEqual([vendors[0].id, vendors[1].id]);
+      const all = await rows(request.id);
+      expect(textOf(all.filter(x => x.destination === phoneOf(0)).at(-1)!)).toContain('has been passed on');
+      const chosen = all.find(x => x.destination === phoneOf(1))!;
+      expect(chosen.payload).toMatchObject({ type: 'template', name: 'order_update' });
+      expect(textOf(chosen)).toContain('₹1,500');
+      expect(all.find(x => x.destination === CUSTOMER)!.payload).toMatchObject({ type: 'template', name: 'custom_quote' });
+      expect(all.some(x => x.destination === ADMIN)).toBe(true);
+      expect(sent).not.toHaveBeenCalled();
+    });
+    it('rescues a request no bakery took', async () => {
+      const { vendors, request } = await fixture();
+      await db.customRequest.update({ where: { id: request.id }, data: { status: 'no_bakery' } });
+      expect((await adminQuote(request.id, vendors[2].id, 180000)).ok).toBe(true);
+      expect(await reload(request.id)).toMatchObject({ status: 'quoted', vendorId: vendors[2].id, quotePaise: 222000 });
+    });
+    it('refuses a bakery that could not make it in time, and changes nothing', async () => {
+      const { vendors, request } = await fixture();
+      await db.customRequest.update({ where: { id: request.id }, data: { dueAt: new Date(Date.now() + 30 * 60000) } });
+      const res = await adminQuote(request.id, vendors[0].id, 180000);
+      expect(res).toMatchObject({ ok: false }); expect(!res.ok && res.message).toContain('too soon');
+      expect((await reload(request.id)).status).toBe('awaiting_quote');
+      expect(await rows(request.id)).toHaveLength(0);
+    });
+    it('refuses an inactive bakery and a request that is no longer open', async () => {
+      const { vendors, request } = await quoted();
+      expect(await adminQuote(request.id, vendors[1].id, 180000)).toMatchObject({ ok: false });
+      const other = await fixture();
+      await db.vendor.update({ where: { id: other.vendors[0].id }, data: { isActive: false } });
+      expect(await adminQuote(other.request.id, other.vendors[0].id, 180000)).toMatchObject({ ok: false });
+      expect((await reload(other.request.id)).status).toBe('awaiting_quote');
+    });
   });
 });
 

@@ -3,7 +3,9 @@ import { requireAdmin } from "@/lib/auth";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { formatINR } from "@/lib/format";
 import { aBtn, Card, EmptyState, Notice, PageHeader, Ref, StatusBadge, type BadgeTone } from "@/components/admin/ui";
+import { formatDue } from "@/lib/whatsappMessages";
 import { cancelCustomRequestAction } from "./actions";
+import { QuoteForm } from "./QuoteForm";
 
 export const dynamic = "force-dynamic";
 
@@ -21,16 +23,31 @@ export default async function CustomRequestsAdmin() {
       notifications: { where: { status: "failed" }, select: { id: true }, take: 1 },
     },
   });
+  // The bakeries an admin quote can go to: the same ones adminQuote accepts.
+  const bakeries = (await db.vendor.findMany({ where: { isActive: true, phone: { not: null } }, select: { id: true, name: true }, orderBy: { name: "asc" } }));
   return (
     <div className="space-y-6">
       <PageHeader title="Custom requests" blurb="Every custom cake request, newest first (latest 100). Follow up on any with a failed message." />
       {!requests.length && <EmptyState title="No custom requests yet" />}
       <ul className="space-y-3">
-        {requests.map((r) => (
+        {requests.map((r) => {
+          const area = r.address as { locality?: string; city?: string };
+          const facts: [string, string][] = [
+            ["Size", `${r.sizeKg.toString()} kg`],
+            ["Flavour", r.flavour],
+            ["On the cake", r.cakeMessage || "—"],
+            ["Delivery", formatDue(r.dueAt)],
+            ["Area", area.locality || area.city || "—"],
+            ["Budget", r.budgetPaise != null ? formatINR(r.budgetPaise) : "—"],
+            ["Requested", formatDue(r.createdAt)],
+          ];
+          return (
           <li key={r.id}>
-            <Card className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={r.photoUrl} alt="" className="size-16 shrink-0 rounded-a-sm object-cover" />
+            <Card className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <a href={r.photoUrl} target="_blank" rel="noreferrer" className="shrink-0" title="Open the full photo">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={r.photoUrl} alt="The customer's cake photo" className="size-24 rounded-a-sm object-cover" />
+              </a>
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <Ref>{r.ref}</Ref>
@@ -43,9 +60,20 @@ export default async function CustomRequestsAdmin() {
                   {r.vendorQuotePaise != null && ` · bakery ${formatINR(r.vendorQuotePaise)}`}
                   {r.quotePaise != null && ` · customer ${formatINR(r.quotePaise)}`}
                 </p>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 font-a-sans text-a-small sm:grid-cols-4">
+                  {facts.map(([label, value]) => (
+                    <div key={label} className="min-w-0">
+                      <dt className="text-a-muted">{label}</dt>
+                      <dd className="break-words text-a-ink">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
                 {r.order && <Link href={`/admin/orders/${r.order.ref}`} className="font-a-sans text-a-small underline">Order {r.order.ref}</Link>}
+                {(r.status === "awaiting_quote" || r.status === "no_bakery") && (
+                  <div className="pt-2"><QuoteForm id={r.id} bakeries={bakeries} defaultBakery={r.vendorId} /></div>
+                )}
               </div>
-              {(r.status === "awaiting_quote" || r.status === "quoted") && (
+              {(r.status === "awaiting_quote" || r.status === "quoted" || r.status === "no_bakery") && (
                 <form action={cancelCustomRequestAction}>
                   <input type="hidden" name="id" value={r.id} />
                   <button type="submit" className={aBtn("danger", "md")}>Cancel</button>
@@ -53,7 +81,8 @@ export default async function CustomRequestsAdmin() {
               )}
             </Card>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );
