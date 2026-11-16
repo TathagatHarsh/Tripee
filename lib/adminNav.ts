@@ -1,4 +1,5 @@
 import type { CatalogCategory } from "@prisma/client";
+import { BUILDER_ENABLED } from "./flags";
 
 /**
  * The portal's own map of itself.
@@ -93,7 +94,10 @@ export const NAV: NavSection[] = [
        * changes the cake a customer sees.
        */
       { href: "/admin/cakes", label: "Cakes", icon: "cake", nested: true },
-      { href: "/admin/catalog", label: "Options & prices", icon: "pricing", nested: true },
+      /* The builder's parts list; held back with the builder (app/admin/catalog/layout). */
+      ...(BUILDER_ENABLED
+        ? [{ href: "/admin/catalog", label: "Options & prices", icon: "pricing", nested: true }]
+        : []),
     ],
   },
   {
