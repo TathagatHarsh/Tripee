@@ -1,6 +1,7 @@
 import "server-only";
 import type { EggType, FulfillmentMethod, OrderStatus, PaymentStatus } from "@prisma/client";
 import { db } from "./db";
+import { titleCase } from "./format";
 import { whatsappHref } from "./customCakes";
 import { telHref } from "./needsYou";
 import { attemptLines, bakeryLine, callBakeryPhone, type Attempt } from "./orderViews";
@@ -14,6 +15,7 @@ export type OrderPanelData = {
   cakes: { name: string; size: string | null; eggType: EggType | null; message: string | null; photoUrl: string | null }[];
   fulfillmentMethod: FulfillmentMethod;
   deliverySlot: string;
+  deliveryWindow: string;
   due: Date | null;
   deliveryLocation: unknown;
   customerName: string | null;
@@ -32,7 +34,7 @@ export async function loadOrderPanel(ref: string, now = new Date()): Promise<Ord
     where: { ref },
     select: {
       ref: true, status: true, createdAt: true, paymentStatus: true, totalPaise: true, cancellationReason: true,
-      fulfillmentMethod: true, deliverySlot: true, dueAt: true, requestedFor: true, deliveryLocation: true,
+      fulfillmentMethod: true, deliverySlot: true, requestedWindow: true, dueAt: true, requestedFor: true, deliveryLocation: true,
       customerName: true, customerPhone: true, cakeName: true, config: true,
       cakes: { select: { cakeName: true, sizeBand: true, variantLabel: true, eggType: true, message: true, cakeImageUrl: true } },
       /* Ordered by when each offer was made: `sequence` restarts per assignment round, so it can tie. */
@@ -76,6 +78,7 @@ export async function loadOrderPanel(ref: string, now = new Date()): Promise<Ord
     cakes,
     fulfillmentMethod: o.fulfillmentMethod,
     deliverySlot: o.deliverySlot,
+    deliveryWindow: o.requestedWindow ?? titleCase(o.deliverySlot),
     due: o.dueAt ?? o.requestedFor,
     deliveryLocation: o.deliveryLocation,
     customerName: o.customerName,
