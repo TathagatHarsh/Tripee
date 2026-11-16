@@ -749,6 +749,7 @@ export function ActionItem({
   tag,
   title,
   detail,
+  href,
   action,
   secondary,
 }: {
@@ -756,6 +757,7 @@ export function ActionItem({
   tag: string;
   title: string;
   detail: string;
+  href?: string;
   action: React.ReactNode;
   secondary?: React.ReactNode;
 }) {
@@ -770,7 +772,9 @@ export function ActionItem({
           >
             {tag}
           </span>
-          <p className="mt-1.5 font-a-sans text-a-body font-medium text-a-ink">{title}</p>
+          <p className="mt-1.5 font-a-sans text-a-body font-medium text-a-ink">
+            {href ? <Link href={href} className="inline-block py-1.5 hover:underline">{title}</Link> : title}
+          </p>
           <p className="text-a-small text-a-muted">{detail}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">

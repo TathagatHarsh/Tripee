@@ -43,7 +43,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
       <div className="flex flex-col gap-3">
         {items.length === 0
           ? <EmptyState icon="check" title="All caught up" blurb="New orders and problems show up here the moment they happen." />
-          : items.map((i) => <ActionItem key={i.key} tone={TONE[i.category]} tag={i.tag} title={i.title} detail={i.detail}
+          : items.map((i) => <ActionItem key={i.key} tone={TONE[i.category]} tag={i.tag} title={i.title} detail={i.detail} href={i.href}
               action={renderAction(i.action, 'primary')} secondary={i.secondary && renderAction(i.secondary, 'secondary')} />)}
       </div>
       <Card>

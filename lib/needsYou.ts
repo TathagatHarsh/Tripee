@@ -43,6 +43,7 @@ export type NeedsYouItem = {
   tag: string;
   title: string;
   detail: string;
+  href?: string;
   action: NeedsYouAction;
   secondary?: NeedsYouAction;
   sortAt: Date;
@@ -95,6 +96,11 @@ function lateItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
   const a = o.assignment && HELD.includes(o.assignment.state) ? o.assignment : null;
   let detail = "No bakery yet";
   let action: NeedsYouAction = assignLink(o.ref, "Assign");
+  // Nobody holds it but it is already in progress (e.g. the owner is baking it): assigning makes no sense.
+  if (!a && o.status !== "confirmed") {
+    detail = o.status === "out_for_delivery" ? "Out for delivery" : "Baking";
+    action = openOrder(o.ref);
+  }
   if (a) {
     const stage =
       o.status === "out_for_delivery"
@@ -113,10 +119,7 @@ function stuckItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
   if (o.status !== "confirmed") return null;
   const a = o.assignment;
   const base = { key: `stuck:${o.ref}`, category: "stuck" as const, title: o.title, sortAt: o.due ?? o.createdAt };
-  if (!a) {
-    return { ...base, tag: "No bakery", detail: "Nobody has this order yet", action: assignLink(o.ref, "Assign") };
-  }
-  if (a.state === "EXPIRED") {
+  if (a?.state === "EXPIRED") {
     const at = a.expiresAt ?? a.respondedAt ?? o.createdAt;
     return {
       ...base,
@@ -125,7 +128,7 @@ function stuckItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
       action: assignLink(o.ref, "Assign"),
     };
   }
-  if (a.state === "REJECTED") {
+  if (a?.state === "REJECTED") {
     return {
       ...base,
       tag: "Rejected",
@@ -133,7 +136,9 @@ function stuckItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
       action: assignLink(o.ref, "Reassign"),
     };
   }
-  return null;
+  if (a && HELD.includes(a.state)) return null;
+  // No assignment, or one that no longer holds the order (e.g. cancelled).
+  return { ...base, tag: "No bakery", detail: "Nobody has this order yet", action: assignLink(o.ref, "Assign") };
 }
 
 function newItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
@@ -158,7 +163,7 @@ export function classifyNeedsYou(input: NeedsYouInput, now: Date) {
   for (const o of input.orders) {
     const item =
       lateItem(o, now) ?? (input.liveBakeries > 0 ? stuckItem(o, now) : null) ?? newItem(o, now);
-    if (item) items.push(item);
+    if (item) items.push({ ...item, href: `/admin/orders/${o.ref}` });
   }
 
   for (const r of input.reviews) {

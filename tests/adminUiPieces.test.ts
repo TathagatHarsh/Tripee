@@ -33,6 +33,15 @@ describe('ActionItem', () => {
   });
 });
 
+describe('ActionItem href', () => {
+  it('links the title when href is given', () => {
+    const html = renderToStaticMarkup(createElement(ActionItem, {
+      tone: 'late', tag: 'Late', title: 'MMC-1 · Cake', detail: 'd', href: '/admin/orders/MMC-1', action: null,
+    }));
+    expect(html).toMatch(/<a[^>]*href="\/admin\/orders\/MMC-1"[^>]*>MMC-1 · Cake<\/a>/);
+  });
+});
+
 describe('StatList', () => {
   it('renders dt/dd pairs', () => {
     const html = renderToStaticMarkup(createElement(StatList, { rows: [{ label: 'Orders', value: '9' }] }));

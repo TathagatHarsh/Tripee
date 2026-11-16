@@ -38,6 +38,24 @@ const run = (over: Partial<NeedsYouInput>) =>
   classifyNeedsYou({ orders: [], liveBakeries: 2, reviews: [], quotes: [], followUps: [], ...over }, now);
 
 describe("late", () => {
+  it("late order whose offer was rejected or expired falls back to Assign", () => {
+    for (const state of ["REJECTED", "EXPIRED", "CANCELLED"] as const) {
+      const { items } = run({ orders: [order({ due: ago(5), assignment: asg({ state }) })] });
+      expect(items[0]).toMatchObject({ category: "late", detail: "No bakery yet", action: { label: "Assign" } });
+    }
+  });
+
+  it("late in_kitchen order nobody holds opens the order instead of Assign", () => {
+    const { items } = run({ orders: [order({ status: "in_kitchen", due: ago(5), assignment: null })] });
+    expect(items[0]).toMatchObject({ category: "late", detail: "Baking", action: { label: "Open order", href: "/admin/orders/MMC-1" } });
+    const out = run({ orders: [order({ status: "out_for_delivery", due: ago(5), assignment: null })] });
+    expect(out.items[0]).toMatchObject({ detail: "Out for delivery", action: { label: "Open order" } });
+  });
+
+  it("order items link to the order", () => {
+    expect(run({ orders: [order({ due: ago(5) })] }).items[0].href).toBe("/admin/orders/MMC-1");
+  });
+
   it("confirmed order due 20 min ago", () => {
     const { items } = run({ orders: [order({ due: ago(20) })] });
     expect(items[0]).toMatchObject({
@@ -85,6 +103,11 @@ describe("late", () => {
 });
 
 describe("stuck", () => {
+  it("a cancelled assignment shows No bakery rather than dropping the order", () => {
+    const { items } = run({ orders: [order({ assignment: asg({ state: "CANCELLED" }) })] });
+    expect(items[0]).toMatchObject({ category: "stuck", tag: "No bakery" });
+  });
+
   it("no bakery, expired, rejected", () => {
     const { items } = run({
       orders: [

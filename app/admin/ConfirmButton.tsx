@@ -15,7 +15,7 @@ export function ConfirmButton({ orderRef }: { orderRef: string }) {
   useEffect(() => {
     if (!result) return;
     toast(result.message, result.ok);
-    if (result.ok) router.refresh();
+    router.refresh(); // a lost race still needs a fresh list
   }, [result, toast, router]);
 
   return (

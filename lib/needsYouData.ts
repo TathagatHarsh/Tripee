@@ -2,10 +2,11 @@ import 'server-only';
 import { cache } from 'react';
 import { db } from '@/lib/db';
 import { classifyNeedsYou, glance, istDayStart, type NeedsYouOrder } from '@/lib/needsYou';
-import { paymentFollowUps } from '@/lib/paymentFollowUp';
 import { vendorSetupStates } from '@/lib/vendorInvite';
 
 const OPEN = ['draft', 'confirmed', 'in_kitchen', 'out_for_delivery'] as const;
+
+const ASSIGNMENT = { status: true, assignmentStatus: true, respondedAt: true, expiresAt: true, rejectionReason: true, vendor: { select: { name: true, phone: true } } } as const;
 
 function title(cakeName: string | null, config: unknown) {
   const size = (config as { size?: unknown } | null)?.size;
@@ -19,7 +20,9 @@ export const loadNeedsYou = cache(async (now: Date = new Date()) => {
       where: { status: { in: [...OPEN] } },
       select: {
         ref: true, status: true, dueAt: true, requestedFor: true, createdAt: true, cakeName: true, config: true, customerPhone: true,
-        currentAssignment: { select: { status: true, assignmentStatus: true, respondedAt: true, expiresAt: true, rejectionReason: true, vendor: { select: { name: true, phone: true } } } },
+        currentAssignment: { select: ASSIGNMENT },
+        // finishOffer clears currentAssignmentId on reject/expiry, so read the latest ended offer too.
+        assignments: { where: { assignmentStatus: { in: ['REJECTED', 'EXPIRED'] } }, orderBy: { assignedAt: 'desc' }, take: 1, select: ASSIGNMENT },
       },
     }),
     db.order.findMany({ where: { createdAt: { gte: istDayStart(now) } }, select: { status: true, totalPaise: true, createdAt: true } }),
@@ -27,17 +30,22 @@ export const loadNeedsYou = cache(async (now: Date = new Date()) => {
     db.vendor.count({ where: { isActive: true } }),
     vendorSetupStates(),
     db.customRequest.findMany({ where: { status: 'awaiting_quote' }, select: { id: true, ref: true, flavour: true, createdAt: true } }),
-    paymentFollowUps(),
+    // Only what needs a human: abandoned checkouts sit `pending` forever, so they are not items.
+    // /admin/payments (paymentFollowUps) still lists everything.
+    Promise.all([
+      db.refundOperation.findMany({ where: { status: { not: 'processed' }, lastError: { not: null } }, orderBy: { createdAt: 'asc' }, take: 100 }),
+      db.paymentRecovery.findMany({ where: { status: { not: 'completed' }, OR: [{ status: 'refund_required' }, { lastError: { not: null } }] }, orderBy: { createdAt: 'asc' }, take: 100 }),
+    ]).then(([refunds, recoveries]) => ({ refunds, recoveries })),
   ]);
 
   const reviewIds = [...states].filter(([, s]) => s.stage === 'ready_for_review').map(([id]) => id);
   const reviews = reviewIds.length ? await db.vendor.findMany({ where: { id: { in: reviewIds } }, select: { id: true, name: true, createdAt: true } }) : [];
 
   const orders: NeedsYouOrder[] = open.map((o) => {
-    const a = o.currentAssignment;
+    const a = o.currentAssignment ?? o.assignments[0];
     return {
       ref: o.ref, status: o.status, due: o.dueAt ?? o.requestedFor, createdAt: o.createdAt,
-      title: title(o.cakeName, o.config), paymentLabel: null, customerPhone: o.customerPhone,
+      title: `${o.ref} · ${title(o.cakeName, o.config)}`, paymentLabel: null, customerPhone: o.customerPhone,
       assignment: a && { vendorName: a.vendor.name, vendorPhone: a.vendor.phone, production: a.status, state: a.assignmentStatus, respondedAt: a.respondedAt, expiresAt: a.expiresAt, rejectionReason: a.rejectionReason },
     };
   });
