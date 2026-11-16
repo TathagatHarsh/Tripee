@@ -14,7 +14,8 @@ export function parseQuoteReply(text: string): QuoteReply | null {
   let s = text.toLowerCase();
   const ref = s.match(/\bcr-[a-z0-9]+\b/)?.[0];
   if (ref) s = s.replace(ref, "");
-  s = s.replace(/₹|rs\.?|inr|,|\s/g, "");
+  // "Rs.1,200/- only" and "₹1200.00" are how prices are written here: whole rupees only.
+  s = s.replace(/₹|rs\.?|inr|only|\/-|\/=|,|\s/g, "").replace(/\.0{1,2}$/, "");
   if (!/^\d+$/.test(s)) return null;
   const paise = Number(s) * 100;
   if (paise < QUOTE_MIN_PAISE || paise > QUOTE_MAX_PAISE) return { kind: "out_of_range" };
@@ -62,7 +63,7 @@ const MOVES: Record<CustomRequestStatus, readonly CustomRequestStatus[]> = {
   paid: [],
   declined: [],
   expired: [],
-  no_bakery: [],
+  no_bakery: ["quoted", "cancelled"], // an admin can still quote it, or close it
   cancelled: [],
 };
 export function canMoveCustom(from: CustomRequestStatus, to: CustomRequestStatus): boolean {
