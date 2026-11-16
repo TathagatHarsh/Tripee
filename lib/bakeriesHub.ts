@@ -196,3 +196,12 @@ export function missedAreas(orders: MissedOrder[], live: LiveBakery[]) {
     })
     .sort((a, b) => b.count - a.count || b.last.getTime() - a.last.getTime());
 }
+
+// ---- Tabs row ----
+
+const TAB_LABEL: Record<HubTab, string> = { pipeline: "Pipeline", cakes: "Cakes", performance: "Performance", areas: "Areas" };
+
+/** The hub's tab chips, shaped for components/admin/Filters' FilterChips. */
+export function hubChips(tab: HubTab): { label: string; href: string; active: boolean }[] {
+  return TABS.map((t) => ({ label: TAB_LABEL[t], href: `/admin/vendors?tab=${t}`, active: t === tab }));
+}
