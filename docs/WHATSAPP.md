@@ -164,7 +164,7 @@ Sample values for Meta: `Asha`, `Chocolate Truffle · 1kg · eggless`, `Sat 10 O
 
 Parameters never contain line breaks. The first three are the texts Meta approved (the first draft was shorter, and Meta refused it with "too many variables for its length", so the fixed wording around the variables was lengthened; the variables and their order did not change). If a template is ever edited or rejected, change the matching builder in `lib/whatsappMessages.ts`.
 
-`custom_offer` and `custom_quote` have **not been submitted to Meta yet**. Submit them with the wording above. If Meta asks for changes, change the matching builder in `lib/whatsappMessages.ts` before the branch ships.
+`custom_offer` and `custom_quote` are **Active** in WABA 985694517174842 (approved 11 Nov 2026, language `en`, image header). If either is ever edited or rejected, change the matching builder in `lib/whatsappMessages.ts`.
 
 ### Custom cakes
 
