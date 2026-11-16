@@ -85,4 +85,10 @@ describe('hubChips', () => {
     expect(chips.find((c) => c.active)?.label).toBe('Cakes');
     expect(chips[2].href).toBe('/admin/vendors?tab=performance');
   });
+  it('keeps a non-default window on the windowed tabs only', () => {
+    const chips = hubChips('areas', 7);
+    expect(chips[2].href).toBe('/admin/vendors?tab=performance&days=7');
+    expect(chips[3].href).toBe('/admin/vendors?tab=areas&days=7');
+    expect(chips[0].href).toBe('/admin/vendors?tab=pipeline');
+  });
 });

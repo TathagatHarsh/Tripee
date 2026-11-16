@@ -201,7 +201,10 @@ export function missedAreas(orders: MissedOrder[], live: LiveBakery[]) {
 
 const TAB_LABEL: Record<HubTab, string> = { pipeline: "Pipeline", cakes: "Cakes", performance: "Performance", areas: "Areas" };
 
-/** The hub's tab chips, shaped for components/admin/Filters' FilterChips. */
-export function hubChips(tab: HubTab): { label: string; href: string; active: boolean }[] {
-  return TABS.map((t) => ({ label: TAB_LABEL[t], href: `/admin/vendors?tab=${t}`, active: t === tab }));
+/** The hub's tab chips, shaped for components/admin/Filters' FilterChips. A non-default window carries over between Performance and Areas. */
+export function hubChips(tab: HubTab, days: 7 | 30 | 90 = 30): { label: string; href: string; active: boolean }[] {
+  return TABS.map((t) => {
+    const keep = days !== 30 && (t === "performance" || t === "areas");
+    return { label: TAB_LABEL[t], href: `/admin/vendors?tab=${t}${keep ? `&days=${days}` : ""}`, active: t === tab };
+  });
 }
