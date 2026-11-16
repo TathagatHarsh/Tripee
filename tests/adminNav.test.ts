@@ -33,7 +33,7 @@ describe("the admin sidebar", () => {
       ],
       [
         ["Cakes", "/admin/cakes"],
-        ["Options & prices", "/admin/catalog"],
+        // "Options & prices" is held back with the 3D builder (NEXT_PUBLIC_BUILDER_ENABLED).
       ],
       [
         ["Shop", "/admin/settings"],
