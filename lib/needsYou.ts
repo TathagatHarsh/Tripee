@@ -57,9 +57,13 @@ const DAY_MS = 24 * HOUR_MS;
 
 const mins = (ms: number) => Math.floor(ms / MIN_MS);
 
-function telHref(phone: string | null | undefined): string | null {
-  const digits = (phone ?? "").replace(/\D/g, "");
-  return digits ? `tel:${digits}` : null;
+/** A dialable link in +country form; a bare 10-digit number is Indian. Null when it is not a phone. */
+export function telHref(phone: string | null | undefined): string | null {
+  let d = (phone ?? "").replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.length === 10) d = `91${d}`;
+  if (d.length === 11 && d.startsWith("0")) d = `91${d.slice(1)}`;
+  return d.length >= 11 && d.length <= 15 ? `tel:+${d}` : null;
 }
 
 const openOrder = (ref: string): NeedsYouAction => ({
@@ -68,10 +72,11 @@ const openOrder = (ref: string): NeedsYouAction => ({
   label: "Open order",
 });
 
-const assignLink = (ref: string, label: "Assign" | "Reassign"): NeedsYouAction => ({
+// Assignment is automatic, so a stuck or unheld order opens the orders workspace on it rather than offering to assign.
+const openInPanel = (ref: string): NeedsYouAction => ({
   kind: "link",
-  href: `/admin/orders/${ref}#assign`,
-  label,
+  href: `/admin/orders?view=needs&open=${encodeURIComponent(ref)}`,
+  label: "Open order",
 });
 
 // A rejected, expired or cancelled assignment no longer holds the order.
@@ -95,7 +100,7 @@ function lateItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
 
   const a = o.assignment && HELD.includes(o.assignment.state) ? o.assignment : null;
   let detail = "No bakery yet";
-  let action: NeedsYouAction = assignLink(o.ref, "Assign");
+  let action: NeedsYouAction = openInPanel(o.ref);
   // Nobody holds it but it is already in progress (e.g. the owner is baking it): assigning makes no sense.
   if (!a && o.status !== "confirmed") {
     detail = o.status === "out_for_delivery" ? "Out for delivery" : "Baking";
@@ -125,7 +130,7 @@ function stuckItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
       ...base,
       tag: `Offer expired ${mins(now.getTime() - at.getTime())} min ago`,
       detail: `${a.vendorName} did not respond`,
-      action: assignLink(o.ref, "Assign"),
+      action: openInPanel(o.ref),
     };
   }
   if (a?.state === "REJECTED") {
@@ -133,12 +138,12 @@ function stuckItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
       ...base,
       tag: "Rejected",
       detail: a.rejectionReason ? `${a.vendorName}: ${a.rejectionReason}` : `${a.vendorName} turned it down`,
-      action: assignLink(o.ref, "Reassign"),
+      action: openInPanel(o.ref),
     };
   }
   if (a && HELD.includes(a.state)) return null;
   // No assignment, or one that no longer holds the order (e.g. cancelled).
-  return { ...base, tag: "No bakery", detail: "Nobody has this order yet", action: assignLink(o.ref, "Assign") };
+  return { ...base, tag: "No bakery", detail: "Nobody has this order yet", action: openInPanel(o.ref) };
 }
 
 function newItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {

@@ -1,6 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
-import { VENDOR_STATUS_LABEL } from "@/lib/vendors";
 import type { Metadata } from "next";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
@@ -14,7 +13,10 @@ import {
 } from "@/components/admin/ui";
 import { Icon } from "@/components/admin/icons";
 import { CakePhoto } from "@/components/shop/CakePhoto";
-import { QuickAssign } from "./QuickAssign";
+import { loadNeedsYou } from "@/lib/needsYouData";
+import { loadOrderPanel } from "@/lib/orderPanelData";
+import { OrderPanel } from "@/components/admin/OrderPanel";
+import { bakeryLine, closeHref, effectiveMode, emptyStateFor, isOpenRow, needsWhereRefs, rowHref, viewWhere, type Attempt, type OrderView } from "@/lib/orderViews";
 
 /**
  * Orders, for the office rather than the bench.
@@ -26,10 +28,10 @@ import { QuickAssign } from "./QuickAssign";
  * them. Same Order table, two readings of it, and §29 asks for exactly that
  * separation.
  *
- * The one thing this page does to an order is give it to a bakery, inline, so
- * the office never opens an order just to assign it (./QuickAssign). With no
- * filters it opens on exactly those orders. Everything after that is the
- * bakery's to move; see lib/orders' ADMIN_MOVES.
+ * Assignment is automatic (nearest bakery, then the next on a no), so this page
+ * assigns nothing. It opens on "Needs action" (the home page's list), and a row
+ * opens the quick view (`?open=`) with the bakery attempts, calls and Confirm.
+ * Everything after that is the bakery's to move; see lib/orders' ADMIN_MOVES.
  *
  * ## Every field the old list showed is still here
  *
@@ -70,7 +72,7 @@ const LIMIT = 100;
 export default async function AdminOrders({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; days?: string; slot?: string; due?: string; production?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; days?: string; slot?: string; due?: string; production?: string; view?: string; open?: string }>;
 }) {
   await requireAdmin();
   if (!hasDatabase()) {
@@ -82,13 +84,16 @@ export default async function AdminOrders({
     );
   }
 
-  const { q, status, days, slot, due, production: rawProduction } = await searchParams;
+  const sp = await searchParams;
+  const { q, status, days, slot, due, production: rawProduction } = sp;
+  /* Old filter links (status/days/slot/due/production) keep the old book view; otherwise a view row (lib/orderViews). */
+  const mode = effectiveMode(sp);
   /* A bare /admin/orders is the work queue: every order not yet delivered or
      cancelled, new ones included. Any filter (or "All statuses",
      `production=all`) shows the book. */
   const production = rawProduction === "all"
     ? undefined
-    : rawProduction ?? (q || status || days || slot || due ? undefined : "open");
+    : rawProduction;
 
   const filter = STATUSES.includes(status as OrderStatus) ? (status as OrderStatus) : null;
   const window = days === "7" || days === "30" || days === "90" ? Number(days) : null;
@@ -121,6 +126,14 @@ export default async function AdminOrders({
     /* Computed from the request rather than stored, so "last 7 days" means seven
        days before this page load and not seven days before the server started. */
     where.createdAt = { gte: new Date(now.getTime() - window * 24 * 60 * 60 * 1000) };
+  }
+  /* "Needs action" is exactly the home page's list, so the two never disagree. */
+  const needsRefs = ((await loadNeedsYou().catch(() => null))?.result.items ?? [])
+    .filter((i) => i.category !== "requests")
+    .map((i) => i.key.slice(i.key.indexOf(":") + 1));
+  if (mode !== "legacy") {
+    if (mode.view === "needs") where.ref = { in: needsWhereRefs(needsRefs, LIMIT) };
+    else if (mode.view !== "all") where.AND = [viewWhere(mode.view, now)];
   }
   if (q?.trim()) {
     const term = q.trim();
@@ -157,7 +170,7 @@ export default async function AdminOrders({
       where,
       orderBy: { createdAt: "desc" },
       take: LIMIT,
-      include: { items: { orderBy: { position: "asc" } }, cakes: { select: { cakeName: true, variantLabel: true, cakeImageUrl: true } }, currentAssignment: { include: { vendor: { select: { name: true } } } } },
+      include: { items: { orderBy: { position: "asc" } }, cakes: { select: { cakeName: true, variantLabel: true, cakeImageUrl: true } }, assignments: { orderBy: { assignedAt: "asc" }, select: { assignmentStatus: true, status: true, offeredAt: true, respondedAt: true, expiresAt: true, rejectionReason: true, vendor: { select: { name: true, phone: true } } } }, currentAssignment: { include: { vendor: { select: { name: true } } } } },
     }),
     db.order.count({ where: { status: { in: ["draft", "confirmed", "in_kitchen"] } } }),
     /* Counts on the chips, and they are counts of the whole book rather than of
@@ -230,13 +243,30 @@ export default async function AdminOrders({
   ];
 
   const filtered = Boolean(q?.trim() || filter || window || slotFilter || late || production);
+  const viewEmpty = !q?.trim() ? emptyStateFor(mode) : null;
   const queue = production === "open" && !q?.trim() && !filter && !window && !slotFilter && !late;
-  const canAssign = (o: (typeof orders)[number]) =>
-    !o.currentAssignmentId && (o.status === "confirmed" || o.status === "in_kitchen");
+  if (mode !== "legacy" && mode.view === "needs") orders.sort((a, b) => needsRefs.indexOf(a.ref) - needsRefs.indexOf(b.ref));
+  const attemptsOf = (o: (typeof orders)[number]): Attempt[] =>
+    o.assignments.map((a, i) => ({
+      vendorName: a.vendor.name, vendorPhone: a.vendor.phone, state: a.assignmentStatus, production: a.status, sequence: i,
+      offeredAt: a.offeredAt, respondedAt: a.respondedAt, expiresAt: a.expiresAt, rejectionReason: a.rejectionReason,
+    }));
+  const lineOf = new Map(orders.map((o) => [o.ref, bakeryLine(o, attemptsOf(o))]));
+  const VIEW_LABEL: Record<OrderView, string> = { needs: "Needs action", today: "Today", upcoming: "Upcoming", all: "All" };
+  const viewQ = q?.trim() ? `&q=${encodeURIComponent(q.trim())}` : "";
+  const viewChips: Chip[] = (["needs", "today", "upcoming", "all"] as const).map((v) => ({
+    label: VIEW_LABEL[v],
+    href: `/admin/orders?view=${v}${viewQ}`,
+    active: mode !== "legacy" && mode.view === v,
+    ...(v === "needs" ? { count: needsRefs.length } : {}),
+  }));
+  const legacyCount = [status, days, slot, due, rawProduction].filter(Boolean).length;
+  const panel = sp.open ? await loadOrderPanel(sp.open) : null;
   const photoOf = (o: (typeof orders)[number]) => o.cakeImageUrl ?? o.cakes[0]?.cakeImageUrl ?? null;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className={sp.open ? "lg:flex lg:items-start lg:gap-6" : undefined}>
+    <div className="flex min-w-0 flex-1 flex-col gap-5">
       {/*
         No kitchen-board button. §3 moved the bench work off the owner's screens
         — see the note on app/admin/page.tsx — and the paragraph at the foot of
@@ -259,11 +289,24 @@ export default async function AdminOrders({
           }}
         />
 
-        <FilterChips label="Filter by status" chips={statusChips} />
-        <div className="flex flex-col gap-2 lg:flex-row lg:gap-6">
-          <FilterChips label="Filter by date" chips={dateChips} />
-          <FilterChips label="Filter by delivery" chips={slotChips} />
-        </div>
+        <FilterChips label="Views" chips={viewChips} />
+        <details open={mode === "legacy"}>
+          <summary className={aBtn("secondary", "md", "w-fit cursor-pointer list-none")}>
+            More filters{legacyCount ? ` (${legacyCount})` : ""}
+          </summary>
+          <div className="mt-3 flex flex-col gap-3">
+            <FilterChips label="Filter by status" chips={statusChips} />
+            <div className="flex flex-col gap-2 lg:flex-row lg:gap-6">
+              <FilterChips label="Filter by date" chips={dateChips} />
+              <FilterChips label="Filter by delivery" chips={slotChips} />
+            </div>
+            {mode === "legacy" && (
+              <Link href="/admin/orders" className="w-fit text-a-small text-a-accent-ink underline">
+                Clear
+              </Link>
+            )}
+          </div>
+        </details>
       </div>
 
       {/* The count line, which is the one thing a filtered table has to say
@@ -302,6 +345,12 @@ export default async function AdminOrders({
                 Clear all filters
               </Link>
             </EmptyState>
+          ) : viewEmpty ? (
+            <EmptyState icon="check" title={viewEmpty.title}>
+              <Link href={viewEmpty.href} className={aBtn("secondary", "md")}>
+                {viewEmpty.cta}
+              </Link>
+            </EmptyState>
           ) : (
             <EmptyState
               icon="orders"
@@ -333,13 +382,13 @@ export default async function AdminOrders({
                 }
               >
                 {orders.map((o) => (
-                  <Tr key={o.id}>
+                  <Tr key={o.id} className={isOpenRow(sp, o.ref) ? "bg-a-sunken" : undefined}>
                     <Td>
                       <span className="flex gap-3">
                       <Thumb src={photoOf(o)} name={o.cakes[0]?.cakeName ?? o.cakeName ?? "cake"} />
                       <span className="min-w-0">
                       <Link
-                        href={`/admin/orders/${o.ref}`}
+                        href={rowHref(sp, o.ref)} scroll={false} aria-current={isOpenRow(sp, o.ref) ? "true" : undefined}
                         className="font-a-mono text-a-small font-semibold tracking-[0.03em] text-a-ink underline decoration-transparent underline-offset-2 transition-colors hover:decoration-a-accent"
                       >
                         {o.ref}
@@ -380,6 +429,7 @@ export default async function AdminOrders({
 
                     <Td>
                       <OrderStatusBadge status={o.status} label={STATUS_LABEL[o.status]} />
+                      {lineOf.get(o.ref) ? <span className="mt-1 block text-a-small text-a-muted">{lineOf.get(o.ref)}</span> : null}
                       {!isClosed(o.status) && (
                         <StatusBadge
                           tone={inCancelWindow(o.createdAt, now) ? "warn" : "plain"}
@@ -387,8 +437,6 @@ export default async function AdminOrders({
                           label={`Placed ${placedAgo(o.createdAt, now)}`}
                         />
                       )}
-                      <p className="mt-1 text-sm">{o.currentAssignment?.vendor.name ?? 'Unassigned'}</p>
-                      {o.currentAssignment && <p className="text-xs text-a-muted">{VENDOR_STATUS_LABEL[o.currentAssignment.status]}</p>}
                     </Td>
 
                     <Td>
@@ -445,14 +493,10 @@ export default async function AdminOrders({
                     </Td>
 
                     <Td align="right">
-                      {canAssign(o) ? (
-                        <QuickAssign orderRef={o.ref} />
-                      ) : (
-                        <Link href={`/admin/orders/${o.ref}`} className={aBtn("ghost", "sm")}>
-                          View
-                          <Icon name="chevronRight" size={13} />
-                        </Link>
-                      )}
+                      <Link href={rowHref(sp, o.ref)} scroll={false} className={aBtn("ghost", "sm")}>
+                        View
+                        <Icon name="chevronRight" size={13} />
+                      </Link>
                     </Td>
                   </Tr>
                 ))}
@@ -464,8 +508,8 @@ export default async function AdminOrders({
               {orders.map((o) => (
                 <li key={o.id} className="border-b border-a-line last:border-0">
                   <Link
-                    href={`/admin/orders/${o.ref}`}
-                    className="flex flex-col gap-2.5 p-3.5 transition-colors active:bg-a-sunken"
+                    href={rowHref(sp, o.ref)} scroll={false} aria-current={isOpenRow(sp, o.ref) ? "true" : undefined}
+                    className={`flex flex-col gap-2.5 p-3.5 transition-colors active:bg-a-sunken${isOpenRow(sp, o.ref) ? " bg-a-sunken" : ""}`}
                   >
                     <span className="flex flex-wrap items-center justify-between gap-2">
                       <span className="flex items-center gap-2.5">
@@ -481,6 +525,7 @@ export default async function AdminOrders({
 
                     <span className="flex flex-wrap items-center gap-2">
                       <OrderStatusBadge status={o.status} label={STATUS_LABEL[o.status]} />
+                      {lineOf.get(o.ref) ? <span className="mt-1 block text-a-small text-a-muted">{lineOf.get(o.ref)}</span> : null}
                       {!isClosed(o.status) && (
                         <StatusBadge
                           tone={inCancelWindow(o.createdAt, now) ? "warn" : "plain"}
@@ -488,8 +533,6 @@ export default async function AdminOrders({
                           label={`Placed ${placedAgo(o.createdAt, now)}`}
                         />
                       )}
-                      <p className="mt-1 text-sm">{o.currentAssignment?.vendor.name ?? 'Unassigned'}</p>
-                      {o.currentAssignment && <p className="text-xs text-a-muted">{VENDOR_STATUS_LABEL[o.currentAssignment.status]}</p>}
                       {o.allergens.length > 0 && (
                         <StatusBadge tone="warn" dot={false} label={o.allergens.join(", ")} />
                       )}
@@ -512,11 +555,6 @@ export default async function AdminOrders({
                       </span>
                     </span>
                   </Link>
-                  {canAssign(o) && (
-                    <div className="flex justify-end px-3.5 pb-3.5">
-                      <QuickAssign orderRef={o.ref} />
-                    </div>
-                  )}
                 </li>
               ))}
             </ul>
@@ -525,10 +563,12 @@ export default async function AdminOrders({
       </Card>
 
       <p className="max-w-3xl text-a-small leading-relaxed text-a-muted">
-        Assign an order here and the bakery takes it from there: accepting,
-        preparing, sending it out and marking it delivered. Open a reference to
-        read the whole order and follow each step.
+        Orders go to the nearest bakery automatically, and on to the next one if
+        a bakery says no. Tap an order to see where it is and call the customer
+        or the bakery; open the full order for payments, refunds and the timeline.
       </p>
+    </div>
+      {sp.open ? <OrderPanel data={panel} closeHref={closeHref(sp)} /> : null}
     </div>
   );
 }
