@@ -62,7 +62,7 @@ describe("late", () => {
       category: "late",
       tag: "Late · 20 min",
       detail: "Sweet Oven · baking",
-      action: { kind: "link", href: "tel:919876543210", label: "Call bakery" },
+      action: { kind: "link", href: "tel:+919876543210", label: "Call bakery" },
     });
   });
 
@@ -135,7 +135,7 @@ describe("new and requests", () => {
     const { items } = run({ orders: [order({ status: "draft", createdAt: ago(4), paymentLabel: "UPI", assignment: null })] });
     expect(items[0].detail).toBe("Placed 4 min ago · UPI");
     expect(items[0].action).toEqual({ kind: "confirm", ref: "MMC-1", label: "Confirm" });
-    expect(items[0].secondary).toMatchObject({ href: "tel:919000011111", label: "Call" });
+    expect(items[0].secondary).toMatchObject({ href: "tel:+919000011111", label: "Call" });
   });
 
   it("review, quote, follow-up links", () => {
@@ -199,5 +199,16 @@ describe("parseOnly", () => {
     expect(parseOnly("bogus")).toBe("all");
     expect(parseOnly(undefined)).toBe("all");
     expect(parseOnly(["new"])).toBe("new");
+  });
+});
+
+describe("telHref", () => {
+  it("always dials in +country form", async () => {
+    const { telHref } = await import("../lib/needsYou");
+    expect(telHref("+91 98765 43210")).toBe("tel:+919876543210");
+    expect(telHref("98765 43210")).toBe("tel:+919876543210");
+    expect(telHref("09876543210")).toBe("tel:+919876543210");
+    expect(telHref("123")).toBeNull();
+    expect(telHref("  ")).toBeNull();
   });
 });

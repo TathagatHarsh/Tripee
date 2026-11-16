@@ -57,9 +57,13 @@ const DAY_MS = 24 * HOUR_MS;
 
 const mins = (ms: number) => Math.floor(ms / MIN_MS);
 
-function telHref(phone: string | null | undefined): string | null {
-  const digits = (phone ?? "").replace(/\D/g, "");
-  return digits ? `tel:${digits}` : null;
+/** A dialable link in +country form; a bare 10-digit number is Indian. Null when it is not a phone. */
+export function telHref(phone: string | null | undefined): string | null {
+  let d = (phone ?? "").replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.length === 10) d = `91${d}`;
+  if (d.length === 11 && d.startsWith("0")) d = `91${d.slice(1)}`;
+  return d.length >= 11 && d.length <= 15 ? `tel:+${d}` : null;
 }
 
 const openOrder = (ref: string): NeedsYouAction => ({
