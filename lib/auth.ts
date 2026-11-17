@@ -103,6 +103,11 @@ function displayName(user: User | null): string | null {
  * (staff, another bakery), the role write and burning the token are one
  * transaction, so a link works once.
  *
+ * ## The other exception: admins making admins
+ *
+ * app/admin/staff/actions.ts can set ADMIN or CUSTOMER, for an admin only, with
+ * the rules in lib/staffRoles (re-checked under a lock, never the last admin).
+ *
  * `currentUser()` is called only on the miss, so the round trip to Clerk
  * happens once in a person's lifetime rather than on every request.
  */

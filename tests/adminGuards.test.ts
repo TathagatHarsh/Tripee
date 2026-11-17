@@ -22,6 +22,6 @@ describe('admin pages', () => {
   it('finds the admin pages', () => expect(files.length).toBeGreaterThan(15));
   it.each(files)('%s calls requireAdmin() before anything else', (file) => {
     const body = /export default async function \w*\([\s\S]*?\)(?::[^{]+)?\s*\{\s*([^\n]*)/.exec(readFileSync(file, 'utf8'));
-    expect(body?.[1]).toBe('await requireAdmin();');
+    expect(body?.[1]).toMatch(/^(const \w+ = )?await requireAdmin\(\);$/);
   });
 });
