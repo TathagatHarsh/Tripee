@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   const saved = await db.$transaction(async (tx) => {
     await lockAssignments(tx);
     const vendor = await tx.vendor.findUnique({ where: { id: vendorId } });
-    if (!vendor?.isActive) return false;
+    if (!vendor) return false;
     const result = await tx.vendor.update({
       where: { id: vendorId },
       data: { latitude: lat, longitude: lng, serviceRadiusKm: radiusKm, locationSetAt: new Date(), ...(address ? { address } : {}) },

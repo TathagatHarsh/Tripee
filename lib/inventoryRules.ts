@@ -13,6 +13,10 @@ export function variantNeeds(order: OrderedVariant & { cakes: OrderedVariant[] }
   }
   return needs;
 }
+// The only gate between a cake variant and an order: on, and not paused.
+export function isOfferable(row: { isAvailable: boolean; pausedUntil: Date | null } | undefined, now = new Date()) {
+  return !!row && row.isAvailable && (!row.pausedUntil || row.pausedUntil <= now);
+}
 export function meetsDeadline(deadline: Date | null, preparationMinutes: number, travelMinutes: number, now = new Date()) {
   return !deadline || now.getTime() + (preparationMinutes + travelMinutes) * 60000 <= deadline.getTime();
 }

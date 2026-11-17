@@ -1,0 +1,63 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('server-only', () => ({}));
+const mocks = vi.hoisted(() => ({ viewer: vi.fn(), transaction: vi.fn() }));
+vi.mock('../lib/auth', () => ({ getViewer: mocks.viewer }));
+vi.mock('../lib/db', () => ({ db: { $transaction: mocks.transaction } }));
+vi.mock('../lib/assignment', () => ({ lockAssignments: vi.fn() }));
+vi.mock('../lib/portalNotifications', () => ({ portalEvent: vi.fn() }));
+import { POST } from '../app/api/vendor/availability/route';
+
+const request = (data: unknown) => new Request('http://localhost/api/vendor/availability', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
+const run = (vendor: object | null, update = vi.fn().mockResolvedValue({ id: 'v1', updatedAt: new Date() })) => {
+  mocks.viewer.mockResolvedValue({ userId: 'u', profile: { role: 'VENDOR', vendorId: 'v1' } });
+  mocks.transaction.mockImplementation(async fn => fn({ vendor: { findUnique: async () => vendor, update } }));
+  return update;
+};
+describe('vendor availability route', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it('refuses accepting or busy until the bakery is approved', async () => {
+    for (const availability of ['accepting', 'busy']) {
+      const update = run({ id: 'v1', name: 'B', isActive: false });
+      const res = await POST(request({ availability, preparationMinutes: 60, capacity: 3, radiusKm: 5 }));
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'Available once MakeYourCakes approves your bakery' });
+      expect(update).not.toHaveBeenCalled();
+    }
+  });
+  it('lets an unapproved bakery save details with closed', async () => {
+    const update = run({ id: 'v1', name: 'B', isActive: false });
+    expect((await POST(request({ availability: 'closed', preparationMinutes: 60, capacity: 3, radiusKm: 5 }))).status).toBe(200);
+    expect(update).toHaveBeenCalled();
+  });
+  it('saves the radius and confirms details', async () => {
+    const update = run({ id: 'v1', name: 'B', isActive: true });
+    expect((await POST(request({ availability: 'accepting', preparationMinutes: 90, capacity: 4, radiusKm: 8 }))).status).toBe(200);
+    const data = update.mock.calls[0][0].data;
+    expect(data.serviceRadiusKm).toBe(8);
+    expect(data.detailsConfirmedAt).toBeInstanceOf(Date);
+  });
+  it('does not confirm details when an admin saves', async () => {
+    const update = run({ id: 'v1', name: 'B', isActive: true });
+    mocks.viewer.mockResolvedValue({ userId: 'a', profile: { role: 'ADMIN' } });
+    expect((await POST(request({ vendorId: 'v1', availability: 'accepting', preparationMinutes: 90, capacity: 4, radiusKm: 8 }))).status).toBe(200);
+    const data = update.mock.calls[0][0].data;
+    expect(data.serviceRadiusKm).toBe(8);
+    expect(data).not.toHaveProperty('detailsConfirmedAt');
+  });
+  it('saves availability alone without confirming details', async () => {
+    const update = run({ id: 'v1', name: 'B', isActive: true });
+    expect((await POST(request({ availability: 'busy' }))).status).toBe(200);
+    const data = update.mock.calls[0][0].data;
+    expect(data.isBusy).toBe(true);
+    for (const k of ['preparationMinutes', 'maxConcurrentOrders', 'serviceRadiusKm', 'detailsConfirmedAt']) expect(data).not.toHaveProperty(k);
+  });
+  it('needs the whole details group or none', async () => {
+    expect((await POST(request({ availability: 'closed', preparationMinutes: 60 }))).status).toBe(400);
+  });
+  it('rejects a radius alone', async () => {
+    expect((await POST(request({ availability: 'closed', radiusKm: 5 }))).status).toBe(400);
+  });
+  it('rejects a radius outside 1 to 25', async () => {
+    for (const radiusKm of [0, 26, 51]) expect((await POST(request({ availability: 'closed', preparationMinutes: 60, capacity: 3, radiusKm }))).status).toBe(400);
+  });
+});

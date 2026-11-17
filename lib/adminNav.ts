@@ -1,52 +1,38 @@
 import type { CatalogCategory } from "@prisma/client";
+import { BUILDER_ENABLED } from "./flags";
 
 /**
  * The portal's own map of itself.
  *
- * Here rather than inside the sidebar component for two reasons. The sidebar is
- * a client component (it needs `usePathname` to mark the current item) and the
- * breadcrumb, the page titles and the catalogue overview are all server-rendered
- * — a list that lived in the client component would have to be duplicated for
- * them, and the copy that goes stale is always the one nobody is looking at. And
- * this file has no imports beyond a type, so it costs the client bundle nothing.
+ * Here rather than inside the sidebar component because the sidebar is a client
+ * component (it needs `usePathname`) while the breadcrumb, page titles and the
+ * catalogue overview are server-rendered; a list inside the client component
+ * would have to be duplicated for them. This file imports only a type, so it
+ * costs the client bundle nothing.
  *
- * ## Sections, and why these four
+ * ## Groups
  *
- * §5 of the brief asks for OVERVIEW / OPERATIONS / CATALOGUE / BUSINESS, and the
- * grouping earns itself: they are four different jobs done at four different
- * times of day. Operations is the morning — what came in, what is late, what
- * goes out. Catalogue is a Tuesday afternoon decision about what the shop sells.
- * Business is the thing you touch twice a year.
+ * Home, Orders, Bakeries, Catalogue, Settings: the jobs in the order of the
+ * day. Orders and Bakeries are the morning, Catalogue is a Tuesday-afternoon
+ * decision about what the shop sells, Settings is touched twice a year.
  *
  * ## Routes are reused, never restructured
  *
- * Every href below already existed (/admin, /admin/orders, /admin/orders/today,
- * /admin/vendors, /admin/delivery, /admin/cakes, /admin/settings, /admin/staff).
- * Nothing was moved, so no bookmark, no link in an email and no test breaks —
- * which is what §5's "do not unnecessarily restructure backend routes" is
- * protecting.
+ * Every href already existed. Only grouping and labels changed, so no bookmark,
+ * no link in an email and no test breaks.
  *
  * ## What is deliberately NOT in this list
  *
- * Two things came off the sidebar in this phase. Neither was removed from the
- * tree, and both still answer on their own addresses.
- *
  * **The kitchen board.** /kitchen still exists and KITCHEN staff still land on
- * it; it is off the owner's sidebar because the owner is not the person making
- * the cake. §3 is the correction: the admin confirms orders and decides who
- * bakes them, and the bench work belongs to whoever is at the bench. A partner
- * bakery now has a board of its own at /vendor, drawn from the *vendor* state
- * machine rather than this one.
+ * it; it is off the owner's sidebar because the owner confirms orders and
+ * decides who bakes them. A partner bakery has a board of its own at /vendor.
  *
- * **The builder's option pages.** /admin/catalog and everything under it is
- * untouched and still reachable by address: `priceCake` reads those rows, the
- * 3D builder quotes from them, and every order placed before CakeProduct was
- * written against them. They are off the sidebar because the builder is switched
- * off (lib/flags), and a catalogue offering an owner four pages of sponge and
- * topping prices that no customer can currently choose from is four pages of
- * work with no effect on anything for sale. §15: take them out of the active
- * workflow, leave the implementation alone. When the builder comes back, so do
- * those five lines.
+ * **The builder's option pages** under /admin/catalog/ingredients, /addons and
+ * /pricing. They are a parts list for the 3D builder, which is switched off
+ * (lib/flags), so linking four pages of sponge and topping prices that no
+ * customer can currently choose from is work with no effect. "Options &
+ * prices" below goes to the catalogue overview only. When the builder comes
+ * back, the group pages are already there to link to.
  */
 
 export interface NavItem {
@@ -72,65 +58,54 @@ export interface NavSection {
 
 export const NAV: NavSection[] = [
   {
-    label: "Overview",
-    items: [{ href: "/admin", label: "Dashboard", icon: "home" }],
+    label: "Home",
+    items: [{ href: "/admin", label: "Home", icon: "home" }],
   },
   {
-    label: "Operations",
+    label: "Orders",
     items: [
       { href: "/admin/orders", label: "Orders", icon: "orders", nested: true },
+      /*
+       * The delivery *board* — what is going out today — not the delivery
+       * *settings* under Settings. Not `nested`: the route sits under
+       * /admin/orders, and a prefix match would light this up on every order's
+       * detail page.
+       */
+      { href: "/admin/orders/today", label: "Deliveries today", icon: "delivery" },
       { href: "/admin/custom-requests", label: "Custom requests", icon: "cake", nested: true },
-      { href: "/admin/payments", label: "Payment follow-up", icon: "pricing", nested: true },
-      /*
-       * Operations rather than Business, and beside Orders rather than beside
-       * Staff. A vendor is not a person the shop employs and not a setting
-       * somebody touches twice a year — deciding who bakes today's order is the
-       * same morning's work as reading the order book, which is what this
-       * section is.
-       */
-      /*
-       * The delivery *board* — what is going out today — rather than the
-       * delivery *settings* below it. Two different jobs sharing a word: one is
-       * read every morning with a van outside, the other is touched when a rider
-       * is hired. Above Vendors, because the day comes before who is baking it.
-       *
-       * Not `nested`, because the route sits under /admin/orders and marking it
-       * as a prefix would light this item up on every order's detail page. An
-       * exact hit is the right rule for a board with one address.
-       */
-      { href: "/admin/orders/today", label: "Deliveries", icon: "delivery" },
-      { href: "/admin/inventory", label: "Cake Availability", icon: "cake", nested: true, partnersOnly: true },
-      { href: "/admin/vendors", label: "Vendors", icon: "vendor", nested: true },
-      /* Renamed from "Delivery", which read as though it were the board above.
-         The route is untouched — §5's "do not unnecessarily restructure backend
-         routes" is about addresses, and this is a word on a sidebar. */
-      { href: "/admin/delivery", label: "Slots & zones", icon: "pricing", nested: true },
+      { href: "/admin/payments", label: "Payments", icon: "pricing", nested: true },
+    ],
+  },
+  {
+    label: "Bakeries",
+    items: [
+      /* A bakery is not an employee or a setting: deciding who bakes today's
+         order is the same morning's work as reading the order book. */
+      { href: "/admin/vendors", label: "Bakeries", icon: "vendor", nested: true },
+      { href: "/admin/inventory", label: "Cake availability", icon: "cake", nested: true, partnersOnly: true },
     ],
   },
   {
     label: "Catalogue",
     items: [
       /*
-       * The cakes customers buy, and the first item in this section because it
-       * is the one an owner opens.
-       *
-       * It used to be "/admin/catalog/cakes", which was the shape-and-size
-       * *options* the 3D builder assembles a cake from — a page that answered
-       * "what does a hexagon cost" under a label that promised Chocolate
-       * Truffle. §20 is about exactly that confusion: an administrator must not
-       * be led to think they change the cake a customer sees by editing catalog
-       * options. So "Cakes" now means cakes, and it is the only thing in this
-       * section: with the 3D builder switched off, a preset cake is the whole of
-       * what the shop sells. The header note says where the builder's option
-       * pages went and why they are still there.
+       * The cakes customers buy (CakeProduct), not the builder's shape-and-size
+       * options: §20 is about an owner being led to think editing options
+       * changes the cake a customer sees.
        */
       { href: "/admin/cakes", label: "Cakes", icon: "cake", nested: true },
+      /* The builder's parts list; held back with the builder (app/admin/catalog/layout). */
+      ...(BUILDER_ENABLED
+        ? [{ href: "/admin/catalog", label: "Options & prices", icon: "pricing", nested: true }]
+        : []),
     ],
   },
   {
-    label: "Business",
+    label: "Settings",
     items: [
-      { href: "/admin/settings", label: "Bakery", icon: "bakery", nested: true },
+      { href: "/admin/settings", label: "Shop", icon: "bakery", nested: true },
+      /* Not the delivery board above; the route is untouched. */
+      { href: "/admin/delivery", label: "Delivery slots", icon: "delivery", nested: true },
       { href: "/admin/staff", label: "Staff", icon: "staff", nested: true },
     ],
   },

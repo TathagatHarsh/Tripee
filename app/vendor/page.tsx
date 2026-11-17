@@ -1,11 +1,15 @@
 import { AssignmentRefresh } from "@/components/assignment/Refresh";
 import Link from "next/link";
-import { requireVendor } from "@/lib/auth";
-import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
+import { requireVendorSetup } from "@/lib/auth";
+import { hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { dueAt } from "@/lib/orders";
 import { dueUrgency, VENDOR_COLUMNS, VENDOR_SENT_OUT_COLUMN } from "@/lib/vendors";
 import { Notice, StatCard } from "@/components/admin/ui";
-import { vendorBoard } from "./data";
+import { vendorBoard, vendorSetup, pausedRows } from "./data";
+import { ChecklistCard } from "@/components/vendor/ChecklistCard";
+import { StatusSwitch } from "@/components/vendor/StatusSwitch";
+import { LiveNote } from "@/components/vendor/LiveNote";
+import { ResumeButton } from "@/components/vendor/ResumeButton";
 import { OrderTicket } from "./OrderTicket";
 import { filterQueue, QueueFilters, type QueueQuery } from "./QueueFilters";
 export const dynamic = "force-dynamic";
@@ -14,14 +18,23 @@ export default async function KitchenBoard({
 }: {
   searchParams: Promise<QueueQuery>;
 }) {
-  const { vendor } = await requireVendor();
+  const { vendor } = await requireVendorSetup();
   if (!hasDatabase()) return <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>;
-  const [all, query] = await Promise.all([
+  if (!vendor.isActive) {
+    const { steps, stage } = await vendorSetup(vendor.id);
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col gap-5">
+        <h1 className="font-a-sans text-a-title font-bold text-a-ink">Welcome, {vendor.name}</h1>
+        <ChecklistCard steps={steps} stage={stage} />
+        <StatusSwitch vendorId={vendor.id} accepting="closed" active={false} />
+      </div>
+    );
+  }
+  const [all, query, paused] = await Promise.all([
     vendorBoard(vendor.id),
     searchParams,
+    pausedRows(vendor.id),
   ]);
-  const inventory = await db.vendorInventory.findMany({ where: { vendorId: vendor.id } });
-  const available = inventory.filter(i => i.isAvailable).length;
   const now = new Date();
   const board = filterQueue(all, query, now);
   const waiting = all.filter((c) => c.status === "assigned").length;
@@ -30,6 +43,8 @@ export default async function KitchenBoard({
   ).length;
   return (
     <div className="flex flex-col gap-6"><AssignmentRefresh/>
+      <LiveNote vendorId={vendor.id} />
+      <StatusSwitch vendorId={vendor.id} accepting={!vendor.isAcceptingOrders ? "closed" : vendor.isBusy ? "busy" : "accepting"} active />
       {!vendor.locationSetAt && (
         <Notice tone="warn">
           Set your bakery location to start getting orders.{" "}
@@ -81,17 +96,14 @@ export default async function KitchenBoard({
           note="Due soon or overdue"
         />
       </div>
-      <div className="flex flex-wrap justify-between gap-3 rounded-xl border border-a-line bg-a-surface p-4">
-        <Link href="/vendor/profile" className="font-semibold underline">{!vendor.isAcceptingOrders ? '○ Not accepting orders' : vendor.isBusy ? '◷ Busy' : '✓ Accepting orders'} · {all.length}/{vendor.maxConcurrentOrders} capacity</Link>
-        <Link href="/vendor/inventory" className="font-semibold underline">Cake Availability · {available} available · {inventory.length - available} unavailable</Link>
-      </div>
+      <h2 className="font-a-sans text-a-lede font-bold text-a-ink">Today</h2>
       <QueueFilters query={query} />
       <p className="text-a-small text-a-muted">
         Showing {board.length} of {all.length} active orders · sorted by due
         time
       </p>
       {board.length === 0 ? (
-        <div className="rounded-a border border-dashed border-a-line-strong bg-a-surface px-6 py-14 text-center">
+        <div className="rounded-a border border-dashed border-a-line-strong bg-a-surface px-6 py-10 text-center">
           <h2 className="text-a-lede font-semibold">
             {all.length
               ? "No orders match these filters."
@@ -140,6 +152,22 @@ export default async function KitchenBoard({
             );
           })}
         </div>
+      )}
+      {paused.length > 0 && (
+        <section aria-labelledby="paused-title" className="rounded-a border border-a-line bg-a-surface p-4 shadow-a-card sm:p-5">
+          <h2 id="paused-title" className="font-a-sans text-a-lede font-bold text-a-ink">Paused right now</h2>
+          <ul className="mt-3 flex flex-col gap-2">
+            {paused.map((row) => (
+              <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-a border border-a-line px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-a-body font-medium text-a-ink">{row.productName} · {row.sizeBand} · {row.eggType}</p>
+                  <p className="text-a-meta text-a-muted">Back {row.pausedUntil!.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</p>
+                </div>
+                <ResumeButton vendorId={vendor.id} id={row.id} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );

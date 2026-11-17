@@ -63,22 +63,6 @@ export function AssignmentRulesForm({ vendor: v }: { vendor: Vendor }) {
         />{" "}
         Accepting new orders
       </label>
-      <label className="block">
-        <input
-          type="checkbox"
-          name="fulfillsAllProducts"
-          defaultChecked={v.fulfillsAllProducts}
-        />{" "}
-        Can fulfill all products and custom cakes
-      </label>
-      <label className="block text-sm">
-        Otherwise, supported product IDs (comma separated)
-        <input
-          name="supportedProductIds"
-          className={aField("mt-1 w-full")}
-          defaultValue={v.supportedProductIds.join(", ")}
-        />
-      </label>
       <label className="block text-sm">
         Unavailable until (UTC)
         <input

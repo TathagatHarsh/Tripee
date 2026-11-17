@@ -8,7 +8,7 @@ import { log } from "./log";
 import { handOver, vendorDeliveryMove } from "./vendorTransition";
 import { VENDOR_STATUS_LABEL } from "./vendors";
 import { adminNumbers, normalizePhone, sendWhatsApp } from "./whatsapp";
-import { acceptedMessage, handedOverMessage, queueWhatsApp, rupees, textMessage } from "./whatsappMessages";
+import { acceptedMessage, handedOverMessage, orderContacts, queueWhatsApp, rupees, textMessage } from "./whatsappMessages";
 
 export type InboundAction = "accept" | "reject" | "start" | "ready" | "handover" | "deliver";
 export interface ParsedInbound { action: InboundAction; assignmentId?: string; ref?: string }
@@ -21,6 +21,11 @@ const WORDS: Record<string, InboundAction> = {
   "handed over": "handover", handover: "handover", "picked up": "handover", done: "handover", "ready for collection": "handover",
   delivered: "deliver", "order delivered": "deliver", collected: "deliver", "order collected": "deliver",
 };
+
+async function acceptContacts(orderId: string) {
+  const o = await db.order.findUnique({ where: { id: orderId }, select: { customerName: true, customerPhone: true, recipientName: true, deliveryLocation: true } });
+  return o ? orderContacts(o) : {};
+}
 
 export function parseInbound(input: { text?: string | null; payload?: string | null }): ParsedInbound | null {
   const button = /^(accept|reject|start|ready|handover|deliver):(\S+)$/.exec(input.payload ?? "");
@@ -164,7 +169,7 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
   try {
     if (action === "accept" || action === "reject") {
       const res = await respondToAssignment(vendorId, orderRef, id, action === "accept" ? "ACCEPTED" : "REJECTED", action === "reject" ? "Rejected on WhatsApp" : undefined);
-      message = !res.ok ? textMessage(res.message) : action === "accept" ? acceptedMessage(orderRef, id, pickup) : textMessage(`Okay, ${orderRef} has been passed on.`);
+      message = !res.ok ? textMessage(res.message) : action === "accept" ? acceptedMessage({ ref: orderRef, assignmentId: id, pickup, ...(await acceptContacts(orderId)) }) : textMessage(`Okay, ${orderRef} has been passed on.`);
     } else if (action === "handover") {
       message = (await handOver(vendorId, orderRef, id, null)) ? handedOverMessage(orderRef, id, pickup) : textMessage(NOT_POSSIBLE(orderRef));
     } else if (action === "deliver") {

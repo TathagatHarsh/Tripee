@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('../lib/log', () => ({ log: vi.fn() }));
 vi.mock('../lib/db', () => ({ db: {} }));
 import { photoUrl, type WhatsAppMessage } from '../lib/whatsapp';
-import { acceptedMessage, handedOverMessage, adminNewOrderMessage, cleanParam, customOfferMessage, customQuoteMessage, formatDue, offerMessage, queueWhatsApp, rupees, textMessage, updateMessage } from '../lib/whatsappMessages';
+import { acceptedMessage, orderContacts, handedOverMessage, adminNewOrderMessage, cleanParam, customOfferMessage, customQuoteMessage, formatDue, offerMessage, queueWhatsApp, rupees, textMessage, updateMessage, verifyCodeMessage } from '../lib/whatsappMessages';
 
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks(); });
 
@@ -31,11 +31,18 @@ describe('builders', () => {
     const body = bodyTexts(offerMessage(facts, { assignmentId: 'as1', distanceKm: null, earningPaise: null, replyMinutes: 15 }));
     expect(body[4]).toBe('?'); expect(body[5]).toBe('-');
   });
-  it('adminNewOrderMessage: photo + [ref, rupees, cake, due, area]', () => {
-    const m = adminNewOrderMessage(facts);
-    expect(m).toMatchObject({ type: 'template', name: 'admin_new_order' });
+  it('adminNewOrderMessage: photo + [ref, rupees, cake, due, area, contact]', () => {
+    const m = adminNewOrderMessage({ ...facts, customerContact: 'Asha · +91 98765 43210' });
+    expect(m).toMatchObject({ type: 'template', name: 'admin_new_order_v2' });
     expect(params(m, 'header')[0].image.link).toContain('/api/whatsapp/photo/ord1?s=');
-    expect(bodyTexts(m)).toEqual(['MC-AB12CD', '1,250', 'Chocolate Truffle · 1kg · eggless · message "Happy Birthday"', 'Sat 10 Oct, 4:00 pm', 'Jubilee Hills, Hyderabad 500033']);
+    expect(bodyTexts(m)).toEqual(['MC-AB12CD', '1,250', 'Chocolate Truffle · 1kg · eggless · message "Happy Birthday"', 'Sat 10 Oct, 4:00 pm', 'Jubilee Hills, Hyderabad 500033', 'Asha · +91 98765 43210']);
+  });
+  it('adminNewOrderMessage contact: someone-else order, and "-" when missing', () => {
+    const c = orderContacts({ customerName: 'Asha', customerPhone: '9876543210', recipientName: 'Ravi', deliveryLocation: { phone: '9123456789' } });
+    expect(c.admin).toBe('Asha · +91 98765 43210 (deliver to Ravi · +91 91234 56789)');
+    expect(bodyTexts(adminNewOrderMessage({ ...facts, customerContact: c.admin }))[5]).toBe(c.admin);
+    expect(bodyTexts(adminNewOrderMessage(facts))).toHaveLength(6);
+    expect(bodyTexts(adminNewOrderMessage(facts))[5]).toBe('-');
   });
   it('updateMessage: [ref, text]', () => {
     const m = updateMessage('MC-1', 'Sweet Crumbs accepted');
@@ -45,12 +52,31 @@ describe('builders', () => {
   it('updateMessage allows 400 chars of text', () => {
     expect(bodyTexts(updateMessage('MC-1', 'y'.repeat(500)))[1]).toBe('y'.repeat(399) + '…');
   });
-  it('acceptedMessage offers the three steps', () => {
-    expect(acceptedMessage('MC-1', 'as1')).toEqual({ type: 'buttons', body: 'MC-1 is yours. Tap each step as you go.',
-      buttons: [{ id: 'start:as1', title: 'Started' }, { id: 'ready:as1', title: 'Ready' }, { id: 'handover:as1', title: 'Handed over' }] });
+  const steps = [{ id: 'start:as1', title: 'Started' }, { id: 'ready:as1', title: 'Ready' }, { id: 'handover:as1', title: 'Handed over' }];
+  const asha = { name: 'Asha', phone: '9876543210' };
+  it('acceptedMessage gives the customer contact and the three steps', () => {
+    expect(acceptedMessage({ ref: 'MC-1', assignmentId: 'as1', customer: asha })).toEqual({ type: 'buttons',
+      body: 'MC-1 is yours. Customer: Asha · +91 98765 43210. Tap each step as you go.', buttons: steps });
+  });
+  it('acceptedMessage formats a stored +91 number, falls back to raw and "Customer"', () => {
+    expect(acceptedMessage({ ref: 'MC-1', assignmentId: 'as1', customer: { name: ' Asha ', phone: '+91 98765 43210' } }).body).toContain('Customer: Asha · +91 98765 43210.');
+    expect(acceptedMessage({ ref: 'MC-1', assignmentId: 'as1', customer: { name: null, phone: ' 12345 ' } }).body).toContain('Customer: Customer · 12345.');
+  });
+  it('acceptedMessage adds the receiver for someone-else orders', () => {
+    expect(acceptedMessage({ ref: 'MC-1', assignmentId: 'as1', customer: asha, recipient: { name: 'Ravi', phone: '91234 56789' } }).body)
+      .toBe('MC-1 is yours. Customer: Asha · +91 98765 43210. Deliver to: Ravi · +91 91234 56789. Tap each step as you go.');
   });
   it('acceptedMessage words the last step as collection for a pickup', () => {
-    expect(acceptedMessage('MC-1', 'as1', true).buttons[2]).toEqual({ id: 'handover:as1', title: 'Ready for collection' });
+    expect(acceptedMessage({ ref: 'MC-1', assignmentId: 'as1', pickup: true, customer: asha }).buttons[2]).toEqual({ id: 'handover:as1', title: 'Ready for collection' });
+  });
+  it('acceptedMessage without a customer keeps the plain wording', () => {
+    expect(acceptedMessage({ ref: 'MC-1', assignmentId: 'as1' }).body).toBe('MC-1 is yours. Tap each step as you go.');
+  });
+  it('orderContacts only reports a recipient who differs from the customer', () => {
+    const o = { customerName: 'Asha', customerPhone: '9876543210', recipientName: 'Asha', deliveryLocation: { phone: '9876543210' } };
+    expect(orderContacts(o).recipient).toBeUndefined();
+    expect(orderContacts({ ...o, recipientName: 'Ravi', deliveryLocation: { phone: '9123456789' } }).recipient).toEqual({ name: 'Ravi', phone: '9123456789' });
+    expect(orderContacts({ ...o, recipientName: null, deliveryLocation: null }).recipient).toBeUndefined();
   });
   it('handedOverMessage offers the final step, delivered or collected', () => {
     expect(handedOverMessage('MC-1', 'as1', false)).toEqual({ type: 'buttons', body: "✅ MC-1: out for delivery. Tap Delivered when the customer has the cake.",
@@ -59,6 +85,13 @@ describe('builders', () => {
       buttons: [{ id: 'deliver:as1', title: 'Collected' }] });
   });
   it('textMessage wraps the body', () => { expect(textMessage('hi')).toEqual({ type: 'text', body: 'hi' }); });
+  it('verifyCodeMessage: code in body and copy-code button 0', () => {
+    const m = verifyCodeMessage('042917');
+    expect(m).toEqual({ type: 'template', name: 'verify_code', components: [
+      { type: 'body', parameters: [{ type: 'text', text: '042917' }] },
+      { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: '042917' }] },
+    ] });
+  });
 });
 
 describe('queueWhatsApp', () => {

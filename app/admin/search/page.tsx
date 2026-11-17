@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { optionHref } from "@/lib/adminNav";
 import { CATEGORY_META } from "@/lib/adminNav";
+import { BUILDER_ENABLED } from "@/lib/flags";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { formatINR, formatIST, titleCase } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/orders";
@@ -131,7 +132,8 @@ export default async function AdminSearch({
         currentAssignment: { select: { vendor: { select: { name: true } } } },
       },
     }),
-    db.catalogOption.findMany({
+    /* Builder options only exist for the 3D builder; with it off they are not searchable. */
+    !BUILDER_ENABLED ? Promise.resolve([]) : db.catalogOption.findMany({
       where: {
         OR: [
           { name: { contains: term, mode: "insensitive" } },
@@ -176,8 +178,8 @@ export default async function AdminSearch({
             <Link href="/admin/orders" className={aBtn("secondary", "md")}>
               Browse all orders
             </Link>
-            <Link href="/admin/catalog" className={aBtn("secondary", "md")}>
-              Browse the catalogue
+            <Link href={BUILDER_ENABLED ? "/admin/catalog" : "/admin/cakes"} className={aBtn("secondary", "md")}>
+              {BUILDER_ENABLED ? "Browse the catalogue" : "Browse the cakes"}
             </Link>
           </EmptyState>
         </Card>

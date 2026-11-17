@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { BrandLogo } from "@/components/BrandLogo";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { SignOutButton } from "@clerk/nextjs";
 import { isCurrent, NAV } from "@/lib/adminNav";
@@ -54,10 +54,13 @@ export interface ShellProps {
   search: React.ReactNode;
   /** Whether any partner bakery is active; partner-only nav items hide without one. */
   partners: boolean;
+  /** "Needs you" total for the Home badge; null (count failed) or 0 shows none. */
+  needsYouCount: number | null;
 }
 
-export function AdminShell({ children, email, bakeryName, alerts, search, partners }: ShellProps) {
+export function AdminShell({ children, email, bakeryName, alerts, search, partners, needsYouCount }: ShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   /*
    * The drawer holds the pathname it was opened *at*, and is considered open
    * only while that still matches. Which means it closes on navigation for
@@ -77,6 +80,19 @@ export function AdminShell({ children, email, bakeryName, alerts, search, partne
   const toggleRef = useRef<HTMLButtonElement>(null);
 
   const closeDrawer = useCallback(() => setOpenedAt(null), []);
+
+  /* Cmd/Ctrl+K opens the search page, unless the person is typing somewhere. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "k" || !(e.metaKey || e.ctrlKey)) return;
+      const el = e.target as HTMLElement | null;
+      if (el?.closest("input, textarea, [contenteditable]:not([contenteditable=false])")) return;
+      e.preventDefault();
+      router.push("/admin/search");
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [router]);
 
   /*
    * Escape closes it, and focus goes back to the button that opened it —
@@ -120,7 +136,7 @@ export function AdminShell({ children, email, bakeryName, alerts, search, partne
     <div className="a-root min-h-dvh lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
       {/* ── the desktop sidebar ─────────────────────────────────────────── */}
       <div data-admin-chrome className="hidden lg:sticky lg:top-0 lg:block lg:h-dvh">
-        <Sidebar pathname={pathname} bakeryName={bakeryName} partners={partners} />
+        <Sidebar pathname={pathname} bakeryName={bakeryName} partners={partners} needsYouCount={needsYouCount} />
       </div>
 
       {/* ── the drawer, and the sheet it sits under ─────────────────────── */}
@@ -140,6 +156,7 @@ export function AdminShell({ children, email, bakeryName, alerts, search, partne
               pathname={pathname}
               bakeryName={bakeryName}
               partners={partners}
+              needsYouCount={needsYouCount}
               onClose={() => {
                 closeDrawer();
                 toggleRef.current?.focus();
@@ -189,10 +206,12 @@ export function AdminShell({ children, email, bakeryName, alerts, search, partne
           overflow §33 forbids — the table's own scroll box only works if the
           column it is in can be narrower than the table.
         */}
-        <main id="main" className="min-w-0 flex-1 px-3 py-5 sm:px-5 sm:py-6 lg:px-7">
+        <main id="main" className="min-w-0 flex-1 px-3 py-5 pb-24 sm:px-5 sm:py-6 sm:pb-6 lg:px-7">
           {children}
         </main>
       </div>
+
+      <PhoneTabs pathname={pathname} needsYouCount={needsYouCount} onMore={() => setOpenedAt(pathname)} />
     </div>
   );
 }
@@ -203,11 +222,13 @@ function Sidebar({
   pathname,
   bakeryName,
   partners,
+  needsYouCount,
   onClose,
 }: {
   pathname: string;
   bakeryName: string;
   partners: boolean;
+  needsYouCount: number | null;
   onClose?: () => void;
 }) {
   return (
@@ -266,6 +287,7 @@ function Sidebar({
                     >
                       <Icon name={item.icon} size={17} className="shrink-0" />
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      {item.href === "/admin" && <CountBadge n={needsYouCount} />}
                     </Link>
                   </li>
                 );
@@ -288,6 +310,83 @@ function Sidebar({
           <Icon name="external" size={13} className="shrink-0 opacity-60" />
         </Link>
       </div>
+    </nav>
+  );
+}
+
+/** The count of things that need the owner; nothing at all when unknown or zero. */
+function CountBadge({ n }: { n: number | null }) {
+  if (!n) return null;
+  return (
+    <span className="flex min-w-5 items-center justify-center rounded-full bg-a-accent px-1.5 font-a-sans text-[0.625rem] font-bold leading-5 text-white">
+      <span aria-hidden="true">{n > 99 ? "99+" : n}</span>
+      <span className="sr-only">{n} need you</span>
+    </span>
+  );
+}
+
+/* ═════════════════════════════════════════════════════════ phone tab bar */
+
+const TAB_HREFS = ["/admin", "/admin/orders", "/admin/vendors"];
+const TABS = NAV.flatMap((s) => s.items).filter((i) => TAB_HREFS.includes(i.href));
+
+/** Fixed to the bottom below `sm`; mirrors app/vendor/VendorTabs. "More" opens the drawer. */
+function PhoneTabs({
+  pathname,
+  needsYouCount,
+  onMore,
+}: {
+  pathname: string;
+  needsYouCount: number | null;
+  onMore: () => void;
+}) {
+  const tab =
+    "relative flex min-h-14 w-full flex-col items-center justify-center gap-0.5 border-t-2 px-3 font-a-sans text-a-meta transition-colors duration-[var(--dur-ui)]";
+  return (
+    <nav
+      data-admin-chrome
+      aria-label="Main"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-a-line bg-a-surface pb-[env(safe-area-inset-bottom)] sm:hidden"
+    >
+      <ul className="flex">
+        {TABS.map((item) => {
+          const current = isCurrent(item, pathname);
+          return (
+            <li key={item.href} className="flex-1">
+              <Link
+                href={item.href}
+                aria-current={current ? "page" : undefined}
+                className={[
+                  tab,
+                  current
+                    ? "border-a-accent bg-a-accent-wash font-semibold text-a-accent-ink"
+                    : "border-transparent font-medium text-a-muted hover:text-a-ink",
+                ].join(" ")}
+              >
+                <span className="relative">
+                  <Icon name={item.icon} size={19} className="shrink-0" />
+                  {item.href === "/admin" && (
+                    <span className="absolute -right-3 -top-1.5">
+                      <CountBadge n={needsYouCount} />
+                    </span>
+                  )}
+                </span>
+                {item.label}
+              </Link>
+            </li>
+          );
+        })}
+        <li className="flex-1">
+          <button
+            type="button"
+            onClick={onMore}
+            className={[tab, "border-transparent font-medium text-a-muted hover:text-a-ink"].join(" ")}
+          >
+            <Icon name="menu" size={19} className="shrink-0" />
+            More
+          </button>
+        </li>
+      </ul>
     </nav>
   );
 }

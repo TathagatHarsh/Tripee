@@ -2,7 +2,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { PortalAlerts } from "@/components/assignment/PortalAlerts";
 import type { Metadata } from "next";
 import { SignOutButton } from "@clerk/nextjs";
-import { getViewerEmail, requireVendor } from "@/lib/auth";
+import { getViewerEmail, requireVendorSetup } from "@/lib/auth";
 import { VendorTabs } from "./VendorTabs";
 
 /**
@@ -46,7 +46,7 @@ import { VendorTabs } from "./VendorTabs";
  *
  * ## The gate
  *
- * `requireVendor()` here, in a layout, so it runs on the server for this page
+ * `requireVendorSetup()` here, in a layout, so it runs on the server for this page
  * and every page nested under it on every request — the same arrangement
  * app/admin/layout.tsx has, and for the same reason a proxy is not good enough.
  *
@@ -56,6 +56,8 @@ import { VendorTabs } from "./VendorTabs";
  *
  * It does NOT cover the writes. A Server Action does not re-run its layout, so
  * every action in ./actions.ts carries its own `requireVendor()`.
+ * The layout lets an unapproved bakery in for setup; the orders pages and every
+ * action still call `requireVendor()`, which needs an active bakery.
  */
 
 export const metadata: Metadata = {
@@ -68,13 +70,13 @@ export const dynamic = "force-dynamic";
 
 export default async function VendorLayout({ children }: { children: React.ReactNode }) {
   // First statement, and never inside a try: this refuses by throwing.
-  const { vendor, userId } = await requireVendor();
+  const { vendor, userId } = await requireVendorSetup();
   const email = await getViewerEmail();
 
   return (
     <div className="a-root vendor-root flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-a-line bg-a-surface/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[90rem] flex-wrap items-center gap-x-4 gap-y-1 px-4 pt-3 sm:px-6">
+        <div className="mx-auto flex max-w-[90rem] flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 sm:px-6">
           <span className="min-w-0 font-a-sans text-a-lede font-bold tracking-[-0.015em] text-a-ink">
             {vendor.name}
           </span>
@@ -102,11 +104,12 @@ export default async function VendorLayout({ children }: { children: React.React
           </div>
         </div>
 
-        <VendorTabs />
       </header>
 
-      <main id="main" className="mx-auto w-full max-w-[90rem] flex-1 px-4 py-5 sm:px-6 sm:py-6">
-        <PortalAlerts role="vendor" userId={userId} />
+      <VendorTabs active={vendor.isActive} />
+
+      <main id="main" className="mx-auto w-full max-w-[90rem] flex-1 px-4 pb-24 pt-5 sm:px-6 sm:py-6">
+        {vendor.isActive && <PortalAlerts role="vendor" userId={userId} />}
         {children}
       </main>
     </div>

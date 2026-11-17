@@ -4,6 +4,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { formatIST } from "@/lib/format";
 import { Notice, PageHeader } from "@/components/admin/ui";
+import { GrantAdminForm, RevokeAdminButton } from "./StaffForms";
 
 export const metadata: Metadata = { title: "Staff — Admin — MakeYourCakes" };
 export const dynamic = "force-dynamic";
@@ -13,13 +14,12 @@ const ROLE_LABEL: Record<string, string> = { ADMIN: "Admin", KITCHEN: "Kitchen" 
 /**
  * Who has a job here, read off the same rows `npm run role` reads.
  *
- * Nothing on this page writes anything — see scripts/role.ts and lib/auth.ts's
- * `loadProfile` for why a role is deliberately not something a request can set.
- * This exists so it can be seen without a shell; changing it still means the
- * command.
+ * Admins can make and remove admins here (see lib/staffRoles for the rules that
+ * make that safe); KITCHEN is still set with the command. Every change, from
+ * either place, is listed at the bottom.
  */
 export default async function StaffPage() {
-  await requireAdmin();
+  const viewer = await requireAdmin();
   if (!hasDatabase()) {
     return (
       <Notice tone="warn">{NO_DATABASE_MESSAGE}</Notice>
@@ -30,6 +30,8 @@ export default async function StaffPage() {
     where: { role: { not: "CUSTOMER" } },
     orderBy: [{ role: "desc" }, { createdAt: "asc" }],
   });
+
+  const changes = await db.roleChange.findMany({ orderBy: { createdAt: "desc" }, take: 20 });
 
   const clerk = await clerkClient();
   const { data } = staff.length
@@ -66,15 +68,35 @@ export default async function StaffPage() {
                   {emailOf.get(s.id) ?? "(no longer a Clerk account)"}
                 </span>
               </div>
-              <span className="font-a-mono text-a-meta text-a-muted">Since {formatIST(s.createdAt)}</span>
+              <div className="flex items-center gap-3">
+                <span className="font-a-mono text-a-meta text-a-muted">Since {formatIST(s.createdAt)}</span>
+                {s.role === "ADMIN" && s.id !== viewer.userId && (
+                  <RevokeAdminButton profileId={s.id} email={emailOf.get(s.id) ?? "this account"} />
+                )}
+              </div>
             </li>
           ))}
         </ul>
       )}
 
+      <GrantAdminForm />
+
+      {changes.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="font-a-sans text-a-body font-semibold text-a-ink">Recent role changes</h2>
+          <ul className="flex flex-col gap-1">
+            {changes.map((c) => (
+              <li key={c.id} className="font-a-mono text-a-meta text-a-muted">
+                {formatIST(c.createdAt)} · {c.targetEmail}: {c.fromRole ?? "no profile"} → {c.toRole} · by{" "}
+                {c.actorId ? (c.actorEmail ?? c.actorId) : "command line"}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <p className="border-t border-a-line pt-4 font-a-sans text-a-small leading-relaxed text-a-muted">
-        {/* Read-only on purpose: roles change only through scripts/role.ts, never from a browser. */}
-        To add someone or change what they can do, ask your developer.
+        Kitchen access is still set by your developer with <code>npm run role</code>.
       </p>
     </div>
   );

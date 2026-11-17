@@ -22,6 +22,7 @@ import { log } from "@/lib/log";
 import { scheduleVerdict, slotWindow } from "@/lib/scheduling";
 import { cakeKindOf, checkChoice, choiceFromFulfillment, istDate, windowForPaid } from "@/lib/deliveryRules";
 import { BUILDER_ENABLED } from "@/lib/flags";
+import { phoneProblem } from "@/lib/phoneVerify";
 import { PICKUP_OPEN, resolveSlot } from "@/lib/delivery";
 
 /**
@@ -182,6 +183,8 @@ export async function validateCheckout(
       ),
     );
   }
+  const phoneRefusal = await phoneProblem(customerPhone, paid);
+  if (phoneRefusal) return problem(phoneRefusal);
 
   // Recover a committed order before checking mutable prices, availability or time.
   // The transaction repeats this check under a lock for concurrent first requests.

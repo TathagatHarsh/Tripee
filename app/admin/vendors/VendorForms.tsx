@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
-  addVendor, linkVendorUser, saveVendor, setVendorActive, unlinkVendorUser,
+  addVendor, approveVendor, linkVendorUser, saveVendor, setVendorActive, unlinkVendorUser,
   type ActionResult,
 } from "../actions";
 import { useToast } from "@/components/admin/Toast";
 import { aBtn, aField } from "@/components/admin/ui";
+import { InviteLink } from "./InviteLink";
+import { VendorPhoneVerify } from "./VendorPhoneVerify";
 
 /**
  * Every write on the two vendor pages.
@@ -80,12 +82,18 @@ export function VendorForm({ vendor }: { vendor?: VendorFields & { id: string } 
   useAnnounce(result);
 
   const formRef = useRef<HTMLFormElement>(null);
+  const [phone, setPhone] = useState(vendor?.phone ?? "");
 
   /* Clear the fields after a bakery is added, so the form is ready for the next
      one rather than holding the last one's name. Never on edit, where the
      values on screen are the row. */
   useEffect(() => {
-    if (!vendor && result?.ok) formRef.current?.reset();
+    if (!vendor && result?.ok) {
+      formRef.current?.reset();
+      // Only a successful add clears it: React also resets the form after every submit.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPhone("");
+    }
   }, [result, vendor]);
 
   return (
@@ -94,21 +102,27 @@ export function VendorForm({ vendor }: { vendor?: VendorFields & { id: string } 
 
       <div className="grid gap-4 sm:grid-cols-2">
         {FIELDS.map((f) => (
-          <label key={f.name} className={`flex flex-col gap-1 ${f.wide ? "sm:col-span-2" : ""}`}>
-            <span className="font-a-sans text-a-small font-medium text-a-ink">{f.label}</span>
-            <input
-              name={f.name}
-              type={f.type ?? "text"}
-              defaultValue={vendor?.[f.name] ?? ""}
-              required={f.name === "name"}
-              className={aField("w-full")}
-            />
-            {f.hint && <span className="text-a-meta leading-snug text-a-muted">{f.hint}</span>}
-          </label>
+          <div key={f.name} className={`flex flex-col gap-1 ${f.wide ? "sm:col-span-2" : ""}`}>
+            <label className="flex flex-col gap-1">
+              <span className="font-a-sans text-a-small font-medium text-a-ink">{f.label}</span>
+              <input
+                name={f.name}
+                type={f.type ?? "text"}
+                {...(f.name === "phone"
+                  ? { value: phone, onChange: (e) => setPhone(e.target.value) }
+                  : { defaultValue: vendor?.[f.name] ?? "" })}
+                required={f.name === "name" || (f.name === "phone" && !vendor)}
+                className={aField("w-full")}
+              />
+              {f.hint && <span className="text-a-meta leading-snug text-a-muted">{f.hint}</span>}
+            </label>
+            {f.name === "phone" && <VendorPhoneVerify phone={phone} saved={vendor?.phone ?? null} />}
+          </div>
         ))}
       </div>
 
       <Failure result={result} />
+      {!vendor && result?.ok && result.link && <InviteLink vendorId="" link={result.link} whatsappUrl={result.whatsappUrl} />}
 
       <div>
         <button type="submit" disabled={pending} className={aBtn("primary", "md")}>
@@ -145,6 +159,19 @@ export function ActiveToggle({ id, isActive }: { id: string; isActive: boolean }
       >
         {pending ? "Working…" : isActive ? "Deactivate" : "Reactivate"}
       </button>
+      <Failure result={result} />
+    </form>
+  );
+}
+
+/** Approve a bakery that has finished setup. The action re-checks the stage. */
+export function ApproveButton({ id }: { id: string }) {
+  const [result, formAction, pending] = useActionState<ActionResult | undefined, FormData>(approveVendor, undefined);
+  useAnnounce(result);
+  return (
+    <form action={formAction} className="flex flex-col gap-2">
+      <input type="hidden" name="id" value={id} />
+      <button type="submit" disabled={pending} className={aBtn("primary", "md")}>{pending ? "Approving…" : "Approve and go live"}</button>
       <Failure result={result} />
     </form>
   );

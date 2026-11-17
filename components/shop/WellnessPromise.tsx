@@ -59,7 +59,7 @@ export function WellnessBar() {
           ))}
         </span>
         <span>
-          <strong>Low sugar, prebiotic &amp; fibre-rich</strong> cakes, baked to order.
+          <strong>Low sugar · Prebiotic · Fibre-rich</strong> cakes available
         </span>
       </p>
     </div>

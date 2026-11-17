@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
-import { Availability } from "@/components/inventory/Availability";
+import { DetailsForm } from "@/components/vendor/DetailsForm";
+import { StatusSwitch } from "@/components/vendor/StatusSwitch";
 import { AssignmentRulesForm } from "../AssignmentRulesForm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -15,7 +16,9 @@ import {
   aEyebrow, Card, CardHead, EmptyState, Notice, OrderStatusBadge, PageHeader, Ref,
   StatusBadge,
 } from "@/components/admin/ui";
-import { ActiveToggle, LinkUserForm, UnlinkUserButton, VendorForm } from "../VendorForms";
+import { ActiveToggle, ApproveButton, LinkUserForm, UnlinkUserButton, VendorForm } from "../VendorForms";
+import { InviteLink } from "../InviteLink";
+import { STAGE_TONE, stageLabel, vendorSetupStates } from "@/lib/vendorInvite";
 
 /**
  * One bakery: who they are, who signs in as them, and what they are holding.
@@ -96,6 +99,8 @@ export default async function VendorDetail({
     : { data: [] };
   const emailOf = new Map(accounts.map((u) => [u.id, u.primaryEmailAddress?.emailAddress]));
 
+  const setup = (await vendorSetupStates([id])).get(id)!;
+  const invitePending = setup.stage === "invited" || setup.stage === "invite_expired";
   const holding = vendor.assignments.filter((a) => !isVendorFinished(a.status));
 
   return (
@@ -104,18 +109,16 @@ export default async function VendorDetail({
         title={vendor.name}
         back={{ href: "/admin/vendors", label: "Back to vendors" }}
       >
-        <StatusBadge
-          label={vendor.isActive ? "Active" : "Inactive"}
-          tone={vendor.isActive ? "good" : "plain"}
-        />
+        <StatusBadge label={stageLabel(setup)} tone={STAGE_TONE[setup.stage]} />
       </PageHeader>
 
-      <Availability key={vendor.updatedAt.toISOString()} vendor={vendor} />
+      <StatusSwitch key={`s${vendor.updatedAt.toISOString()}`} vendorId={vendor.id} accepting={!vendor.isAcceptingOrders ? "closed" : vendor.isBusy ? "busy" : "accepting"} active={vendor.isActive} />
+      <DetailsForm key={vendor.updatedAt.toISOString()} vendor={vendor} />
       <Link href={`/admin/inventory?vendor=${vendor.id}`} className="font-semibold underline">View Cake Availability</Link>
       {!vendor.isActive && (
         <Notice tone="warn" icon="alert">
-          Deactivated, so this bakery cannot be given new orders and nobody can
-          open its dashboard.{" "}
+          Not live yet (setup in progress or waiting for approval), so this bakery
+          cannot be given new orders.{" "}
           {holding.length > 0 ? (
             <>
               It is still holding{" "}
@@ -126,7 +129,7 @@ export default async function VendorDetail({
               page.
             </>
           ) : (
-            "It is holding nothing."
+            ""
           )}
         </Notice>
       )}
@@ -231,16 +234,38 @@ export default async function VendorDetail({
             </div>
           </Card>
 
-          <Card>
-            <h2 className={aEyebrow}>{vendor.isActive ? "Stop sending work" : "Start again"}</h2>
-            <p className="mt-2 mb-3 text-a-small leading-relaxed text-a-muted">
-              {vendor.isActive
-                ? "Takes this bakery out of the assign picker and shuts its dashboard. "
-                  + "Orders it is already holding are not touched — reassign those one at a time."
-                : "Puts this bakery back in the assign picker and reopens its dashboard."}
-            </p>
-            <ActiveToggle id={vendor.id} isActive={vendor.isActive} />
-          </Card>
+          {!vendor.isActive && (
+            <Card>
+              <h2 className={aEyebrow}>{invitePending ? "Invite" : "Approval"}</h2>
+              {setup.stage === "ready_for_review" ? (
+                <>
+                  <p className="mt-2 mb-3 text-a-small leading-relaxed text-a-muted">
+                    They have finished setup. Approving puts this bakery in the assign picker.
+                  </p>
+                  <ApproveButton id={vendor.id} />
+                </>
+              ) : invitePending ? (
+                <div className="mt-3">
+                  <InviteLink vendorId={vendor.id} />
+                </div>
+              ) : (
+                <p className="mt-2 text-a-small leading-relaxed text-a-muted">
+                  Setting up, {setup.steps.done} of 4 steps done. Approval opens when all four are.
+                </p>
+              )}
+            </Card>
+          )}
+
+          {vendor.isActive && (
+            <Card>
+              <h2 className={aEyebrow}>Stop sending work</h2>
+              <p className="mt-2 mb-3 text-a-small leading-relaxed text-a-muted">
+                Takes this bakery out of the assign picker and shuts its dashboard.
+                Orders it is already holding are not touched — reassign those one at a time.
+              </p>
+              <ActiveToggle id={vendor.id} isActive={vendor.isActive} />
+            </Card>
+          )}
         </div>
       </div>
     </div>

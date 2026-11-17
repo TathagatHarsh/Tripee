@@ -7,7 +7,7 @@ Design: `docs/superpowers/specs/2026-10-09-whatsapp-order-desk-design.md`. No da
 ## How it works
 
 1. An order is confirmed. If `ASSIGNMENT_AUTO_START=true`, the nearest eligible bakery gets an offer (the existing rules: exact cake, size and egg type in stock, accepting orders, under capacity, in radius, can meet the deadline).
-2. The bakery gets the `order_offer` template with the cake photo and Accept / Reject buttons. The admin gets `admin_new_order` and an update saying who was offered.
+2. The bakery gets the `order_offer` template with the cake photo and Accept / Reject buttons. The admin gets `admin_new_order_v2` and an update saying who was offered.
 3. Accept: the bakery gets "yours" with Started / Ready / Handed over buttons. Reject, or no answer within `ASSIGNMENT_RESPONSE_SECONDS` (default 15 minutes): the next-nearest eligible bakery is offered (needs `ASSIGNMENT_AUTO_REASSIGN=true`). The admin is told each time. With `ASSIGNMENT_AUTO_START=true`, an order no bakery can take (none eligible at checkout, or every bakery declined or timed out) is cancelled and the customer told "Sorry, we can't deliver this order"; the admin gets a "Cancelled" note, not an "assign it" alert.
 4. No bakery left: the order goes to MANUAL and the admin gets a message with the admin order link.
 5. The bakery delivers the cake, so it moves the customer's order to the end, exactly as the vendor portal does. **Started** puts the order In the kitchen. **Handed over** sends it out for delivery (for a pickup, the customer sees "Ready to collect"), and the reply carries one more button, **Delivered** (or **Collected**), which closes the order. The customer's tracker moves with each step. On WhatsApp the customer hears only four things: confirmed, out for delivery, delivered and, if it happens, cancelled (see Customer templates below). Nothing is sent while the cake is being baked. Cancellation stays on the website. The admin gets every step on WhatsApp, and a cancellation also tells the bakery that held the order.
@@ -31,7 +31,7 @@ Example: `started MC-1234`. **Delivered** only works once the order is out for d
 
 If the word fits one order, it applies. If it fits none, the bakery is told so. If it fits several, the bakery is asked which one. Anything else gets a short help message. A message from a number that is not an active bakery gets one fixed line saying the number is for bakery partners.
 
-Bakery phones are matched to the sender after cleaning them up. Spaces, `+91` and a leading `0` are all fine. Each active bakery needs its own number. If two active bakeries share one, WhatsApp replies from it do nothing except ask them to contact the admin. Set phones in `/admin/vendors`.
+Bakery phones are matched to the sender after cleaning them up. Spaces, `+91` and a leading `0` are all fine. Each active bakery needs its own number. If two active bakeries share one, WhatsApp replies from it do nothing except ask them to contact the admin. Set phones in `/admin/vendors`. Adding or changing a bakery number there needs the 6-digit WhatsApp code the bakery receives (the admin taps Send code, the bakery reads it out, the admin types it before saving). Numbers saved before this change aren't re-checked, and where WhatsApp isn't configured the check is skipped.
 
 ## Environment variables
 
@@ -41,6 +41,7 @@ Bakery phones are matched to the sender after cleaning them up. Spaces, `+91` an
 | `WHATSAPP_PHONE_NUMBER_ID` | From WhatsApp, API Setup. |
 | `WHATSAPP_APP_SECRET` | From App, Basic. Secret. |
 | `WHATSAPP_VERIFY_TOKEN` | Any random string. Type the same one into Meta's webhook form. |
+| `PHONE_VERIFICATION` | `on` makes checkout verify the phone with a WhatsApp code (needs the `verify_code` template Active). Anything else: off. |
 | `WHATSAPP_ADMIN_NUMBERS` | Comma-separated, with country code, e.g. `919800000000,919811111111`. A 10-digit Indian number gets `91` added. |
 | `ASSIGNMENT_AUTO_START` | `true`: offer the nearest eligible bakery at confirmation. |
 | `ASSIGNMENT_AUTO_REASSIGN` | `true`: after a rejection or expiry, offer the next bakery. |
@@ -67,21 +68,24 @@ The admin does these. Code can't.
 5. Business settings, System users: create one. Assign it the app and the WhatsApp account. Generate a non-expiring token with `whatsapp_business_messaging` and `whatsapp_business_management`. This is `WHATSAPP_ACCESS_TOKEN`.
 6. App, Basic: copy the App secret into `WHATSAPP_APP_SECRET`. Add the site's privacy policy URL. Switch the app to **Live**.
 7. WhatsApp, Configuration, Webhook: callback URL `https://<site>/api/whatsapp/webhook`, the verify token (`WHATSAPP_VERIFY_TOKEN`), and subscribe to **messages**.
-8. WhatsApp Manager, Message templates: create the nine templates below (five for bakeries and the admin, four for customers).
+8. WhatsApp Manager, Message templates: create the eleven templates below (six for bakeries and the admin, four for customers, and the verification code template).
 
-Business verification is not needed to start. The unverified limit (250 recipients a day) is far above a few bakeries plus the admin.
+Business verification is not needed to start, except that Meta may ask for it before allowing the `verify_code` Authentication template (see below). The unverified limit (250 recipients a day) is far above a few bakeries plus the admin.
 
 ### Templates
 
-All nine: category **Utility**, language **English** (`en`). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
+The ten bakery, admin and customer templates: category **Utility**, language **English** (`en`). The verification code template is the exception (see below). Names and parameter order must match exactly. They live in `lib/whatsappMessages.ts`.
 
 | Name | Header | Body | Buttons |
 |---|---|---|---|
 | `order_offer` | Image | `New cake order {{1}} 🎂 {{2}}. This order is due on {{3}}. It needs to be delivered to {{4}}, which is about {{5}} km from your bakery. If you accept it, your earning will be ₹{{6}}. Please accept or reject it within {{7}} minutes, or it will be offered to another bakery.` | Quick reply **Accept**, quick reply **Reject** |
 | `admin_new_order` | Image | `A new cake order {{1}} has been placed for a total of ₹{{2}}. Cake details: {{3}}. It is due on {{4}} and will be delivered to {{5}}. We will send you an update here at every step of this order.` | none |
+| `admin_new_order_v2` | Image | `A new cake order {{1}} has been placed for a total of ₹{{2}}. Cake details: {{3}}. It is due on {{4}} and will be delivered to {{5}}. Customer: {{6}}. We will send you an update here at every step of this order.` | none |
 | `order_update` | none | `Update on cake order {{1}}: {{2}}. If you have any questions about this order, please contact the MakeYourCakes team.` | none |
 | `custom_offer` | Image (customer's reference photo) | `A customer wants a custom cake, request {{1}} 🎂 Size: {{2}}. Flavour: {{3}}. Message on the cake: {{4}}. It is needed by {{5}} and will be delivered to {{6}}. Their budget: {{7}}. The photo above shows the design they like. If you can make it, reply to this message with your price in rupees, or tap the button if you cannot.` Footer: `Reply with your price, e.g. 1800` | Quick reply **Can't do it** |
 | `custom_quote` | Image (customer's reference photo) | `Good news, we can make your custom cake, request {{1}} 🎂 Size: {{2}}. It will be ready for {{3}}. The price is ₹{{4}}, delivery included. Tap the button below to see the details and pay. Your cake is confirmed only once you have paid.` | URL **Pay now** → `https://makeyourcakes.com/c/{{1}}` (the one variable is the quote token), quick reply **Not for me** |
+
+`admin_new_order` is kept in the code's template list but is no longer sent; the admin gets `admin_new_order_v2`. **Deploy note:** merge only after `admin_new_order_v2` is Active in WABA 985694517174842, otherwise admin new-order messages fail with 132001.
 
 Variables:
 
@@ -89,6 +93,7 @@ Variables:
 |---|---|---|---|---|---|---|---|
 | `order_offer` | order ref (MC-XXXX) | cake, size, egg type | due time | delivery area | distance in km | bakery's earning | reply window in minutes |
 | `admin_new_order` | order ref | order total | cake | due time | delivery area | | |
+| `admin_new_order_v2` | order ref | order total | cake | due time | delivery area | customer name and number, plus "(deliver to name and number)" when the cake is for someone else | |
 | `order_update` | order ref | what happened | | | | | |
 | `custom_offer` | request ref (CR-XXXXXX) | size, e.g. "1.5 kg" | flavour | message on the cake ("-" if none) | needed-by time | delivery area only (never name, phone or street) | budget with the rupee sign, e.g. "₹1,800", or "no budget given" |
 | `custom_quote` | request ref | size | due time | price to pay | | | |
@@ -159,7 +164,14 @@ Sample values for Meta: `Asha`, `Chocolate Truffle · 1kg · eggless`, `Sat 10 O
 
 Parameters never contain line breaks. The first three are the texts Meta approved (the first draft was shorter, and Meta refused it with "too many variables for its length", so the fixed wording around the variables was lengthened; the variables and their order did not change). If a template is ever edited or rejected, change the matching builder in `lib/whatsappMessages.ts`.
 
-`custom_offer` and `custom_quote` have **not been submitted to Meta yet**. Submit them with the wording above. If Meta asks for changes, change the matching builder in `lib/whatsappMessages.ts` before the branch ships.
+`custom_offer` and `custom_quote` are **Active** in WABA 985694517174842 (approved 11 Nov 2026, language `en`, image header). If either is ever edited or rejected, change the matching builder in `lib/whatsappMessages.ts`.
+
+### Custom cakes
+
+- **Bakery price replies.** A bare number, with or without `₹`/`Rs`, commas, `/-`, `.00` or `only` (`1200`, `Rs.1,200/-`, `₹1200.00`, `1200 only`). Add the request ref when the bakery has more than one open (`1200 CR-AB12CD`). Whole rupees from ₹100 to ₹1,00,000.
+- **No bakery.** After three bakeries pass or time out, the request is `no_bakery`. The admin gets an alert with the customer's name and number. The customer gets an `order_update`: "none of our partner bakeries could quote your custom cake yet. Our team will contact you".
+- **Admin quote.** On `/admin/custom-requests`, a request that is waiting for a quote or has no bakery has a **Send quote** form: pick an active bakery with a WhatsApp number, type that bakery's price. The customer gets the same `custom_quote` a bakery reply sends (price = bakery price + margin, rounded up to ₹10, + delivery). The chosen bakery gets an `order_update` with the price, and a bakery holding the live offer is told it was passed on. It is refused if that bakery could no longer make the cake in time.
+- **Cancel.** Cancelling a waiting, quoted or no-bakery request tells the bakery that held it and the customer (`order_update`).
 
 ### Custom cakes
 
@@ -169,6 +181,22 @@ Parameters never contain line breaks. The first three are the texts Meta approve
 - **Cancel.** Cancelling a waiting, quoted or no-bakery request tells the bakery that held it and the customer (`order_update`).
 
 **Deploy order for custom cakes:** run the `9l_custom_requests` migration on production (`prisma migrate deploy` on the Supabase session pooler, port 5432) *before* deploying the code that uses it. The outbox code writes `NotificationOutbox.customRequestId` on every insert, so code deployed ahead of the migration breaks checkout and every notification. The migration is safe for the code already running. Also, the custom-cake form only appears once WhatsApp, an image store and online payment are all configured.
+
+### Verification code template
+
+Used to confirm a customer's phone number. Name `verify_code`, category **Authentication**, language English. It must be created in WABA 985694517174842.
+
+- Body: Meta's fixed text. The code is its only parameter (`{{1}}`), filled in by `verifyCodeMessage` in `lib/whatsappMessages.ts`, so nothing is typed in by hand.
+- Button: **Copy code**, carrying the same code (`verifyCodeMessage` sends it as the button's parameter).
+- Turn on **Add security recommendation**.
+- Turn on **Add expiry time**, set to 10 minutes.
+
+Meta may ask for Business Verification before it allows Authentication templates. Turn on `PHONE_VERIFICATION` only once this template is **Active**.
+
+Before turning on `PHONE_VERIFICATION`:
+
+- On the production edge, confirm what `callerKey` resolves to. The per-caller send limit keys on the last `x-forwarded-for` entry, which behind Cloudflare/Railway may be a proxy IP shared by many customers.
+- On the preview, verify a real code and inspect the `Set-Cookie` from `/api/phone/verify` (`myc_phone; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`), then complete a test payment.
 
 ## Pinger (every-minute timer)
 

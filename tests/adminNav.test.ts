@@ -16,30 +16,45 @@ const ITEMS = NAV.flatMap((s) => s.items);
 const HREFS = ITEMS.map((i) => i.href);
 
 describe("the admin sidebar", () => {
-  it("has the four sections the brief asks for, in order", () => {
-    expect(NAV.map((s) => s.label)).toEqual([
-      "Overview", "Operations", "Catalogue", "Business",
+  it("nav groups and labels match the spec", () => {
+    // Spec section 2, in order.
+    expect(NAV.map((s) => s.label)).toEqual(["Home", "Orders", "Bakeries", "Catalogue", "Settings"]);
+    expect(NAV.map((s) => s.items.map((i) => [i.label, i.href]))).toEqual([
+      [["Home", "/admin"]],
+      [
+        ["Orders", "/admin/orders"],
+        ["Deliveries today", "/admin/orders/today"],
+        ["Custom requests", "/admin/custom-requests"],
+        ["Payments", "/admin/payments"],
+      ],
+      [
+        ["Bakeries", "/admin/vendors"],
+        ["Cake availability", "/admin/inventory"],
+      ],
+      [
+        ["Cakes", "/admin/cakes"],
+        // "Options & prices" is held back with the 3D builder (NEXT_PUBLIC_BUILDER_ENABLED).
+      ],
+      [
+        ["Shop", "/admin/settings"],
+        ["Delivery slots", "/admin/delivery"],
+        ["Staff", "/admin/staff"],
+      ],
     ]);
   });
 
-  it("offers Cakes as the whole of the catalogue", () => {
-    // §51.1. One item, and it is the products a customer can actually buy.
-    const catalogue = NAV.find((s) => s.label === "Catalogue")!;
-    expect(catalogue.items).toHaveLength(1);
-    expect(catalogue.items[0]!.href).toBe("/admin/cakes");
-    expect(catalogue.items[0]!.label).toBe("Cakes");
+  it("every href existed before", () => {
+    // Routes are regrouped and relabelled, never moved.
+    const before = [
+      "/admin", "/admin/orders", "/admin/orders/today", "/admin/custom-requests",
+      "/admin/payments", "/admin/vendors", "/admin/inventory", "/admin/cakes",
+      "/admin/catalog", "/admin/settings", "/admin/delivery", "/admin/staff",
+    ];
+    for (const href of HREFS) expect(before, href).toContain(href);
   });
 
-  it("offers no builder option page anywhere on the sidebar", () => {
-    /*
-     * §51.2, checked by prefix rather than by label, because the failure this
-     * guards against is somebody re-adding "/admin/catalog/ingredients" under a
-     * friendlier name. The builder is switched off (lib/flags), so a page
-     * pricing sponges and toppings is work with no effect on anything for sale.
-     */
-    for (const href of HREFS) {
-      expect(href.startsWith("/admin/catalog"), href).toBe(false);
-    }
+  it("keeps Cake availability partners-only", () => {
+    expect(ITEMS.find((i) => i.href === "/admin/inventory")!.partnersOnly).toBe(true);
   });
 
   it("does not put the kitchen board on the owner's sidebar", () => {

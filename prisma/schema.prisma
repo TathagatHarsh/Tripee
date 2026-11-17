@@ -336,11 +336,17 @@ model Vendor {
   serviceRadiusKm     Float             @default(10)
   maxConcurrentOrders Int               @default(10)
   unavailableUntil    DateTime?
-  // Empty list means no supported products; explicit all-products opt-in.
+  /// Deprecated, unread since 2026-11-15. Kept so no column is dropped on the live database.
   fulfillsAllProducts Boolean           @default(false)
+  /// Deprecated, unread since 2026-11-15. Kept so no column is dropped on the live database.
   supportedProductIds String[]          @default([])
   commissionBps       Int               @default(2000)
   assignmentFeePaise  Int               @default(0)
+  /// SHA-256 of the invite link token; the token itself is never stored.
+  inviteTokenHash     String?           @unique
+  inviteExpiresAt     DateTime?
+  /// When the bakery confirmed its details on the setup checklist.
+  detailsConfirmedAt  DateTime?
 
   /// The people who sign in as this vendor. Usually one.
   users       UserProfile[]
@@ -828,7 +834,8 @@ model UserProfile {
   /// Every new row is a customer. No code path anywhere writes this field from
   /// a request body — see lib/auth.ts `loadProfile`, which creates with the
   /// column default and updates nothing. A role is changed by `npm run role`,
-  /// which needs DATABASE_URL, which a browser does not have.
+  /// by a bakery invite / vendor link (VENDOR only), or by an admin on
+  /// /admin/staff (ADMIN only — see lib/staffRoles). Every change is a RoleChange.
   role UserRole @default(CUSTOMER)
 
   /// Whatever they were called at sign-up, or by Google. Nullable because an
@@ -1060,6 +1067,24 @@ model NotificationOutbox {
 }
 
 /// Shared fixed-window counters for serverless rate limiting.
+/// Who changed whose role, and when. Written by lib/staffRoles (the /admin/staff
+/// page) and scripts/role.ts. Emails are snapshots, so the trail still reads
+/// after an account is deleted at Clerk; ids are plain text for the same reason
+/// UserProfile.id is.
+model RoleChange {
+  id          String   @id @default(cuid())
+  /// Null when it was done with `npm run role`.
+  actorId     String?
+  actorEmail  String?
+  targetId    String
+  targetEmail String
+  fromRole    UserRole?
+  toRole      UserRole
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model RateLimitBucket {
   key       String   @id
   count     Int
@@ -1200,6 +1225,8 @@ model VendorInventory {
   eggType             EggType
   /// Legacy quantities and reservation/history tables remain in the DB, unmapped.
   isAvailable         Boolean                       @default(false)
+  /// Paused until this time, then it sells again on its own. Null means not paused.
+  pausedUntil         DateTime?
   updatedAt           DateTime                      @updatedAt
   availabilityChanges InventoryAvailabilityChange[]
 
@@ -1214,6 +1241,7 @@ model InventoryAvailabilityChange {
   /// Null means this variant was first added to the bakery.
   previousAvailable Boolean?
   newAvailable      Boolean
+  pausedUntil       DateTime?
   userId            String
   createdAt         DateTime        @default(now())
 

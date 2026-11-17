@@ -21,6 +21,12 @@ import { db, hasDatabase } from "../lib/db";
  * promotes a handful of people in its lifetime; the correct amount of machinery
  * for that is a command.
  *
+ * **Since 2026-11-17 there is one exception:** an existing ADMIN can make or
+ * remove another ADMIN by email on /admin/staff. lib/staffRoles states the four
+ * rules that keep that safe (admin re-checked under lock, role is a literal, no
+ * invented accounts, never zero admins). KITCHEN is still only set here, and
+ * this command remains the way in when there is no admin at all.
+ *
  * ## Why this one needs a secret and the Supabase version did not
  *
  * Under Supabase, `auth.users` was a table in the same Postgres this app
@@ -148,15 +154,19 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  await db.userProfile.upsert({
-    where: { id },
-    create: { id, role },
-    /* `vendorId: null` alongside the role, for the case this command exists to
-       cover: taking a role away. A profile demoted from VENDOR while still
-       pointing at a bakery would keep a dangling association that means nothing
-       and reads as though it might. */
-    update: { role, vendorId: null },
-  });
+  await db.$transaction([
+    db.userProfile.upsert({
+      where: { id },
+      create: { id, role },
+      /* `vendorId: null` alongside the role, for the case this command exists to
+         cover: taking a role away. A profile demoted from VENDOR while still
+         pointing at a bakery would keep a dangling association that means nothing
+         and reads as though it might. */
+      update: { role, vendorId: null },
+    }),
+    // The same audit trail /admin/staff writes; a null actor reads as "command line".
+    db.roleChange.create({ data: { targetId: id, targetEmail: email, fromRole: before?.role ?? null, toRole: role } }),
+  ]);
 
   console.log(`\n  ${email}\n  ${before?.role ?? "no profile"} → ${role}\n`);
 
