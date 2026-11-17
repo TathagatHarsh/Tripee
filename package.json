@@ -32,6 +32,7 @@
     "db:deploy": "prisma migrate deploy",
     "shoot:presets": "tsx scripts/shoot-presets.ts",
     "demo:assignments": "tsx scripts/seedAssignments.ts",
+    "demo:logins": "tsx scripts/demoLogins.ts",
     "assignments:worker": "tsx scripts/assignmentWorker.ts",
     "payments:worker": "tsx scripts/paymentWorker.ts"
   },

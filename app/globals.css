@@ -2486,9 +2486,15 @@ body:has(.k-root)::after {
 .wellness-bar-icons { display:inline-flex; gap:.3rem; color:var(--brand-accent); }
 .wellness-bar-icons svg { width:1.05rem; height:1.05rem; }
 
-/* Home hero. A gradient rule across the top in the three brand colours. */
-.wellness-card { position:relative; display:flex; flex-direction:column; gap:1rem; max-width:100%; padding:1.15rem 1.4rem 1.25rem; overflow:hidden; border-radius:1.25rem; background:var(--brand-surface); border:1px solid color-mix(in srgb,var(--brand-secondary) 12%,transparent); box-shadow:0 22px 44px -30px rgba(38,59,45,.55); }
-.wellness-card::before { content:""; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg,var(--brand-secondary),var(--brand-accent) 55%,var(--brand-primary)); }
+/* Opens the home hero: a deep green panel with a gold glow, the loudest thing above the fold. */
+.wellness-card { display:flex; flex-direction:column; gap:1.25rem; max-width:100%; padding:1.35rem 1.6rem 1.5rem; border-radius:1.5rem; background:radial-gradient(ellipse 70% 140% at 100% 0%,color-mix(in srgb,var(--brand-accent) 16%,transparent),transparent 65%),var(--brand-secondary); box-shadow:0 28px 50px -30px rgba(38,59,45,.75); }
+.wellness-card-head { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.wellness-card .wellness-kicker { color:var(--brand-accent); }
+.wellness-live { display:inline-flex; align-items:center; gap:.45rem; padding:.3rem .7rem; border-radius:999px; font-size:.6875rem; font-weight:600; letter-spacing:.06em; color:var(--brand-background); background:color-mix(in srgb,var(--brand-background) 10%,transparent); }
+.wellness-live::before { content:""; width:.45rem; height:.45rem; border-radius:50%; background:#7bd389; box-shadow:0 0 0 0 rgba(123,211,137,.6); }
+@media(prefers-reduced-motion:no-preference) { .wellness-live::before { animation:wellness-pulse 2s ease-out infinite; } }
+@keyframes wellness-pulse { to { box-shadow:0 0 0 .45rem rgba(123,211,137,0); } }
+.wellness-card .wellness-pillars li { font-size:1.35rem; }
 
 /* Footer opener: a lighter green band with a soft gold glow. */
 .wellness-band { background:radial-gradient(ellipse 60% 120% at 100% 0%,color-mix(in srgb,var(--brand-accent) 14%,transparent),transparent 70%),var(--brand-secondary); border-bottom:1px solid color-mix(in srgb,var(--brand-accent) 18%,transparent); }
@@ -2507,7 +2513,9 @@ body:has(.k-root)::after {
 @media(max-width:639px) {
   .wellness-bar { font-size:.75rem; }
   .wellness-bar-icons { display:none; }
-  .wellness-card { width:100%; padding:1rem 1rem 1.1rem; }
+  .wellness-card { width:100%; padding:1.1rem 1rem 1.2rem; gap:1rem; }
+  .wellness-card .wellness-pillars li { font-size:1.05rem; }
+  .wellness-card .wellness-medal { width:2.9rem; height:2.9rem; }
   .wellness-pillars { grid-template-columns:repeat(3,minmax(0,1fr)); width:100%; }
   .wellness-pillars li { flex-direction:column; gap:.5rem; padding-inline:.5rem; font-size:1rem; text-align:center; }
   .wellness-pillars li:first-child { padding-left:.5rem; }

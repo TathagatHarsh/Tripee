@@ -56,6 +56,8 @@ export default async function Home() {
         <section className="brand-hero">
           <div className="brand-hero-inner">
             <div className="s-enter brand-hero-copy">
+              {/* The client's main selling point, so it opens the hero. */}
+              <WellnessCard />
               <span className={sEyebrow}>Made in Hyderabad. Made for you.</span>
               <h1>
                 A little more{" "}
@@ -66,9 +68,6 @@ export default async function Home() {
                 Big milestones. Small victories. Just-because Tuesdays.
                 Beautiful cakes for everything worth a slice.
               </p>
-              {/* The client's main selling point, so it sits above the fold
-                  on every screen size, before the buttons. */}
-              <WellnessCard />
               <div className="flex flex-wrap gap-3">
                 <Link href="/shop" className={sBtn("primary", "lg")}>
                   Find your cake <span aria-hidden>↗</span>

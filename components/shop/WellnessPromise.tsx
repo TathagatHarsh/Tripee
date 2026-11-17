@@ -66,14 +66,17 @@ export function WellnessBar() {
   );
 }
 
-/** The hero card on the home page. */
+/** The panel that opens the home hero. */
 export function WellnessCard() {
   return (
     <div className="wellness-card">
-      <p className="wellness-kicker">
-        <span aria-hidden>✳</span> Feel-good cakes, available now
+      <p className="wellness-card-head">
+        <span className="wellness-kicker">
+          <span aria-hidden>✳</span> Feel-good cakes
+        </span>
+        <span className="wellness-live">Available now</span>
       </p>
-      <Pillars className="wellness-pillars" />
+      <Pillars className="wellness-pillars wellness-pillars-dark" />
     </div>
   );
 }

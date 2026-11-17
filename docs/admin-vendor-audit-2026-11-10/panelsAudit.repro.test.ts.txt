@@ -1,0 +1,80 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+vi.mock('server-only', () => ({}));
+vi.mock('../lib/auth', () => ({ requireAdmin: async () => ({ userId: 'audit', profile: { id: 'audit', role: 'ADMIN' } }), getViewer: async () => ({ userId: 'audit', profile: { id: 'audit', role: 'ADMIN' } }) }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn(), unstable_cache: (f: unknown) => f }));
+vi.mock('@clerk/nextjs/server', () => ({ clerkClient: vi.fn() }));
+vi.mock('../lib/mapping', () => ({ getDistanceMatrix: async (origins: unknown[]) => origins.map(() => ({ distanceKm: 2, estimatedMinutes: 10, source: 'audit' })) }));
+import { db } from '../lib/db';
+import { manualAssignment, respondToAssignment, moveFulfillment, runAssignmentWorker } from '../lib/assignment';
+import { handOver, vendorDeliveryMove } from '../lib/vendorTransition';
+import { applyStatusTransition } from '../lib/orderTransition';
+import { vendorBoard, vendorHistory, vendorOrder } from '../app/vendor/data';
+import { VENDOR_COLUMNS, vendorNext } from '../lib/vendors';
+import { setVendorActive } from '../app/admin/actions';
+let serial = Date.now();
+async function fixture() {
+ const product = await db.cakeProduct.create({ data: { slug: `panel-${++serial}`, name: 'Audit cake', description: 'Audit', category: 'chocolate', pricePaise: 100000, sizeBand: '1kg' } });
+ const vendor = await db.vendor.create({ data: { name: `Panel bakery ${serial}`, isAcceptingOrders: true, fulfillsAllProducts: true, latitude: 17.43, longitude: 78.4, serviceRadiusKm: 20 } });
+ await db.vendorInventory.create({ data: { vendorId: vendor.id, productId: product.id, productName: product.name, sizeBand: '1kg', eggType: 'eggless', isAvailable: true } });
+ const order = await db.order.create({ data: { ref: `PANELS-${serial}`, cakeProductId: product.id, config: { size: '1kg', eggless: true }, cakeName: product.name, status: 'confirmed', totalPaise: 100000, productSubtotalPaise: 100000, payablePaise: 100000, priceBreakdown: {}, deliverySlot: 'standard', leadHours: 24, dueAt: new Date(Date.now()+86400000), deliveryLocation: { latitude: 17.43, longitude: 78.4 }, customerPhone: '+919876543210' } });
+ await manualAssignment(order.ref, vendor.id, null, null);
+ const assignment = (await db.order.findUniqueOrThrow({ where: { id: order.id } })).currentAssignmentId!;
+ await respondToAssignment(vendor.id, order.ref, assignment, 'ACCEPTED');
+ return { product, vendor, order, assignment };
+}
+describe('admin/vendor audit: assertions document current defects, not desired behaviour', () => {
+ beforeAll(() => { if (process.env.DATABASE_URL !== 'postgresql://audit@127.0.0.1:55440/panels') throw new Error('Scratch database only'); });
+ afterAll(async () => db.$disconnect());
+ it('normal full vendor workflow and foreign-vendor denial work', async () => {
+  const f = await fixture();
+  expect(await moveFulfillment('other-vendor', f.order.ref, 'in_preparation', f.assignment)).toBe(false);
+  expect(await vendorOrder('other-vendor', f.order.ref)).toBeNull();
+  expect(await moveFulfillment(f.vendor.id, f.order.ref, 'in_preparation', f.assignment)).toBe(true);
+  expect(await moveFulfillment(f.vendor.id, f.order.ref, 'ready', f.assignment)).toBe(true);
+  expect(await handOver(f.vendor.id, f.order.ref, f.assignment, null)).toBe(true);
+  expect(await vendorDeliveryMove(f.vendor.id, f.order.ref, f.assignment, 'delivered', null)).toBe(true);
+  expect((await db.order.findUniqueOrThrow({where:{id:f.order.id}})).status).toBe('delivered');
+ });
+ it('sent-out order remains actionable but is rendered in no vendor board column', async () => {
+  const f = await fixture();
+  await moveFulfillment(f.vendor.id, f.order.ref, 'in_preparation', f.assignment);
+  await moveFulfillment(f.vendor.id, f.order.ref, 'ready', f.assignment);
+  await handOver(f.vendor.id, f.order.ref, f.assignment, null);
+  const board = await vendorBoard(f.vendor.id);
+  expect(board).toHaveLength(1);
+  expect(vendorNext(board[0].status, board[0].order.status)).toEqual(['delivered']);
+  expect(VENDOR_COLUMNS.flatMap(col => board.filter(c => c.status === col.status))).toHaveLength(0);
+ });
+ it('vendor preparation does not enqueue the customer baking update', async () => {
+  const f = await fixture();
+  process.env.WHATSAPP_ACCESS_TOKEN = 'audit-no-network'; process.env.WHATSAPP_PHONE_NUMBER_ID = 'audit';
+  await moveFulfillment(f.vendor.id, f.order.ref, 'in_preparation', f.assignment);
+  expect((await db.order.findUniqueOrThrow({where:{id:f.order.id}})).status).toBe('in_kitchen');
+  expect(await db.notificationOutbox.count({where:{orderId:f.order.id,dedupeKey:{contains:':in_kitchen:customer'}}})).toBe(0);
+  const g = await fixture();
+  await applyStatusTransition(g.order.ref, 'in_kitchen', null);
+  expect(await db.notificationOutbox.count({where:{orderId:g.order.id,dedupeKey:{contains:':in_kitchen:customer'}}})).toBe(1);
+  delete process.env.WHATSAPP_ACCESS_TOKEN; delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+ });
+ it('deactivation strands a ready order and worker does not recover it', async () => {
+  const f = await fixture();
+  await moveFulfillment(f.vendor.id, f.order.ref, 'in_preparation', f.assignment);
+  await moveFulfillment(f.vendor.id, f.order.ref, 'ready', f.assignment);
+  const form = new FormData(); form.set('id', f.vendor.id); form.set('isActive', 'false');
+  expect((await setVendorActive(undefined, form)).ok).toBe(true);
+  expect(await handOver(f.vendor.id, f.order.ref, f.assignment, null)).toBe(false);
+  expect(await applyStatusTransition(f.order.ref, 'out_for_delivery', null)).toBe(false);
+  await runAssignmentWorker();
+  expect((await db.order.findUniqueOrThrow({where:{id:f.order.id}})).currentAssignmentId).toBe(f.assignment);
+ });
+ it('vendor history search has no access to orders older than the latest 60 assignments', async () => {
+  const f = await fixture();
+  for(let i=0;i<60;i++) {
+   const newer = await db.order.create({data:{ref:`HISTORY-${++serial}`,config:{},priceBreakdown:{},totalPaise:100,payablePaise:100,deliverySlot:'standard',leadHours:24,status:'delivered'}});
+   await db.vendorOrder.create({data:{vendorId:f.vendor.id,orderId:newer.id,sequence:1,status:'handed_over',assignmentStatus:'ACCEPTED',offeredAt:new Date(),assignedAt:new Date(Date.now()+1000+i)}});
+  }
+  const history = await vendorHistory(f.vendor.id);
+  expect(history).toHaveLength(60); expect(history.some(c=>c.order.ref===f.order.ref)).toBe(false);
+  expect(await vendorOrder(f.vendor.id, f.order.ref)).not.toBeNull();
+ });
+});
