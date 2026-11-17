@@ -1,0 +1,9 @@
+
+ RUN  v4.1.12 /Users/tathagatharsh/Desktop/Tripee.nosync
+
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  19:16:11
+   Duration  6.52s (transform 953ms, setup 0ms, import 4.07s, tests 1.32s, environment 0ms)
+
