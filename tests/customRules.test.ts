@@ -16,6 +16,12 @@ describe("customRules", () => {
     for (const junk of ["1800.50", "started", "1800 for 2kg", "", "call me"]) expect(parseQuoteReply(junk)).toBeNull();
   });
 
+  it("reads the ways Indian bakers write a price", () => {
+    for (const text of ["1200/-", "Rs.1,200/-", "₹1200.00", "1200 only", "Rs 1200/- only", "1200.0", "1200/="])
+      expect(parseQuoteReply(text), text).toEqual({ kind: "quote", paise: 120000 });
+    expect(parseQuoteReply("1200/- CR-AB12CD")).toEqual({ kind: "quote", paise: 120000, ref: "CR-AB12CD" });
+  });
+
   it("adds margin and rounds up to the next 10 rupees", () => {
     expect(customerPricePaise(180000, 15)).toBe(207000);
     expect(customerPricePaise(180100, 15)).toBe(208000);
@@ -40,6 +46,10 @@ describe("customRules", () => {
     expect(canMoveCustom("quoted", "paid")).toBe(true);
     expect(canMoveCustom("paid", "cancelled")).toBe(false);
     expect(canMoveCustom("declined", "quoted")).toBe(false);
+    // An admin can still quote or cancel a request no bakery took.
+    expect(canMoveCustom("no_bakery", "quoted")).toBe(true);
+    expect(canMoveCustom("no_bakery", "cancelled")).toBe(true);
+    expect(canMoveCustom("no_bakery", "paid")).toBe(false);
   });
 
   it("makes refs and tokens", () => {

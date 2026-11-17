@@ -95,7 +95,7 @@ Variables:
 
 ### Customer templates
 
-The customer gets these four and nothing else. The line breaks below are part of the approved text; parameters themselves never contain one. The footer is fixed text. `{{1}}` is always the customer's first name, or "there" when we don't have one.
+For a cake order, the customer gets these four and nothing else. (A custom-cake request, before it is paid and becomes an order, gets `custom_quote`, plus an `order_update` if no bakery could quote it or it is cancelled; see Custom cakes below.) The line breaks below are part of the approved text; parameters themselves never contain one. The footer is fixed text. `{{1}}` is always the customer's first name, or "there" when we don't have one.
 
 **`customer_order_confirmed`**: sent once, when the order is confirmed (at checkout, since orders are created confirmed). Header: image (the cake photo).
 
@@ -160,6 +160,13 @@ Sample values for Meta: `Asha`, `Chocolate Truffle · 1kg · eggless`, `Sat 10 O
 Parameters never contain line breaks. The first three are the texts Meta approved (the first draft was shorter, and Meta refused it with "too many variables for its length", so the fixed wording around the variables was lengthened; the variables and their order did not change). If a template is ever edited or rejected, change the matching builder in `lib/whatsappMessages.ts`.
 
 `custom_offer` and `custom_quote` have **not been submitted to Meta yet**. Submit them with the wording above. If Meta asks for changes, change the matching builder in `lib/whatsappMessages.ts` before the branch ships.
+
+### Custom cakes
+
+- **Bakery price replies.** A bare number, with or without `₹`/`Rs`, commas, `/-`, `.00` or `only` (`1200`, `Rs.1,200/-`, `₹1200.00`, `1200 only`). Add the request ref when the bakery has more than one open (`1200 CR-AB12CD`). Whole rupees from ₹100 to ₹1,00,000.
+- **No bakery.** After three bakeries pass or time out, the request is `no_bakery`. The admin gets an alert with the customer's name and number. The customer gets an `order_update`: "none of our partner bakeries could quote your custom cake yet. Our team will contact you".
+- **Admin quote.** On `/admin/custom-requests`, a request that is waiting for a quote or has no bakery has a **Send quote** form: pick an active bakery with a WhatsApp number, type that bakery's price. The customer gets the same `custom_quote` a bakery reply sends (price = bakery price + margin, rounded up to ₹10, + delivery). The chosen bakery gets an `order_update` with the price, and a bakery holding the live offer is told it was passed on. It is refused if that bakery could no longer make the cake in time.
+- **Cancel.** Cancelling a waiting, quoted or no-bakery request tells the bakery that held it and the customer (`order_update`).
 
 **Deploy order for custom cakes:** run the `9l_custom_requests` migration on production (`prisma migrate deploy` on the Supabase session pooler, port 5432) *before* deploying the code that uses it. The outbox code writes `NotificationOutbox.customRequestId` on every insert, so code deployed ahead of the migration breaks checkout and every notification. The migration is safe for the code already running. Also, the custom-cake form only appears once WhatsApp, an image store and online payment are all configured.
 
