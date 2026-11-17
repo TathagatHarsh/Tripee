@@ -1,15 +1,10 @@
 import type { Metadata } from "next";
-import { connection } from "next/server";
 import { CustomCakeTile } from "@/components/shop/CustomCakeTile";
+import { QuoteButton } from "@/components/shop/QuoteButton";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
-import { getBakeryInfo, getCatalogSnapshot, loadClosedDays } from "@/lib/catalogData";
-import { paymentCheckoutAvailable } from "@/lib/razorpay";
-import { CUSTOM_CAKES, CUSTOM_GROUPS, whatsappTo } from "@/lib/customCakes";
-import { CustomEnquiry } from "@/components/shop/CustomEnquiry";
-import { CustomRequestSheet } from "@/components/shop/CustomRequestSheet";
-import { hasImageStore } from "@/lib/storage";
-import { whatsappConfigured } from "@/lib/whatsapp";
+import { getBakeryInfo } from "@/lib/catalogData";
+import { CUSTOM_CAKES, CUSTOM_GROUPS } from "@/lib/customCakes";
 import { sBtn, sEyebrow } from "@/lib/shopUi";
 
 export const metadata: Metadata = {
@@ -31,28 +26,12 @@ const SIZES = "(min-width:1024px) 22vw, (min-width:640px) 30vw, 46vw";
  */
 export default async function CustomCakesPage() {
   const bakery = await getBakeryInfo();
-  const to = whatsappTo(bakery.phone);
-  // With WhatsApp, an image store and online payment the photo goes through our own request form (a quote must be
-  // payable); otherwise the wa.me button. Gallery "Ask" tiles stay on CustomEnquiry.
-  const catalog = whatsappConfigured() && hasImageStore() && paymentCheckoutAvailable() ? await getCatalogSnapshot() : null;
-  // Closed days are today's, not the build's: the sheet's date picker greys them out like checkout's.
-  if (catalog) await connection();
-  const closedDays = catalog ? await loadClosedDays(catalog.deliveryRules.preorderDays) : [];
-
-  const sendPhoto = (extra = "") =>
-    catalog ? (
-      <CustomRequestSheet catalog={catalog} closedDays={closedDays} buttonClassName={sBtn("primary", "lg", extra)}>
-        Send us your cake photo <span aria-hidden>↗</span>
-      </CustomRequestSheet>
-    ) : to ? (
-      <CustomEnquiry to={to} cakeLink={null} title="Your own cake design" buttonClassName={sBtn("primary", "lg", extra)}>
-        Send us your cake photo <span aria-hidden>↗</span>
-      </CustomEnquiry>
-    ) : (
-      <a href={`tel:${bakery.phone.replace(/\s/g, "")}`} className={sBtn("primary", "lg", extra)}>
-        Call {bakery.phone}
-      </a>
-    );
+  // Gallery "Ask" tiles stay on CustomEnquiry; the photo button is QuoteButton.
+  const sendPhoto = () => (
+    <QuoteButton phone={bakery.phone} className={sBtn("primary", "lg")}>
+      Send us your cake photo <span aria-hidden>↗</span>
+    </QuoteButton>
+  );
 
   return (
     <div className="s-root min-h-dvh bg-s-cream">
