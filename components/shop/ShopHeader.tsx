@@ -45,11 +45,10 @@ export function ShopHeader({
      longer at the top. Zero JavaScript, and it collapses under
      prefers-reduced-motion with every other animation in the document. */
   /* The wellness strip sits outside the sticky header so it scrolls away and
-     the bar keeps its 68px once you are reading the page. The home page opens
-     with the full WellnessBand instead, so the strip would only repeat it. */
+     the bar keeps its 68px once you are reading the page. */
   return (
     <>
-    {current !== "home" && <WellnessBar />}
+    <WellnessBar />
     <header className="s-bar sticky top-0 z-30 border-b border-s-line bg-s-cream/90 backdrop-blur-md">
       <div className="mx-auto flex h-[68px] max-w-[84rem] items-center gap-2 px-4 sm:gap-4 sm:px-6 lg:px-10">
         {/* The drawer's trigger. First in the DOM so it is the first tab stop on
