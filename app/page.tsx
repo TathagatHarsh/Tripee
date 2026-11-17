@@ -8,7 +8,7 @@ import { ProductCard } from "@/components/shop/ProductCard";
 import { QuoteButton } from "@/components/shop/QuoteButton";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
-import { WellnessBand, WellnessCard, WellnessNote } from "@/components/shop/WellnessPromise";
+import { WellnessCard, WellnessNote, WellnessPillars } from "@/components/shop/WellnessPromise";
 import { listCakes } from "@/lib/cakeData";
 import { CAKE_CATEGORIES, cheapestVariant } from "@/lib/cakes";
 import { getCatalogSnapshot } from "@/lib/catalogData";
@@ -24,8 +24,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * The home page, in the order the client set (2026-11-17): the feel-good range
- * band, their "Your idea, baked." introduction, then Our cake gallery, Customise your cake, Healthy &
+ * The home page, in the order the client set (2026-11-17): the feel-good card,
+ * their "Your idea, baked." introduction, then Our cake gallery, Customise your cake, Healthy &
  * functional cakes and Get your quote on WhatsApp. The ready-to-order
  * collection follows those four.
  */
@@ -61,11 +61,11 @@ export default async function Home() {
     <div className="s-root min-h-dvh bg-s-cream">
       <ShopHeader current="home" />
       <main id="main">
-        {/* The client asked for the feel-good range at the very top of the page. */}
-        <WellnessBand />
         <section className="brand-hero">
           <div className="brand-hero-inner">
             <div className="s-enter brand-hero-copy">
+              {/* The feel-good range opens the page: the client's main selling point. */}
+              <WellnessCard />
               <span className={sEyebrow}>Made in Hyderabad. Made for you.</span>
               <h1>
                 Your idea,
@@ -250,7 +250,7 @@ export default async function Home() {
                 Ask for a healthier cake ↗
               </QuoteButton>
             </div>
-            <WellnessCard />
+            <WellnessPillars />
           </div>
         </section>
 
