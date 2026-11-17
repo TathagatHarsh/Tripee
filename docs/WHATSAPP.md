@@ -173,13 +173,6 @@ Parameters never contain line breaks. The first three are the texts Meta approve
 - **Admin quote.** On `/admin/custom-requests`, a request that is waiting for a quote or has no bakery has a **Send quote** form: pick an active bakery with a WhatsApp number, type that bakery's price. The customer gets the same `custom_quote` a bakery reply sends (price = bakery price + margin, rounded up to ₹10, + delivery). The chosen bakery gets an `order_update` with the price, and a bakery holding the live offer is told it was passed on. It is refused if that bakery could no longer make the cake in time.
 - **Cancel.** Cancelling a waiting, quoted or no-bakery request tells the bakery that held it and the customer (`order_update`).
 
-### Custom cakes
-
-- **Bakery price replies.** A bare number, with or without `₹`/`Rs`, commas, `/-`, `.00` or `only` (`1200`, `Rs.1,200/-`, `₹1200.00`, `1200 only`). Add the request ref when the bakery has more than one open (`1200 CR-AB12CD`). Whole rupees from ₹100 to ₹1,00,000.
-- **No bakery.** After three bakeries pass or time out, the request is `no_bakery`. The admin gets an alert with the customer's name and number. The customer gets an `order_update`: "none of our partner bakeries could quote your custom cake yet. Our team will contact you".
-- **Admin quote.** On `/admin/custom-requests`, a request that is waiting for a quote or has no bakery has a **Send quote** form: pick an active bakery with a WhatsApp number, type that bakery's price. The customer gets the same `custom_quote` a bakery reply sends (price = bakery price + margin, rounded up to ₹10, + delivery). The chosen bakery gets an `order_update` with the price, and a bakery holding the live offer is told it was passed on. It is refused if that bakery could no longer make the cake in time.
-- **Cancel.** Cancelling a waiting, quoted or no-bakery request tells the bakery that held it and the customer (`order_update`).
-
 **Deploy order for custom cakes:** run the `9l_custom_requests` migration on production (`prisma migrate deploy` on the Supabase session pooler, port 5432) *before* deploying the code that uses it. The outbox code writes `NotificationOutbox.customRequestId` on every insert, so code deployed ahead of the migration breaks checkout and every notification. The migration is safe for the code already running. Also, the custom-cake form only appears once WhatsApp, an image store and online payment are all configured.
 
 ### Verification code template
