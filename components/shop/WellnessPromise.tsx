@@ -1,9 +1,10 @@
 /**
  * The client's headline promise: low sugar, prebiotic and fibre-rich cakes.
  *
- * Three looks for the same fact. The bar sits above the shop header on every
- * page that has one, the card sits in the home hero, and the band opens the
- * footer. Styles live in globals.css under "Wellness promise".
+ * Four looks for the same fact. The bar sits above the shop header on every
+ * page that has one, the note sits in the home hero and points at the card in
+ * the home "Healthy & functional cakes" section, and the band opens the footer.
+ * Styles live in globals.css under "Wellness promise".
  */
 const PILLARS = [
   {
@@ -66,7 +67,26 @@ export function WellnessBar() {
   );
 }
 
-/** The panel that opens the home hero. */
+/** The client's healthier line in the home hero, linking down to the section that expands on it. */
+export function WellnessNote({ href }: { href: string }) {
+  return (
+    <a href={href} className="wellness-note">
+      <span className="wellness-note-icons" aria-hidden>
+        {PILLARS.map((p) => (
+          <span key={p.label} className="wellness-medal">
+            <Mark d={p.d} />
+          </span>
+        ))}
+      </span>
+      <span>
+        <strong>Looking for something healthier?</strong> We also offer low-sugar, prebiotic and fibre-rich cakes,
+        thoughtfully crafted to suit your preferences. <span aria-hidden>↓</span>
+      </span>
+    </a>
+  );
+}
+
+/** The green panel in the home "Healthy & functional cakes" section. */
 export function WellnessCard() {
   return (
     <div className="wellness-card">

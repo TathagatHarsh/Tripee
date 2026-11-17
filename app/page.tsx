@@ -5,9 +5,10 @@ import { CakePhoto } from "@/components/shop/CakePhoto";
 import { CustomCakeTile } from "@/components/shop/CustomCakeTile";
 import { CUSTOM_CAKES, HOME_CUSTOM_IDS } from "@/lib/customCakes";
 import { ProductCard } from "@/components/shop/ProductCard";
+import { QuoteButton } from "@/components/shop/QuoteButton";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopHeader } from "@/components/shop/ShopHeader";
-import { WellnessCard } from "@/components/shop/WellnessPromise";
+import { WellnessBand, WellnessCard, WellnessNote } from "@/components/shop/WellnessPromise";
 import { listCakes } from "@/lib/cakeData";
 import { CAKE_CATEGORIES, cheapestVariant } from "@/lib/cakes";
 import { getCatalogSnapshot } from "@/lib/catalogData";
@@ -17,16 +18,23 @@ import { sBtn, sEyebrow } from "@/lib/shopUi";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
-  title: "MakeYourCakes · A little more celebration",
+  title: "MakeYourCakes · Your idea, baked.",
   description:
-    "Beautiful cakes, baked to order in Hyderabad, with low sugar, prebiotic and fibre-rich cakes available. Find your flavour, choose your size, and make their day.",
+    "Choose a cake design you love, or share a photo of the cake you've been dreaming of, and get a customised quote on WhatsApp. Low-sugar, prebiotic and fibre-rich cakes in Hyderabad.",
 };
 
+/**
+ * The home page, in the order the client set (2026-11-17): the feel-good range
+ * band, their "Your idea, baked." introduction, then Our cake gallery, Customise your cake, Healthy &
+ * functional cakes and Get your quote on WhatsApp. The ready-to-order
+ * collection follows those four.
+ */
 export default async function Home() {
   const [catalog, cakes] = await Promise.all([
     getCatalogSnapshot(),
     listCakes(),
   ]);
+  const phone = catalog.bakery.phone;
   const hero =
     cakes.find((c) => c.isFeatured && cheapestVariant(c)) ??
     cakes.find((c) => cheapestVariant(c));
@@ -53,40 +61,38 @@ export default async function Home() {
     <div className="s-root min-h-dvh bg-s-cream">
       <ShopHeader current="home" />
       <main id="main">
+        {/* The client asked for the feel-good range at the very top of the page. */}
+        <WellnessBand />
         <section className="brand-hero">
           <div className="brand-hero-inner">
             <div className="s-enter brand-hero-copy">
-              {/* The client's main selling point, so it opens the hero. */}
-              <WellnessCard />
               <span className={sEyebrow}>Made in Hyderabad. Made for you.</span>
               <h1>
-                A little more{" "}
+                Your idea,
                 <br />
-                <em>celebration.</em>
+                <em>baked.</em>
               </h1>
+              <p className="brand-hero-lead">
+                Every cake on this page began with someone&rsquo;s idea.
+              </p>
               <p>
-                Big milestones. Small victories. Just-because Tuesdays.
-                Beautiful cakes for everything worth a slice.
+                Choose a design you love, or simply share a photo of the cake
+                you&rsquo;ve been dreaming of. Tell us what you have in mind,
+                and we&rsquo;ll create a customised quote for you directly on
+                WhatsApp.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Link href="/shop" className={sBtn("primary", "lg")}>
-                  Find your cake <span aria-hidden>↗</span>
-                </Link>
+                <QuoteButton phone={phone} className={sBtn("primary", "lg")}>
+                  Get your quote on WhatsApp <span aria-hidden>↗</span>
+                </QuoteButton>
                 <Link
-                  href="#the-collection"
+                  href="#gallery"
                   className="inline-flex min-h-14 items-center px-3 text-sm font-semibold underline underline-offset-8"
                 >
-                  Explore the collection
+                  Explore our gallery
                 </Link>
               </div>
-              <div className="brand-hero-note">
-                <span aria-hidden>✳</span>
-                <span>
-                  Baked to order. A personal touch.
-                  <br />
-                  <strong>We call to confirm every order.</strong>
-                </span>
-              </div>
+              <WellnessNote href="#healthy" />
             </div>
             {hero && price !== null ? (
               <div className="brand-hero-art s-enter-media">
@@ -135,13 +141,151 @@ export default async function Home() {
             )}
           </div>
         </section>
-        <div className="brand-ribbon" aria-label="Our approach">
-          <span>Baked fresh to order</span>
+        <div className="brand-ribbon" aria-label="Your idea. Your cake. Your celebration.">
+          <span>Your idea</span>
           <span aria-hidden>✳</span>
-          <span>Your cake. Your message.</span>
+          <span>Your cake</span>
           <span aria-hidden>✳</span>
-          <span>Thoughtfully delivered</span>
+          <span>Your celebration</span>
         </div>
+
+        <section
+          id="gallery"
+          className="brand-section scroll-mt-20"
+          aria-labelledby="gallery-title"
+        >
+          <div className="brand-section-head s-rise-in">
+            <div>
+              <span className={sEyebrow}>01 · Our cake gallery</span>
+              <h2 id="gallery-title">Choose a design you love.</h2>
+              <p className="mt-3 max-w-[36rem] text-s-bark">
+                Jungle birthdays, engagement tiers, a cake shaped like their
+                job. Tap any one and ask us for a cake like it.
+              </p>
+            </div>
+            <Link href="/custom-cakes" className={sBtn("outline")}>
+              See the full gallery ↗
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-6">
+            {HOME_CUSTOM_IDS.map((id) => (
+              <CustomCakeTile
+                key={id}
+                cake={CUSTOM_CAKES.find((c) => c.id === id)!}
+                phone={phone}
+                sizes="(min-width:1024px) 15vw, (min-width:640px) 30vw, 46vw"
+              />
+            ))}
+          </div>
+        </section>
+
+        <section
+          id="customise"
+          className="brand-story scroll-mt-20"
+          aria-labelledby="customise-title"
+        >
+          <div className="brand-section brand-story-grid">
+            <div className="s-rise-in">
+              <span className="brand-story-kicker">02 · Customise your cake</span>
+              <h2 id="customise-title">
+                Made the way
+                <br />
+                you imagine it.
+              </h2>
+              <p>
+                Bring a design from our gallery or a photo of your own. We
+                shape every detail around you, and confirm it all before
+                anything goes in the oven.
+              </p>
+              <QuoteButton phone={phone} className={sBtn("outline", "lg")}>
+                Share your idea ↗
+              </QuoteButton>
+            </div>
+            <ol className="brand-promises s-rise-row">
+              {[
+                [
+                  "Share your idea",
+                  "Pick a design from our gallery, or send a photo of the cake you’ve been dreaming of.",
+                ],
+                [
+                  "Make it yours",
+                  "Tell us the date, the size, the flavour and the message you want on it.",
+                ],
+                [
+                  "Get your quote",
+                  "We send a customised quote on WhatsApp and confirm everything with you before we bake.",
+                ],
+              ].map(([title, copy], i) => (
+                <li key={title}>
+                  <span>0{i + 1}</span>
+                  <div>
+                    <h3>{title}</h3>
+                    <p>{copy}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section
+          id="healthy"
+          className="scroll-mt-20 border-b border-s-line bg-s-cream-deep/50"
+          aria-labelledby="healthy-title"
+        >
+          <div className="brand-section home-healthy">
+            <div className="s-rise-in flex flex-col items-start gap-5">
+              <span className={sEyebrow}>03 · Healthy &amp; functional cakes</span>
+              <h2 id="healthy-title" className="font-display text-[clamp(2rem,3.3vw,3.1rem)] leading-[1.05]">
+                Something <em className="text-s-berry">healthier,</em> just as
+                celebratory.
+              </h2>
+              <p className="max-w-[34rem] text-[1.0625rem] leading-relaxed text-s-bark">
+                We also offer low-sugar, prebiotic and fibre-rich cakes,
+                thoughtfully crafted to suit your preferences. Tell us which
+                you&rsquo;d like when you share your idea, and we&rsquo;ll
+                include it in your quote.
+              </p>
+              <QuoteButton phone={phone} className={sBtn("outline", "lg")}>
+                Ask for a healthier cake ↗
+              </QuoteButton>
+            </div>
+            <WellnessCard />
+          </div>
+        </section>
+
+        <section
+          id="quote"
+          className="scroll-mt-20 bg-s-cocoa-deep text-s-cream"
+          aria-labelledby="quote-title"
+        >
+          <div className="brand-section home-quote">
+            <div className="flex flex-col items-start gap-5">
+              <span className="font-mono text-[0.75rem] tracking-[0.18em] text-s-gold uppercase">
+                04 · Get your quote on WhatsApp
+              </span>
+              <h2 id="quote-title" className="font-display text-[clamp(2rem,3.3vw,3.1rem)] leading-tight">
+                Have a design in mind?
+              </h2>
+              <p className="max-w-[40rem] text-s-cream/80">
+                Send us a photo, a sketch or a screenshot. Tell us the date and
+                how many people it&rsquo;s for, and we&rsquo;ll come back with
+                a price on WhatsApp.
+              </p>
+              <QuoteButton phone={phone} className={sBtn("primary", "lg")}>
+                Get your quote on WhatsApp <span aria-hidden>↗</span>
+              </QuoteButton>
+            </div>
+            <p className="home-quote-sign">
+              Your idea.
+              <br />
+              Your cake.
+              <br />
+              <em>Your celebration.</em>
+            </p>
+          </div>
+        </section>
+
         <section
           id="the-collection"
           className="brand-section"
@@ -149,8 +293,8 @@ export default async function Home() {
         >
           <div className="brand-section-head s-rise-in">
             <div>
-              <span className={sEyebrow}>Follow your cravings</span>
-              <h2 id="categories">A flavour for every feeling.</h2>
+              <span className={sEyebrow}>Ready to order</span>
+              <h2 id="categories">Or pick one of ours today.</h2>
             </div>
             <Link href="/shop" className="brand-text-link">
               All {cakes.length} cakes <span aria-hidden>↗</span>
@@ -209,75 +353,6 @@ export default async function Home() {
                 <ProductCard key={p.slug} product={p} catalog={catalog} />
               ))}
             </ul>
-          </div>
-        </section>
-        <section className="brand-story" aria-labelledby="our-way">
-          <div className="brand-section brand-story-grid">
-            <div className="s-rise-in">
-              <span className="brand-story-kicker">The MakeYourCakes way</span>
-              <h2 id="our-way">
-                Good cake.
-                <br />
-                Great memories.
-              </h2>
-              <p>
-                It starts with a cake you love. We make it personal, confirm the
-                details with you, and bake for the moment you have in mind.
-              </p>
-              <Link href="/shop" className={sBtn("outline", "lg")}>
-                Make someone’s day ↗
-              </Link>
-            </div>
-            <ol className="brand-promises s-rise-row">
-              {[
-                [
-                  "Pick your favourite",
-                  "Browse the collection and find a flavour that feels like them.",
-                ],
-                [
-                  "Make it personal",
-                  "Choose the size, the sponge and a message from the heart.",
-                ],
-                [
-                  "Leave the baking to us",
-                  "Tell us where and when. We call to confirm before anything goes in the oven.",
-                ],
-              ].map(([title, copy], i) => (
-                <li key={title}>
-                  <span>0{i + 1}</span>
-                  <div>
-                    <h3>{title}</h3>
-                    <p>{copy}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-        <section className="brand-section" aria-labelledby="custom">
-          <div className="brand-section-head s-rise-in">
-            <div>
-              <span className={sEyebrow}>Custom cakes</span>
-              <h2 id="custom">Made to your idea.</h2>
-              <p className="mt-3 max-w-[36rem] text-s-bark">
-                Jungle birthdays, engagement tiers, a cake shaped like their
-                job. Send us a photo of what you have in mind and we will
-                quote it on WhatsApp.
-              </p>
-            </div>
-            <Link href="/custom-cakes" className={sBtn("outline")}>
-              See all custom cakes ↗
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-6">
-            {HOME_CUSTOM_IDS.map((id) => (
-              <CustomCakeTile
-                key={id}
-                cake={CUSTOM_CAKES.find((c) => c.id === id)!}
-                phone={catalog.bakery.phone}
-                sizes="(min-width:1024px) 15vw, (min-width:640px) 30vw, 46vw"
-              />
-            ))}
           </div>
         </section>
         <section className="brand-section">
