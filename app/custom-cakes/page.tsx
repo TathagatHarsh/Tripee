@@ -26,7 +26,7 @@ const SIZES = "(min-width:1024px) 22vw, (min-width:640px) 30vw, 46vw";
  */
 export default async function CustomCakesPage() {
   const bakery = await getBakeryInfo();
-  // Gallery "Ask" tiles stay on CustomEnquiry; the photo button is QuoteButton.
+  // The photo button and the gallery "Ask" tiles share one gate (QuoteButton.requestSheetData).
   const sendPhoto = () => (
     <QuoteButton phone={bakery.phone} className={sBtn("primary", "lg")}>
       Send us your cake photo <span aria-hidden>↗</span>

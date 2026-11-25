@@ -11,8 +11,11 @@ import { sBtn, sField } from "@/lib/shopUi";
 /**
  * "Send us your cake photo": the quoted-custom-cake request form. Posts the photo and details to
  * /api/custom-requests; a bakery quotes over WhatsApp. Same `<dialog>` `.s-sheet` as CustomEnquiry.
+ * A gallery tile passes `preset`, its own photo, which is sent unless the customer picks another.
  */
-export function CustomRequestSheet({ catalog, closedDays, buttonClassName, children }: { catalog: CatalogSnapshot; closedDays: string[]; buttonClassName: string; children: React.ReactNode }) {
+type Preset = { src: string; alt: string };
+type Props = { catalog: CatalogSnapshot; closedDays: string[]; preset?: Preset; title?: string };
+export function CustomRequestSheet({ buttonClassName, children, ...props }: Props & { buttonClassName: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   return (
@@ -22,8 +25,7 @@ export function CustomRequestSheet({ catalog, closedDays, buttonClassName, child
       </button>
       {open && (
         <Sheet
-          catalog={catalog}
-          closedDays={closedDays}
+          {...props}
           onClose={() => {
             setOpen(false);
             trigger.current?.focus();
@@ -40,7 +42,7 @@ function Err({ errors, name }: { errors: Record<string, string[]>; name: string 
   return errors[name]?.length ? <span role="alert" className="text-[0.8125rem] font-normal text-s-berry">{errors[name][0]}</span> : null;
 }
 
-function Sheet({ catalog, closedDays, onClose }: { catalog: CatalogSnapshot; closedDays: string[]; onClose: () => void }) {
+function Sheet({ catalog, closedDays, preset, title = "Your own cake design", onClose }: Props & { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement | null>(null);
   const mount = useCallback((el: HTMLDialogElement | null) => {
     dialog.current = el;
@@ -73,12 +75,12 @@ function Sheet({ catalog, closedDays, onClose }: { catalog: CatalogSnapshot; clo
     const f = new FormData(e.currentTarget);
     const s = (k: string) => String(f.get(k) ?? "").trim();
     const local: Record<string, string[]> = {};
-    if (!photo) local.photo = ["Add a photo of the cake you have in mind"];
+    if (!photo && !preset) local.photo = ["Add a photo of the cake you have in mind"];
     if (!address) local.address = ["Choose where to deliver"];
     if (!pickedDay?.windows.some((w) => w.label === dueWindow)) local.dueAt = ["Choose a delivery date and window"];
     setErrors(local);
     setProblem("");
-    if (!photo || !address || local.dueAt) return;
+    if (local.photo || !address || local.dueAt) return;
     const data = {
       name: s("name"), phone: s("phone"), sizeKg: Number(s("sizeKg")), flavour: s("flavour"),
       ...(s("budget") ? { budgetRupees: Number(s("budget")) } : {}),
@@ -88,9 +90,11 @@ function Sheet({ catalog, closedDays, onClose }: { catalog: CatalogSnapshot; clo
     };
     const body = new FormData();
     body.set("data", JSON.stringify(data));
-    body.set("photo", photo.file);
     setBusy(true);
     try {
+      // The gallery photo is one of our own files, so the request carries it like an upload.
+      const blob = photo ? photo.file : await fetch(preset!.src).then((r) => (r.ok ? r.blob() : Promise.reject(r.status)));
+      body.set("photo", blob, "cake.webp");
       const res = await fetch("/api/custom-requests", { method: "POST", body });
       const json = await res.json().catch(() => ({}));
       if (res.status === 201) return setRef(json.ref);
@@ -118,7 +122,7 @@ function Sheet({ catalog, closedDays, onClose }: { catalog: CatalogSnapshot; clo
         <span aria-hidden className="s-sheet-grip" />
         <div className="flex items-start gap-4 border-b border-s-line px-5 pt-4 pb-4 sm:px-7 sm:pt-6">
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <h2 id="request-title" className="text-[1.25rem] leading-tight sm:text-[1.4375rem]">Your own cake design</h2>
+            <h2 id="request-title" className="text-[1.25rem] leading-tight sm:text-[1.4375rem]">{title}</h2>
             <p className="text-[0.875rem] leading-snug text-s-bark">Send a photo and the details. A bakery near you quotes the price on WhatsApp.</p>
           </div>
           <button
@@ -142,9 +146,9 @@ function Sheet({ catalog, closedDays, onClose }: { catalog: CatalogSnapshot; clo
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-4 overflow-y-auto px-5 py-5 sm:px-7">
             <label className={label}>
-              Photo of the cake you want
+              {preset ? <>Use your own photo instead <span className="font-normal text-s-bark">(optional)</span></> : "Photo of the cake you want"}
               <input
-                name="photo" type="file" accept="image/jpeg,image/png,image/webp" required
+                name="photo" type="file" accept="image/jpeg,image/png,image/webp" required={!preset}
                 className="text-[0.875rem] font-normal file:mr-3 file:min-h-11 file:rounded-s-sm file:border file:border-s-line-strong file:bg-s-shell file:px-4"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -153,9 +157,9 @@ function Sheet({ catalog, closedDays, onClose }: { catalog: CatalogSnapshot; clo
               />
               <Err errors={errors} name="photo" />
             </label>
-            {photo && (
-              // eslint-disable-next-line @next/next/no-img-element -- a local blob preview, nothing to optimise
-              <img src={photo.url} alt="Your chosen cake photo" className="max-h-48 w-full rounded-s-sm bg-s-cream-deep object-contain" />
+            {(photo || preset) && (
+              // eslint-disable-next-line @next/next/no-img-element -- a local blob preview or our own small still
+              <img src={photo?.url ?? preset!.src} alt={photo ? "Your chosen cake photo" : preset!.alt} className="max-h-48 w-full rounded-s-sm bg-s-cream-deep object-contain" />
             )}
 
             <div className="grid grid-cols-2 gap-3">
