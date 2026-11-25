@@ -12,6 +12,7 @@ import { db } from "./db";
 import { DEFAULT_DELIVERY_RULES, windowEndingAt, type DeliveryRules } from "./deliveryRules";
 import { meetsDeadline } from "./inventoryRules";
 import { log } from "./log";
+import { dispatchPendingNotifications } from "./notifications";
 import { IntentRecord } from "./razorpay";
 import { optimize, store } from "./storage";
 import { adminNumbers, indianMobile, normalizePhone, siteUrl } from "./whatsapp";
@@ -56,7 +57,8 @@ export async function createCustomRequest(input: NewCustomRequest, photo: Buffer
         select: { id: true },
       });
       // A failure here is safe: runCustomRequestWorker offers requests that were never offered.
-      after(() => offerNext(id).catch((error) => log("error", "custom_offer_failed", { id, error: String(error) })));
+      // The offer is sent at once, not when the notifications pinger next runs.
+      after(() => offerNext(id).then(() => dispatchPendingNotifications(5)).catch((error) => log("error", "custom_offer_failed", { id, error: String(error) })));
       return { ref };
     } catch (error) {
       // ref collision: try a fresh one
