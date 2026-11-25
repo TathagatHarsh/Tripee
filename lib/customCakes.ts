@@ -77,8 +77,8 @@ export const HOME_CUSTOM_IDS = ["jungle-three-tier", "engaged-three-tier-rings",
 export const customSrc = (c: CustomCake) => `/custom/${c.id}${c.retouched ? "-name-free" : ""}.${c.video ? "mp4" : "webp"}`;
 export const customPoster = (c: CustomCake) => `/custom/${c.id}.poster.webp`;
 
-/** The link an enquiry carries so the bakery sees which cake was meant. */
-export const customCakeLink = (c: CustomCake) => `${siteUrl()}/custom-cakes#${c.id}`;
+/** The link an enquiry carries: the cake's photo (or video) itself, so the bakery sees exactly which one was meant. */
+export const customCakeLink = (c: CustomCake) => `${siteUrl()}${customSrc(c)}`;
 
 /** The bakery's number as WhatsApp wants it, or null if the saved number is not a phone. */
 export const whatsappTo = (phone: string) => normalizePhone(phone);
