@@ -4,7 +4,11 @@ import { db, hasDatabase, NO_DATABASE_MESSAGE } from "@/lib/db";
 import { formatINR } from "@/lib/format";
 import { aBtn, Card, EmptyState, Notice, PageHeader, Ref, StatusBadge, type BadgeTone } from "@/components/admin/ui";
 import { formatDue } from "@/lib/whatsappMessages";
+import { requestSheetData } from "@/components/shop/QuoteButton";
+import { siteUrl } from "@/lib/whatsapp";
 import { cancelCustomRequestAction } from "./actions";
+import { CopyLink } from "./CopyLink";
+import { NewQuoteForm } from "./NewQuoteForm";
 import { QuoteForm } from "./QuoteForm";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +29,21 @@ export default async function CustomRequestsAdmin() {
   });
   // The bakeries an admin quote can go to: the same ones adminQuote accepts.
   const bakeries = (await db.vendor.findMany({ where: { isActive: true, phone: { not: null } }, select: { id: true, name: true }, orderBy: { name: "asc" } }));
+  // The same gate as the website's form: a quote needs WhatsApp to arrive and online payment to be paid.
+  const sheet = await requestSheetData();
   return (
     <div className="space-y-6">
       <PageHeader title="Custom requests" blurb="Every custom cake request, newest first (latest 100). Follow up on any with a failed message." />
+      <Card>
+        <details>
+          <summary className="cursor-pointer font-a-sans text-a-body font-medium">New quote for a customer who phoned</summary>
+          <div className="pt-4">
+            {sheet ? <NewQuoteForm {...sheet} bakeries={bakeries} /> : (
+              <p className="font-a-sans text-a-small text-a-muted">Needs WhatsApp, photo storage and online payment to be set up.</p>
+            )}
+          </div>
+        </details>
+      </Card>
       {!requests.length && <EmptyState title="No custom requests yet" />}
       <ul className="space-y-3">
         {requests.map((r) => {
@@ -68,6 +84,7 @@ export default async function CustomRequestsAdmin() {
                     </div>
                   ))}
                 </dl>
+                {r.status === "quoted" && <CopyLink url={`${siteUrl()}/c/${r.token}`} />}
                 {r.order && <Link href={`/admin/orders/${r.order.ref}`} className="font-a-sans text-a-small underline">Order {r.order.ref}</Link>}
                 {(r.status === "awaiting_quote" || r.status === "no_bakery") && (
                   <div className="pt-2"><QuoteForm id={r.id} bakeries={bakeries} defaultBakery={r.vendorId} /></div>

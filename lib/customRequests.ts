@@ -6,7 +6,7 @@ import { haversine, pointFrom } from "./assignmentRules";
 import { refForAttempt, type PaymentProof } from "./checkout";
 import { refundPayment } from "./checkoutPayment";
 import { refundOperationStatus } from "./refunds";
-import { canMoveCustom, customerQuotePaise, splitCustomQuote, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, QUOTE_MAX_PAISE, QUOTE_MIN_PAISE, quoteExpiresAt, type NewCustomRequest } from "./customRules";
+import { bakeryPaiseFor, canMoveCustom, customerQuotePaise, splitCustomQuote, customOfferMinutes, MAX_BAKERIES, newCustomRef, newCustomToken, QUOTE_MAX_PAISE, QUOTE_MIN_PAISE, quoteExpiresAt, type NewCustomRequest } from "./customRules";
 import { readDeliverySettings } from "./catalogData";
 import { db } from "./db";
 import { DEFAULT_DELIVERY_RULES, windowEndingAt, type DeliveryRules } from "./deliveryRules";
@@ -14,7 +14,7 @@ import { meetsDeadline } from "./inventoryRules";
 import { log } from "./log";
 import { IntentRecord } from "./razorpay";
 import { optimize, store } from "./storage";
-import { adminNumbers, indianMobile, normalizePhone } from "./whatsapp";
+import { adminNumbers, indianMobile, normalizePhone, siteUrl } from "./whatsapp";
 import { whatsappNewOrder } from "./whatsappEvents";
 import { acceptedMessage, customOfferMessage, customQuoteMessage, formatDue, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
 
@@ -75,6 +75,9 @@ async function locked(tx: Tx, id: string) {
 const send = (tx: Tx, r: CustomRequest, to: (string | null | undefined)[], dedupeKey: string, message: Message, vendorId?: string | null) =>
   queueWhatsApp(tx, { customRequestId: r.id, vendorId, kind: "custom_request", to, dedupeKey, message });
 
+const marginPct = async (tx: Tx) =>
+  (await tx.bakerySettings.findUnique({ where: { id: "singleton" }, select: { customMarginPct: true } }))?.customMarginPct ?? 15;
+
 const vendorPhone = async (tx: Tx, vendorId: string | null) =>
   vendorId ? (await tx.vendor.findUnique({ where: { id: vendorId }, select: { phone: true } }))?.phone : null;
 
@@ -109,7 +112,7 @@ export async function offerNext(requestId: string): Promise<void> {
 // Ends the current offer now; offerNext then moves on (the worker would too, if this process dies first).
 const endOffer = (tx: Tx, id: string) => tx.customRequest.update({ where: { id }, data: { vendorId: null, offerExpiresAt: new Date() } });
 
-type QuoteResult = { ok: true; quotePaise: number } | { ok: false; message: string };
+type QuoteResult = { ok: true; quotePaise: number; vendorPaise?: number } | { ok: false; message: string };
 
 /**
  * Prices a locked, quotable request for this bakery and sends the customer the quote.
@@ -118,7 +121,7 @@ type QuoteResult = { ok: true; quotePaise: number } | { ok: false; message: stri
 async function sendQuote(tx: Tx, r: CustomRequest, vendor: { id: string; name: string; preparationMinutes: number }, vendorPaise: number, rules: DeliveryRules, now: Date): Promise<number | null> {
   const expiresAt = quoteExpiresAt(now, r.dueAt, vendor.preparationMinutes);
   if (expiresAt <= now) return null;
-  const margin = (await tx.bakerySettings.findUnique({ where: { id: "singleton" }, select: { customMarginPct: true } }))?.customMarginPct ?? 15;
+  const margin = await marginPct(tx);
   const feePaise = rules.feePaise;
   const chosen = windowEndingAt(r.dueAt, rules);
   const quotePaise = customerQuotePaise(vendorPaise, margin, feePaise);
@@ -154,29 +157,79 @@ export async function recordQuote(vendorId: string, requestId: string, vendorPai
   return { ok: false, message: res.message };
 }
 
+/** What the admin typed: the bakery's price, or the customer's total agreed on the phone. */
+export type AdminPrice = { vendorPaise: number } | { totalPaise: number };
+
 /**
  * An admin prices a request still waiting for a quote, or one no bakery took, for a
  * bakery they pick. The customer gets the same quote a bakery's own reply would send.
  */
-export async function adminQuote(requestId: string, vendorId: string, vendorPaise: number): Promise<QuoteResult> {
-  if (!Number.isInteger(vendorPaise) || vendorPaise < QUOTE_MIN_PAISE || vendorPaise > QUOTE_MAX_PAISE)
-    return { ok: false, message: "Enter the bakery's price, between ₹100 and ₹1,00,000." };
+export async function adminQuote(requestId: string, vendorId: string, price: AdminPrice): Promise<QuoteResult> {
   const rules = (await readDeliverySettings()) ?? DEFAULT_DELIVERY_RULES;
   return db.$transaction(async (tx): Promise<QuoteResult> => {
     const r = await locked(tx, requestId);
     if (!r || !canMoveCustom(r.status, "quoted")) return { ok: false, message: "That request is no longer open for a quote." };
-    const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { id: true, name: true, phone: true, isActive: true, preparationMinutes: true } });
-    if (!vendor?.isActive || !normalizePhone(vendor.phone)) return { ok: false, message: "Pick an active bakery with a WhatsApp number." };
-    const offered = r.vendorId && r.vendorId !== vendor.id ? r.vendorId : null;
-    const quotePaise = await sendQuote(tx, r, vendor, vendorPaise, rules, new Date());
-    if (quotePaise === null) return { ok: false, message: `${vendor.name} can't make it in time: ${r.ref} is due too soon.` };
-    // The bakery holding the live offer loses it, as offerNext would tell it.
-    if (offered) await send(tx, r, [await vendorPhone(tx, offered)], `cr:${r.id}:passed:${offered}`, updateMessage(r.ref, `${r.ref} has been passed on.`), offered);
-    // Without this, the chosen bakery's first word of the cake would be "Customer paid".
-    await send(tx, r, [vendor.phone], `cr:${r.id}:adminquote:${vendor.id}`, updateMessage(r.ref,
-      `MakeYourCakes quoted ₹${rupees(vendorPaise)} for your bakery on ${r.ref} (${r.sizeKg.toString()} kg ${r.flavour}, due ${formatDue(r.dueAt)}). We'll tell you if the customer pays`), vendor.id);
-    return { ok: true, quotePaise };
+    return quoteAsAdmin(tx, r, vendorId, price, rules);
   }, ASSIGNMENT_TX);
+}
+
+async function quoteAsAdmin(tx: Tx, r: CustomRequest, vendorId: string, price: AdminPrice, rules: DeliveryRules): Promise<QuoteResult> {
+  const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { id: true, name: true, phone: true, isActive: true, preparationMinutes: true } });
+  if (!vendor?.isActive || !normalizePhone(vendor.phone)) return { ok: false, message: "Pick an active bakery with a WhatsApp number." };
+  let vendorPaise: number;
+  if ("totalPaise" in price) {
+    const margin = await marginPct(tx);
+    const quote = (v: number) => customerQuotePaise(v, margin, rules.feePaise);
+    vendorPaise = bakeryPaiseFor(price.totalPaise, margin, rules.feePaise);
+    if (!Number.isInteger(price.totalPaise) || vendorPaise < QUOTE_MIN_PAISE || vendorPaise > QUOTE_MAX_PAISE)
+      return { ok: false, message: `Enter the customer's total, between ₹${rupees(quote(QUOTE_MIN_PAISE))} and ₹${rupees(quote(QUOTE_MAX_PAISE))}.` };
+    if (quote(vendorPaise) !== price.totalPaise) return { ok: false, message: `Prices go up in ₹10 steps: try ₹${rupees(quote(vendorPaise))}.` };
+  } else {
+    vendorPaise = price.vendorPaise;
+    if (!Number.isInteger(vendorPaise) || vendorPaise < QUOTE_MIN_PAISE || vendorPaise > QUOTE_MAX_PAISE)
+      return { ok: false, message: "Enter the bakery's price, between ₹100 and ₹1,00,000." };
+  }
+  const offered = r.vendorId && r.vendorId !== vendor.id ? r.vendorId : null;
+  const quotePaise = await sendQuote(tx, r, vendor, vendorPaise, rules, new Date());
+  if (quotePaise === null) return { ok: false, message: `${vendor.name} can't make it in time: ${r.ref} is due too soon.` };
+  // The bakery holding the live offer loses it, as offerNext would tell it.
+  if (offered) await send(tx, r, [await vendorPhone(tx, offered)], `cr:${r.id}:passed:${offered}`, updateMessage(r.ref, `${r.ref} has been passed on.`), offered);
+  // Without this, the chosen bakery's first word of the cake would be "Customer paid".
+  await send(tx, r, [vendor.phone], `cr:${r.id}:adminquote:${vendor.id}`, updateMessage(r.ref,
+    `MakeYourCakes quoted ₹${rupees(vendorPaise)} for your bakery on ${r.ref} (${r.sizeKg.toString()} kg ${r.flavour}, due ${formatDue(r.dueAt)}). We'll tell you if the customer pays`), vendor.id);
+  return { ok: true, quotePaise, vendorPaise };
+}
+
+/** Thrown to roll back a phone request whose quote was refused; carries the reason. */
+class Refused extends Error {}
+
+/**
+ * A request taken over the phone: saved and quoted in one transaction, so it is never offered
+ * to bakeries and never left half-made. With no photo, the request shows our logo.
+ */
+export async function createAdminQuote(input: NewCustomRequest, photo: Buffer | null, vendorId: string, price: AdminPrice): Promise<QuoteResult & { ref?: string }> {
+  const phone = indianMobile(input.phone);
+  if (!phone) return { ok: false, message: "Enter a 10-digit mobile number." };
+  const ref = newCustomRef(); // ponytail: no retry on a ref collision (1 in 10^9); the admin just presses Send again
+  const photoUrl = photo ? await store(await optimize(photo), "custom", ref) : `${siteUrl()}/brand/logo-original.png`;
+  const rules = (await readDeliverySettings()) ?? DEFAULT_DELIVERY_RULES;
+  try {
+    return await db.$transaction(async (tx) => {
+      const r = await tx.customRequest.create({
+        data: {
+          ref, token: newCustomToken(), name: input.name, phone, photoUrl, sizeKg: input.sizeKg,
+          budgetPaise: input.budgetRupees ? input.budgetRupees * 100 : null, flavour: input.flavour,
+          cakeMessage: input.cakeMessage || null, dueAt: new Date(input.dueAt), address: input.address,
+        },
+      });
+      const res = await quoteAsAdmin(tx, r, vendorId, price, rules);
+      if (!res.ok) throw new Refused(res.message);
+      return { ...res, ref };
+    }, ASSIGNMENT_TX);
+  } catch (error) {
+    if (error instanceof Refused) return { ok: false, message: error.message };
+    throw error;
+  }
 }
 
 export async function declineOffer(vendorId: string, requestId: string): Promise<{ ok: boolean; message: string }> {
@@ -287,7 +340,7 @@ export async function payCustomRequest(requestId: string, proof: PaymentProof): 
     }
 
     const quotePaise = r.quotePaise!, vendorQuotePaise = r.vendorQuotePaise!;
-    const margin = (await tx.bakerySettings.findUnique({ where: { id: "singleton" }, select: { customMarginPct: true } }))?.customMarginPct ?? 15;
+    const margin = await marginPct(tx);
     const { cakePaise, deliveryFeePaise } = splitCustomQuote(quotePaise, vendorQuotePaise, margin);
     // The request keeps only the window's end; rebuild the window the customer chose.
     const chosen = windowEndingAt(r.dueAt, rules);
