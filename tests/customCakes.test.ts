@@ -33,7 +33,7 @@ describe('whatsappHref', () => {
     const cake = CUSTOM_CAKES[0];
     const href = whatsappHref('+91 99897 91579', `Like this: ${customCakeLink(cake)}`)!;
     expect(href.startsWith('https://wa.me/919989791579?text=')).toBe(true);
-    expect(decodeURIComponent(href.split('text=')[1])).toContain(`/custom-cakes#${cake.id}`);
+    expect(decodeURIComponent(href.split('text=')[1])).toContain(`/custom/${cake.id}.webp`);
   });
   it('adds India to a bare ten-digit number and refuses something that is not a phone', () => {
     expect(whatsappHref('99897 91579', 'hi')).toBe('https://wa.me/919989791579?text=hi');

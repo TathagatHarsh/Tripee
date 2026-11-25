@@ -4,8 +4,8 @@ import { CustomEnquiry } from "@/components/shop/CustomEnquiry";
 
 /**
  * One piece of the bakery's custom work, with a WhatsApp link that names it.
- * The `id` makes /custom-cakes#<id> land on it, which is the link the
- * pre-filled message carries so the bakery sees which cake was meant.
+ * The pre-filled message links straight to the photo, so the bakery sees
+ * which cake was meant; the `id` still lets /custom-cakes#<id> land on it.
  *
  * Videos are muted, looping and inline, the way a phone already plays them,
  * with `controls` so anyone can pause one (WCAG 2.2.2).
