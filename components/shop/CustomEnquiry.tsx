@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { enquiryHref, SIZES, TIMES, type Enquiry } from "@/lib/customEnquiry";
+import { ACCEPTED_TYPES } from "@/lib/imageSpec";
 import { sBtn, sField } from "@/lib/shopUi";
 
 /**
@@ -16,15 +17,18 @@ export function CustomEnquiry({
   cakeLink,
   thumb,
   title,
+  canUpload = false,
   buttonClassName,
   children,
 }: {
   /** The bakery's WhatsApp number, digits with country code. */
   to: string;
-  /** /custom-cakes#id for a cake from the gallery; null when they'll send their own photo. */
+  /** The gallery cake's photo URL; null when it's their own design. */
   cakeLink: string | null;
   thumb?: { src: string; alt: string };
   title: string;
+  /** A photo store is set up, so their own photo can be attached here instead of in the chat. */
+  canUpload?: boolean;
   buttonClassName: string;
   children: React.ReactNode;
 }) {
@@ -41,6 +45,7 @@ export function CustomEnquiry({
           cakeLink={cakeLink}
           thumb={thumb}
           title={title}
+          canUpload={canUpload && !cakeLink}
           onClose={() => {
             setOpen(false);
             trigger.current?.focus();
@@ -54,15 +59,52 @@ export function CustomEnquiry({
 const label = "flex flex-col gap-1.5 text-[0.875rem] font-semibold text-s-cocoa";
 const todayIST = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
+/** Phone photos can be 5MB+ (and HEIC on iPhones); a 1600px JPEG is plenty to quote from and fits the upload limit. */
+async function shrink(file: File): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * k);
+    c.height = Math.round(bmp.height * k);
+    c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no()), "image/jpeg", 0.88));
+  } catch {
+    return file;
+  }
+}
+
+type Photo = { preview: string; url?: string; error?: string };
+
 function Sheet({
-  to, cakeLink, thumb, title, onClose,
+  to, cakeLink, thumb, title, canUpload, onClose,
 }: {
   to: string;
   cakeLink: string | null;
   thumb?: { src: string; alt: string };
   title: string;
+  canUpload: boolean;
   onClose: () => void;
 }) {
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const uploading = Boolean(photo && !photo.url && !photo.error);
+  useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.preview); }, [photo?.preview]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return setPhoto(null);
+    const preview = URL.createObjectURL(file);
+    setPhoto({ preview });
+    const body = new FormData();
+    body.append("photo", await shrink(file), "photo.jpg");
+    try {
+      const res = await fetch("/api/enquiry-photo", { method: "POST", body });
+      const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      setPhoto((p) => (p?.preview === preview ? (json.url ? { preview, url: json.url } : { preview, error: json.error ?? "We couldn't upload that photo. Please try again." }) : p));
+    } catch {
+      setPhoto((p) => (p?.preview === preview ? { preview, error: "We couldn't upload that photo. Check your connection and try again." } : p));
+    }
+  }
   const dialog = useRef<HTMLDialogElement | null>(null);
   const mount = useCallback((el: HTMLDialogElement | null) => {
     dialog.current = el;
@@ -93,7 +135,7 @@ function Sheet({
       pincode: s("pincode"),
       notes: s("notes"),
     };
-    const href = enquiryHref(to, enquiry, cakeLink);
+    const href = enquiryHref(to, enquiry, cakeLink ?? photo?.url ?? null);
     /* A new tab on a computer; on a phone this hands over to the WhatsApp app. */
     if (!window.open(href, "_blank", "noopener")) window.location.assign(href);
     dismiss();
@@ -205,14 +247,31 @@ function Sheet({
             <textarea name="notes" maxLength={300} rows={2} placeholder="Colours, theme, budget, changes to the design" className={sField("py-2")} />
           </label>
 
-          {!cakeLink && (
+          {canUpload ? (
+            <div className="flex flex-col gap-1.5">
+              <label className={label}>
+                Photo of the cake you want <span className="font-normal text-s-bark">(optional)</span>
+                <input name="photo" type="file" accept={ACCEPTED_TYPES.join(",")} onChange={pick} className="text-[0.875rem] font-normal text-s-bark file:mr-3 file:min-h-11 file:rounded-s-sm file:border file:border-s-line file:bg-s-cream-deep file:px-3 file:font-medium file:text-s-cocoa" />
+              </label>
+              {photo && (
+                <div className="flex items-center gap-3">
+                  <div className="relative size-16 shrink-0 overflow-hidden rounded-s-sm bg-s-cream-deep">
+                    <Image src={photo.preview} alt="Your cake photo" fill unoptimized className="object-cover" />
+                  </div>
+                  <p role="status" className={`text-[0.875rem] ${photo.error ? "text-s-berry" : "text-s-bark"}`}>
+                    {photo.error ?? (photo.url ? "Photo attached. The bakery will see it in your message." : "Uploading photo…")}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : !cakeLink && (
             <p className="rounded-s-sm bg-s-cream-deep px-3 py-2 text-[0.875rem] text-s-bark">
               WhatsApp can&rsquo;t attach a photo from here, so send your design photo in the chat that opens.
             </p>
           )}
 
-          <button type="submit" className={sBtn("primary", "lg", "w-full")}>
-            Place enquiry on WhatsApp <span aria-hidden>↗</span>
+          <button type="submit" disabled={uploading} className={sBtn("primary", "lg", "w-full")}>
+            {uploading ? "Uploading photo…" : <>Place enquiry on WhatsApp <span aria-hidden>↗</span></>}
           </button>
           <p className="-mt-2 text-center text-[0.8125rem] text-s-bark">
             Nothing is charged. We confirm the price and design with you in the chat.

@@ -84,7 +84,7 @@ export class ImageError extends Error {}
  * Returns WebP bytes at exactly OUT_WIDTH x OUT_HEIGHT, or throws an
  * `ImageError` whose message is safe to show somebody.
  */
-export async function optimize(input: Buffer, crop?: Crop): Promise<Buffer> {
+export async function optimize(input: Buffer, crop?: Crop, whole = false): Promise<Buffer> {
   if (input.byteLength === 0) throw new ImageError("That file is empty.");
   if (input.byteLength > MAX_UPLOAD_BYTES) {
     throw new ImageError(
@@ -153,6 +153,15 @@ export async function optimize(input: Buffer, crop?: Crop): Promise<Buffer> {
      * what they would have got by not cropping at all.
      */
     if (box.width >= 16 && box.height >= 16) pipeline = pipeline.extract(box);
+  }
+
+  /* A customer's reference photo: the bakery needs the whole cake, so no 4:3 crop. Same re-encode below. */
+  if (whole) {
+    try {
+      return await pipeline.resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82, effort: 5 }).toBuffer();
+    } catch {
+      throw new ImageError("We couldn't process that photo. Try a different one.");
+    }
   }
 
   try {
