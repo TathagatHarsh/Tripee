@@ -23,3 +23,9 @@ it.each([6, 8])("crops the displayed portrait JPEG with EXIF orientation %i", as
   expect(orientation === 6 ? red : greenValue).toBeGreaterThan(240);
   expect(orientation === 6 ? greenValue : red).toBeLessThan(15);
 });
+
+it("keeps a customer's whole portrait photo, uncropped and capped at 1600px", async () => {
+  const photo = await sharp({ create: { width: 1800, height: 2400, channels: 3, background: "#ffffff" } }).jpeg().toBuffer();
+  const info = await sharp(await optimize(photo, undefined, true)).metadata();
+  expect(info).toMatchObject({ format: "webp", width: 1200, height: 1600 });
+});

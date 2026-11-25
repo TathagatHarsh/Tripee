@@ -28,7 +28,7 @@ export async function QuoteButton({ phone, className, children }: { phone: strin
   const to = whatsappTo(phone);
   if (to)
     return (
-      <CustomEnquiry to={to} cakeLink={null} title="Your own cake design" buttonClassName={className}>
+      <CustomEnquiry to={to} cakeLink={null} title="Your own cake design" canUpload={hasImageStore()} buttonClassName={className}>
         {children}
       </CustomEnquiry>
     );
