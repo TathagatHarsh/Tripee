@@ -1,11 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { checkCustomRequest } from "@/lib/customRequestCheck";
 import { adminQuote, cancelCustomRequest, createAdminQuote, type AdminPrice } from "@/lib/customRequests";
 import { CustomRequestInput } from "@/lib/customRules";
+import { log } from "@/lib/log";
+import { dispatchPendingNotifications } from "@/lib/notifications";
 import { ACCEPTED_TYPES, ImageError, MAX_UPLOAD_BYTES } from "@/lib/storage";
+
+/** Send what these actions queued now, not when the notifications pinger next runs (which may be many minutes). */
+const sendNow = () => after(() => dispatchPendingNotifications(10).catch((error) => log("error", "notification_dispatch_failed", { error: String(error) })));
 
 export type QuoteActionResult = { ok: boolean; message: string; ref?: string };
 
@@ -23,6 +29,7 @@ const sent = (quotePaise: number, vendorPaise?: number) =>
 export async function adminQuoteAction(_prev: QuoteActionResult | undefined, formData: FormData): Promise<QuoteActionResult> {
   await requireAdmin();
   const res = await adminQuote(String(formData.get("id") ?? ""), String(formData.get("vendorId") ?? ""), priceFrom(formData));
+  if (res.ok) sendNow();
   revalidatePath("/admin/custom-requests");
   return res.ok ? { ok: true, message: sent(res.quotePaise, res.vendorPaise) } : res;
 }
@@ -46,6 +53,7 @@ export async function newQuoteAction(_prev: QuoteActionResult | undefined, formD
   const { dueDate: _d, dueWindow: _w, ...rest } = parsed.data;
   try {
     const res = await createAdminQuote({ ...rest, dueAt: check.dueAt.toISOString() }, file && Buffer.from(await file.arrayBuffer()), String(formData.get("vendorId") ?? ""), priceFrom(formData));
+    if (res.ok) sendNow();
     revalidatePath("/admin/custom-requests");
     return res.ok ? { ok: true, message: `${res.ref}: ${sent(res.quotePaise, res.vendorPaise)}`, ref: res.ref } : res;
   } catch (error) {
@@ -56,6 +64,6 @@ export async function newQuoteAction(_prev: QuoteActionResult | undefined, formD
 export async function cancelCustomRequestAction(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
-  if (id) await cancelCustomRequest(id);
+  if (id && (await cancelCustomRequest(id))) sendNow();
   revalidatePath("/admin/custom-requests");
 }
