@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  canMoveCustom, customerPricePaise, customerQuotePaise, splitCustomQuote, customOfferMinutes, newCustomRef, newCustomToken, parseQuoteReply, quoteExpiresAt,
+  bakeryPaiseFor, canMoveCustom, customerPricePaise, customerQuotePaise, splitCustomQuote, customOfferMinutes, newCustomRef, newCustomToken, parseQuoteReply, quoteExpiresAt,
 } from "@/lib/customRules";
 
 describe("customRules", () => {
@@ -61,5 +61,19 @@ describe("customRules", () => {
     expect(customOfferMinutes()).toBe(60);
     process.env.CUSTOM_OFFER_MINUTES = "2";
     expect(() => customOfferMinutes()).toThrow();
+  });
+});
+
+describe("bakeryPaiseFor", () => {
+  it("finds the bakery price whose quote is exactly every ₹10 total", () => {
+    for (let total = 30_000; total <= 1_000_000; total += 1000)
+      for (const margin of [0, 10, 15, 22])
+        expect(customerQuotePaise(bakeryPaiseFor(total, margin, 15_000), margin, 15_000)).toBe(total);
+  });
+  it("₹2,000 agreed with 15% margin and ₹150 delivery is a ₹1,608 bakery price", () => {
+    expect(bakeryPaiseFor(200_000, 15, 15_000)).toBe(160_800);
+  });
+  it("a total off the ₹10 grid doesn't round-trip, so callers can refuse it", () => {
+    expect(customerQuotePaise(bakeryPaiseFor(200_500, 15, 15_000), 15, 15_000)).not.toBe(200_500);
   });
 });

@@ -11,7 +11,7 @@ vi.mock('../lib/checkoutPayment', async (orig) => {
 import { createHmac } from 'node:crypto';
 import { db } from '../lib/db';
 import { openPaymentIntent, refundPayment } from '../lib/checkoutPayment';
-import { adminQuote, cancelCustomRequest, createCustomRequest, nextBakery, offerNext, payCustomRequest, runCustomRequestWorker } from '../lib/customRequests';
+import { adminQuote, cancelCustomRequest, createAdminQuote, createCustomRequest, nextBakery, offerNext, payCustomRequest, runCustomRequestWorker } from '../lib/customRequests';
 import { recoverPayment } from '../lib/paymentRecovery';
 import { durableRefund } from '../lib/refunds';
 import { POST as openQuoteIntent } from '../app/api/custom-requests/[token]/intent/route';
@@ -273,7 +273,7 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
   describe('admin quote', () => {
     it('quotes a request another bakery was offered: that bakery passed on, the chosen one told, customer gets the quote', async () => {
       const { vendors, request } = await fixture(); await offerNext(request.id);
-      expect(await adminQuote(request.id, vendors[1].id, 150000)).toEqual({ ok: true, quotePaise: 188000 });
+      expect(await adminQuote(request.id, vendors[1].id, { vendorPaise: 150000 })).toEqual({ ok: true, quotePaise: 188000, vendorPaise: 150000 });
       const r = await reload(request.id);
       expect(r).toMatchObject({ status: 'quoted', vendorId: vendors[1].id, vendorQuotePaise: 150000, quotePaise: 188000, offerExpiresAt: null });
       expect(r.triedVendorIds).toEqual([vendors[0].id, vendors[1].id]);
@@ -289,24 +289,62 @@ describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated Postgr
     it('rescues a request no bakery took', async () => {
       const { vendors, request } = await fixture();
       await db.customRequest.update({ where: { id: request.id }, data: { status: 'no_bakery' } });
-      expect((await adminQuote(request.id, vendors[2].id, 180000)).ok).toBe(true);
+      expect((await adminQuote(request.id, vendors[2].id, { vendorPaise: 180000 })).ok).toBe(true);
       expect(await reload(request.id)).toMatchObject({ status: 'quoted', vendorId: vendors[2].id, quotePaise: 222000 });
     });
     it('refuses a bakery that could not make it in time, and changes nothing', async () => {
       const { vendors, request } = await fixture();
       await db.customRequest.update({ where: { id: request.id }, data: { dueAt: new Date(Date.now() + 30 * 60000) } });
-      const res = await adminQuote(request.id, vendors[0].id, 180000);
+      const res = await adminQuote(request.id, vendors[0].id, { vendorPaise: 180000 });
       expect(res).toMatchObject({ ok: false }); expect(!res.ok && res.message).toContain('too soon');
       expect((await reload(request.id)).status).toBe('awaiting_quote');
       expect(await rows(request.id)).toHaveLength(0);
     });
     it('refuses an inactive bakery and a request that is no longer open', async () => {
       const { vendors, request } = await quoted();
-      expect(await adminQuote(request.id, vendors[1].id, 180000)).toMatchObject({ ok: false });
+      expect(await adminQuote(request.id, vendors[1].id, { vendorPaise: 180000 })).toMatchObject({ ok: false });
       const other = await fixture();
       await db.vendor.update({ where: { id: other.vendors[0].id }, data: { isActive: false } });
-      expect(await adminQuote(other.request.id, other.vendors[0].id, 180000)).toMatchObject({ ok: false });
+      expect(await adminQuote(other.request.id, other.vendors[0].id, { vendorPaise: 180000 })).toMatchObject({ ok: false });
       expect((await reload(other.request.id)).status).toBe('awaiting_quote');
+    });
+    it("takes the customer's total agreed on the phone and works out the bakery's price", async () => {
+      const { vendors, request } = await fixture();
+      expect(await adminQuote(request.id, vendors[1].id, { totalPaise: 188000 })).toEqual({ ok: true, quotePaise: 188000, vendorPaise: 150400 });
+      expect(await reload(request.id)).toMatchObject({ status: 'quoted', vendorQuotePaise: 150400, quotePaise: 188000 });
+    });
+    it('refuses a total off the ₹10 grid and suggests the nearest, changing nothing', async () => {
+      const { vendors, request } = await fixture();
+      const res = await adminQuote(request.id, vendors[1].id, { totalPaise: 188500 });
+      expect(!res.ok && res.message).toContain('₹10 steps');
+      expect((await reload(request.id)).status).toBe('awaiting_quote');
+      expect(await rows(request.id)).toHaveLength(0);
+    });
+  });
+
+  describe('phone request (createAdminQuote)', () => {
+    const input = () => ({ name: 'Ravi', phone: '9822200000', sizeKg: 1, flavour: 'Vanilla', consent: true as const,
+      dueAt: new Date(Date.now() + 48 * 3600000).toISOString(),
+      address: { lat: 13.6, lng: 77.6, address: '4 Lane', locality: 'Kondapur', city: 'Hyderabad', state: 's', pincode: '500001', placeId: 'p' } });
+    it('saves and quotes in one step: the customer gets Pay now, no bakery is offered it', async () => {
+      const { vendors } = await fixture();
+      const res = await createAdminQuote(input(), null, vendors[2].id, { totalPaise: 200000 });
+      expect(res).toMatchObject({ ok: true, quotePaise: 200000, vendorPaise: 160800 });
+      const r = await db.customRequest.findUniqueOrThrow({ where: { ref: res.ref! } }); ids.push(r.id);
+      expect(r).toMatchObject({ status: 'quoted', vendorId: vendors[2].id, phone: CUSTOMER, quotePaise: 200000 });
+      expect(r.photoUrl).toContain('/brand/');
+      const all = await rows(r.id);
+      expect(all.find(x => x.destination === CUSTOMER)!.payload).toMatchObject({ type: 'template', name: 'custom_quote' });
+      expect(all.some(x => textOf(x).includes('custom_offer'))).toBe(false);
+      await runCustomRequestWorker();
+      expect((await reload(r.id)).status).toBe('quoted');
+    });
+    it('a refused quote leaves no request behind', async () => {
+      const { vendors } = await fixture();
+      await db.vendor.update({ where: { id: vendors[0].id }, data: { isActive: false } });
+      const before = await db.customRequest.count();
+      expect(await createAdminQuote(input(), null, vendors[0].id, { totalPaise: 200000 })).toMatchObject({ ok: false });
+      expect(await db.customRequest.count()).toBe(before);
     });
   });
 });

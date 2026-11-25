@@ -1,10 +1,7 @@
 import { callerKey, CROSS_SITE_MESSAGE, crossSite, rateLimit, tooMany } from "@/lib/apiGuard";
-import { getCatalogSnapshot } from "@/lib/catalogData";
+import { checkCustomRequest } from "@/lib/customRequestCheck";
 import { createCustomRequest } from "@/lib/customRequests";
-import { db } from "@/lib/db";
 import { CustomRequestInput } from "@/lib/customRules";
-import { checkDeliveryServiceability } from "@/lib/delivery";
-import { checkChoice } from "@/lib/deliveryRules";
 import { log } from "@/lib/log";
 import { paymentCheckoutAvailable } from "@/lib/razorpay";
 import { ACCEPTED_TYPES, hasImageStore, MAX_UPLOAD_BYTES } from "@/lib/storage";
@@ -44,18 +41,12 @@ export async function POST(req: Request) {
   if (photo.size > MAX_UPLOAD_BYTES) return fail("That photo is too large.", 413);
   if (!(ACCEPTED_TYPES as readonly string[]).includes(photo.type)) return fail("Use a JPEG, PNG or WebP photo.", 415);
 
-  const catalog = await getCatalogSnapshot();
-  if (!checkDeliveryServiceability({ postalCode: input.address.pincode }, catalog).serviceable)
-    return fail("We don't deliver there yet", 422, { fieldErrors: { address: ["We don't deliver there yet"] } });
-  const verdict = checkChoice({ slot: "scheduled", date: input.dueDate, window: input.dueWindow }, new Date(), "custom", catalog.deliveryRules);
-  if (!verdict.ok) return fail(verdict.message, 422, { fieldErrors: { dueAt: [verdict.message] } });
-  // Same date convention as placeOrder's blackout check.
-  if (await db.fulfillmentBlackout.findUnique({ where: { date_method: { date: new Date(`${input.dueDate}T00:00:00.000Z`), method: "delivery" } } }))
-    return fail("We're closed that day.", 422, { fieldErrors: { dueAt: ["We're closed that day."] } });
+  const check = await checkCustomRequest(input);
+  if (!check.ok) return fail(check.message, 422, { fieldErrors: { [check.field]: [check.message] } });
   const { dueDate: _d, dueWindow: _w, ...rest } = input;
 
   try {
-    const { ref } = await createCustomRequest({ ...rest, dueAt: verdict.dueAt.toISOString() }, Buffer.from(await photo.arrayBuffer()));
+    const { ref } = await createCustomRequest({ ...rest, dueAt: check.dueAt.toISOString() }, Buffer.from(await photo.arrayBuffer()));
     return Response.json({ ref }, { status: 201 });
   } catch (error) {
     log("error", "custom_request_failed", { error: error instanceof Error ? error.message : String(error) });

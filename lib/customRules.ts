@@ -33,6 +33,14 @@ export function customerQuotePaise(vendorPaise: number, marginPct: number, deliv
 }
 
 /**
+ * The bakery price (whole rupees) behind a customer total the admin agreed on the phone.
+ * Quotes move in ₹10 steps, so check customerQuotePaise(result) === total before using it.
+ */
+export function bakeryPaiseFor(totalPaise: number, marginPct: number, deliveryFeePaise: number): number {
+  return Math.floor(((totalPaise - deliveryFeePaise) * 100) / (100 + marginPct) / 100) * 100;
+}
+
+/**
  * A stored quote split back into cake and delivery. A quote made before
  * delivery was charged splits as fee 0.
  * ponytail: the cake part is recomputed from today's margin; if the margin
