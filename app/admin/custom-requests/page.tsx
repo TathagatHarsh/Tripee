@@ -22,23 +22,20 @@ export default async function CustomRequestsAdmin() {
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {
-      vendor: { select: { name: true } },
       order: { select: { ref: true } },
       notifications: { where: { status: "failed" }, select: { id: true }, take: 1 },
     },
   });
-  // The bakeries an admin quote can go to: the same ones adminQuote accepts.
-  const bakeries = (await db.vendor.findMany({ where: { isActive: true, phone: { not: null } }, select: { id: true, name: true }, orderBy: { name: "asc" } }));
   // The same gate as the website's form: a quote needs WhatsApp to arrive and online payment to be paid.
   const sheet = await requestSheetData();
   return (
     <div className="space-y-6">
-      <PageHeader title="Custom requests" blurb="Every custom cake request, newest first (latest 100). Follow up on any with a failed message." />
+      <PageHeader title="Custom requests" blurb="Every custom cake request, newest first (latest 100). Price one here, or reply to its WhatsApp message with what the customer pays. Follow up on any with a failed message." />
       <Card>
         <details>
           <summary className="cursor-pointer font-a-sans text-a-body font-medium">New quote for a customer who phoned</summary>
           <div className="pt-4">
-            {sheet ? <NewQuoteForm {...sheet} bakeries={bakeries} /> : (
+            {sheet ? <NewQuoteForm {...sheet} /> : (
               <p className="font-a-sans text-a-small text-a-muted">Needs WhatsApp, photo storage and online payment to be set up.</p>
             )}
           </div>
@@ -71,11 +68,7 @@ export default async function CustomRequestsAdmin() {
                   {r.notifications.length > 0 && <StatusBadge label="message failed" tone="bad" />}
                 </div>
                 <p className="font-a-sans text-a-body">{r.name} · {r.phone}</p>
-                <p className="font-a-sans text-a-small text-a-muted">
-                  {r.vendor?.name ?? "No bakery yet"}
-                  {r.vendorQuotePaise != null && ` · bakery ${formatINR(r.vendorQuotePaise)}`}
-                  {r.quotePaise != null && ` · customer ${formatINR(r.quotePaise)}`}
-                </p>
+                {r.quotePaise != null && <p className="font-a-sans text-a-small text-a-muted">Customer pays {formatINR(r.quotePaise)}</p>}
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 font-a-sans text-a-small sm:grid-cols-4">
                   {facts.map(([label, value]) => (
                     <div key={label} className="min-w-0">
@@ -87,7 +80,7 @@ export default async function CustomRequestsAdmin() {
                 {r.status === "quoted" && <CopyLink url={`${siteUrl()}/c/${r.token}`} />}
                 {r.order && <Link href={`/admin/orders/${r.order.ref}`} className="font-a-sans text-a-small underline">Order {r.order.ref}</Link>}
                 {(r.status === "awaiting_quote" || r.status === "no_bakery") && (
-                  <div className="pt-2"><QuoteForm id={r.id} bakeries={bakeries} defaultBakery={r.vendorId} /></div>
+                  <div className="pt-2"><QuoteForm id={r.id} /></div>
                 )}
               </div>
               {(r.status === "awaiting_quote" || r.status === "quoted" || r.status === "no_bakery") && (

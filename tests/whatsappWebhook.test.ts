@@ -81,7 +81,7 @@ describe("POST", () => {
     const body = wrap({ messages: [{ id: "wamid.1", from: "919876543210", type: "button", button: { payload: "accept:as1", text: "Accept" } }] });
     const res = await POST(signed(body));
     expect(res.status).toBe(200);
-    expect(handleInbound).toHaveBeenCalledWith({ id: "wamid.1", from: "919876543210", text: "Accept", payload: "accept:as1" });
+    expect(handleInbound).toHaveBeenCalledWith({ id: "wamid.1", from: "919876543210", text: "Accept", payload: "accept:as1", contextId: null });
     expect(dispatchPendingNotifications).toHaveBeenCalledWith(10);
   });
 
@@ -93,8 +93,13 @@ describe("POST", () => {
       ],
     });
     await POST(signed(body));
-    expect(handleInbound).toHaveBeenNthCalledWith(1, { id: "a", from: "1", text: "ready", payload: null });
-    expect(handleInbound).toHaveBeenNthCalledWith(2, { id: "b", from: "2", text: "Start", payload: "start:as2" });
+    expect(handleInbound).toHaveBeenNthCalledWith(1, { id: "a", from: "1", text: "ready", payload: null, contextId: null });
+    expect(handleInbound).toHaveBeenNthCalledWith(2, { id: "b", from: "2", text: "Start", payload: "start:as2", contextId: null });
+  });
+
+  it("passes on which of our messages a reply quotes", async () => {
+    await POST(signed(wrap({ messages: [{ id: "c", from: "3", type: "text", text: { body: "1000" }, context: { id: "wamid.ask" } }] })));
+    expect(handleInbound).toHaveBeenCalledWith({ id: "c", from: "3", text: "1000", payload: null, contextId: "wamid.ask" });
   });
 
   it("logs failed deliveries with a masked number", async () => {

@@ -1042,28 +1042,31 @@ model CakeProduct {
 /// Transactional notification queue. Business writes enqueue a unique event;
 /// a provider worker claims and delivers it with retries.
 model NotificationOutbox {
-  id              String             @id @default(cuid())
-  orderId         String?
-  order           Order?             @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  customRequestId String?
-  customRequest   CustomRequest?     @relation(fields: [customRequestId], references: [id], onDelete: Cascade)
-  vendorId        String?
-  kind            NotificationKind
-  channel         String
-  destination     String?
-  payload         Json
-  dedupeKey       String             @unique
-  status          NotificationStatus @default(pending)
-  attempts        Int                @default(0)
-  availableAt     DateTime           @default(now())
-  sentAt          DateTime?
-  lastError       String?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  id                String             @id @default(cuid())
+  orderId           String?
+  order             Order?             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customRequestId   String?
+  customRequest     CustomRequest?     @relation(fields: [customRequestId], references: [id], onDelete: Cascade)
+  vendorId          String?
+  kind              NotificationKind
+  channel           String
+  destination       String?
+  payload           Json
+  dedupeKey         String             @unique
+  status            NotificationStatus @default(pending)
+  attempts          Int                @default(0)
+  availableAt       DateTime           @default(now())
+  sentAt            DateTime?
+  lastError         String?
+  /// Meta's wamid for a sent WhatsApp message, to match replies that quote it.
+  providerMessageId String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([status, availableAt])
   @@index([orderId, createdAt])
   @@index([customRequestId])
+  @@index([providerMessageId])
 }
 
 /// Shared fixed-window counters for serverless rate limiting.
@@ -1072,7 +1075,7 @@ model NotificationOutbox {
 /// after an account is deleted at Clerk; ids are plain text for the same reason
 /// UserProfile.id is.
 model RoleChange {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   /// Null when it was done with `npm run role`.
   actorId     String?
   actorEmail  String?
@@ -1080,7 +1083,7 @@ model RoleChange {
   targetEmail String
   fromRole    UserRole?
   toRole      UserRole
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([createdAt])
 }
@@ -1350,18 +1353,18 @@ model CustomRequest {
 }
 
 model DeliverySettings {
-  id                String   @id @default("singleton")
-  feePaise          Int      @default(15000)
+  id               String   @id @default("singleton")
+  feePaise         Int      @default(15000)
   /// "HH:MM" IST. Orders (ASAP and scheduled) are accepted inside this range,
   /// and scheduled windows are laid out inside it.
-  ordersFrom        String   @default("08:00")
-  ordersUntil       String   @default("18:00")
-  readyMinMinutes   Int      @default(120)
-  readyMaxMinutes   Int      @default(240)
-  customMinMinutes  Int      @default(180)
-  customMaxMinutes  Int      @default(240)
-  windowMinutes     Int      @default(120)
-  preorderDays      Int      @default(14)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  ordersFrom       String   @default("08:00")
+  ordersUntil      String   @default("18:00")
+  readyMinMinutes  Int      @default(120)
+  readyMaxMinutes  Int      @default(240)
+  customMinMinutes Int      @default(180)
+  customMaxMinutes Int      @default(240)
+  windowMinutes    Int      @default(120)
+  preorderDays     Int      @default(14)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }

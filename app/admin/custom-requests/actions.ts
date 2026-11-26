@@ -4,37 +4,27 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { checkCustomRequest } from "@/lib/customRequestCheck";
-import { adminQuote, cancelCustomRequest, createAdminQuote, type AdminPrice } from "@/lib/customRequests";
+import { adminQuote, cancelCustomRequest, createAdminQuote } from "@/lib/customRequests";
 import { CustomRequestInput } from "@/lib/customRules";
-import { log } from "@/lib/log";
 import { dispatchPendingNotifications } from "@/lib/notifications";
 import { ACCEPTED_TYPES, ImageError, MAX_UPLOAD_BYTES } from "@/lib/storage";
 
-/** Send what these actions queued now, not when the notifications pinger next runs (which may be many minutes). */
-const sendNow = () => after(() => dispatchPendingNotifications(10).catch((error) => log("error", "notification_dispatch_failed", { error: String(error) })));
-
 export type QuoteActionResult = { ok: boolean; message: string; ref?: string };
 
-/** "total" is what the customer pays in all; anything else is the bakery's price. */
-function priceFrom(formData: FormData): AdminPrice {
-  const paise = Math.round(Number(formData.get("price")) * 100);
-  return formData.get("kind") === "total" ? { totalPaise: paise } : { vendorPaise: paise };
-}
+/** What the customer pays in all, delivery included, in paise. */
+const totalFrom = (formData: FormData) => Math.round(Number(formData.get("price")) * 100);
 
-const sent = (quotePaise: number, vendorPaise?: number) =>
-  `Quote sent: the customer pays ₹${(quotePaise / 100).toLocaleString("en-IN")}`
-  + (vendorPaise ? `; the bakery gets ₹${(vendorPaise / 100).toLocaleString("en-IN")}.` : ".");
+const sent = (quotePaise: number) => `Quote sent: the customer pays ₹${(quotePaise / 100).toLocaleString("en-IN")}.`;
 
-/** The admin prices a request for a bakery they pick; the customer gets the normal Pay-now quote. */
+/** The admin prices a request; the customer gets the Pay-now quote on WhatsApp. */
 export async function adminQuoteAction(_prev: QuoteActionResult | undefined, formData: FormData): Promise<QuoteActionResult> {
   await requireAdmin();
-  const res = await adminQuote(String(formData.get("id") ?? ""), String(formData.get("vendorId") ?? ""), priceFrom(formData));
-  if (res.ok) sendNow();
+  const res = await adminQuote(String(formData.get("id") ?? ""), totalFrom(formData));
   revalidatePath("/admin/custom-requests");
-  return res.ok ? { ok: true, message: sent(res.quotePaise, res.vendorPaise) } : res;
+  return res.ok ? { ok: true, message: sent(res.quotePaise) } : res;
 }
 
-/** A customer who phoned: their request is saved and quoted in one go, without offering it to bakeries. */
+/** A customer who phoned: their request is saved and quoted in one go. */
 export async function newQuoteAction(_prev: QuoteActionResult | undefined, formData: FormData): Promise<QuoteActionResult> {
   await requireAdmin();
   let raw: unknown;
@@ -52,10 +42,9 @@ export async function newQuoteAction(_prev: QuoteActionResult | undefined, formD
   if (!check.ok) return { ok: false, message: check.message };
   const { dueDate: _d, dueWindow: _w, ...rest } = parsed.data;
   try {
-    const res = await createAdminQuote({ ...rest, dueAt: check.dueAt.toISOString() }, file && Buffer.from(await file.arrayBuffer()), String(formData.get("vendorId") ?? ""), priceFrom(formData));
-    if (res.ok) sendNow();
+    const res = await createAdminQuote({ ...rest, dueAt: check.dueAt.toISOString() }, file && Buffer.from(await file.arrayBuffer()), totalFrom(formData));
     revalidatePath("/admin/custom-requests");
-    return res.ok ? { ok: true, message: `${res.ref}: ${sent(res.quotePaise, res.vendorPaise)}`, ref: res.ref } : res;
+    return res.ok ? { ok: true, message: `${res.ref}: ${sent(res.quotePaise)}`, ref: res.ref } : res;
   } catch (error) {
     return { ok: false, message: error instanceof ImageError ? error.message : "Couldn't save the request. Please try again." };
   }
@@ -64,6 +53,7 @@ export async function newQuoteAction(_prev: QuoteActionResult | undefined, formD
 export async function cancelCustomRequestAction(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
-  if (id && (await cancelCustomRequest(id))) sendNow();
+  // The customer is told now, not when the notifications pinger next runs.
+  if (id && (await cancelCustomRequest(id))) after(() => dispatchPendingNotifications(10).catch(() => undefined));
   revalidatePath("/admin/custom-requests");
 }

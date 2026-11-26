@@ -4,7 +4,6 @@ import { z } from "zod";
 import { inHyderabad } from "./location";
 
 export const CUSTOM_SIZES_KG: readonly number[] = [0.5, 1, 1.5, 2, 3, 4, 5];
-export const MAX_BAKERIES = 3;
 export const QUOTE_MIN_PAISE = 10_000;
 export const QUOTE_MAX_PAISE = 10_000_000;
 
@@ -22,43 +21,7 @@ export function parseQuoteReply(text: string): QuoteReply | null {
   return ref ? { kind: "quote", paise, ref: ref.toUpperCase() } : { kind: "quote", paise };
 }
 
-// Vendor price plus margin, rounded up to the next whole 10 rupees (1000 paise).
-export function customerPricePaise(vendorPaise: number, marginPct: number): number {
-  return Math.ceil((vendorPaise * (100 + marginPct)) / 100_000) * 1000;
-}
-
-/** What the customer is quoted: the cake (bakery price + margin) plus the flat delivery fee. */
-export function customerQuotePaise(vendorPaise: number, marginPct: number, deliveryFeePaise: number): number {
-  return customerPricePaise(vendorPaise, marginPct) + deliveryFeePaise;
-}
-
-/**
- * The bakery price (whole rupees) behind a customer total the admin agreed on the phone.
- * Quotes move in ₹10 steps, so check customerQuotePaise(result) === total before using it.
- */
-export function bakeryPaiseFor(totalPaise: number, marginPct: number, deliveryFeePaise: number): number {
-  return Math.floor(((totalPaise - deliveryFeePaise) * 100) / (100 + marginPct) / 100) * 100;
-}
-
-/**
- * A stored quote split back into cake and delivery. A quote made before
- * delivery was charged splits as fee 0.
- * ponytail: the cake part is recomputed from today's margin; if the margin
- * changes between quote and payment only this split drifts (never the amount
- * paid). Store the fee on CustomRequest if that ever matters.
- */
-export function splitCustomQuote(quotePaise: number, vendorPaise: number, marginPct: number) {
-  const cakePaise = Math.min(quotePaise, customerPricePaise(vendorPaise, marginPct));
-  return { cakePaise, deliveryFeePaise: quotePaise - cakePaise };
-}
-
-export function customOfferMinutes(): number {
-  const minutes = Number(process.env.CUSTOM_OFFER_MINUTES ?? 60);
-  if (!Number.isInteger(minutes) || minutes < 5 || minutes > 1440) throw new Error("Invalid custom offer window");
-  return minutes;
-}
-
-// A quote lives 24h, but never past the point where the bakery could no longer prepare it.
+// A quote lives 24h, but never past the point where we could no longer make the cake in time.
 export function quoteExpiresAt(now: Date, dueAt: Date, preparationMinutes: number): Date {
   const day = now.getTime() + 24 * 3600_000;
   const latest = dueAt.getTime() - preparationMinutes * 60_000;

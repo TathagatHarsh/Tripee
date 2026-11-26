@@ -1,10 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
-import {
-  bakeryPaiseFor, canMoveCustom, customerPricePaise, customerQuotePaise, splitCustomQuote, customOfferMinutes, newCustomRef, newCustomToken, parseQuoteReply, quoteExpiresAt,
-} from "@/lib/customRules";
+import { describe, expect, it } from "vitest";
+import { canMoveCustom, newCustomRef, newCustomToken, parseQuoteReply, quoteExpiresAt } from "@/lib/customRules";
 
 describe("customRules", () => {
-  afterEach(() => { delete process.env.CUSTOM_OFFER_MINUTES; });
 
   it("parses quote replies", () => {
     expect(parseQuoteReply("1800")).toEqual({ kind: "quote", paise: 180000 });
@@ -20,19 +17,6 @@ describe("customRules", () => {
     for (const text of ["1200/-", "Rs.1,200/-", "₹1200.00", "1200 only", "Rs 1200/- only", "1200.0", "1200/="])
       expect(parseQuoteReply(text), text).toEqual({ kind: "quote", paise: 120000 });
     expect(parseQuoteReply("1200/- CR-AB12CD")).toEqual({ kind: "quote", paise: 120000, ref: "CR-AB12CD" });
-  });
-
-  it("adds margin and rounds up to the next 10 rupees", () => {
-    expect(customerPricePaise(180000, 15)).toBe(207000);
-    expect(customerPricePaise(180100, 15)).toBe(208000);
-  });
-
-  it('quotes the cake plus the flat delivery fee, and splits it back', () => {
-    expect(customerQuotePaise(180000, 15, 15000)).toBe(222000);
-    expect(splitCustomQuote(222000, 180000, 15)).toEqual({ cakePaise: 207000, deliveryFeePaise: 15000 });
-    // A quote from before delivery was charged carries no fee.
-    expect(splitCustomQuote(207000, 180000, 15)).toEqual({ cakePaise: 207000, deliveryFeePaise: 0 });
-    expect(customerPricePaise(100000, 0)).toBe(100000);
   });
 
   it("caps quote expiry at 24h or the prep deadline", () => {
@@ -55,25 +39,5 @@ describe("customRules", () => {
   it("makes refs and tokens", () => {
     expect(newCustomRef()).toMatch(/^CR-[A-Z2-7]{6}$/);
     expect(newCustomToken()).toMatch(/^[A-Za-z0-9_-]{32}$/);
-  });
-
-  it("reads CUSTOM_OFFER_MINUTES", () => {
-    expect(customOfferMinutes()).toBe(60);
-    process.env.CUSTOM_OFFER_MINUTES = "2";
-    expect(() => customOfferMinutes()).toThrow();
-  });
-});
-
-describe("bakeryPaiseFor", () => {
-  it("finds the bakery price whose quote is exactly every ₹10 total", () => {
-    for (let total = 30_000; total <= 1_000_000; total += 1000)
-      for (const margin of [0, 10, 15, 22])
-        expect(customerQuotePaise(bakeryPaiseFor(total, margin, 15_000), margin, 15_000)).toBe(total);
-  });
-  it("₹2,000 agreed with 15% margin and ₹150 delivery is a ₹1,608 bakery price", () => {
-    expect(bakeryPaiseFor(200_000, 15, 15_000)).toBe(160_800);
-  });
-  it("a total off the ₹10 grid doesn't round-trip, so callers can refuse it", () => {
-    expect(customerQuotePaise(bakeryPaiseFor(200_500, 15, 15_000), 15, 15_000)).not.toBe(200_500);
   });
 });

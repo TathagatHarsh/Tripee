@@ -10,7 +10,7 @@ import { sBtn, sField } from "@/lib/shopUi";
 
 /**
  * "Send us your cake photo": the quoted-custom-cake request form. Posts the photo and details to
- * /api/custom-requests; a bakery quotes over WhatsApp. Same `<dialog>` `.s-sheet` as CustomEnquiry.
+ * /api/custom-requests; MakeYourCakes quotes it over WhatsApp. Same `<dialog>` `.s-sheet` as CustomEnquiry.
  * A gallery tile passes `preset`, its own photo, which is sent unless the customer picks another.
  */
 type Preset = { src: string; alt: string };
@@ -123,7 +123,7 @@ function Sheet({ catalog, closedDays, preset, title = "Your own cake design", on
         <div className="flex items-start gap-4 border-b border-s-line px-5 pt-4 pb-4 sm:px-7 sm:pt-6">
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <h2 id="request-title" className="text-[1.25rem] leading-tight sm:text-[1.4375rem]">{title}</h2>
-            <p className="text-[0.875rem] leading-snug text-s-bark">Send a photo and the details. A bakery near you quotes the price on WhatsApp.</p>
+            <p className="text-[0.875rem] leading-snug text-s-bark">Send a photo and the details. We&rsquo;ll send you the price on WhatsApp.</p>
           </div>
           <button
             type="button"
