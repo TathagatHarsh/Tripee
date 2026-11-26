@@ -29,9 +29,9 @@ export function outboxCreate(input: OutboxInput): Prisma.NotificationOutboxCreat
   };
 }
 
-async function sendWhatsAppRow(message: { destination: string | null; payload: Prisma.JsonValue }): Promise<void> {
+async function sendWhatsAppRow(message: { destination: string | null; payload: Prisma.JsonValue }): Promise<string | null> {
   if (!message.destination) throw new Error("whatsapp_destination_missing");
-  await sendWhatsApp(message.destination, message.payload as unknown as WhatsAppMessage);
+  return sendWhatsApp(message.destination, message.payload as unknown as WhatsAppMessage);
 }
 
 async function sendWebhook(message: {
@@ -92,14 +92,12 @@ export async function dispatchPendingNotifications(limit = 20): Promise<{
     const claim = { id: candidate.id, status: "sending" as const, attempts: candidate.attempts + 1, availableAt: leaseUntil };
 
     try {
-      await (candidate.channel === "email"
-        ? sendEmail(candidate)
-        : candidate.channel === "whatsapp"
-          ? sendWhatsAppRow(candidate)
-          : sendWebhook(candidate));
+      // A WhatsApp send keeps Meta's message id, so a reply quoting it can be matched (lib/whatsappInbound).
+      const providerMessageId = candidate.channel === "whatsapp" ? await sendWhatsAppRow(candidate)
+        : (await (candidate.channel === "email" ? sendEmail(candidate) : sendWebhook(candidate)), null);
       const completed = await db.notificationOutbox.updateMany({
         where: claim,
-        data: { status: "sent", sentAt: new Date(), lastError: null },
+        data: { status: "sent", sentAt: new Date(), lastError: null, providerMessageId },
       });
       if (completed.count !== 1) continue;
       sent++;

@@ -73,7 +73,8 @@ function payload(to: string, message: WhatsAppMessage) {
 }
 
 /** Throws `whatsapp_<status>[_<metaCode>]` when Meta rejects the message. */
-export async function sendWhatsApp(to: string, message: WhatsAppMessage): Promise<void> {
+/** Sends one message; resolves to Meta's message id (wamid) when it gives one. */
+export async function sendWhatsApp(to: string, message: WhatsAppMessage): Promise<string | null> {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!token || !phoneNumberId) throw new Error("whatsapp_not_configured");
@@ -84,7 +85,7 @@ export async function sendWhatsApp(to: string, message: WhatsAppMessage): Promis
     cache: "no-store",
     signal: AbortSignal.timeout(10_000),
   });
-  if (res.ok) return;
+  if (res.ok) return res.json().then((j: { messages?: { id?: string }[] }) => j?.messages?.[0]?.id ?? null, () => null);
   const code = await res.json().then((j: { error?: { code?: number } }) => j?.error?.code, () => undefined);
   throw new Error(`whatsapp_${res.status}${code === undefined ? "" : `_${code}`}`);
 }

@@ -24,6 +24,8 @@ interface WaMessage {
   text?: { body?: string };
   button?: { text?: string; payload?: string };
   interactive?: { button_reply?: { id?: string; title?: string } };
+  /** Present when the message replies to (quotes) another message: that message's id. */
+  context?: { id?: string };
 }
 interface WaStatus {
   id: string;
@@ -68,6 +70,7 @@ export async function POST(req: Request) {
             from: m.from,
             text: m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? null,
             payload: m.button?.payload ?? m.interactive?.button_reply?.id ?? null,
+            contextId: m.context?.id ?? null,
           });
         }
       }

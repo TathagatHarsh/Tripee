@@ -168,10 +168,16 @@ Parameters never contain line breaks. The first three are the texts Meta approve
 
 ### Custom cakes
 
-- **Bakery price replies.** A bare number, with or without `₹`/`Rs`, commas, `/-`, `.00` or `only` (`1200`, `Rs.1,200/-`, `₹1200.00`, `1200 only`). Add the request ref when the bakery has more than one open (`1200 CR-AB12CD`). Whole rupees from ₹100 to ₹1,00,000.
-- **No bakery.** After three bakeries pass or time out, the request is `no_bakery`. The admin gets an alert with the customer's name and number. The customer gets an `order_update`: "none of our partner bakeries could quote your custom cake yet. Our team will contact you".
-- **Admin quote.** On `/admin/custom-requests`, a request that is waiting for a quote or has no bakery has a **Send quote** form: pick an active bakery with a WhatsApp number, type that bakery's price. The customer gets the same `custom_quote` a bakery reply sends (price = bakery price + margin, rounded up to ₹10, + delivery). The chosen bakery gets an `order_update` with the price, and a bakery holding the live offer is told it was passed on. It is refused if that bakery could no longer make the cake in time.
-- **Cancel.** Cancelling a waiting, quoted or no-bakery request tells the bakery that held it and the customer (`order_update`).
+Custom cakes are MakeYourCakes' own: **no partner bakery quotes, makes or is paid for them.**
+
+- **Request.** A website request is sent as `custom_offer` (photo, size, flavour, date, area, budget) to every number in `WHATSAPP_ADMIN_NUMBERS`, at once. It is never offered to a bakery.
+- **Admin price reply.** The admin **replies to that message** (WhatsApp's reply) with what the customer pays in all, delivery included. The reply is matched to the request through the message id Meta returned when it was sent (`NotificationOutbox.providerMessageId`). Without a reply, the request ref works (`1200 CR-AB12CD`), or a bare price when only one request is waiting; with several waiting and no reply or ref, the admin is asked which. Prices read like `1200`, `Rs.1,200/-`, `₹1200.00`, `1200 only`; whole rupees, at least delivery + ₹100. The replying admin gets a text back; the other admins get an `order_update`. **Can't do it** cancels the request and tells the customer.
+- **Admin page.** `/admin/custom-requests` has **Send quote** (customer's total) on each waiting request, **New quote for a customer who phoned**, and **Copy payment link** on quoted ones. These send at once.
+- **Customer.** Gets `custom_quote` with **Pay now** (`/c/<token>`), pays MakeYourCakes via Razorpay. The quote expires 24h after it is sent, or earlier when there is no longer time to make the cake (`customMinMinutes` before it is due).
+- **Paid.** The payment becomes a normal paid order with `assignmentState: MANUAL` ("our main bakery is arranging your cake"), so bakery auto-assignment never offers it. The admin numbers get the usual new-order alert. Delivery fee is today's fee; the cake is the rest of the quote.
+- **Cancel.** Cancelling a waiting or quoted request tells the customer (`order_update`).
+
+**Deploy order for reply matching:** run the `9q_outbox_provider_message_id` migration on production (`prisma migrate deploy` on the Supabase session pooler, port 5432) *before* deploying the code: every WhatsApp send writes `providerMessageId`, so code deployed ahead of the migration fails every notification. The migration only adds a nullable column and an index, so it is safe for the code already running.
 
 **Deploy order for custom cakes:** run the `9l_custom_requests` migration on production (`prisma migrate deploy` on the Supabase session pooler, port 5432) *before* deploying the code that uses it. The outbox code writes `NotificationOutbox.customRequestId` on every insert, so code deployed ahead of the migration breaks checkout and every notification. The migration is safe for the code already running. Also, the custom-cake form only appears once WhatsApp, an image store and online payment are all configured.
 

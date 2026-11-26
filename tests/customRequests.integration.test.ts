@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 const afterCallbacks: (() => unknown)[] = [];
 vi.mock('next/server', () => ({ after: (fn: () => unknown) => { afterCallbacks.push(fn); } }));
@@ -11,359 +11,167 @@ vi.mock('../lib/checkoutPayment', async (orig) => {
 import { createHmac } from 'node:crypto';
 import { db } from '../lib/db';
 import { openPaymentIntent, refundPayment } from '../lib/checkoutPayment';
-import { adminQuote, cancelCustomRequest, createAdminQuote, createCustomRequest, nextBakery, offerNext, payCustomRequest, runCustomRequestWorker } from '../lib/customRequests';
+import { adminQuote, cancelCustomRequest, createAdminQuote, createCustomRequest, payCustomRequest, runCustomRequestWorker } from '../lib/customRequests';
 import { recoverPayment } from '../lib/paymentRecovery';
 import { durableRefund } from '../lib/refunds';
 import { POST as openQuoteIntent } from '../app/api/custom-requests/[token]/intent/route';
 import { POST as payQuote } from '../app/api/custom-requests/[token]/pay/route';
 import { handleInbound } from '../lib/whatsappInbound';
-import { vendorOrder } from '../app/vendor/data';
 const url = process.env.ASSIGNMENT_TEST_DATABASE_URL;
-const vendorIds: string[] = [], requestIds: string[] = [];
 let serial = 0;
-// own corner of the map so other suites' bakeries sharing the scratch DB never compete
-const km = (k: number) => 12.9 + k / 111.19; // degrees of latitude per km
-describe.skipIf(!url)('nextBakery on isolated PostgreSQL', () => {
-  beforeAll(() => { process.env.DATABASE_URL = url!; });
-  afterEach(async () => {
-    await db.customRequest.deleteMany({ where: { id: { in: requestIds } } });
-    await db.vendor.deleteMany({ where: { id: { in: vendorIds } } });
-    vendorIds.length = requestIds.length = 0;
-  });
-  afterAll(async () => { await db.$disconnect(); });
-  async function fixture(opts: { prep?: number; dueInHours?: number; tried?: number[]; unset?: number } = {}) {
-    const vendors: Awaited<ReturnType<typeof db.vendor.create>>[] = [];
-    for (const [i, d] of [0.1, 1, 30].entries()) {
-      const v = await db.vendor.create({ data: { name: `CR Bakery ${i}`, phone: `91983330000${i}`, locationSetAt: opts.unset === i ? null : new Date(), isAcceptingOrders: true, fulfillsAllProducts: true, latitude: km(d), longitude: 77.6, serviceRadiusKm: 20, preparationMinutes: opts.prep ?? 60 } });
-      vendorIds.push(v.id); vendors.push(v);
-    }
-    const n = ++serial;
-    const request = await db.customRequest.create({ data: { ref: `CR-T${Date.now()}${n}`, token: `tok-${Date.now()}-${n}`, name: 'T', phone: '919000000000', photoUrl: 'x', sizeKg: 1, flavour: 'f', dueAt: new Date(Date.now() + (opts.dueInHours ?? 48) * 3600000), address: { lat: 12.9, lng: 77.6, address: 'a', city: 'c', state: 's', pincode: '500001', placeId: 'p' }, triedVendorIds: (opts.tried ?? []).map(i => vendors[i].id) } });
-    requestIds.push(request.id);
-    return { vendors, request };
-  }
-  it('returns the nearest bakery', async () => {
-    const { vendors, request } = await fixture();
-    expect((await nextBakery(db, request))?.vendor.id).toBe(vendors[0].id);
-  });
-  it('skips tried bakeries', async () => {
-    const { vendors, request } = await fixture({ tried: [0] });
-    expect((await nextBakery(db, request))?.vendor.id).toBe(vendors[1].id);
-  });
-  it('returns null once only the 30 km bakery is left', async () => {
-    const { request } = await fixture({ tried: [0, 1] });
-    expect(await nextBakery(db, request)).toBeNull();
-  });
-  it('skips a bakery without a location', async () => {
-    const { vendors, request } = await fixture({ unset: 0 });
-    expect((await nextBakery(db, request))?.vendor.id).toBe(vendors[1].id);
-  });
-  it('returns null when no bakery can prepare in time', async () => {
-    const { request } = await fixture({ prep: 240, dueInHours: 1 });
-    expect(await nextBakery(db, request)).toBeNull();
-  });
-});
-
-describe.skipIf(!url)('custom request lifecycle over WhatsApp on isolated PostgreSQL', () => {
-  const ADMIN = '919000000001', CUSTOMER = '919822200000';
-  const phoneOf = (i: number) => `91981110000${i}`;
-  const lat = (k: number) => 13.6 + k / 111.19; // a corner of its own, away from the nextBakery suite
-  const ids: string[] = [], vIds: string[] = [];
+describe.skipIf(!url)('custom requests priced by the admin on isolated PostgreSQL', () => {
+  const ADMIN = '919000000001', ADMIN2 = '919000000002', CUSTOMER = '919822200000', STRANGER = '919811100000';
+  const refs: string[] = [];
   const sent = vi.fn();
   beforeAll(() => { process.env.DATABASE_URL = url!; });
   beforeEach(() => {
     vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'tok'); vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', 'PNID');
-    vi.stubEnv('WHATSAPP_APP_SECRET', 'secret'); vi.stubEnv('WHATSAPP_ADMIN_NUMBERS', '9000000001');
+    vi.stubEnv('WHATSAPP_APP_SECRET', 'secret'); vi.stubEnv('WHATSAPP_ADMIN_NUMBERS', '9000000001,9000000002');
     sent.mockReset(); sent.mockResolvedValue({ ok: true, json: async () => ({}) }); vi.stubGlobal('fetch', sent);
   });
   afterEach(async () => {
     vi.unstubAllEnvs(); vi.unstubAllGlobals();
-    await db.customRequest.deleteMany({ where: { id: { in: ids } } });
-    await db.whatsAppCommand.deleteMany({ where: { vendorId: { in: vIds } } });
-    await db.vendor.deleteMany({ where: { id: { in: vIds } } });
-    ids.length = vIds.length = 0;
+    await db.customRequest.deleteMany({ where: { ref: { in: refs } } });
+    // Replies to the admin aren't tied to a request, so they outlive it: clear them, or a rerun's same ids look already answered.
+    await db.notificationOutbox.deleteMany({ where: { dedupeKey: { startsWith: 'wa-reply:wamid.' }, destination: { in: [ADMIN, ADMIN2, STRANGER, CUSTOMER] } } });
+    refs.length = 0; afterCallbacks.length = 0;
   });
-  async function fixture(opts: { phone?: string; locality?: string } = {}) {
-    const vendors: Awaited<ReturnType<typeof db.vendor.create>>[] = [];
-    for (const [i, d] of [0.1, 1, 2, 3].entries()) {
-      const v = await db.vendor.create({ data: { name: `CR Life ${i}`, phone: phoneOf(i), locationSetAt: new Date(), isAcceptingOrders: true, fulfillsAllProducts: true, latitude: lat(d), longitude: 77.6, serviceRadiusKm: 20, preparationMinutes: 60 } });
-      vIds.push(v.id); vendors.push(v);
-    }
-    const n = ++serial;
-    const request = await db.customRequest.create({ data: { ref: `CR-L${Date.now()}${n}`, token: `tokl-${Date.now()}-${n}`, name: 'Asha', phone: opts.phone ?? CUSTOMER, photoUrl: 'https://x.test/p.jpg', sizeKg: 1.5, flavour: 'Chocolate', dueAt: new Date(Date.now() + 48 * 3600000), address: { lat: 13.6, lng: 77.6, address: '12 Secret Street', locality: opts.locality ?? 'Kondapur', city: 'Hyderabad', state: 's', pincode: '500001', placeId: 'p' } } });
-    ids.push(request.id);
-    return { vendors, request };
+  const input = (over: object = {}) => ({ name: 'Asha', phone: '98222 00000', sizeKg: 1.5, flavour: 'Chocolate', consent: true as const,
+    dueAt: new Date(Date.now() + 48 * 3600000).toISOString(),
+    address: { lat: 13.6, lng: 77.6, address: '12 Secret Street', locality: 'Kondapur', city: 'Hyderabad', state: 's', pincode: '500001', placeId: 'p' }, ...over });
+  /** A website request: saved, and its photo message queued to the admins. `wamid` stands in for Meta's id once sent. */
+  async function asked(over: object = {}) {
+    const { ref } = await createCustomRequest(input(over), Buffer.from('img')); refs.push(ref);
+    const r = await db.customRequest.findUniqueOrThrow({ where: { ref } });
+    await db.notificationOutbox.updateMany({ where: { customRequestId: r.id, destination: ADMIN }, data: { status: 'sent', providerMessageId: `wamid.ask.${ref}` } });
+    return r;
   }
   const rows = (id: string) => db.notificationOutbox.findMany({ where: { customRequestId: id }, orderBy: { createdAt: 'asc' } });
   const reload = (id: string) => db.customRequest.findUniqueOrThrow({ where: { id } });
   const textOf = (r: { payload: unknown }) => JSON.stringify(r.payload);
-  const expireOffer = (id: string) => db.customRequest.update({ where: { id }, data: { offerExpiresAt: new Date(Date.now() - 1000) } });
-  const quoted = async (opts?: { phone?: string }) => {
-    const f = await fixture(opts); await offerNext(f.request.id);
-    await handleInbound({ id: `wamid.q${f.request.id}`, from: phoneOf(0), text: '1800' });
-    return f;
-  };
+  const reply = async (id: string) => textOf((await db.notificationOutbox.findFirstOrThrow({ where: { dedupeKey: `wa-reply:${id}:${ADMIN}` } })));
 
-  it('offers the nearest bakery the custom_offer template with the area only', async () => {
-    const { vendors, request } = await fixture();
-    await offerNext(request.id);
-    const r = await reload(request.id);
-    expect(r.vendorId).toBe(vendors[0].id); expect(r.triedVendorIds).toEqual([vendors[0].id]);
-    expect(r.offerExpiresAt!.getTime()).toBeGreaterThan(Date.now() + 59 * 60000);
-    const [offer] = await rows(request.id);
-    expect(offer).toMatchObject({ destination: phoneOf(0), kind: 'custom_request', dedupeKey: `cr:${request.id}:offer:${vendors[0].id}:${phoneOf(0)}` });
-    expect(offer.payload).toMatchObject({ type: 'template', name: 'custom_offer' });
-    expect(textOf(offer)).toContain('Kondapur'); expect(textOf(offer)).not.toContain('Secret'); expect(textOf(offer)).not.toContain('Asha');
+  it('a website request goes to every admin number as the custom_offer photo message, never to a bakery', async () => {
+    const r = await asked();
+    expect(r).toMatchObject({ status: 'awaiting_quote', vendorId: null });
+    const all = await rows(r.id);
+    expect(all.map(x => x.destination).sort()).toEqual([ADMIN, ADMIN2]);
+    expect(all[0].payload).toMatchObject({ type: 'template', name: 'custom_offer' });
+    expect(textOf(all[0])).toContain('Kondapur'); expect(textOf(all[0])).not.toContain('Secret');
     // The stored photo is WebP; WhatsApp gets it through the signed JPEG converter, never the blob URL.
-    const link = (offer.payload as { components: { type: string; parameters: { image?: { link: string } }[] }[] }).components[0].parameters[0].image!.link;
-    expect(link).toContain(`/api/whatsapp/photo/${request.id}?s=`); expect(textOf(offer)).not.toContain('x.test/p.jpg');
+    expect(textOf(all[0])).toContain(`/api/whatsapp/photo/${r.id}?s=`);
+    expect(afterCallbacks).toHaveLength(1); // the send is kicked off at once, after the response
   });
-  it('a blank locality falls back to the city for the offer area', async () => {
-    const { request } = await fixture({ locality: '' });
-    await offerNext(request.id);
-    const [offer] = await rows(request.id);
-    expect(textOf(offer)).toContain('"text":"Hyderabad"');
-  });
-  it('a typed "1800" quotes: customer price with margin, customer template, bakery reply', async () => {
-    const { request } = await quoted();
-    const r = await reload(request.id);
-    expect(r).toMatchObject({ status: 'quoted', vendorQuotePaise: 180000, quotePaise: 222000 });
-    expect(r.quoteExpiresAt!.getTime()).toBeGreaterThan(Date.now());
-    const all = await rows(request.id);
+  it('the admin replies "1000" to a request\'s message: that request is quoted at ₹1,000, even with others waiting', async () => {
+    const first = await asked(), second = await asked();
+    await handleInbound({ id: 'wamid.r1', from: ADMIN, text: '1000', contextId: `wamid.ask.${second.ref}` });
+    expect(await reload(second.id)).toMatchObject({ status: 'quoted', quotePaise: 100000, vendorId: null, vendorQuotePaise: null });
+    expect((await reload(first.id)).status).toBe('awaiting_quote');
+    const all = await rows(second.id);
     expect(all.find(x => x.destination === CUSTOMER)!.payload).toMatchObject({ type: 'template', name: 'custom_quote' });
-    expect(all.some(x => x.destination === ADMIN)).toBe(true);
-    const reply = all.find(x => x.dedupeKey === `wa-reply:wamid.q${request.id}:${phoneOf(0)}`)!;
-    expect(reply.payload).toEqual({ type: 'text', body: `✅ Quote ₹1,800 sent for ${request.ref}. We'll tell you if the customer pays.` });
-  });
-  it('the Can\'t do it button passes the request to the second bakery', async () => {
-    const { vendors, request } = await fixture(); await offerNext(request.id);
-    await handleInbound({ id: 'wamid.cqno', from: phoneOf(0), payload: `cq_no:${request.id}` });
-    const r = await reload(request.id);
-    expect(r.vendorId).toBe(vendors[1].id); expect(r.triedVendorIds).toEqual([vendors[0].id, vendors[1].id]);
-    expect((await rows(request.id)).some(x => x.destination === phoneOf(1) && (x.payload as { name?: string }).name === 'custom_offer')).toBe(true);
-  });
-  it('typed "can\'t do it CR-…" also declines', async () => {
-    const { vendors, request } = await fixture(); await offerNext(request.id);
-    await handleInbound({ id: 'wamid.cant', from: phoneOf(0), text: `Can't do it ${request.ref}` });
-    expect((await reload(request.id)).vendorId).toBe(vendors[1].id);
-  });
-  it('expired offers move to the next bakery up to three, then no_bakery with an admin alert', async () => {
-    const { vendors, request } = await fixture(); await offerNext(request.id);
-    for (const next of [1, 2]) {
-      await expireOffer(request.id); await runCustomRequestWorker();
-      expect((await reload(request.id)).vendorId).toBe(vendors[next].id);
-    }
-    expect(textOf((await rows(request.id)).find(x => x.destination === phoneOf(0) && x.dedupeKey.startsWith(`cr:${request.id}:passed`))!)).toContain('has been passed on');
-    await expireOffer(request.id); await runCustomRequestWorker();
-    const r = await reload(request.id);
-    expect(r.status).toBe('no_bakery'); expect(r.triedVendorIds).toHaveLength(3);
-    const alert = (await rows(request.id)).find(x => x.destination === ADMIN)!;
-    expect(textOf(alert)).toContain('No bakery could quote this custom cake. Customer: Asha 919822200000');
-    expect((await rows(request.id)).some(x => x.destination === phoneOf(3))).toBe(false);
-    // The customer was told "we'll contact you shortly": they hear it didn't work out, through an approved template.
-    const told = (await rows(request.id)).find(x => x.destination === CUSTOMER)!;
-    expect(told.payload).toMatchObject({ type: 'template', name: 'order_update' });
-    expect(textOf(told)).toContain('Our team will contact you');
-  });
-  it('a quote after the offer expired changes nothing and says the request is not waiting', async () => {
-    const { request } = await fixture(); await offerNext(request.id); await expireOffer(request.id);
-    await handleInbound({ id: 'wamid.late', from: phoneOf(0), text: '1800' });
-    expect((await reload(request.id)).status).toBe('awaiting_quote');
-    const reply = (await rows(request.id)).find(x => x.dedupeKey.startsWith('wa-reply:wamid.late:'))!;
-    expect(textOf(reply)).toContain("isn't waiting");
-  });
-  it('a quote too close to the delivery time is not sent to the customer and the request moves on', async () => {
-    const { request } = await fixture(); await offerNext(request.id);
-    await db.customRequest.update({ where: { id: request.id }, data: { dueAt: new Date(Date.now() + 30 * 60000) } });
-    await handleInbound({ id: 'wamid.close', from: phoneOf(0), text: '1800' });
-    const r = await reload(request.id);
-    expect(r.status).toBe('no_bakery'); expect(r.quotePaise).toBeNull();
-    const all = await rows(request.id);
-    expect(all.some(x => x.destination === CUSTOMER && (x.payload as { name?: string }).name === 'custom_quote')).toBe(false);
-    expect(textOf(all.find(x => x.dedupeKey.startsWith('wa-reply:wamid.close:'))!)).toContain('too soon');
-  });
-  it('the same message id delivered twice quotes once and replies once', async () => {
-    const { request } = await fixture(); await offerNext(request.id);
-    for (let i = 0; i < 2; i++) await handleInbound({ id: 'wamid.twice', from: phoneOf(0), text: '₹1,800' });
-    const all = await rows(request.id);
-    expect(all.filter(x => x.destination === CUSTOMER)).toHaveLength(1);
-    expect(all.filter(x => x.dedupeKey.startsWith('wa-reply:wamid.twice:'))).toHaveLength(1);
+    expect(textOf(all.find(x => x.destination === CUSTOMER)!)).toContain('1,000');
+    expect(await reply('wamid.r1')).toContain(`${second.ref}: quote of ₹1,000 sent`);
+    // The other admin is told; the one who replied isn't sent the update twice.
+    expect(all.filter(x => x.dedupeKey.startsWith(`cr:${second.id}:quote:admin`)).map(x => x.destination)).toEqual([ADMIN2]);
     expect(sent).not.toHaveBeenCalled();
   });
-  it('an out-of-range price gets the rupees hint', async () => {
-    const { request } = await fixture(); await offerNext(request.id);
-    await handleInbound({ id: 'wamid.tiny', from: phoneOf(0), text: '50' });
-    expect((await reload(request.id)).status).toBe('awaiting_quote');
-    expect(JSON.parse(sent.mock.calls[0][1].body).text.body).toBe('Please send the price in rupees, e.g. 1800.');
+  it('a typed ref picks the request; with one waiting a bare price is enough', async () => {
+    // "Only one waiting" is global: close strays other suites left open in the shared scratch DB.
+    await db.customRequest.updateMany({ where: { status: { in: ['awaiting_quote', 'no_bakery'] } }, data: { status: 'cancelled' } });
+    const a = await asked(), b = await asked();
+    await handleInbound({ id: 'wamid.r2', from: ADMIN, text: `Rs. 1,500 ${a.ref.toLowerCase()}` });
+    expect(await reload(a.id)).toMatchObject({ status: 'quoted', quotePaise: 150000 });
+    await handleInbound({ id: 'wamid.r3', from: ADMIN, text: '1200' });
+    expect(await reload(b.id)).toMatchObject({ status: 'quoted', quotePaise: 120000 });
   });
-  it('the customer taps Not for me: declined, admin and the quoting bakery told', async () => {
-    const { request } = await quoted();
-    await handleInbound({ id: 'wamid.nfm', from: CUSTOMER, text: 'Not for me', payload: `cq_decline:${request.id}` });
-    expect((await reload(request.id)).status).toBe('declined');
-    const all = await rows(request.id);
-    expect(textOf(all.filter(x => x.destination === CUSTOMER).at(-1)!)).toContain('No problem — our team may message you.');
-    expect(all.filter(x => x.destination === ADMIN).length).toBeGreaterThanOrEqual(2);
-    expect(textOf(all.filter(x => x.destination === phoneOf(0)).at(-1)!)).toContain(`The customer passed on ${request.ref}`);
-    expect(sent).not.toHaveBeenCalled();
+  it('a bare price with several waiting asks which, naming them; nothing is quoted', async () => {
+    const a = await asked(), b = await asked();
+    await handleInbound({ id: 'wamid.r4', from: ADMIN, text: '1000' });
+    const text = await reply('wamid.r4');
+    expect(text).toContain('Which request? Reply to its message'); expect(text).toContain(a.ref); expect(text).toContain(b.ref);
+    expect((await reload(a.id)).status).toBe('awaiting_quote'); expect((await reload(b.id)).status).toBe('awaiting_quote');
   });
-  it('any other customer text goes to the admin only', async () => {
-    const { request } = await quoted();
-    const toVendor = (await rows(request.id)).filter(x => x.destination === phoneOf(0)).length;
+  it('a price below delivery plus ₹100 is refused with the range, and the request still waits', async () => {
+    const r = await asked();
+    await handleInbound({ id: 'wamid.r5', from: ADMIN, text: '200', contextId: `wamid.ask.${r.ref}` });
+    expect(await reply('wamid.r5')).toContain("between ₹250");
+    expect((await reload(r.id)).status).toBe('awaiting_quote');
+  });
+  it('an out-of-range number gets the rupees hint', async () => {
+    await asked();
+    await handleInbound({ id: 'wamid.r6', from: ADMIN, text: '5', contextId: 'wamid.unknown' });
+    expect(await reply('wamid.r6')).toContain('e.g. 1800');
+  });
+  it('the same message delivered twice quotes once and replies once', async () => {
+    const r = await asked();
+    const msg = { id: 'wamid.r7', from: ADMIN, text: '1000', contextId: `wamid.ask.${r.ref}` };
+    await handleInbound(msg); await handleInbound(msg);
+    expect((await rows(r.id)).filter(x => x.destination === CUSTOMER)).toHaveLength(1);
+    expect(await db.notificationOutbox.count({ where: { dedupeKey: { startsWith: 'wa-reply:wamid.r7' } } })).toBe(1);
+  });
+  it("the admin's Can't do it cancels the request and tells the customer", async () => {
+    const r = await asked();
+    await handleInbound({ id: 'wamid.r8', from: ADMIN, text: "Can't do it", payload: `cq_no:${r.id}` });
+    expect((await reload(r.id)).status).toBe('cancelled');
+    expect(textOf((await rows(r.id)).find(x => x.destination === CUSTOMER)!)).toContain('has been cancelled');
+    expect(await reply('wamid.r8')).toContain('cancelled');
+  });
+  it('a price from a number that is not an admin quotes nothing', async () => {
+    const r = await asked();
+    await handleInbound({ id: 'wamid.r9', from: STRANGER, text: '1000', contextId: `wamid.ask.${r.ref}` });
+    expect((await reload(r.id)).status).toBe('awaiting_quote');
+  });
+  it('the customer taps Not for me: declined and the admins told', async () => {
+    const r = await asked();
+    expect((await adminQuote(r.id, 100000)).ok).toBe(true);
+    await handleInbound({ id: 'wamid.nfm', from: CUSTOMER, text: 'Not for me', payload: `cq_decline:${r.id}` });
+    expect((await reload(r.id)).status).toBe('declined');
+    const all = await rows(r.id);
+    expect(textOf(all.filter(x => x.destination === CUSTOMER).at(-1)!)).toContain('No problem');
+    expect(all.some(x => x.destination === ADMIN && textOf(x).includes('passed on'))).toBe(true);
+  });
+  it('any other customer text goes to the admins', async () => {
+    const r = await asked();
     await handleInbound({ id: 'wamid.haggle', from: CUSTOMER, text: 'can you do 1500?' });
-    const all = await rows(request.id);
-    expect(textOf(all.at(-1)!)).toContain(`Customer on ${request.ref} says: can you do 1500?`);
-    expect(all.at(-1)!.destination).toBe(ADMIN);
-    expect(all.filter(x => x.destination === phoneOf(0))).toHaveLength(toVendor);
-    expect((await reload(request.id)).status).toBe('quoted');
-    expect(sent).not.toHaveBeenCalled();
+    expect(textOf((await rows(r.id)).at(-1)!)).toContain(`Customer on ${r.ref} says: can you do 1500?`);
+    expect((await reload(r.id)).status).toBe('awaiting_quote');
   });
-  it('a number that is both a bakery and a customer quoting "1800" is the bakery quoting', async () => {
-    const { request } = await quoted({ phone: phoneOf(0) });
-    expect((await reload(request.id)).status).toBe('quoted');
-  });
-  it('an expired quote becomes expired on the worker run', async () => {
-    const { request } = await quoted();
-    await db.customRequest.update({ where: { id: request.id }, data: { quoteExpiresAt: new Date(Date.now() - 1000) } });
+  it('an unpaid quote expires on the worker run', async () => {
+    const r = await asked();
+    await adminQuote(r.id, 100000);
+    await db.customRequest.update({ where: { id: r.id }, data: { quoteExpiresAt: new Date(Date.now() - 1000) } });
     expect((await runCustomRequestWorker()).quotes).toBeGreaterThanOrEqual(1);
-    expect((await reload(request.id)).status).toBe('expired');
+    expect((await reload(r.id)).status).toBe('expired');
   });
-  it('skips a nearest bakery with no WhatsApp number', async () => {
-    const { vendors, request } = await fixture();
-    await db.vendor.update({ where: { id: vendors[0].id }, data: { phone: null } });
-    await offerNext(request.id);
-    expect((await reload(request.id)).vendorId).toBe(vendors[1].id);
+  it('cancel tells the customer; a paid request is left alone', async () => {
+    const r = await asked();
+    expect(await cancelCustomRequest(r.id)).toBe(true);
+    expect(textOf((await rows(r.id)).find(x => x.destination === CUSTOMER)!)).toContain('has been cancelled');
+    const p = await asked();
+    await db.customRequest.update({ where: { id: p.id }, data: { status: 'paid' } });
+    expect(await cancelCustomRequest(p.id)).toBe(false);
   });
-  it('the worker offers a request whose first offer never went out', async () => {
-    const { vendors, request } = await fixture();
-    await runCustomRequestWorker();
-    expect((await reload(request.id)).vendorId).toBeNull(); // a just-created request is not raced
-    await db.customRequest.update({ where: { id: request.id }, data: { createdAt: new Date(Date.now() - 2 * 60000) } });
-    await runCustomRequestWorker();
-    expect((await reload(request.id)).vendorId).toBe(vendors[0].id);
+  it('the admin page quote tells every admin, and refuses a request that is no longer open or due too soon', async () => {
+    const r = await asked();
+    expect(await adminQuote(r.id, 200000)).toEqual({ ok: true, quotePaise: 200000 });
+    expect((await rows(r.id)).filter(x => x.dedupeKey.startsWith(`cr:${r.id}:quote:admin`)).map(x => x.destination).sort()).toEqual([ADMIN, ADMIN2]);
+    expect(await adminQuote(r.id, 200000)).toMatchObject({ ok: false });
+    const soon = await asked({ dueAt: new Date(Date.now() + 30 * 60000).toISOString() });
+    expect(await adminQuote(soon.id, 200000)).toMatchObject({ ok: false });
+    expect((await reload(soon.id)).status).toBe('awaiting_quote');
   });
-  it('cancel stops an open offer and tells the bakery', async () => {
-    const { request } = await fixture(); await offerNext(request.id);
-    expect(await cancelCustomRequest(request.id)).toBe(true);
-    expect((await reload(request.id)).status).toBe('cancelled');
-    expect(textOf((await rows(request.id)).filter(x => x.destination === phoneOf(0)).at(-1)!)).toContain('cancelled');
-    expect(await cancelCustomRequest(request.id)).toBe(false);
-  });
-  it('cancel on a quoted request tells the bakery and the customer; a paid one is left alone', async () => {
-    const { request } = await quoted();
-    expect(await cancelCustomRequest(request.id)).toBe(true);
-    expect((await reload(request.id)).status).toBe('cancelled');
-    expect(textOf((await rows(request.id)).filter(x => x.destination === phoneOf(0)).at(-1)!)).toContain(`${request.ref} was cancelled`);
-    const told = (await rows(request.id)).filter(x => x.destination === CUSTOMER).at(-1)!;
-    expect(told.payload).toMatchObject({ type: 'template', name: 'order_update' });
-    expect(textOf(told)).toContain('has been cancelled');
-    await db.customRequest.update({ where: { id: request.id }, data: { status: 'paid' } });
-    const n = (await rows(request.id)).length;
-    expect(await cancelCustomRequest(request.id)).toBe(false);
-    expect((await reload(request.id)).status).toBe('paid');
-    expect((await rows(request.id)).length).toBe(n);
-  });
-  it('cancel closes a no_bakery request and tells the customer', async () => {
-    const { request } = await fixture();
-    await db.customRequest.update({ where: { id: request.id }, data: { status: 'no_bakery' } });
-    expect(await cancelCustomRequest(request.id)).toBe(true);
-    expect((await reload(request.id)).status).toBe('cancelled');
-    expect(textOf((await rows(request.id)).find(x => x.destination === CUSTOMER)!)).toContain('has been cancelled');
-  });
-
-  describe('admin quote', () => {
-    it('quotes a request another bakery was offered: that bakery passed on, the chosen one told, customer gets the quote', async () => {
-      const { vendors, request } = await fixture(); await offerNext(request.id);
-      expect(await adminQuote(request.id, vendors[1].id, { vendorPaise: 150000 })).toEqual({ ok: true, quotePaise: 188000, vendorPaise: 150000 });
-      const r = await reload(request.id);
-      expect(r).toMatchObject({ status: 'quoted', vendorId: vendors[1].id, vendorQuotePaise: 150000, quotePaise: 188000, offerExpiresAt: null });
-      expect(r.triedVendorIds).toEqual([vendors[0].id, vendors[1].id]);
-      const all = await rows(request.id);
-      expect(textOf(all.filter(x => x.destination === phoneOf(0)).at(-1)!)).toContain('has been passed on');
-      const chosen = all.find(x => x.destination === phoneOf(1))!;
-      expect(chosen.payload).toMatchObject({ type: 'template', name: 'order_update' });
-      expect(textOf(chosen)).toContain('₹1,500');
-      expect(all.find(x => x.destination === CUSTOMER)!.payload).toMatchObject({ type: 'template', name: 'custom_quote' });
-      expect(all.some(x => x.destination === ADMIN)).toBe(true);
-      expect(sent).not.toHaveBeenCalled();
-    });
-    it('rescues a request no bakery took', async () => {
-      const { vendors, request } = await fixture();
-      await db.customRequest.update({ where: { id: request.id }, data: { status: 'no_bakery' } });
-      expect((await adminQuote(request.id, vendors[2].id, { vendorPaise: 180000 })).ok).toBe(true);
-      expect(await reload(request.id)).toMatchObject({ status: 'quoted', vendorId: vendors[2].id, quotePaise: 222000 });
-    });
-    it('refuses a bakery that could not make it in time, and changes nothing', async () => {
-      const { vendors, request } = await fixture();
-      await db.customRequest.update({ where: { id: request.id }, data: { dueAt: new Date(Date.now() + 30 * 60000) } });
-      const res = await adminQuote(request.id, vendors[0].id, { vendorPaise: 180000 });
-      expect(res).toMatchObject({ ok: false }); expect(!res.ok && res.message).toContain('too soon');
-      expect((await reload(request.id)).status).toBe('awaiting_quote');
-      expect(await rows(request.id)).toHaveLength(0);
-    });
-    it('refuses an inactive bakery and a request that is no longer open', async () => {
-      const { vendors, request } = await quoted();
-      expect(await adminQuote(request.id, vendors[1].id, { vendorPaise: 180000 })).toMatchObject({ ok: false });
-      const other = await fixture();
-      await db.vendor.update({ where: { id: other.vendors[0].id }, data: { isActive: false } });
-      expect(await adminQuote(other.request.id, other.vendors[0].id, { vendorPaise: 180000 })).toMatchObject({ ok: false });
-      expect((await reload(other.request.id)).status).toBe('awaiting_quote');
-    });
-    it("takes the customer's total agreed on the phone and works out the bakery's price", async () => {
-      const { vendors, request } = await fixture();
-      expect(await adminQuote(request.id, vendors[1].id, { totalPaise: 188000 })).toEqual({ ok: true, quotePaise: 188000, vendorPaise: 150400 });
-      expect(await reload(request.id)).toMatchObject({ status: 'quoted', vendorQuotePaise: 150400, quotePaise: 188000 });
-    });
-    it('refuses a total off the ₹10 grid and suggests the nearest, changing nothing', async () => {
-      const { vendors, request } = await fixture();
-      const res = await adminQuote(request.id, vendors[1].id, { totalPaise: 188500 });
-      expect(!res.ok && res.message).toContain('₹10 steps');
-      expect((await reload(request.id)).status).toBe('awaiting_quote');
-      expect(await rows(request.id)).toHaveLength(0);
-    });
-  });
-
-  describe('phone request (createAdminQuote)', () => {
-    const input = () => ({ name: 'Ravi', phone: '9822200000', sizeKg: 1, flavour: 'Vanilla', consent: true as const,
-      dueAt: new Date(Date.now() + 48 * 3600000).toISOString(),
-      address: { lat: 13.6, lng: 77.6, address: '4 Lane', locality: 'Kondapur', city: 'Hyderabad', state: 's', pincode: '500001', placeId: 'p' } });
-    it('saves and quotes in one step: the customer gets Pay now, no bakery is offered it', async () => {
-      const { vendors } = await fixture();
-      const res = await createAdminQuote(input(), null, vendors[2].id, { totalPaise: 200000 });
-      expect(res).toMatchObject({ ok: true, quotePaise: 200000, vendorPaise: 160800 });
-      const r = await db.customRequest.findUniqueOrThrow({ where: { ref: res.ref! } }); ids.push(r.id);
-      expect(r).toMatchObject({ status: 'quoted', vendorId: vendors[2].id, phone: CUSTOMER, quotePaise: 200000 });
-      expect(r.photoUrl).toContain('/brand/');
-      const all = await rows(r.id);
-      expect(all.find(x => x.destination === CUSTOMER)!.payload).toMatchObject({ type: 'template', name: 'custom_quote' });
-      expect(all.some(x => textOf(x).includes('custom_offer'))).toBe(false);
-      await runCustomRequestWorker();
-      expect((await reload(r.id)).status).toBe('quoted');
-    });
-    it('a refused quote leaves no request behind', async () => {
-      const { vendors } = await fixture();
-      await db.vendor.update({ where: { id: vendors[0].id }, data: { isActive: false } });
-      const before = await db.customRequest.count();
-      expect(await createAdminQuote(input(), null, vendors[0].id, { totalPaise: 200000 })).toMatchObject({ ok: false });
-      expect(await db.customRequest.count()).toBe(before);
-    });
-  });
-});
-
-describe.skipIf(!url)('createCustomRequest on isolated PostgreSQL', () => {
-  const made: string[] = [];
-  beforeAll(() => { process.env.DATABASE_URL = url!; });
-  afterEach(async () => { await db.customRequest.deleteMany({ where: { ref: { in: made } } }); made.length = 0; afterCallbacks.length = 0; });
-  const input = { name: 'Asha', phone: '98765 43210', sizeKg: 1.5, budgetRupees: 2000, flavour: 'Chocolate', dueAt: new Date(Date.now() + 3 * 86400000).toISOString(), consent: true as const,
-    address: { lat: 17.4, lng: 78.45, address: 'Road 1', locality: 'Banjara Hills', city: 'Hyderabad', state: 'Telangana', pincode: '500034', placeId: 'p' } };
-  it('stores the row with a CR- ref and a normalized phone, and offers it after the response', async () => {
-    const { ref } = await createCustomRequest(input, Buffer.from('img')); made.push(ref);
-    expect(ref).toMatch(/^CR-[A-Z2-7]{6}$/);
-    const row = await db.customRequest.findUniqueOrThrow({ where: { ref } });
-    expect(row).toMatchObject({ status: 'awaiting_quote', phone: '919876543210', budgetPaise: 200000, photoUrl: `https://blob.test/${ref}.webp`, flavour: 'Chocolate' });
-    expect(row.sizeKg.toString()).toBe('1.5');
-    expect(afterCallbacks).toHaveLength(1); // offerNext is scheduled, not yet run
-    await afterCallbacks[0]();
-    expect((await db.customRequest.findUniqueOrThrow({ where: { ref } })).offerExpiresAt !== null || (await db.customRequest.findUniqueOrThrow({ where: { ref } })).status === 'no_bakery').toBe(true);
+  it('a phone request is saved and quoted in one step; a refused one leaves nothing behind', async () => {
+    const res = await createAdminQuote(input(), null, 200000);
+    expect(res).toMatchObject({ ok: true, quotePaise: 200000 }); refs.push(res.ref!);
+    const r = await db.customRequest.findUniqueOrThrow({ where: { ref: res.ref! } });
+    expect(r).toMatchObject({ status: 'quoted', phone: CUSTOMER, vendorId: null });
+    expect(r.photoUrl).toContain('/brand/');
+    const all = await rows(r.id);
+    expect(all.find(x => x.destination === CUSTOMER)!.payload).toMatchObject({ name: 'custom_quote' });
+    expect(all.some(x => textOf(x).includes('custom_offer'))).toBe(false);
+    const before = await db.customRequest.count();
+    expect(await createAdminQuote(input(), null, 20000)).toMatchObject({ ok: false });
+    expect(await db.customRequest.count()).toBe(before);
   });
 });
 
@@ -445,41 +253,31 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
   const reload = (id: string) => db.customRequest.findUniqueOrThrow({ where: { id } });
   const ordersFor = (paymentId: string) => db.order.count({ where: { razorpayPaymentId: paymentId } });
 
-  it('turns a paid quote into a confirmed order accepted by the quoting bakery', async () => {
-    const { vendor, vendorPhone, request, proof } = await paidQuote();
+  it('turns a paid quote into a confirmed order MakeYourCakes makes itself: no bakery', async () => {
+    const { request, proof } = await paidQuote();
     const result = await payCustomRequest(request.id, proof);
     expect(result).toMatchObject({ kind: 'paid', orderRef: expect.stringMatching(/^MC-/) });
     const ref = (result as { orderRef: string }).orderRef;
     const order = await db.order.findUniqueOrThrow({ where: { ref }, include: { assignments: true, items: true, events: true } });
     expect(order).toMatchObject({
       totalPaise: 222000, payablePaise: 222000, productSubtotalPaise: 207000, deliveryFeePaise: 15000, status: 'confirmed', paymentStatus: 'paid',
-      razorpayOrderId: proof.razorpayOrderId, razorpayPaymentId: proof.razorpayPaymentId, assignmentState: 'ASSIGNED',
+      razorpayOrderId: proof.razorpayOrderId, razorpayPaymentId: proof.razorpayPaymentId, assignmentState: 'MANUAL', currentAssignmentId: null,
       cakeName: 'Custom cake · 1.5 kg · Chocolate', cakeImageUrl: 'https://x.test/p.jpg', customerName: 'Asha', customerPhone: CUSTOMER,
       addressLine1: '12 Secret Street', city: 'Hyderabad', state: 'Telangana', pincode: '500084', customerNotes: 'Happy 30th',
       deliverySlot: 'custom', leadHours: 50, dueAt: request.dueAt, requestedFor: request.dueAt, requestedWindow: null,
     });
     expect(order.config).toEqual({ custom: true, sizeKg: 1.5, flavour: 'Chocolate', cakeMessage: 'Happy 30th', budgetPaise: 200000 });
-    expect(order.priceBreakdown).toEqual({ custom: { vendorQuotePaise: 180000, quotePaise: 222000, deliveryFeePaise: 15000 } });
+    expect(order.priceBreakdown).toEqual({ custom: { quotePaise: 222000, deliveryFeePaise: 15000 } });
     expect(order.deliveryLocation).toEqual({ latitude: 14.2, longitude: 77.6 });
     expect(order.items).toMatchObject([{ label: 'Custom cake · 1.5 kg · Chocolate', amountPaise: 207000 }]);
-    // The bakery portal: no designer config, but flagged custom so it doesn't say "Specification unavailable".
-    expect(await vendorOrder(vendor.id, ref)).toMatchObject({ config: null, custom: true, order: { cakeName: 'Custom cake · 1.5 kg · Chocolate', customerNotes: 'Happy 30th' } });
     expect(order.events).toMatchObject([{ fromStatus: 'draft', toStatus: 'confirmed' }]);
-    expect(order.assignments).toHaveLength(1);
-    const [assignment] = order.assignments;
-    expect(order.currentAssignmentId).toBe(assignment.id);
-    expect(assignment).toMatchObject({ vendorId: vendor.id, assignmentStatus: 'ACCEPTED', status: 'accepted', sequence: 0,
-      orderValuePaise: 222000, vendorEarningPaise: 180000, commissionPaise: 27000, feePaise: 0 });
+    expect(order.assignments).toHaveLength(0);
     expect(await reload(request.id)).toMatchObject({ status: 'paid', orderId: order.id });
     expect(await db.checkoutAttempt.findUnique({ where: { id: `custom:${request.id}` } })).toMatchObject({ status: 'completed', orderId: order.id });
     const rows = await db.notificationOutbox.findMany({ where: { orderId: order.id }, orderBy: { createdAt: 'asc' } });
     expect(rows.some((r) => r.destination === CUSTOMER)).toBe(true);
     expect(rows.some((r) => r.destination === ADMIN)).toBe(true);
-    const toBakery = rows.filter((r) => r.destination === vendorPhone).map((r) => r.payload);
-    expect(toBakery).toEqual([expect.objectContaining({
-      type: 'buttons', body: `✅ Customer paid — ${request.ref} is now order ${ref}. Tap each step as you go.`,
-      buttons: expect.arrayContaining([{ id: `start:${assignment.id}`, title: 'Started' }]),
-    })]);
+    expect(rows.every((r) => [CUSTOMER, ADMIN].includes(r.destination!))).toBe(true);
     expect(refundPayment).not.toHaveBeenCalled();
   });
   it('the same payment again is already paid, still one order', async () => {
@@ -503,15 +301,6 @@ describe.skipIf(!url)('paying a custom quote on isolated PostgreSQL', () => {
     expect(await ordersFor(proof.razorpayPaymentId)).toBe(0);
     expect((await reload(request.id)).status).toBe('expired');
     expect(refundCalls()).toBe(1);
-  });
-  it('a payment after the quoting bakery was deactivated is refunded, cancelled and the admin told', async () => {
-    const { request, proof } = await paidQuote({ inactive: true });
-    expect(await payCustomRequest(request.id, proof)).toEqual({ kind: 'refunded' });
-    expect(await ordersFor(proof.razorpayPaymentId)).toBe(0);
-    expect((await reload(request.id)).status).toBe('cancelled');
-    expect(refundCalls()).toBe(1);
-    const alerts = await db.notificationOutbox.findMany({ where: { customRequestId: request.id, destination: ADMIN } });
-    expect(JSON.stringify(alerts.map((a) => a.payload))).toContain('refunded');
   });
   it('a genuine payment for some other Razorpay order buys nothing and is not refunded', async () => {
     const { request, proof } = await paidQuote();

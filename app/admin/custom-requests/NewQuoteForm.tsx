@@ -9,15 +9,15 @@ import { CUSTOM_SIZES_KG } from "@/lib/customRules";
 import { deliveryChoices } from "@/lib/deliveryRules";
 import type { LocatedAddress } from "@/lib/location";
 import { newQuoteAction, type QuoteActionResult } from "./actions";
-import { PriceFields } from "./QuoteForm";
+import { PriceField } from "./QuoteForm";
 
 const label = "flex flex-col gap-1 font-a-sans text-a-small";
 
 /**
  * A customer who phoned instead of using the website: the admin types what was agreed and the
- * customer gets the same WhatsApp quote with Pay now, from our number. Never offered to bakeries.
+ * customer gets the same WhatsApp quote with Pay now, from our number.
  */
-export function NewQuoteForm({ catalog, closedDays, bakeries }: { catalog: CatalogSnapshot; closedDays: string[]; bakeries: { id: string; name: string }[] }) {
+export function NewQuoteForm({ catalog, closedDays }: { catalog: CatalogSnapshot; closedDays: string[] }) {
   const [form, setForm] = useState(0); // bumped after a quote goes out, to clear every field
   const [address, setAddress] = useState<LocatedAddress | null>(null);
   const [pickAddress, setPickAddress] = useState(false);
@@ -41,7 +41,6 @@ export function NewQuoteForm({ catalog, closedDays, bakeries }: { catalog: Catal
     if (result) toast(result.message, result.ok);
   }, [result, toast]);
 
-  if (!bakeries.length) return <p className="font-a-sans text-a-small text-a-muted">Add an active bakery with a WhatsApp number first.</p>;
 
   // onSubmit, not a form action: React resets a form after its action, which would wipe a failed attempt.
   function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -112,9 +111,9 @@ export function NewQuoteForm({ catalog, closedDays, bakeries }: { catalog: Catal
           The customer agreed on the call to get WhatsApp messages about this cake.
         </label>
         <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
-          <PriceFields bakeries={bakeries}>
+          <PriceField>
             <button type="submit" disabled={pending} className={aBtn("primary", "md")}>{pending ? "Sending…" : "Save and send quote"}</button>
-          </PriceFields>
+          </PriceField>
         </div>
       </form>
       {/* Outside the form: Enter in the map's search box must not submit it. */}

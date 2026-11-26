@@ -6,7 +6,7 @@ import { requestSheetData } from "@/components/shop/QuoteButton";
 
 /**
  * One piece of the bakery's custom work, and a way to ask for one like it: the request form with
- * this cake's photo attached (the bakery hears from our WhatsApp number), or, when that can't run,
+ * this cake's photo attached (it reaches MakeYourCakes, who quote it on WhatsApp), or, when that can't run,
  * a wa.me chat whose message links the photo. The `id` lets /custom-cakes#<id> land on it.
  *
  * Videos are muted, looping and inline, the way a phone already plays them,

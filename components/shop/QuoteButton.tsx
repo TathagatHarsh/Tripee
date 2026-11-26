@@ -23,7 +23,7 @@ export const requestSheetData = cache(async () => {
 /**
  * "Send us your idea": the one way into a custom-cake quote, on the home page and /custom-cakes.
  *
- * The request form when it can run, so the bakery hears from our WhatsApp number; otherwise a
+ * The request form when it can run, so MakeYourCakes quotes it on WhatsApp; otherwise a
  * wa.me chat with the bakery; with no WhatsApp number at all, a phone call.
  */
 export async function QuoteButton({ phone, className, children }: { phone: string; className: string; children: React.ReactNode }) {
