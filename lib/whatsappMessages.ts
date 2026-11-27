@@ -168,32 +168,39 @@ export function updateMessage(ref: string, text: string): WhatsAppMessage {
   return { type: "template", name: "order_update", components: [body(cleanParam(ref), cleanParam(text, 400))] };
 }
 
-/** To a bakery: the customer's reference photo and spec, area only, asking for a price. */
-export function customOfferMessage(r: {
+/**
+ * To the admins: the customer's photo, the cake, who it is for and where, with an "Open in Google
+ * Maps" button (the pin the customer chose) and "Cancel request". Replying to it with a price quotes it.
+ */
+export function adminCustomRequestMessage(r: {
   id: string;
   ref: string;
   sizeKg: string;
   flavour: string;
   cakeMessage: string | null;
   dueAt: Date;
-  area: string;
-  budgetPaise: number | null;
+  name: string;
+  phone: string;
+  address: string;
+  lat: number;
+  lng: number;
 }): WhatsAppMessage {
   return {
     type: "template",
-    name: "custom_offer",
+    name: "admin_custom_request",
     components: [
       header(r.id),
       body(
         cleanParam(r.ref),
-        cleanParam(`${r.sizeKg} kg`),
-        cleanParam(r.flavour),
+        cleanParam(`${r.sizeKg} kg · ${r.flavour}`),
         cleanParam(r.cakeMessage),
         cleanParam(formatDue(r.dueAt)),
-        cleanParam(r.area),
-        cleanParam(r.budgetPaise === null ? "no budget given" : `₹${rupees(r.budgetPaise)}`),
+        cleanParam(showContact({ name: r.name, phone: r.phone })),
+        cleanParam(r.address, 200),
       ),
-      quickReply(0, `cq_no:${r.id}`),
+      // The approved URL is https://www.google.com/maps/search/?api=1&query={{1}}
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: `${r.lat},${r.lng}` }] },
+      quickReply(1, `cq_no:${r.id}`),
     ],
   };
 }

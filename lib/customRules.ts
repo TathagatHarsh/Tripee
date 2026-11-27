@@ -59,7 +59,6 @@ export const CustomRequestInput = z.object({
   name: z.string().trim().min(1).max(80),
   phone: z.string().refine(mobileLike, "Enter a 10-digit mobile number"),
   sizeKg: z.number().refine((n) => CUSTOM_SIZES_KG.includes(n), "Choose a size"),
-  budgetRupees: z.number().int().min(100).max(100_000).optional(),
   flavour: z.string().trim().min(1).max(60),
   cakeMessage: z.string().trim().max(60).optional(),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

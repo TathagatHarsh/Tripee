@@ -15,7 +15,7 @@ import { IntentRecord } from "./razorpay";
 import { optimize, store } from "./storage";
 import { adminNumbers, indianMobile, siteUrl } from "./whatsapp";
 import { whatsappNewOrder } from "./whatsappEvents";
-import { customOfferMessage, customQuoteMessage, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
+import { adminCustomRequestMessage, customQuoteMessage, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
 
 /*
  * Custom cakes are MakeYourCakes' own: the admin prices them and bakes them.
@@ -38,12 +38,12 @@ const send = (tx: Tx, r: CustomRequest, to: (string | null | undefined)[], dedup
 
 const sendNow = () => after(() => dispatchPendingNotifications(10).catch((error) => log("error", "notification_dispatch_failed", { error: String(error) })));
 
-/** The request, with its photo, to every admin number: replying to it with a price quotes it. */
+/** The request, with its photo, the customer's number and a Maps pin, to every admin number: replying to it with a price quotes it. */
 function askAdmins(tx: Tx, r: CustomRequest) {
-  const address = r.address as { locality?: string; city?: string };
-  return send(tx, r, adminNumbers(), `cr:${r.id}:ask`, customOfferMessage({
-    id: r.id, ref: r.ref, sizeKg: r.sizeKg.toString(), flavour: r.flavour, cakeMessage: r.cakeMessage,
-    dueAt: r.dueAt, area: address.locality || address.city || "", budgetPaise: r.budgetPaise,
+  const a = r.address as { lat: number; lng: number; address?: string; city?: string; pincode?: string };
+  return send(tx, r, adminNumbers(), `cr:${r.id}:ask`, adminCustomRequestMessage({
+    id: r.id, ref: r.ref, sizeKg: r.sizeKg.toString(), flavour: r.flavour, cakeMessage: r.cakeMessage, dueAt: r.dueAt,
+    name: r.name, phone: r.phone, address: [a.address, [a.city, a.pincode].filter(Boolean).join(" ")].filter(Boolean).join(", "), lat: a.lat, lng: a.lng,
   }));
 }
 
@@ -59,7 +59,7 @@ export async function createCustomRequest(input: NewCustomRequest, photo: Buffer
         const r = await tx.customRequest.create({
           data: {
             ref, token: newCustomToken(), name: input.name, phone, photoUrl, sizeKg: input.sizeKg,
-            budgetPaise: input.budgetRupees ? input.budgetRupees * 100 : null, flavour: input.flavour,
+            flavour: input.flavour,
             cakeMessage: input.cakeMessage || null, dueAt: new Date(input.dueAt), address: input.address,
           },
         });
@@ -128,7 +128,7 @@ export async function createAdminQuote(input: NewCustomRequest, photo: Buffer | 
       const r = await tx.customRequest.create({
         data: {
           ref, token: newCustomToken(), name: input.name, phone, photoUrl, sizeKg: input.sizeKg,
-          budgetPaise: input.budgetRupees ? input.budgetRupees * 100 : null, flavour: input.flavour,
+          flavour: input.flavour,
           cakeMessage: input.cakeMessage || null, dueAt: new Date(input.dueAt), address: input.address,
         },
       });
@@ -153,7 +153,7 @@ export async function adminReply(from: string, msg: { text?: string | null; payl
   const declineId = /^cq_no:(\S+)$/.exec(msg.payload ?? "")?.[1];
   if (declineId) {
     const r = await db.customRequest.findUnique({ where: { id: declineId }, select: { ref: true } });
-    return r && (await cancelCustomRequest(declineId)) ? `${r.ref} is cancelled and the customer has been told.` : "That request is already closed.";
+    return r && (await cancelCustomRequest(declineId)) ? `Order no. ${r.ref} has been cancelled and the customer has been informed.` : "That request is already closed.";
   }
   const price = parseQuoteReply(msg.text ?? "");
   if (!price) return undefined;

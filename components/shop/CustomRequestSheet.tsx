@@ -83,7 +83,6 @@ function Sheet({ catalog, closedDays, preset, title = "Your own cake design", on
     if (local.photo || !address || local.dueAt) return;
     const data = {
       name: s("name"), phone: s("phone"), sizeKg: Number(s("sizeKg")), flavour: s("flavour"),
-      ...(s("budget") ? { budgetRupees: Number(s("budget")) } : {}),
       ...(s("cakeMessage") ? { cakeMessage: s("cakeMessage") } : {}),
       dueDate, dueWindow,
       address, consent: f.get("consent") === "on",
@@ -162,20 +161,13 @@ function Sheet({ catalog, closedDays, preset, title = "Your own cake design", on
               <img src={photo?.url ?? preset!.src} alt={photo ? "Your chosen cake photo" : preset!.alt} className="max-h-48 w-full rounded-s-sm bg-s-cream-deep object-contain" />
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <label className={label}>
-                Size
-                <select name="sizeKg" required defaultValue="1" className={sField()}>
-                  {CUSTOM_SIZES_KG.map((n) => <option key={n} value={n}>{n} kg</option>)}
-                </select>
-                <Err errors={errors} name="sizeKg" />
-              </label>
-              <label className={label}>
-                Budget in ₹ <span className="font-normal text-s-bark">(optional)</span>
-                <input name="budget" type="number" inputMode="numeric" min={100} max={100000} step={1} className={sField()} />
-                <Err errors={errors} name="budgetRupees" />
-              </label>
-            </div>
+            <label className={label}>
+              Size
+              <select name="sizeKg" required defaultValue="1" className={sField()}>
+                {CUSTOM_SIZES_KG.map((n) => <option key={n} value={n}>{n} kg</option>)}
+              </select>
+              <Err errors={errors} name="sizeKg" />
+            </label>
 
             <label className={label}>
               Flavour

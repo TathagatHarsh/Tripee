@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('../lib/log', () => ({ log: vi.fn() }));
 vi.mock('../lib/db', () => ({ db: {} }));
 import { photoUrl, type WhatsAppMessage } from '../lib/whatsapp';
-import { acceptedMessage, orderContacts, handedOverMessage, adminNewOrderMessage, cleanParam, customOfferMessage, customQuoteMessage, formatDue, offerMessage, queueWhatsApp, rupees, textMessage, updateMessage, verifyCodeMessage } from '../lib/whatsappMessages';
+import { acceptedMessage, orderContacts, handedOverMessage, adminNewOrderMessage, cleanParam, adminCustomRequestMessage, customQuoteMessage, formatDue, offerMessage, queueWhatsApp, rupees, textMessage, updateMessage, verifyCodeMessage } from '../lib/whatsappMessages';
 
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks(); });
 
@@ -111,15 +111,16 @@ describe('queueWhatsApp', () => {
 
 describe('custom cake builders', () => {
   const dueAt = new Date('2026-10-10T10:30:00Z');
-  it('customOfferMessage: exact components, message flattened', () => {
-    const m = customOfferMessage({ id: 'cr1', ref: 'CR-ABC234', sizeKg: '1.5', flavour: 'Mango', cakeMessage: 'Happy\nBirthday', dueAt, area: 'Jubilee Hills', budgetPaise: 180000 });
-    expect(m).toEqual({ type: 'template', name: 'custom_offer', components: [
+  it('adminCustomRequestMessage: photo, cake, customer and address, a Maps pin button and Cancel request', () => {
+    const m = adminCustomRequestMessage({ id: 'cr1', ref: 'CR-ABC234', sizeKg: '1.5', flavour: 'Mango', cakeMessage: 'Happy\nBirthday', dueAt,
+      name: 'Asha', phone: '919822200000', address: 'Road 1, Hyderabad 500034', lat: 17.4639, lng: 78.3671 });
+    expect(m).toEqual({ type: 'template', name: 'admin_custom_request', components: [
       { type: 'header', parameters: [{ type: 'image', image: { link: photoUrl('cr1') } }] },
-      { type: 'body', parameters: ['CR-ABC234', '1.5 kg', 'Mango', 'Happy Birthday', 'Sat 10 Oct, 4:00 pm', 'Jubilee Hills', '₹1,800'].map((text) => ({ type: 'text', text })) },
-      { type: 'button', sub_type: 'quick_reply', index: '0', parameters: [{ type: 'payload', payload: 'cq_no:cr1' }] },
+      { type: 'body', parameters: ['CR-ABC234', '1.5 kg · Mango', 'Happy Birthday', 'Sat 10 Oct, 4:00 pm', 'Asha · +91 98222 00000', 'Road 1, Hyderabad 500034'].map((text) => ({ type: 'text', text })) },
+      { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: '17.4639,78.3671' }] },
+      { type: 'button', sub_type: 'quick_reply', index: '1', parameters: [{ type: 'payload', payload: 'cq_no:cr1' }] },
     ] });
-    const n = customOfferMessage({ id: 'cr1', ref: 'R', sizeKg: '1', flavour: 'f', cakeMessage: null, dueAt, area: 'a', budgetPaise: null });
-    expect(bodyTexts(n).slice(3).filter((_: string, i: number) => i !== 1)).toEqual(['-', 'a', 'no budget given']);
+    expect(bodyTexts(adminCustomRequestMessage({ id: 'c', ref: 'R', sizeKg: '1', flavour: 'f', cakeMessage: null, dueAt, name: 'A', phone: '919822200000', address: 'x', lat: 1, lng: 2 }))[2]).toBe('-');
   });
   it('customQuoteMessage shows the chosen window when known', () => {
     const m = customQuoteMessage({ id: 'cr1', ref: 'CR-ABC234', token: 'tok', sizeKg: '2', dueAt, requestedFor: new Date(dueAt.getTime() - 2 * 3600000), requestedWindow: '14:00–16:00', quotePaise: 222000 });
