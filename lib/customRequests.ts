@@ -5,7 +5,7 @@ import { ASSIGNMENT_TX } from "./assignment";
 import { refForAttempt, type PaymentProof } from "./checkout";
 import { refundPayment } from "./checkoutPayment";
 import { refundOperationStatus } from "./refunds";
-import { canMoveCustom, newCustomRef, newCustomToken, parseQuoteReply, QUOTE_MAX_PAISE, QUOTE_MIN_PAISE, quoteExpiresAt, type NewCustomRequest } from "./customRules";
+import { ADMIN_REPLY_MINUTES, adminReplyBy, canMoveCustom, newCustomRef, newCustomToken, parseQuoteReply, QUOTE_MAX_PAISE, QUOTE_MIN_PAISE, quoteExpiresAt, REMIND_BEFORE_MINUTES, type NewCustomRequest } from "./customRules";
 import { readDeliverySettings } from "./catalogData";
 import { db } from "./db";
 import { DEFAULT_DELIVERY_RULES, windowEndingAt, type DeliveryRules } from "./deliveryRules";
@@ -15,7 +15,7 @@ import { IntentRecord } from "./razorpay";
 import { optimize, store } from "./storage";
 import { adminNumbers, indianMobile, siteUrl } from "./whatsapp";
 import { whatsappNewOrder } from "./whatsappEvents";
-import { adminCustomRequestMessage, customQuoteMessage, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
+import { adminCustomRequestMessage, customQuoteMessage, formatDue, queueWhatsApp, rupees, textMessage, updateMessage } from "./whatsappMessages";
 
 /*
  * Custom cakes are MakeYourCakes' own: the admin prices them and bakes them.
@@ -47,10 +47,14 @@ function askAdmins(tx: Tx, r: CustomRequest) {
   }));
 }
 
-/** Stores the photo and the request, and sends it to the admin numbers at once. */
+/**
+ * Stores the photo and the request, and sends it to the admin numbers at once. The admin must reply
+ * by `offerExpiresAt` (an hour, counted from opening time at night), or the worker closes it.
+ */
 export async function createCustomRequest(input: NewCustomRequest, photo: Buffer): Promise<{ ref: string }> {
   const phone = indianMobile(input.phone);
   if (!phone) throw new Error("Invalid phone number");
+  const rules = (await readDeliverySettings()) ?? DEFAULT_DELIVERY_RULES;
   for (let attempt = 0; ; attempt++) {
     const ref = newCustomRef();
     const photoUrl = await store(await optimize(photo), "custom", ref);
@@ -61,6 +65,7 @@ export async function createCustomRequest(input: NewCustomRequest, photo: Buffer
             ref, token: newCustomToken(), name: input.name, phone, photoUrl, sizeKg: input.sizeKg,
             flavour: input.flavour,
             cakeMessage: input.cakeMessage || null, dueAt: new Date(input.dueAt), address: input.address,
+            offerExpiresAt: adminReplyBy(new Date(), rules.ordersFrom, rules.ordersUntil),
           },
         });
         await askAdmins(tx, r);
@@ -207,10 +212,43 @@ export async function cancelCustomRequest(requestId: string): Promise<boolean> {
   }, ASSIGNMENT_TX);
 }
 
-/** Quotes the customer didn't pay in time expire. (Requests are priced by the admin, so nothing else is chased.) */
-export async function runCustomRequestWorker(): Promise<{ quotes: number }> {
-  const { count: quotes } = await db.customRequest.updateMany({ where: { status: "quoted", quoteExpiresAt: { lte: new Date() } }, data: { status: "expired" } });
-  return { quotes };
+/**
+ * Keeps both sides to their deadlines. Run every minute (the assignments pinger):
+ * - a request the admin hasn't priced: a reminder REMIND_BEFORE_MINUTES before `offerExpiresAt`, then
+ *   it closes and the customer is told;
+ * - a quote the customer hasn't paid: a reminder with the Pay link before `quoteExpiresAt`, then it
+ *   expires and both are told.
+ * Only requests with a reply deadline are closed: older ones (from before deadlines) are left to the admin.
+ * Each message has a fixed dedupe key, so a run repeated or overlapping sends nothing twice.
+ */
+export async function runCustomRequestWorker(now = new Date()): Promise<{ reminders: number; closed: number; expired: number }> {
+  const soon = new Date(now.getTime() + REMIND_BEFORE_MINUTES * 60_000);
+  const waiting = { status: "awaiting_quote" as const, vendorId: null };
+  let reminders = 0, closed = 0, expired = 0;
+
+  for (const r of await db.customRequest.findMany({ where: { ...waiting, offerExpiresAt: { gt: now, lte: soon } }, take: 50 })) {
+    reminders += await send(db, r, adminNumbers(), `cr:${r.id}:remind`, updateMessage(r.ref,
+      `no price sent yet. Reply to the request with what the customer pays by ${formatDue(r.offerExpiresAt!)}, or it closes and the customer is told`));
+  }
+  for (const r of await db.customRequest.findMany({ where: { ...waiting, offerExpiresAt: { lte: now } }, take: 50 })) {
+    // Conditional on still waiting: a price that lands at the same moment wins, and nothing is sent.
+    if ((await db.customRequest.updateMany({ where: { id: r.id, status: "awaiting_quote" }, data: { status: "cancelled" } })).count !== 1) continue;
+    closed++;
+    await send(db, r, [r.phone], `cr:${r.id}:timeout:customer`, updateMessage(r.ref, "sorry, we couldn't take your custom cake request this time. You're welcome to send a new one"));
+    await send(db, r, adminNumbers(), `cr:${r.id}:timeout`, updateMessage(r.ref, `closed: no price was sent within ${ADMIN_REPLY_MINUTES} minutes. The customer has been informed`));
+  }
+  for (const r of await db.customRequest.findMany({ where: { status: "quoted", quoteExpiresAt: { gt: now, lte: soon } }, take: 50 })) {
+    reminders += await send(db, r, [r.phone], `cr:${r.id}:remind:customer`, updateMessage(r.ref,
+      `your quote of ₹${rupees(r.quotePaise ?? 0)} expires at ${formatDue(r.quoteExpiresAt!)}. Pay here to confirm your cake: ${siteUrl()}/c/${r.token}`));
+  }
+  for (const r of await db.customRequest.findMany({ where: { status: "quoted", quoteExpiresAt: { lte: now } }, take: 50 })) {
+    if ((await db.customRequest.updateMany({ where: { id: r.id, status: "quoted" }, data: { status: "expired" } })).count !== 1) continue;
+    expired++;
+    await send(db, r, [r.phone], `cr:${r.id}:expired:customer`, updateMessage(r.ref, "your quote has expired, so the order was not placed. You're welcome to send a new request"));
+    await send(db, r, adminNumbers(), `cr:${r.id}:expired`, updateMessage(r.ref, `quote expired: ${r.name} didn't pay ₹${rupees(r.quotePaise ?? 0)} in time. The customer has been informed`));
+  }
+  if (reminders || closed || expired) await dispatchPendingNotifications(20).catch((error) => log("error", "notification_dispatch_failed", { error: String(error) }));
+  return { reminders, closed, expired };
 }
 
 export type CustomPayment = { kind: "paid"; orderRef: string } | { kind: "refunded" | "refund_failed" | "already_paid" | "unmatched" };

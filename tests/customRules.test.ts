@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canMoveCustom, newCustomRef, newCustomToken, parseQuoteReply, quoteExpiresAt } from "@/lib/customRules";
+import { adminReplyBy, canMoveCustom, newCustomRef, newCustomToken, parseQuoteReply, quoteExpiresAt } from "@/lib/customRules";
 
 describe("customRules", () => {
 
@@ -19,10 +19,20 @@ describe("customRules", () => {
     expect(parseQuoteReply("1200/- CR-AB12CD")).toEqual({ kind: "quote", paise: 120000, ref: "CR-AB12CD" });
   });
 
-  it("caps quote expiry at 24h or the prep deadline", () => {
+  it("caps quote expiry at 6h or the prep deadline", () => {
     const now = new Date("2026-11-11T10:00:00Z");
-    expect(quoteExpiresAt(now, new Date("2026-11-20T10:00:00Z"), 240)).toEqual(new Date("2026-11-12T10:00:00Z"));
-    expect(quoteExpiresAt(now, new Date("2026-11-11T20:00:00Z"), 240)).toEqual(new Date("2026-11-11T16:00:00Z"));
+    expect(quoteExpiresAt(now, new Date("2026-11-20T10:00:00Z"), 240)).toEqual(new Date("2026-11-11T16:00:00Z"));
+    expect(quoteExpiresAt(now, new Date("2026-11-11T14:00:00Z"), 120)).toEqual(new Date("2026-11-11T12:00:00Z"));
+  });
+
+  it("gives the admin an hour, counted from 8 am for requests outside 08:00–18:00 IST", () => {
+    const by = (iso: string) => adminReplyBy(new Date(iso), "08:00", "18:00").toISOString();
+    expect(by("2026-11-11T09:00:00+05:30")).toBe("2026-11-11T04:30:00.000Z"); // 10:00 IST
+    expect(by("2026-11-11T17:45:00+05:30")).toBe("2026-11-11T13:15:00.000Z"); // 18:45 IST: arrived while open
+    expect(by("2026-11-11T23:10:00+05:30")).toBe("2026-11-12T03:30:00.000Z"); // 09:00 IST next day
+    expect(by("2026-11-12T02:00:00+05:30")).toBe("2026-11-12T03:30:00.000Z"); // 09:00 IST same day
+    expect(by("2026-11-30T19:00:00+05:30")).toBe("2026-12-01T03:30:00.000Z"); // across a month end
+    expect(by("2026-11-11T18:00:00+05:30")).toBe("2026-11-12T03:30:00.000Z"); // closing time itself is closed
   });
 
   it("allows only the documented moves", () => {

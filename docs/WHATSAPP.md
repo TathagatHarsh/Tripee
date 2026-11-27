@@ -176,6 +176,10 @@ Custom cakes are MakeYourCakes' own: **no partner bakery quotes, makes or is pai
 - **Customer.** Gets `custom_quote` with **Pay now** (`/c/<token>`), pays MakeYourCakes via Razorpay. The quote expires 24h after it is sent, or earlier when there is no longer time to make the cake (`customMinMinutes` before it is due).
 - **Paid.** The payment becomes a normal paid order with `assignmentState: MANUAL` ("our main bakery is arranging your cake"), so bakery auto-assignment never offers it. The admin numbers get the usual new-order alert. Delivery fee is today's fee; the cake is the rest of the quote.
 - **Cancel.** Cancelling a waiting or quoted request tells the customer (`order_update`).
+- **Deadlines** (`lib/customRules`, enforced by `runCustomRequestWorker` on the assignments pinger, which must run every minute):
+  - The admin has **1 hour** to price a request (`offerExpiresAt`), counted from opening time (`ordersFrom`) when it arrives outside opening hours. 30 minutes before, the admins get a reminder (`order_update`). At the deadline it is cancelled: the customer is told "sorry, we couldn't take your custom cake request this time", and the admins "closed: no price was sent within 60 minutes".
+  - The customer has **6 hours** to pay (`quoteExpiresAt`, earlier if the cake would no longer be ready in time). 30 minutes before, they get a reminder with the `/c/<token>` pay link. At the deadline the quote expires and both are told.
+  - Requests from before deadlines (no `offerExpiresAt`) are never auto-closed.
 
 **Deploy order for reply matching:** run the `9q_outbox_provider_message_id` migration on production (`prisma migrate deploy` on the Supabase session pooler, port 5432) *before* deploying the code: every WhatsApp send writes `providerMessageId`, so code deployed ahead of the migration fails every notification. The migration only adds a nullable column and an index, so it is safe for the code already running.
 

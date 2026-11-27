@@ -21,11 +21,36 @@ export function parseQuoteReply(text: string): QuoteReply | null {
   return ref ? { kind: "quote", paise, ref: ref.toUpperCase() } : { kind: "quote", paise };
 }
 
-// A quote lives 24h, but never past the point where we could no longer make the cake in time.
+/** How long the admin has to reply to a request with a price, and the customer to pay a quote. */
+export const ADMIN_REPLY_MINUTES = 60;
+export const CUSTOMER_PAY_HOURS = 6;
+/** Both sides get a reminder this long before their deadline. */
+export const REMIND_BEFORE_MINUTES = 30;
+
+// A quote lives CUSTOMER_PAY_HOURS, but never past the point where we could no longer make the cake in time.
 export function quoteExpiresAt(now: Date, dueAt: Date, preparationMinutes: number): Date {
-  const day = now.getTime() + 24 * 3600_000;
+  const pay = now.getTime() + CUSTOMER_PAY_HOURS * 3600_000;
   const latest = dueAt.getTime() - preparationMinutes * 60_000;
-  return new Date(Math.min(day, latest));
+  return new Date(Math.min(pay, latest));
+}
+
+const IST = 330 * 60_000; // India has no daylight saving: always UTC+5:30
+
+/**
+ * When the admin must reply to a request that arrives `now`: ADMIN_REPLY_MINUTES later, counted from
+ * the shop's opening (`from`, "HH:MM" IST) when it arrives outside opening hours, so a request at
+ * 11 pm isn't closed while everyone sleeps.
+ */
+export function adminReplyBy(now: Date, from: string, until: string, minutes = ADMIN_REPLY_MINUTES): Date {
+  const local = new Date(now.getTime() + IST); // its UTC fields read as the IST wall clock
+  const toMinutes = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+  const at = local.getUTCHours() * 60 + local.getUTCMinutes(), open = toMinutes(from), close = toMinutes(until);
+  let start = now.getTime();
+  if (at < open || at >= close) {
+    const day = local.getUTCDate() + (at >= close ? 1 : 0);
+    start = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), day, Math.floor(open / 60), open % 60) - IST;
+  }
+  return new Date(start + minutes * 60_000);
 }
 
 const MOVES: Record<CustomRequestStatus, readonly CustomRequestStatus[]> = {
