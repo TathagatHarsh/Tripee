@@ -51,7 +51,6 @@ export default async function CustomRequestsAdmin() {
             ["On the cake", r.cakeMessage || "—"],
             ["Delivery", formatDue(r.dueAt)],
             ["Area", area.locality || area.city || "—"],
-            ["Budget", r.budgetPaise != null ? formatINR(r.budgetPaise) : "—"],
             ["Requested", formatDue(r.createdAt)],
           ];
           return (

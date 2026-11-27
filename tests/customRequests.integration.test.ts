@@ -51,13 +51,15 @@ describe.skipIf(!url)('custom requests priced by the admin on isolated PostgreSQ
   const textOf = (r: { payload: unknown }) => JSON.stringify(r.payload);
   const reply = async (id: string) => textOf((await db.notificationOutbox.findFirstOrThrow({ where: { dedupeKey: `wa-reply:${id}:${ADMIN}` } })));
 
-  it('a website request goes to every admin number as the custom_offer photo message, never to a bakery', async () => {
+  it('a website request goes to every admin number as the admin_custom_request photo message, never to a bakery', async () => {
     const r = await asked();
     expect(r).toMatchObject({ status: 'awaiting_quote', vendorId: null });
     const all = await rows(r.id);
     expect(all.map(x => x.destination).sort()).toEqual([ADMIN, ADMIN2]);
-    expect(all[0].payload).toMatchObject({ type: 'template', name: 'custom_offer' });
-    expect(textOf(all[0])).toContain('Kondapur'); expect(textOf(all[0])).not.toContain('Secret');
+    expect(all[0].payload).toMatchObject({ type: 'template', name: 'admin_custom_request' });
+    // Admins only, so the customer's number and street are in it, and the Maps button carries the pin.
+    expect(textOf(all[0])).toContain('Asha · +91 98222 00000'); expect(textOf(all[0])).toContain('12 Secret Street, Hyderabad 500001');
+    expect(textOf(all[0])).toContain('"text":"13.6,77.6"');
     // The stored photo is WebP; WhatsApp gets it through the signed JPEG converter, never the blob URL.
     expect(textOf(all[0])).toContain(`/api/whatsapp/photo/${r.id}?s=`);
     expect(afterCallbacks).toHaveLength(1); // the send is kicked off at once, after the response
@@ -114,7 +116,7 @@ describe.skipIf(!url)('custom requests priced by the admin on isolated PostgreSQ
     await handleInbound({ id: 'wamid.r8', from: ADMIN, text: "Can't do it", payload: `cq_no:${r.id}` });
     expect((await reload(r.id)).status).toBe('cancelled');
     expect(textOf((await rows(r.id)).find(x => x.destination === CUSTOMER)!)).toContain('has been cancelled');
-    expect(await reply('wamid.r8')).toContain('cancelled');
+    expect(await reply('wamid.r8')).toContain(`Order no. ${r.ref} has been cancelled and the customer has been informed.`);
   });
   it('a price from a number that is not an admin quotes nothing', async () => {
     const r = await asked();
@@ -168,7 +170,7 @@ describe.skipIf(!url)('custom requests priced by the admin on isolated PostgreSQ
     expect(r.photoUrl).toContain('/brand/');
     const all = await rows(r.id);
     expect(all.find(x => x.destination === CUSTOMER)!.payload).toMatchObject({ name: 'custom_quote' });
-    expect(all.some(x => textOf(x).includes('custom_offer'))).toBe(false);
+    expect(all.some(x => textOf(x).includes('admin_custom_request'))).toBe(false);
     const before = await db.customRequest.count();
     expect(await createAdminQuote(input(), null, 20000)).toMatchObject({ ok: false });
     expect(await db.customRequest.count()).toBe(before);
