@@ -1,6 +1,7 @@
 import 'server-only';
 import { cache } from 'react';
 import { db } from '@/lib/db';
+import { adminKitchen } from '@/lib/assignment';
 import { classifyNeedsYou, glance, istDayStart, type NeedsYouOrder } from '@/lib/needsYou';
 import { vendorSetupStates } from '@/lib/vendorInvite';
 
@@ -51,7 +52,7 @@ export const loadNeedsYou = cache(async (now: Date = new Date()) => {
   });
 
   const result = classifyNeedsYou({
-    orders, liveBakeries,
+    orders, liveBakeries, adminKitchen: adminKitchen(),
     reviews: reviews.map((v) => ({ vendorId: v.id, name: v.name, createdAt: v.createdAt })),
     quotes: quotes.map((q) => ({ id: q.id, title: `${q.flavour} cake · ${q.ref}`, createdAt: q.createdAt })),
     followUps: [

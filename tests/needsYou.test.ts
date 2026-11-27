@@ -130,6 +130,26 @@ describe("stuck", () => {
   });
 });
 
+describe("admin kitchen", () => {
+  const kitchen = (o: NeedsYouOrder) => run({ adminKitchen: true, orders: [o] });
+
+  it("a confirmed order is a to-do, never No bakery", () => {
+    const { items, counts } = kitchen(order({ createdAt: ago(7), assignment: null }));
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ category: "new", tag: "To bake", detail: "Placed 7 min ago", action: { label: "Open order", href: "/admin/orders/MMC-1" } });
+    expect(counts.stuck).toBe(0);
+  });
+
+  it("baking or out for delivery needs nothing until late", () => {
+    expect(kitchen(order({ status: "in_kitchen", assignment: null })).items).toHaveLength(0);
+  });
+
+  it("a late order says Not started and opens the order", () => {
+    const { items } = kitchen(order({ due: ago(5), assignment: null }));
+    expect(items[0]).toMatchObject({ category: "late", detail: "Not started", action: { label: "Open order", href: "/admin/orders/MMC-1" } });
+  });
+});
+
 describe("new and requests", () => {
   it("draft order", () => {
     const { items } = run({ orders: [order({ status: "draft", createdAt: ago(4), paymentLabel: "UPI", assignment: null })] });

@@ -1,4 +1,5 @@
 import { PortalAlerts } from "@/components/assignment/PortalAlerts";
+import { adminKitchen } from "@/lib/assignment";
 import type { Metadata } from "next";
 import { getViewerEmail, requireAdmin } from "@/lib/auth";
 import { getCatalogSnapshot } from "@/lib/catalogData";
@@ -117,7 +118,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         partners={partners}
         needsYouCount={needsYou}
       >
-        <PortalAlerts role="admin" userId={viewer.userId} />
+        <PortalAlerts role="admin" userId={viewer.userId} adminKitchen={adminKitchen()} />
         {children}
       </AdminShell>
     </ToastProvider>

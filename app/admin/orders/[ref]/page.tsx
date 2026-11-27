@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { renderOrderCakeDocket } from "@/lib/orderCakeDocket";
 import { AdminAssignmentPanel } from "@/components/assignment/AdminPanel";
+import { adminKitchen } from "@/lib/assignment";
 import { DeliveryAddressSnapshot } from "@/components/DeliveryAddressSnapshot";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -130,6 +131,8 @@ export default async function OrderDetail({
      live is a column — see prisma/schema.prisma — so this page never has to
      work it out and cannot disagree with the writer that set it. */
   const current = order.currentAssignment;
+  /* ADMIN_KITCHEN: the admin makes it, so bakery assignment is shown only for orders a bakery already touched. */
+  const inHouse = adminKitchen() && !current;
 
   return (
     <div className="flex flex-col gap-5">
@@ -146,7 +149,7 @@ export default async function OrderDetail({
         </Link>
       </PageHeader>
 
-      <AdminAssignmentPanel orderRef={order.ref} state={order.assignmentState} note={order.assignmentNote} location={order.deliveryLocation} attempts={order.assignments} createdAt={order.createdAt} />
+      {!(inHouse && order.assignments.length === 0) && <AdminAssignmentPanel orderRef={order.ref} state={order.assignmentState} note={order.assignmentNote} location={order.deliveryLocation} attempts={order.assignments} createdAt={order.createdAt} />}
       {/* ── the facts that belong in one glance ─────────────────────────── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <OrderStatusBadge status={order.status} label={STATUS_LABEL[order.status]} />
@@ -452,7 +455,16 @@ export default async function OrderDetail({
           <Card>
             <h2 className={aEyebrow}>Fulfilment</h2>
 
-            {current ? (
+            {inHouse ? (
+              <>
+                <p className="mt-2 font-a-sans text-a-lede font-semibold text-a-ink">
+                  Made by MakeYourCakes
+                </p>
+                <p className="mt-1 text-a-meta leading-relaxed text-a-muted">
+                  You bake, take payment for and deliver this order. Move it along with the buttons above.
+                </p>
+              </>
+            ) : current ? (
               <>
                 <p className="mt-2 font-a-sans text-a-lede font-semibold text-a-ink">
                   {current.vendor.name}
@@ -477,7 +489,7 @@ export default async function OrderDetail({
               </>
             )}
 
-            {(order.status === "confirmed" || order.status === "in_kitchen") ? (
+            {inHouse ? null : (order.status === "confirmed" || order.status === "in_kitchen") ? (
             <div id="assign" className="mt-3 scroll-mt-24 border-t border-a-line pt-3">
               {/* Keyed on the live assignment, so handing the order to a
                   different bakery remounts the picker with it shut again rather

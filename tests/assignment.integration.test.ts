@@ -79,6 +79,16 @@ describe.skipIf(!url)('inventory and assignment transactions on isolated Postgre
       expect(await db.vendorOrder.count({ where: { orderId: order.id } })).toBe(0);
     } finally { delete process.env.WHATSAPP_ACCESS_TOKEN; delete process.env.WHATSAPP_PHONE_NUMBER_ID; }
   });
+  it('admin kitchen: no bakery is offered the order and it is never auto-cancelled', async () => {
+    auto(); process.env.ADMIN_KITCHEN = 'true';
+    try {
+      const { order } = await fixture(true, 2);
+      await startAssignment(order.ref);
+      const after = await db.order.findUniqueOrThrow({ where: { id: order.id } });
+      expect(await db.vendorOrder.count({ where: { orderId: order.id } })).toBe(0);
+      expect(after).toMatchObject({ status: 'confirmed', assignmentState: 'MANUAL', assignmentNote: 'Made by MakeYourCakes' });
+    } finally { delete process.env.ADMIN_KITCHEN; }
+  });
   it('auto mode: a decline moves to the next nearest, and the last decline cancels', async () => {
     auto(); whatsapp(); nearerByIndex();
     try {
