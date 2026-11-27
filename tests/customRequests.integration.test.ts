@@ -138,12 +138,59 @@ describe.skipIf(!url)('custom requests priced by the admin on isolated PostgreSQ
     expect(textOf((await rows(r.id)).at(-1)!)).toContain(`Customer on ${r.ref} says: can you do 1500?`);
     expect((await reload(r.id)).status).toBe('awaiting_quote');
   });
-  it('an unpaid quote expires on the worker run', async () => {
-    const r = await asked();
-    await adminQuote(r.id, 100000);
-    await db.customRequest.update({ where: { id: r.id }, data: { quoteExpiresAt: new Date(Date.now() - 1000) } });
-    expect((await runCustomRequestWorker()).quotes).toBeGreaterThanOrEqual(1);
-    expect((await reload(r.id)).status).toBe('expired');
+  describe('deadlines', () => {
+    const minutes = (n: number) => new Date(Date.now() + n * 60000);
+    const sentTo = async (id: string, key: string) => (await rows(id)).filter(x => x.dedupeKey === `cr:${id}:${key}:${x.destination}`).map(x => x.destination).sort();
+    it('a website request gets an admin reply deadline: an hour, or from opening time at night', async () => {
+      const r = await asked();
+      const by = r.offerExpiresAt!.getTime() - r.createdAt.getTime();
+      expect(by).toBeGreaterThanOrEqual(59 * 60000); // exactly an hour by day, longer at night
+      expect(by).toBeLessThanOrEqual(15 * 3600000);
+    });
+    it('30 minutes before the deadline the admins get one reminder, however often the worker runs', async () => {
+      const r = await asked();
+      await db.customRequest.update({ where: { id: r.id }, data: { offerExpiresAt: minutes(20) } });
+      await runCustomRequestWorker(); await runCustomRequestWorker();
+      expect(await sentTo(r.id, 'remind')).toEqual([ADMIN, ADMIN2]);
+      expect(textOf((await rows(r.id)).find(x => x.dedupeKey.startsWith(`cr:${r.id}:remind:`))!)).toContain('no price sent yet');
+      expect((await reload(r.id)).status).toBe('awaiting_quote');
+    });
+    it('past the deadline the request closes: the customer and the admins are told, and a late price is refused', async () => {
+      const r = await asked();
+      await db.customRequest.update({ where: { id: r.id }, data: { offerExpiresAt: minutes(-1) } });
+      expect((await runCustomRequestWorker()).closed).toBeGreaterThanOrEqual(1);
+      expect((await reload(r.id)).status).toBe('cancelled');
+      expect(textOf((await rows(r.id)).find(x => x.dedupeKey.startsWith(`cr:${r.id}:timeout:customer`))!)).toContain("couldn't take your custom cake request");
+      expect(await sentTo(r.id, 'timeout')).toEqual([ADMIN, ADMIN2]);
+      expect(await adminQuote(r.id, 100000)).toMatchObject({ ok: false });
+    });
+    it('a request without a deadline (from before deadlines) is never closed', async () => {
+      const r = await asked();
+      await db.customRequest.update({ where: { id: r.id }, data: { offerExpiresAt: null } });
+      await runCustomRequestWorker();
+      expect((await reload(r.id)).status).toBe('awaiting_quote');
+    });
+    it('a quote lasts six hours at most; 30 minutes before, the customer is reminded with the pay link', async () => {
+      const r = await asked();
+      await adminQuote(r.id, 100000);
+      const q = await reload(r.id);
+      expect(q.quoteExpiresAt!.getTime() - Date.now()).toBeLessThanOrEqual(6 * 3600000);
+      expect(q.quoteExpiresAt!.getTime() - Date.now()).toBeGreaterThan(5.9 * 3600000);
+      await db.customRequest.update({ where: { id: r.id }, data: { quoteExpiresAt: minutes(25) } });
+      await runCustomRequestWorker();
+      const reminder = (await rows(r.id)).find(x => x.dedupeKey.startsWith(`cr:${r.id}:remind:customer`))!;
+      expect(reminder.destination).toBe(CUSTOMER);
+      expect(textOf(reminder)).toContain(`/c/${r.token}`); expect(textOf(reminder)).toContain('1,000');
+    });
+    it('an unpaid quote expires: the customer and the admins are told', async () => {
+      const r = await asked();
+      await adminQuote(r.id, 100000);
+      await db.customRequest.update({ where: { id: r.id }, data: { quoteExpiresAt: minutes(-1) } });
+      expect((await runCustomRequestWorker()).expired).toBeGreaterThanOrEqual(1);
+      expect((await reload(r.id)).status).toBe('expired');
+      expect(textOf((await rows(r.id)).find(x => x.dedupeKey.startsWith(`cr:${r.id}:expired:customer`))!)).toContain('quote has expired');
+      expect(await sentTo(r.id, 'expired')).toEqual([ADMIN, ADMIN2]);
+    });
   });
   it('cancel tells the customer; a paid request is left alone', async () => {
     const r = await asked();

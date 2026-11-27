@@ -30,7 +30,7 @@ export default async function CustomRequestsAdmin() {
   const sheet = await requestSheetData();
   return (
     <div className="space-y-6">
-      <PageHeader title="Custom requests" blurb="Every custom cake request, newest first (latest 100). Price one here, or reply to its WhatsApp message with what the customer pays. Follow up on any with a failed message." />
+      <PageHeader title="Custom requests" blurb="Every custom cake request, newest first (latest 100). Price one here, or reply to its WhatsApp message with what the customer pays. You have an hour to price a request (from 8 am for night ones), and the customer six hours to pay; reminders go out 30 minutes before." />
       <Card>
         <details>
           <summary className="cursor-pointer font-a-sans text-a-body font-medium">New quote for a customer who phoned</summary>
@@ -68,6 +68,13 @@ export default async function CustomRequestsAdmin() {
                 </div>
                 <p className="font-a-sans text-a-body">{r.name} · {r.phone}</p>
                 {r.quotePaise != null && <p className="font-a-sans text-a-small text-a-muted">Customer pays {formatINR(r.quotePaise)}</p>}
+                {/* The deadlines the worker enforces: miss one and the request closes or the quote expires. */}
+                {r.status === "awaiting_quote" && r.offerExpiresAt && !r.vendorId && (
+                  <p className="font-a-sans text-a-small font-medium text-a-warn-ink">Reply with a price by {formatDue(r.offerExpiresAt)}, or it closes</p>
+                )}
+                {r.status === "quoted" && r.quoteExpiresAt && (
+                  <p className="font-a-sans text-a-small text-a-muted">Customer must pay by {formatDue(r.quoteExpiresAt)}</p>
+                )}
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 font-a-sans text-a-small sm:grid-cols-4">
                   {facts.map(([label, value]) => (
                     <div key={label} className="min-w-0">
