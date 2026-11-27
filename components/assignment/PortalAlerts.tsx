@@ -18,7 +18,7 @@ function ago(iso: string) {
 const trigger = 'flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-a border border-a-line px-3 text-a-small font-medium text-a-ink transition-colors hover:bg-a-sunken [&::-webkit-details-marker]:hidden';
 const popover = 'absolute right-0 max-sm:left-0 top-[calc(100%+0.375rem)] z-40 overflow-hidden rounded-a border border-a-line bg-a-surface shadow-a-pop';
 
-export function PortalAlerts({ role, userId }: { role: 'admin' | 'vendor'; userId: string }) {
+export function PortalAlerts({ role, userId, adminKitchen = false }: { role: 'admin' | 'vendor'; userId: string; adminKitchen?: boolean }) {
   const router = useRouter();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [enabled, setEnabled] = useState(false);
@@ -95,7 +95,7 @@ export function PortalAlerts({ role, userId }: { role: 'admin' | 'vendor'; userI
     if (active) setDismissed(ids => [...ids, ...alerts.filter(row => row.orderRef === active.orderRef).map(row => row.id)]);
   }
   return <section ref={bar} className="mb-5" aria-label="Order alerts">
-    {active && <AdminOrderPopup key={active.id} alert={active} count={pending.length} onClose={dismissOrder} onAssigned={name => { setAnnouncement(`${active.orderRef} sent to ${name}. Awaiting vendor acceptance.`); dismissOrder(); }} />}
+    {active && <AdminOrderPopup key={active.id} alert={active} count={pending.length} adminKitchen={adminKitchen} onClose={dismissOrder} onAssigned={name => { setAnnouncement(`${active.orderRef} sent to ${name}. Awaiting vendor acceptance.`); dismissOrder(); }} />}
     <div className="relative flex flex-wrap items-center gap-2 rounded-a border border-a-line bg-a-surface px-3 py-2">
       <span role="status" className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-a-meta font-medium ${connected ? 'border-a-good-line bg-a-good-wash text-a-good-ink' : 'border-a-warn-line bg-a-warn-wash text-a-warn-ink'}`}>
         <span className="relative flex size-2">

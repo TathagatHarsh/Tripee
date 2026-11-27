@@ -28,6 +28,7 @@ import {
 import { paymentMatches } from "@/lib/razorpay";
 import { deriveServings, servingsForSize } from "@/lib/servings";
 import { whatsappNewOrder } from "@/lib/whatsappEvents";
+import { adminKitchen } from "@/lib/assignment";
 import { queueOrderConfirmationEmail } from "@/lib/orderEmail";
 
 class PayloadMismatch extends Error {}
@@ -447,7 +448,7 @@ async function createOrder(
         },
       });
       if (input.fulfillment.method === "delivery") await tx.orderEvent.create({ data: { orderId: order.id, fromStatus: "draft", toStatus: "confirmed" } });
-      await portalEvent(tx, { key: `order:${order.id}:new`, orderRef: order.ref, title: 'New customer order', message: `${order.ref} needs vendor assignment` });
+      await portalEvent(tx, { key: `order:${order.id}:new`, orderRef: order.ref, title: 'New customer order', message: adminKitchen() ? `${order.ref} is yours to bake` : `${order.ref} needs vendor assignment` });
       await tx.notificationOutbox.create({
         data: outboxCreate({
           orderId: order.id,

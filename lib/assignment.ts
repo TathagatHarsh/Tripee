@@ -256,8 +256,20 @@ export async function cancelIfUndeliverable(ref: string) {
   await applyStatusTransition(ref, "cancelled", null, UNDELIVERABLE);
 }
 
+/**
+ * `ADMIN_KITCHEN=true`: the admin makes, takes payment for and delivers every
+ * order, with no bakery in between. Wins over ASSIGNMENT_AUTO_START, so no
+ * offer goes out and nothing is auto-cancelled for want of a bakery. Unset it
+ * to bring bakery assignment back.
+ */
+export const adminKitchen = () => process.env.ADMIN_KITCHEN === "true";
+
 /** Idempotent; the worker also discovers PENDING/ASSIGNING orders after crashes. */
 export async function startAssignment(ref: string) {
+  if (adminKitchen()) {
+    await db.order.updateMany({ where: { ref, currentAssignmentId: null, assignmentState: { in: ['PENDING', 'ASSIGNING'] } }, data: { assignmentState: 'MANUAL', assignmentNote: 'Made by MakeYourCakes' } });
+    return;
+  }
   if (process.env.ASSIGNMENT_AUTO_START === 'true') {
     const order = await db.order.findUnique({ where: { ref }, select: { id: true, status: true, currentAssignmentId: true, assignmentState: true } });
     if (!order || !['confirmed', 'in_kitchen'].includes(order.status) || order.currentAssignmentId || !['PENDING', 'ASSIGNING'].includes(order.assignmentState)) return;

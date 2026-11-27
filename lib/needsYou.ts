@@ -28,6 +28,8 @@ export type NeedsYouOrder = {
 export type NeedsYouInput = {
   orders: NeedsYouOrder[];
   liveBakeries: number;
+  /** ADMIN_KITCHEN: the admin makes every order, so an unheld order is a to-do, not a missing bakery. */
+  adminKitchen?: boolean;
   reviews: { vendorId: string; name: string; createdAt: Date }[];
   quotes: { id: string; title: string; createdAt: Date }[];
   followUps: { id: string; kind: "refund" | "recovery"; label: string; createdAt: Date }[];
@@ -82,7 +84,7 @@ const openInPanel = (ref: string): NeedsYouAction => ({
 // A rejected, expired or cancelled assignment no longer holds the order.
 const HELD: AssignmentStatus[] = ["PENDING", "OFFERED", "ACCEPTED"];
 
-function lateItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
+function lateItem(o: NeedsYouOrder, now: Date, adminKitchen = false): NeedsYouItem | null {
   if (!o.due) return null;
   if (o.status !== "confirmed" && o.status !== "in_kitchen" && o.status !== "out_for_delivery") return null;
   const urgency = dueUrgency(o.due, now);
@@ -104,6 +106,9 @@ function lateItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
   // Nobody holds it but it is already in progress (e.g. the owner is baking it): assigning makes no sense.
   if (!a && o.status !== "confirmed") {
     detail = o.status === "out_for_delivery" ? "Out for delivery" : "Baking";
+    action = openOrder(o.ref);
+  } else if (!a && adminKitchen) {
+    detail = "Not started";
     action = openOrder(o.ref);
   }
   if (a) {
@@ -146,6 +151,16 @@ function stuckItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
   return { ...base, tag: "No bakery", detail: "Nobody has this order yet", action: openInPanel(o.ref) };
 }
 
+/** Admin kitchen: a confirmed order nobody holds is the admin's to bake. */
+function toBakeItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
+  if (o.status !== "confirmed" || (o.assignment && HELD.includes(o.assignment.state))) return null;
+  return {
+    key: `tobake:${o.ref}`, category: "new", tag: "To bake", title: o.title,
+    detail: `Placed ${mins(now.getTime() - o.createdAt.getTime())} min ago`,
+    action: openOrder(o.ref), sortAt: o.due ?? o.createdAt,
+  };
+}
+
 function newItem(o: NeedsYouOrder, now: Date): NeedsYouItem | null {
   if (o.status !== "draft") return null;
   const phone = telHref(o.customerPhone);
@@ -166,8 +181,9 @@ export function classifyNeedsYou(input: NeedsYouInput, now: Date) {
 
   // Each order lands in its most urgent category only.
   for (const o of input.orders) {
-    const item =
-      lateItem(o, now) ?? (input.liveBakeries > 0 ? stuckItem(o, now) : null) ?? newItem(o, now);
+    const item = input.adminKitchen
+      ? lateItem(o, now, true) ?? toBakeItem(o, now) ?? newItem(o, now)
+      : lateItem(o, now) ?? (input.liveBakeries > 0 ? stuckItem(o, now) : null) ?? newItem(o, now);
     if (item) items.push({ ...item, href: `/admin/orders/${o.ref}` });
   }
 
